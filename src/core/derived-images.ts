@@ -31,8 +31,8 @@ export class DerivedImages {
       file.height === null
     );
   }
-  async identifyOriginal(file: FileRecord, path: string) {
-    const metadata = await identify(path, this.config.maxPixels);
+  async identifyOriginal(file: FileRecord, path: string, signal?: AbortSignal) {
+    const metadata = await identify(path, this.config.maxPixels, signal);
     if (this.metadataMissing(file)) {
       try {
         await this.db.transaction((r) =>
@@ -70,16 +70,17 @@ export class DerivedImages {
       key,
       true,
       new AbortController().signal,
-      async (getSource) => {
+      async (getSource, signal) => {
         const source = await getSource();
         if (this.metadataMissing(file)) {
           try {
-            await this.identifyOriginal(file, source);
+            await this.identifyOriginal(file, source, signal);
           } catch {
+            signal.throwIfAborted();
             /* Optional enrichment; first-frame thumbnails can still succeed. */
           }
         }
-        return thumbnail(source, this.config.maxPixels, edge);
+        return thumbnail(source, this.config.maxPixels, edge, signal);
       },
     ))!;
   }

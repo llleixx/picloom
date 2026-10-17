@@ -265,6 +265,7 @@ export const tencentModeration: Definition<"processor"> = {
       async createInstance({ config, services }) {
         return {
           async execute(input, ctx) {
+            ctx.signal.throwIfAborted();
             if (
               config.submissionMode === "url" &&
               !/^https?:\/\//.test(input.url)

@@ -251,7 +251,7 @@ export class Files {
           loaded = true;
           await Promise.all(writes);
           path = created.get(result.output.handle)!.path;
-          metadata = await identify(path, this.config.maxPixels);
+          metadata = await identify(path, this.config.maxPixels, ctx.signal);
           if (
             metadata.width! > this.config.maxDimension ||
             metadata.height! > this.config.maxDimension
@@ -514,7 +514,7 @@ export class Files {
       }
       const current = await this.limit.run(async () => {
         signal.throwIfAborted();
-        const metadata = await identify(temp, this.config.maxPixels);
+        const metadata = await identify(temp, this.config.maxPixels, signal);
         if (!plan.profile.allowed_mime_types.includes(metadata.mimeType!))
           throw new AppError("UNSUPPORTED", "Upload type not allowed", 415);
         return this.pipeline(temp, metadata, effective, chain, ctx, owned);
@@ -975,7 +975,11 @@ export class Files {
                 const path = await getSource();
                 return {
                   path,
-                  metadata: await this.derived.identifyOriginal(file, path),
+                  metadata: await this.derived.identifyOriginal(
+                    file,
+                    path,
+                    processingSignal,
+                  ),
                 };
               },
             );

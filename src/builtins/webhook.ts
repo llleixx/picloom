@@ -56,6 +56,7 @@ export const webhook: Definition<"processor"> = {
       async createInstance({ config, services }) {
         return {
           async execute(input, ctx) {
+            ctx.signal.throwIfAborted();
             if (!/^https?:\/\//.test(input.url))
               throw new PluginError(
                 "SITE_ORIGIN_REQUIRED",

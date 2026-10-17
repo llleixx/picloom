@@ -1,4 +1,5 @@
 import { Readable } from "node:stream";
+import { retainStream, withAbortSignal } from "../../plugin-sdk/files";
 import { readFile } from "node:fs/promises";
 import {
   PluginError,
@@ -276,116 +277,122 @@ function stage(
           return { status: "applicable" };
         },
         async process(input, context) {
+          context.signal.throwIfAborted();
           const { limits, createOutput } = input;
           const file = "getFile" in input ? await input.getFile() : input.file;
           context.signal.throwIfAborted();
-          const bytes = await new Response(await file.openRead()).arrayBuffer();
+          const bytes = await new Response(
+            retainStream(await file.openRead(), () => {}, context.signal),
+          ).arrayBuffer();
           const base = sharp(Buffer.from(bytes), {
             limitInputPixels: limits.maxPixels,
           });
-          const metadata = await base.metadata();
-          const swap =
-            metadata.orientation !== undefined &&
-            metadata.orientation >= 5 &&
-            metadata.orientation <= 8;
-          const width = (swap ? metadata.height : metadata.width)!;
-          const height = (swap ? metadata.width : metadata.height)!;
-          const shortSide = Math.min(width, height);
-          const relative = config.sizeMode === "relative";
-          const fontSize = Math.max(
-            1,
-            Math.round(
-              relative
-                ? (shortSide * Number(config.fontSizePercent ?? 3)) / 100
-                : Number(config.fontSize ?? 32),
-            ),
-          );
-          const margin = Math.min(
-            Math.round(
-              relative
-                ? (shortSide * Number(config.marginPercent ?? 2)) / 100
-                : Number(config.margin ?? 16),
-            ),
-            Math.floor((Math.min(width, height) - 1) / 2),
-          );
-          const availableWidth = Math.max(1, width - 2 * margin),
-            availableHeight = Math.max(1, height - 2 * margin);
-          let overlay;
-          if (asset) {
-            overlay = sharp(asset, { limitInputPixels: limits.maxPixels })
-              .autoOrient()
-              .resize({
-                width: Math.min(
-                  availableWidth,
-                  Math.max(
-                    1,
-                    Math.round(
-                      relative
-                        ? (width * Number(config.widthPercent ?? 10)) / 100
-                        : Number(config.imageWidth ?? 128),
+          return withAbortSignal(base, context.signal, async () => {
+            const metadata = await base.metadata();
+            const swap =
+              metadata.orientation !== undefined &&
+              metadata.orientation >= 5 &&
+              metadata.orientation <= 8;
+            const width = (swap ? metadata.height : metadata.width)!;
+            const height = (swap ? metadata.width : metadata.height)!;
+            const shortSide = Math.min(width, height);
+            const relative = config.sizeMode === "relative";
+            const fontSize = Math.max(
+              1,
+              Math.round(
+                relative
+                  ? (shortSide * Number(config.fontSizePercent ?? 3)) / 100
+                  : Number(config.fontSize ?? 32),
+              ),
+            );
+            const margin = Math.min(
+              Math.round(
+                relative
+                  ? (shortSide * Number(config.marginPercent ?? 2)) / 100
+                  : Number(config.margin ?? 16),
+              ),
+              Math.floor((Math.min(width, height) - 1) / 2),
+            );
+            const availableWidth = Math.max(1, width - 2 * margin),
+              availableHeight = Math.max(1, height - 2 * margin);
+            let overlay;
+            if (asset) {
+              overlay = sharp(asset, { limitInputPixels: limits.maxPixels })
+                .autoOrient()
+                .resize({
+                  width: Math.min(
+                    availableWidth,
+                    Math.max(
+                      1,
+                      Math.round(
+                        relative
+                          ? (width * Number(config.widthPercent ?? 10)) / 100
+                          : Number(config.imageWidth ?? 128),
+                      ),
                     ),
                   ),
-                ),
+                  height: availableHeight,
+                  fit: "inside",
+                });
+            } else {
+              if (String(config.text).length * fontSize ** 2 > limits.maxPixels)
+                throw new PluginError(
+                  "INVALID_PARAMS",
+                  "Watermark text exceeds the pixel limit",
+                  false,
+                  "notApplied",
+                );
+              overlay = sharp({
+                text: {
+                  text: `<span foreground="${config.color ?? "#ffffff"}">${escape(String(config.text))}</span>`,
+                  font: `${config.font ?? "sans"} ${fontSize}`,
+                  fontfile: config.fontFile
+                    ? String(config.fontFile)
+                    : undefined,
+                  rgba: true,
+                  dpi: 72,
+                },
+              }).resize({
+                width: availableWidth,
                 height: availableHeight,
                 fit: "inside",
+                withoutEnlargement: true,
               });
-          } else {
-            if (String(config.text).length * fontSize ** 2 > limits.maxPixels)
-              throw new PluginError(
-                "INVALID_PARAMS",
-                "Watermark text exceeds the pixel limit",
-                false,
-                "notApplied",
-              );
-            overlay = sharp({
-              text: {
-                text: `<span foreground="${config.color ?? "#ffffff"}">${escape(String(config.text))}</span>`,
-                font: `${config.font ?? "sans"} ${fontSize}`,
-                fontfile: config.fontFile ? String(config.fontFile) : undefined,
-                rgba: true,
-                dpi: 72,
-              },
-            }).resize({
-              width: availableWidth,
-              height: availableHeight,
-              fit: "inside",
-              withoutEnlargement: true,
-            });
-          }
-          const mark = await overlay
-            .toColourspace("srgb")
-            .ensureAlpha()
-            .raw()
-            .toBuffer({ resolveWithObject: true });
-          for (let i = 3; i < mark.data.length; i += 4)
-            mark.data[i] = Math.round(
-              (mark.data[i]! * Number(config.opacity ?? 70)) / 100,
+            }
+            overlay.toColourspace("srgb").ensureAlpha().raw();
+            const mark = await withAbortSignal(overlay, context.signal, () =>
+              overlay.toBuffer({ resolveWithObject: true }),
             );
-          const position = String(config.position ?? "bottom-right");
-          const left = position.includes("left")
-            ? margin
-            : position.includes("right")
-              ? width - margin - mark.info.width
-              : Math.floor((width - mark.info.width) / 2);
-          const top = position.includes("top")
-            ? margin
-            : position.includes("bottom")
-              ? height - margin - mark.info.height
-              : Math.floor((height - mark.info.height) / 2);
-          const image = base
-            .autoOrient()
-            .composite([{ input: mark.data, raw: mark.info, left, top }]);
-          const output = await createOutput();
-          const format = file.metadata.mimeType;
-          if (format === "image/jpeg") image.jpeg({ quality: 90 });
-          else if (format === "image/webp") image.webp({ quality: 90 });
-          else image.png();
-          context.signal.throwIfAborted();
-          await output.write(
-            Readable.toWeb(image) as unknown as ReadableStream<Uint8Array>,
-          );
-          context.signal.throwIfAborted();
-          return { status: "replace", output };
+            for (let i = 3; i < mark.data.length; i += 4)
+              mark.data[i] = Math.round(
+                (mark.data[i]! * Number(config.opacity ?? 70)) / 100,
+              );
+            const position = String(config.position ?? "bottom-right");
+            const left = position.includes("left")
+              ? margin
+              : position.includes("right")
+                ? width - margin - mark.info.width
+                : Math.floor((width - mark.info.width) / 2);
+            const top = position.includes("top")
+              ? margin
+              : position.includes("bottom")
+                ? height - margin - mark.info.height
+                : Math.floor((height - mark.info.height) / 2);
+            const image = base
+              .autoOrient()
+              .composite([{ input: mark.data, raw: mark.info, left, top }]);
+            const output = await createOutput();
+            const format = file.metadata.mimeType;
+            if (format === "image/jpeg") image.jpeg({ quality: 90 });
+            else if (format === "image/webp") image.webp({ quality: 90 });
+            else image.png();
+            context.signal.throwIfAborted();
+            await output.write(
+              Readable.toWeb(image) as unknown as ReadableStream<Uint8Array>,
+            );
+            context.signal.throwIfAborted();
+            return { status: "replace" as const, output };
+          });
         },
       };
     },

@@ -1,4 +1,5 @@
 import sharp from "sharp";
+import { withAbortSignal } from "../../plugin-sdk/files";
 import { AppError } from "../core/errors";
 import type { Metadata } from "../plugins/api";
 // Temporary inputs must not remain open in libvips' operation cache on Windows.
@@ -6,12 +7,11 @@ sharp.cache(false);
 export async function identify(
   path: string,
   maxPixels: number,
+  signal?: AbortSignal,
 ): Promise<Metadata> {
   try {
-    const m = await sharp(path, {
-      limitInputPixels: maxPixels,
-      animated: true,
-    }).metadata();
+    const image = sharp(path, { limitInputPixels: maxPixels, animated: true });
+    const m = await withAbortSignal(image, signal, () => image.metadata());
     const mime: Record<string, string> = {
       jpeg: "image/jpeg",
       png: "image/png",
@@ -37,6 +37,7 @@ export async function identify(
       alpha: m.hasAlpha,
     };
   } catch {
+    signal?.throwIfAborted();
     throw new AppError(
       "INVALID_IMAGE",
       "Image is invalid or exceeds pixel limit",
@@ -46,9 +47,14 @@ export async function identify(
 }
 
 /** Internal workspace thumbnail, independent of configured pipelines. */
-export async function thumbnail(path: string, maxPixels: number, edge: number) {
+export async function thumbnail(
+  path: string,
+  maxPixels: number,
+  edge: number,
+  signal?: AbortSignal,
+) {
   try {
-    const { data, info } = await sharp(path, {
+    const image = sharp(path, {
       limitInputPixels: maxPixels,
       page: 0,
       pages: 1,
@@ -60,8 +66,10 @@ export async function thumbnail(path: string, maxPixels: number, edge: number) {
         fit: "inside",
         withoutEnlargement: true,
       })
-      .webp({ quality: 80 })
-      .toBuffer({ resolveWithObject: true });
+      .webp({ quality: 80 });
+    const { data, info } = await withAbortSignal(image, signal, () =>
+      image.toBuffer({ resolveWithObject: true }),
+    );
     return {
       bytes: data,
       metadata: {
@@ -74,6 +82,7 @@ export async function thumbnail(path: string, maxPixels: number, edge: number) {
       },
     };
   } catch {
+    signal?.throwIfAborted();
     throw new AppError(
       "INVALID_IMAGE",
       "Cannot generate thumbnail within image limits",

@@ -38,6 +38,7 @@ export async function multipartWrite(
     void reader?.cancel(signal.reason).catch(() => {});
   };
   try {
+    signal.throwIfAborted();
     const created = await client.send(new CreateMultipartUploadCommand(input), {
       abortSignal: signal,
     });
@@ -50,6 +51,7 @@ export async function multipartWrite(
       total = 0,
       number = 0;
     const flush = async () => {
+      signal.throwIfAborted();
       const body = buffer.subarray(0, offset),
         PartNumber = ++number;
       pending.push(

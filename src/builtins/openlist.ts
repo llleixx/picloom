@@ -236,6 +236,7 @@ export const openListStorage: Definition<"storage"> = {
     }
     return {
       async write({ storageKey, file }, ctx) {
+        ctx.signal.throwIfAborted();
         const size = file.metadata.byteSize;
         if (size === null || !Number.isSafeInteger(size) || size < 0)
           throw new PluginError(
@@ -303,6 +304,7 @@ export const openListStorage: Definition<"storage"> = {
         }
       },
       async read({ storageKey, locator, mode }, ctx) {
+        ctx.signal.throwIfAborted();
         const path = pathFor(storageKey, locator);
         const signal = signalFor(ctx.signal);
         const { url } = await info(path, signal);
@@ -336,6 +338,7 @@ export const openListStorage: Definition<"storage"> = {
         }
       },
       async delete({ storageKey, locator }, ctx) {
+        ctx.signal.throwIfAborted();
         const path = pathFor(storageKey, locator);
         const slash = path.lastIndexOf("/");
         await request(

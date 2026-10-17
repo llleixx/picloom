@@ -1,5 +1,5 @@
 import { multipartWrite } from "./s3-multipart";
-import { isPluginError } from "../../plugin-sdk";
+import { isPluginError, retainStream } from "../../plugin-sdk";
 import { scanScope, decodeCursor, encodeCursor } from "./enumeration";
 import {
   S3Client,
@@ -219,6 +219,7 @@ export const s3Storage: Definition<"storage"> = {
     };
     return {
       async listFiles({ scope: inputScope, cursor, limit }, ctx) {
+        ctx.signal.throwIfAborted();
         scanScope(inputScope);
         const scope = inputScope ?? "";
         const token = decodeCursor<string>(cursor, scope);
@@ -249,6 +250,7 @@ export const s3Storage: Definition<"storage"> = {
         };
       },
       async write({ operationId, fileId, storageKey: logical, file }, ctx) {
+        ctx.signal.throwIfAborted();
         const size = file.metadata.byteSize;
         if (size === null || !Number.isSafeInteger(size) || size < 0)
           throw new PluginError(
@@ -327,6 +329,7 @@ export const s3Storage: Definition<"storage"> = {
         }
       },
       async read({ storageKey: logical, locator, mode }, ctx) {
+        ctx.signal.throwIfAborted();
         const command = new GetObjectCommand({
           Bucket: bucket,
           Key: key(logical, locator),
@@ -346,7 +349,11 @@ export const s3Storage: Definition<"storage"> = {
           if (!result.Body) throw new Error();
           return {
             type: "stream" as const,
-            stream: result.Body.transformToWebStream(),
+            stream: retainStream(
+              result.Body.transformToWebStream(),
+              () => {},
+              ctx.signal,
+            ),
             mimeType: result.ContentType,
             byteSize: result.ContentLength,
           };
@@ -355,6 +362,7 @@ export const s3Storage: Definition<"storage"> = {
         }
       },
       async delete({ storageKey: logical, locator }, ctx) {
+        ctx.signal.throwIfAborted();
         try {
           await client.send(
             new DeleteObjectCommand({

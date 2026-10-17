@@ -1,4 +1,5 @@
 import { Readable } from "node:stream";
+import { retainStream, withAbortSignal } from "../../plugin-sdk/files";
 import {
   PluginError,
   type Definition,
@@ -90,34 +91,41 @@ function runtime(
       return { status: "applicable" };
     },
     async process(input, ctx) {
+      ctx.signal.throwIfAborted();
       const { limits, createOutput } = input;
       const file = "getFile" in input ? await input.getFile() : input.file;
       const { params } = input;
       ctx.signal.throwIfAborted();
       const p = parameters(params);
-      const bytes = await new Response(await file.openRead()).arrayBuffer();
+      const bytes = await new Response(
+        retainStream(await file.openRead(), () => {}, ctx.signal),
+      ).arrayBuffer();
       let image = sharp(Buffer.from(bytes), {
         limitInputPixels: limits.maxPixels,
       }).autoOrient();
-      if (p.w || p.h)
-        image = image.resize({
-          width: p.w as number | undefined,
-          height: p.h as number | undefined,
-          fit: (p.fit ?? "inside") as "inside" | "cover" | "contain" | "fill",
-          withoutEnlargement: !config.allowEnlargement,
-        });
-      const format = p.format ?? file.metadata.mimeType!.slice(6);
-      if (format === "png")
-        image = image.png(p.q ? { quality: p.q as number, palette: true } : {});
-      else if (format === "jpeg")
-        image = image.jpeg({ quality: (p.q ?? 80) as number });
-      else image = image.webp({ quality: (p.q ?? 80) as number });
-      const out = await createOutput();
-      await out.write(
-        Readable.toWeb(image) as unknown as ReadableStream<Uint8Array>,
-      );
-      ctx.signal.throwIfAborted();
-      return { status: "replace", output: out };
+      return withAbortSignal(image, ctx.signal, async () => {
+        if (p.w || p.h)
+          image = image.resize({
+            width: p.w as number | undefined,
+            height: p.h as number | undefined,
+            fit: (p.fit ?? "inside") as "inside" | "cover" | "contain" | "fill",
+            withoutEnlargement: !config.allowEnlargement,
+          });
+        const format = p.format ?? file.metadata.mimeType!.slice(6);
+        if (format === "png")
+          image = image.png(
+            p.q ? { quality: p.q as number, palette: true } : {},
+          );
+        else if (format === "jpeg")
+          image = image.jpeg({ quality: (p.q ?? 80) as number });
+        else image = image.webp({ quality: (p.q ?? 80) as number });
+        const out = await createOutput();
+        await out.write(
+          Readable.toWeb(image) as unknown as ReadableStream<Uint8Array>,
+        );
+        ctx.signal.throwIfAborted();
+        return { status: "replace" as const, output: out };
+      });
     },
   };
 }

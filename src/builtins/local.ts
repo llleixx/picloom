@@ -1,3 +1,4 @@
+import { retainStream } from "../../plugin-sdk/files";
 import { scanScope, decodeCursor, encodeCursor } from "./enumeration";
 import { mkdir, open, readFile, link, readdir, lstat } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
@@ -133,6 +134,7 @@ export const localStorage: Definition<"storage"> = {
         };
       },
       async write({ operationId, storageKey, file }, ctx) {
+        ctx.signal.throwIfAborted();
         const target = await safePath(root, objectKey(storageKey), true);
         const record = await recordPath(storageKey);
         const temporary = join(
@@ -254,17 +256,19 @@ export const localStorage: Definition<"storage"> = {
         await remove(record);
         return { status: "notStored" };
       },
-      async read({ storageKey, locator }) {
+      async read({ storageKey, locator }, ctx) {
+        ctx.signal.throwIfAborted();
         const path = await safePath(root, key(storageKey, locator));
         if (!(await Bun.file(path).exists()))
           throw new PluginError("NOT_FOUND", "Stored object not found");
         return {
           type: "stream",
-          stream: Bun.file(path).stream(),
+          stream: retainStream(Bun.file(path).stream(), () => {}, ctx.signal),
           byteSize: Bun.file(path).size,
         };
       },
-      async delete({ storageKey, locator }) {
+      async delete({ storageKey, locator }, ctx) {
+        ctx.signal.throwIfAborted();
         const path = await safePath(root, key(storageKey, locator));
         await remove(path);
         await remove(await recordPath(storageKey));

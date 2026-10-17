@@ -226,6 +226,7 @@ export const webdavStorage: Definition<"storage"> = {
     };
     return {
       async write({ storageKey: logical, file }, ctx) {
+        ctx.signal.throwIfAborted();
         const signal = signalFor(ctx.signal);
         signal.throwIfAborted();
         const size = file.metadata.byteSize;
@@ -312,6 +313,7 @@ export const webdavStorage: Definition<"storage"> = {
         }
       },
       async read({ storageKey: logical, locator }, ctx) {
+        ctx.signal.throwIfAborted();
         const signal = signalFor(ctx.signal);
         const response = await request(
           objectUrl(key(logical, locator)),
@@ -346,6 +348,7 @@ export const webdavStorage: Definition<"storage"> = {
         };
       },
       async delete({ storageKey: logical, locator }, ctx) {
+        ctx.signal.throwIfAborted();
         const signal = signalFor(ctx.signal);
         const response = await request(
           objectUrl(key(logical, locator)),

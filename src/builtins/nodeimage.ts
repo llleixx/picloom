@@ -126,6 +126,7 @@ export const nodeImageStorage: Definition<"storage"> = {
     }
     return {
       async write({ fileId, storageKey, file }, ctx) {
+        ctx.signal.throwIfAborted();
         const signal = signalFor(ctx.signal);
         // NodeImage accepts multipart, not a user-selected object key.
         const stream = await file.openRead();
@@ -203,6 +204,7 @@ export const nodeImageStorage: Definition<"storage"> = {
         }
       },
       async read({ storageKey, locator, mode }, ctx) {
+        ctx.signal.throwIfAborted();
         const signal = signalFor(ctx.signal);
         const id = locatorId(storageKey, locator);
         const url =
@@ -234,6 +236,7 @@ export const nodeImageStorage: Definition<"storage"> = {
         };
       },
       async delete({ storageKey, locator }, ctx) {
+        ctx.signal.throwIfAborted();
         const signal = signalFor(ctx.signal);
         const id = locatorId(storageKey, locator);
         const response = await request(
@@ -270,6 +273,7 @@ export const nodeImageStorage: Definition<"storage"> = {
         await response.body?.cancel();
       },
       async recoverWrite({ storageKey, locator, expectedSize }, ctx) {
+        ctx.signal.throwIfAborted();
         if (locator === null) return { status: "unknown" };
         try {
           const found = await info(

@@ -160,3 +160,28 @@ export function retainStream(
     },
   });
 }
+
+/** Cancel a stream-backed operation, then wait for its actual completion. */
+export async function withAbortSignal<T extends { destroy(): unknown }, R>(
+  resource: T,
+  signal: AbortSignal | undefined,
+  operation: () => Promise<R>,
+): Promise<R> {
+  const abort = () => {
+    resource.destroy();
+  };
+  signal?.addEventListener("abort", abort, { once: true });
+  try {
+    if (signal?.aborted) abort();
+    signal?.throwIfAborted();
+    const result = await operation();
+    signal?.throwIfAborted();
+    return result;
+  } catch (error) {
+    resource.destroy();
+    signal?.throwIfAborted();
+    throw error;
+  } finally {
+    signal?.removeEventListener("abort", abort);
+  }
+}

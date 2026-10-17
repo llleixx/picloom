@@ -190,6 +190,7 @@ export const telegramStorage: Definition<"storage"> = {
     }
     return {
       async write({ fileId, storageKey, file }, ctx) {
+        ctx.signal.throwIfAborted();
         const size = file.metadata.byteSize;
         if (
           size === null ||
@@ -270,6 +271,7 @@ export const telegramStorage: Definition<"storage"> = {
         };
       },
       async read({ locator }, ctx) {
+        ctx.signal.throwIfAborted();
         const value = stored(locator);
         const signal = signalFor(ctx.signal);
         const secret = await token();
@@ -335,6 +337,7 @@ export const telegramStorage: Definition<"storage"> = {
         }
       },
       async delete({ locator }, ctx) {
+        ctx.signal.throwIfAborted();
         const value = stored(locator);
         let result: unknown;
         try {
