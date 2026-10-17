@@ -41,7 +41,16 @@ function headers(
     "x-tc-timestamp": String(timestamp),
   };
 }
-async function content(file: FileInput, signal: AbortSignal) {
+async function content(file: FileInput, signal: AbortSignal, limit: number) {
+  const tooLarge = () =>
+    new PluginError(
+      "TENCENT_CONTENT_SIZE",
+      "Image exceeds the configured content submission limit",
+      false,
+      "notApplied",
+    );
+  if (file.metadata.byteSize !== null && file.metadata.byteSize > limit)
+    throw tooLarge();
   const stream = await file.openRead();
   const reader = stream.getReader();
   const chunks: Uint8Array[] = [];
@@ -57,6 +66,7 @@ async function content(file: FileInput, signal: AbortSignal) {
       signal.throwIfAborted();
       if (done) break;
       size += value.byteLength;
+      if (size > limit) throw tooLarge();
       chunks.push(value);
     }
     return Buffer.concat(chunks, size).toString("base64");
@@ -150,6 +160,15 @@ export const tencentModeration: Definition<"processor"> = {
             description:
               "URL mode uses the public image URL. It must be accessible to Tencent Cloud; hotlink protection or redirects may prevent access.",
           },
+          maxContentMiB: {
+            type: "integer",
+            title: "Content size limit (MiB)",
+            minimum: 1,
+            maximum: 20,
+            default: 5,
+            description:
+              "File content mode only. Oversized files fail without retry; this does not change the provider's limits.",
+          },
           blockAction: {
             type: "string",
             title: "On violation",
@@ -224,6 +243,11 @@ export const tencentModeration: Definition<"processor"> = {
               description:
                 "URL 模式使用图片公开链接。腾讯云须能访问；防盗链或重定向可能导致下载失败。",
             },
+            "/properties/maxContentMiB": {
+              title: "内容大小上限（MiB）",
+              description:
+                "仅限文件内容模式；超限失败且不重试，不改变服务商自身限制。",
+            },
             "/properties/blockAction": {
               title: "违规处置",
               enumLabels: ["阻止访问", "删除"],
@@ -262,7 +286,13 @@ export const tencentModeration: Definition<"processor"> = {
                 DataId: input.fileId,
                 ...(config.submissionMode === "url"
                   ? { FileUrl: input.url }
-                  : { FileContent: await content(input.file, signal) }),
+                  : {
+                      FileContent: await content(
+                        input.file,
+                        signal,
+                        Number(config.maxContentMiB ?? 5) * 1024 ** 2,
+                      ),
+                    }),
                 Type: "IMAGE",
                 Interval: config.interval,
                 MaxFrames: config.maxFrames,

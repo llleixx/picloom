@@ -73,6 +73,8 @@ export const en = {
     "Plugin results must be JSON objects totaling at most 64 KiB.",
   "errors.tencent_auth":
     "Check Tencent Cloud credentials, permissions and service quota.",
+  "errors.tencent_content_size":
+    "Image exceeds the moderation plugin’s content size limit.",
   "errors.tencent_input":
     "Image or request rejected. Check Tencent Cloud image requirements.",
   "errors.tencent_network": "Tencent Cloud request failed or timed out.",

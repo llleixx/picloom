@@ -53,6 +53,7 @@ export const zhCN = {
   "errors.processing_result_invalid":
     "插件结果必须为 JSON 对象，总大小不超过 64 KiB。",
   "errors.tencent_auth": "请检查腾讯云凭据、权限和服务配额。",
+  "errors.tencent_content_size": "图片超过审核插件的内容大小上限。",
   "errors.tencent_input": "图片或请求被拒绝，请检查腾讯云的图片要求。",
   "errors.tencent_network": "腾讯云请求失败或超时。",
   "errors.tencent_image_download":

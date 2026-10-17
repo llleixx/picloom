@@ -92,7 +92,7 @@ test("Tencent Cloud signs file submissions, maps decisions, stores safe summarie
       version: "1.0.0",
       stage: "post_save",
       name: "Tencent",
-      config: { bizType: "test", blockAction: "delete" },
+      config: { bizType: "test", blockAction: "delete", maxContentMiB: 8 },
       secretEdits: {
         "/secretId": { action: "replace", value: "test-id" },
         "/secretKey": { action: "replace", value: "test-secret" },
@@ -260,6 +260,82 @@ test("Tencent URL mode submits only the public URL without reading or resolving 
       );
       expect(result.status).toBe("pass");
       expect(calls).toBe(1);
+    } finally {
+      await lease.release();
+    }
+  } finally {
+    fetcher.mockRestore();
+    await f.close();
+  }
+});
+
+test("content size limits reject declared and streamed oversize without contacting Tencent", async () => {
+  const f = await fixture();
+  const fetcher = spyOn(globalThis, "fetch").mockImplementation((async () => {
+    throw new Error("Must not contact provider");
+  }) as unknown as typeof fetch);
+  try {
+    const record = await f.app.plugins.save({
+      pluginId: "builtin.tencent-moderation",
+      version: "1.0.0",
+      stage: "post_save",
+      name: "Bounded",
+      config: { bizType: "test", maxContentMiB: 1 },
+      secretEdits: {
+        "/secretId": { action: "replace", value: "test-id" },
+        "/secretKey": { action: "replace", value: "test-secret" },
+      },
+    });
+    const lease = f.app.plugins.acquire(record.id, "post_save");
+    let opens = 0,
+      cancelled = false;
+    const input = {
+      operationId: "test",
+      fileId: "file",
+      url: "https://example.com/image",
+      publicPath: "/image",
+      file: {
+        metadata: {
+          mimeType: "image/png",
+          byteSize: (1024 * 1024 + 1) as number | null,
+          width: 1,
+          height: 1,
+        },
+        async openRead() {
+          opens++;
+          return new ReadableStream<Uint8Array>(
+            {
+              pull(controller) {
+                controller.enqueue(new Uint8Array(600 * 1024));
+              },
+              cancel() {
+                cancelled = true;
+              },
+            },
+            { highWaterMark: 0 },
+          );
+        },
+      },
+    };
+    const ctx = {
+      signal: new AbortController().signal,
+      requestId: "test",
+      log() {},
+      data: pipelineData(),
+    };
+    try {
+      await expect(lease.runtime.execute(input, ctx)).rejects.toMatchObject({
+        code: "TENCENT_CONTENT_SIZE",
+        retryable: false,
+      });
+      expect(opens).toBe(0);
+      input.file.metadata.byteSize = null;
+      await expect(lease.runtime.execute(input, ctx)).rejects.toMatchObject({
+        code: "TENCENT_CONTENT_SIZE",
+        retryable: false,
+      });
+      expect(cancelled).toBe(true);
+      expect(fetcher).not.toHaveBeenCalled();
     } finally {
       await lease.release();
     }

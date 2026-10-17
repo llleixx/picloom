@@ -511,6 +511,7 @@ export class TaskExecutor {
                   "PROCESSING_RESULT_INVALID",
                   "TENCENT_AUTH",
                   "TENCENT_INPUT",
+                  "TENCENT_CONTENT_SIZE",
                   "TENCENT_IMAGE_DOWNLOAD",
                   "TENCENT_NETWORK",
                   "TENCENT_SERVICE",

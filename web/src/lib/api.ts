@@ -99,6 +99,7 @@ const messages: Record<string, MessageKey> = {
   OPENLIST_AUTH: "errors.openlist_auth",
   NODEIMAGE_AUTH: "errors.nodeimage_auth",
   NODEIMAGE_DELETE_UNAVAILABLE: "errors.nodeimage_delete_unavailable",
+  TENCENT_CONTENT_SIZE: "errors.tencent_content_size",
   TENCENT_INPUT: "errors.tencent_input",
   TENCENT_IMAGE_DOWNLOAD: "errors.tencent_image_download",
   TENCENT_NETWORK: "errors.tencent_network",
