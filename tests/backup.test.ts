@@ -390,3 +390,40 @@ test("maintenance drains streams and failed restore preserves existing data", as
     await rm(parent, { recursive: true, force: true });
   }
 }, 15000);
+
+test("backup Origin checks fall back to request origin only when site origin is unset", async () => {
+  const parent = await mkdtemp(join(tmpdir(), "picloom-backup-origin-"));
+  const f = await setup(parent);
+  try {
+    for (const origin of ["", "https://configured.example"]) {
+      f.runtime.app.config.origin = origin;
+      const allowed = origin || "http://localhost";
+      expect(
+        (
+          await f.request("/api/system/backups", "GET", undefined, {
+            origin: allowed,
+          })
+        ).status,
+      ).toBe(200);
+      expect(
+        (
+          await f.request("/api/system/backups", "GET", undefined, {
+            origin: "https://other.example",
+          })
+        ).status,
+      ).toBe(403);
+      if (origin) {
+        expect(
+          (
+            await f.request("/api/system/backups", "GET", undefined, {
+              origin: "http://localhost",
+            })
+          ).status,
+        ).toBe(403);
+      }
+    }
+  } finally {
+    await f.runtime.close();
+    await rm(parent, { recursive: true, force: true });
+  }
+});

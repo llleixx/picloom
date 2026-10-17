@@ -132,7 +132,8 @@ export async function startRuntime(
   async function backupRequest(req: Request, path: string) {
     if (
       req.headers.has("origin") &&
-      req.headers.get("origin") !== app.config.origin
+      req.headers.get("origin") !==
+        (app.config.origin || new URL(req.url).origin)
     )
       throw new AppError("ORIGIN", "Origin not allowed", 403);
     const identity = await app.auth.authenticate(req, true);
