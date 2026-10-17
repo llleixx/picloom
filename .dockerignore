@@ -1,0 +1,20 @@
+# Only application/build inputs enter the context. No credentials, local data or Git history.
+**
+!Dockerfile
+!package.json
+!bun.lock
+!src/
+!src/**
+!shared/
+!shared/**
+!plugin-sdk/
+!plugin-sdk/**
+!web/
+!web/**
+web/node_modules/
+web/dist/
+!docker/
+!docker/healthcheck.ts
+
+**/.env
+**/.env.*

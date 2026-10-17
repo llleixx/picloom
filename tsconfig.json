@@ -21,6 +21,7 @@
     "e2e/**/*.ts",
     "playwright.config.ts",
     "web/vite.config.ts",
-    "examples/**/*.ts"
+    "examples/**/*.ts",
+    "docker/**/*.ts"
   ]
 }

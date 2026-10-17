@@ -1,0 +1,19 @@
+name: picloom-sqlite
+services:
+  picloom:
+    image: llleixx/picloom:latest
+    init: true
+    restart: unless-stopped
+    stop_grace_period: 60s
+    ports:
+      - "${PUBLISH_ADDRESS:-127.0.0.1}:${HTTP_PORT:-3000}:3000"
+    environment:
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:?Set ENCRYPTION_KEY in docker/.env}
+      INITIAL_OWNER_PASSWORD: ${INITIAL_OWNER_PASSWORD:-}
+      PUBLIC_ORIGIN: ${PUBLIC_ORIGIN:-http://localhost:3000}
+      TRUSTED_PROXIES: ${TRUSTED_PROXIES:-}
+      DATABASE_URL: ""
+    volumes:
+      - picloom-state:/var/lib/picloom
+volumes:
+  picloom-state:

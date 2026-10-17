@@ -130,6 +130,23 @@ export async function prefetchStream(
   );
 }
 
+// Linux containers can reuse the same PID after a restart. Distinguish the
+// process incarnation so an interrupted upload does not leave a permanent lock.
+async function processIdentity(pid: number): Promise<string | undefined> {
+  if (process.platform !== "linux") return undefined;
+  try {
+    const stat = await readFile(`/proc/${pid}/stat`, "utf8");
+    const start = stat.slice(stat.lastIndexOf(")") + 2).split(" ")[19];
+    const boot = (
+      await readFile("/proc/sys/kernel/random/boot_id", "utf8")
+    ).trim();
+    return `${boot}:${start}`;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined;
+    throw error;
+  }
+}
+
 export async function workLock(root: string) {
   await mkdir(root, { recursive: true });
   const path = join(root, "service.lock");
@@ -138,7 +155,13 @@ export async function workLock(root: string) {
     try {
       const f = await open(path, "wx");
       try {
-        await f.writeFile(JSON.stringify({ pid: process.pid, token }));
+        await f.writeFile(
+          JSON.stringify({
+            pid: process.pid,
+            token,
+            processIdentity: await processIdentity(process.pid),
+          }),
+        );
       } finally {
         await f.close();
       }
@@ -152,13 +175,20 @@ export async function workLock(root: string) {
       };
     } catch (e) {
       if ((e as NodeJS.ErrnoException).code !== "EEXIST") throw e;
-      let saved: { pid: number };
+      let saved: { pid: number; processIdentity?: string };
       try {
         saved = JSON.parse(await readFile(path, "utf8"));
       } catch {
         throw new Error(
           "Unreadable service.lock; verify no service is running before removing it",
         );
+      }
+      if (
+        saved.processIdentity &&
+        saved.processIdentity !== (await processIdentity(saved.pid))
+      ) {
+        await remove(path);
+        continue;
       }
       try {
         process.kill(saved.pid, 0);
