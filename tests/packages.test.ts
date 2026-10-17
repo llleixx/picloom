@@ -1,3 +1,4 @@
+import { hash } from "../src/core/auth";
 import { test, expect } from "bun:test";
 import { fixture } from "./helpers";
 import { demoPackage, zip, demoCode } from "./package-fixtures";
@@ -194,4 +195,100 @@ test("ZIP extraction rejects traversal, symlinks, duplicates, corrupt data and e
     ),
   ).toThrow();
   expect(archiveFiles(demoPackage()).has("plugin.json")).toBe(true);
+});
+
+test("only Owner manages packages; admins retain installed-plugin configuration access", async () => {
+  const f = await fixture();
+  try {
+    for (const role of ["admin", "member"] as const) {
+      expect(
+        (
+          await f.request("/api/users", "POST", {
+            username: role + "-packages",
+            password: "package-password-123",
+            role,
+          })
+        ).status,
+      ).toBe(201);
+    }
+    const marker = f.root + "/owner-package-executed";
+    const prepared = await inspect(
+      f,
+      demoPackage(
+        "await Bun.write(" +
+          JSON.stringify(marker) +
+          ", " +
+          JSON.stringify("executed") +
+          ");" +
+          demoCode,
+      ),
+    );
+    const url = "/api/plugins/example.date/versions/1.0.0";
+    const clients = [];
+    for (const role of ["admin", "member"] as const) {
+      const identity = await f.app.auth.login(
+        role + "-packages",
+        "package-password-123",
+        role,
+      );
+      const request = (path: string, method = "GET", data?: unknown) =>
+        handler(f.app)(
+          new Request("http://localhost" + path, {
+            method,
+            headers: {
+              cookie: f.app.auth.cookie(identity.secret),
+              "x-csrf-token": f.app.auth.csrf(hash(identity.secret)),
+            },
+            body: data === undefined ? undefined : JSON.stringify(data),
+          }),
+        );
+      clients.push({ role, request });
+      for (const [path, method, data] of [
+        ["/api/plugin-packages", "GET"],
+        ["/api/plugins/inspect", "POST"],
+        [
+          "/api/plugins/install",
+          "POST",
+          { ticket: prepared.ticket, confirmTrusted: true },
+        ],
+        ["/api/plugins/staged/" + prepared.ticket, "DELETE"],
+        [url + "/reload", "POST"],
+        [url, "DELETE"],
+      ] as const) {
+        const response = await request(path, method, data);
+        expect(response.status).toBe(403);
+        expect((await response.json()).error.code).toBe("FORBIDDEN");
+      }
+    }
+    expect(await Bun.file(marker).exists()).toBe(false);
+    expect(
+      (
+        await f.request("/api/plugins/install", "POST", {
+          ticket: prepared.ticket,
+          confirmTrusted: true,
+        })
+      ).status,
+    ).toBe(201);
+    expect(await Bun.file(marker).text()).toBe("executed");
+    for (const { role, request } of clients) {
+      expect((await request(url + "/reload", "POST")).status).toBe(403);
+      expect((await request(url, "DELETE")).status).toBe(403);
+      expect((await request("/api/plugins")).status).toBe(
+        role === "admin" ? 200 : 403,
+      );
+      expect((await request(url)).status).toBe(role === "admin" ? 200 : 403);
+      if (role === "admin") {
+        const source = await request("/api/storage-sources", "POST", {
+          pluginId: "builtin.local",
+          version: "1.0.0",
+          name: "Admin source",
+          config: { root: f.root + "/admin-storage" },
+        });
+        expect(source.status).toBe(201);
+      }
+    }
+    expect((await f.request(url, "DELETE")).status).toBe(200);
+  } finally {
+    await f.close();
+  }
 });

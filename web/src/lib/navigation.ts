@@ -1,4 +1,4 @@
-import { adminPages } from "../../../shared/web-routes";
+import { adminPages, ownerPages } from "../../../shared/web-routes";
 import {
   CloudUpload,
   Image,
@@ -23,7 +23,14 @@ const page = (
   title: MessageKey,
   icon: typeof Image,
   group?: Group,
-) => ({ path, title, icon, group, adminOnly: adminPages.includes(path) });
+) => ({
+  path,
+  title,
+  icon,
+  group,
+  adminOnly: adminPages.includes(path),
+  ownerOnly: ownerPages.includes(path),
+});
 export const navigation = [
   page("/", "home.upload", CloudUpload),
   page("/app/images", "ui.images", Image, "library"),

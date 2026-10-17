@@ -457,7 +457,7 @@ export const zhCN = {
   "ui.pluginUninstalled": "插件已卸载",
   "ui.plugins": "插件",
   "ui.installPluginsForStoragePathsProcessingAnd":
-    "安装存储、路径、图片处理和保存后操作插件。",
+    "仅 Owner 可安装、重新加载或卸载插件包。",
   "ui.uploadPackage": "上传插件包",
   "ui.zipOnlyUpTo20Mb512":
     "仅支持 ZIP，最大 20 MB、512 个条目，解压后不超过 50 MB。请包含全部依赖。",

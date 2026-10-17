@@ -1,4 +1,5 @@
 /** Public UI routes; API authorization remains on the server. */
+export const ownerPages = ["/app/plugins"];
 export const adminPages = [
   "/app/users",
   "/app/plugins",

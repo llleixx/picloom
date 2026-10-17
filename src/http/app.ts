@@ -257,6 +257,15 @@ export function handler(app: Application) {
           path === "/api/files/batch-delete" ||
           /^\/api\/files\/[^/]+(?:\/thumbnail)?$/.test(path);
         if (!workspaceRoute) app.auth.requireAdmin(auth);
+        // Installing or reloading a package executes code with server privileges.
+        // Keep package management separate from using already installed plugins.
+        if (
+          (path === "/api/plugin-packages" ||
+            (path.startsWith("/api/plugins/") &&
+              !["GET", "HEAD"].includes(method))) &&
+          auth.user.role !== "owner"
+        )
+          throw new AppError("FORBIDDEN", "Owner required", 403);
         if (path === "/api/users" && method === "GET") {
           const limit = Number(url.searchParams.get("limit") ?? 30),
             offset = Number(url.searchParams.get("offset") ?? 0);

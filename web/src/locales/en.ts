@@ -505,7 +505,7 @@ export const en = {
   "ui.pluginUninstalled": "Plugin uninstalled",
   "ui.plugins": "Plugins",
   "ui.installPluginsForStoragePathsProcessingAnd":
-    "Install plugins for storage, paths, processing, and actions.",
+    "Only the Owner can install, reload, or uninstall plugin packages.",
   "ui.uploadPackage": "Upload package",
   "ui.zipOnlyUpTo20Mb512":
     "ZIP only. Up to 20 MB, 512 entries, and 50 MB unpacked. Bundle all dependencies.",

@@ -95,3 +95,53 @@ test("install a ZIP, create an instance, block referenced uninstall, remove inst
   ).toHaveCount(0);
   expect(errors).toEqual([]);
 });
+
+test("admin cannot navigate to package management but can configure installed plugins", async ({
+  page,
+  service,
+  browser,
+}) => {
+  await login(page, service.url);
+  const session = await (
+    await page.request.get(service.url + "/api/auth/session")
+  ).json();
+  const created = await page.request.post(service.url + "/api/users", {
+    headers: { "x-csrf-token": session.csrfToken },
+    data: {
+      username: "package-admin",
+      password: "package-password-123",
+      role: "admin",
+    },
+  });
+  expect(created.status()).toBe(201);
+  const context = await browser.newContext();
+  try {
+    const admin = await context.newPage();
+    await admin.goto(service.url + "/app/plugins");
+    await admin.getByLabel("Username", { exact: true }).fill("package-admin");
+    await admin
+      .getByLabel("Password", { exact: true })
+      .fill("package-password-123");
+    await admin.getByRole("button", { name: "Sign in" }).click();
+    await expect(admin).toHaveURL(service.url + "/app/images");
+    await expect(
+      admin.getByRole("link", { name: "Plugins", exact: true }),
+    ).toHaveCount(0);
+    await admin.goto(service.url + "/app/plugins/");
+    await expect(admin).toHaveURL(service.url + "/app/images");
+    await admin
+      .getByRole("link", { name: "Storage Sources", exact: true })
+      .click();
+    await expect(
+      admin.getByRole("heading", { name: "Storage Sources", exact: true }),
+    ).toBeVisible();
+    expect(
+      (await admin.request.get(service.url + "/api/plugins")).status(),
+    ).toBe(200);
+    expect(
+      (await admin.request.get(service.url + "/api/plugin-packages")).status(),
+    ).toBe(403);
+  } finally {
+    await context.close();
+  }
+});

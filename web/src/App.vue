@@ -60,7 +60,10 @@ const groups = computed(() =>
     .map((group) => ({
       ...group,
       links: navigation.filter(
-        (page) => page.group === group.id && (!page.adminOnly || isAdmin.value),
+        (page) =>
+          page.group === group.id &&
+          (!page.adminOnly || isAdmin.value) &&
+          (!page.ownerOnly || session.value?.user.role === "owner"),
       ),
     }))
     .filter((group) => group.links.length),

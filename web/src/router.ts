@@ -72,6 +72,8 @@ router.beforeEach(async (to) => {
       };
     }
   }
+  if (to.meta.ownerOnly && session.value?.user.role !== "owner")
+    return "/app/images";
   if (to.meta.adminOnly && !isSiteAdmin(session.value?.user.role))
     return "/app/images";
 });
