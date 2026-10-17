@@ -10,7 +10,10 @@ export function checkHotlink(request: Request, config: Settings) {
       const url = new URL(referer);
       if (["http:", "https:"].includes(url.protocol)) {
         // The site itself must be able to display uploads and process previews.
-        if (url.origin === config.origin || url.origin === config.imageOrigin)
+        if (
+          url.origin === (config.origin || new URL(request.url).origin) ||
+          url.origin === config.imageOrigin
+        )
           return;
         const host = url.hostname.toLowerCase();
         if (

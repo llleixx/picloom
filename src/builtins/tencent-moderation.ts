@@ -241,6 +241,14 @@ export const tencentModeration: Definition<"processor"> = {
       async createInstance({ config, services }) {
         return {
           async execute(input, ctx) {
+            if (
+              config.submissionMode === "url" &&
+              !/^https?:\/\//.test(input.url)
+            )
+              throw new PluginError(
+                "SITE_ORIGIN_REQUIRED",
+                "Configure a site or image origin for background URL delivery.",
+              );
             const secrets = (await services.readSecrets()).value;
             const signal = AbortSignal.any([
               ctx.signal,

@@ -102,7 +102,7 @@ function validate(input: unknown): DeliverySettings {
     siteLogoUrl: imageUrl("siteLogoUrl"),
     siteFaviconUrl: imageUrl("siteFaviconUrl"),
   };
-  const publicOrigin = origin("publicOrigin");
+  const publicOrigin = origin("publicOrigin", true) ?? "";
   const imageOrigin = origin("imageOrigin", true);
   for (const key of ["hotlinkEnabled", "hotlinkAllowEmpty"])
     if (typeof v[key] !== "boolean") fail("/" + key, "Expected a boolean.");
@@ -223,7 +223,7 @@ export class DeliveryConfiguration {
     const { publicOrigin, ...delivery } = value;
     Object.assign(this.config, delivery, {
       origin: publicOrigin,
-      secureCookie: new URL(publicOrigin).protocol === "https:",
+      secureCookie: publicOrigin.startsWith("https://"),
       imageOrigin: value.imageOrigin ?? publicOrigin,
     });
     this.applyRuntime(value);

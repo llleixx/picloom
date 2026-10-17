@@ -1,3 +1,4 @@
+import { settings } from "../src/config";
 import { runtimeDefaults } from "../shared/runtime-settings";
 import { test, expect } from "bun:test";
 import { fixture } from "./helpers";
@@ -48,7 +49,6 @@ test("delivery settings require admin/CSRF, validate, apply live and survive res
     for (const changes of [
       { cacheBytes: 0 },
       { cacheTtlMs: -1 },
-      { publicOrigin: "" },
       { publicOrigin: "https://user:pass@example.com" },
       { publicOrigin: "https://example.com/path" },
       { imageOrigin: "https://example.com/path" },
@@ -238,4 +238,69 @@ test("site branding persists with settings and is public, normalized and validat
   } finally {
     await f.close();
   }
+});
+
+test("blank site origin uses each request without persisting it", async () => {
+  const f = await fixture();
+  try {
+    const saved = await f.request("/api/settings", "PUT", {
+      ...f.app.delivery.get(),
+      publicOrigin: "",
+      imageOrigin: null,
+    });
+    expect(saved.status).toBe(200);
+    expect(f.app.config.origin).toBe("");
+    const handle = handler(f.app);
+    const login = await handle(
+      new Request("https://photos.example/api/auth/login", {
+        method: "POST",
+        headers: {
+          origin: "https://photos.example",
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          username: "admin",
+          password: "test-password-123",
+        }),
+      }),
+    );
+    expect(login.status).toBe(200);
+    expect(login.headers.get("set-cookie")).toContain("; Secure");
+    expect(
+      (
+        await handle(
+          new Request("https://photos.example/api/auth/session", {
+            headers: { origin: "https://other.example" },
+          }),
+        )
+      ).status,
+    ).toBe(403);
+    const uploaded = await f.upload();
+    expect(uploaded.status).toBe(201);
+    const file = await uploaded.json();
+    expect(file.url).toStartWith("http://localhost/");
+    const detail = await handle(
+      new Request("https://photos.example/api/files/" + file.id, {
+        headers: { cookie: f.cookie },
+      }),
+    );
+    expect(detail.status).toBe(200);
+    expect((await detail.json()).url).toStartWith("https://photos.example/");
+    expect(f.app.delivery.get().publicOrigin).toBe("");
+    await f.restart();
+    expect(f.app.config.origin).toBe("");
+  } finally {
+    await f.close();
+  }
+});
+
+test("empty origins are accepted at startup", () => {
+  const config = settings({
+    origin: "",
+    imageOrigin: "",
+    encryptionKey: "ab".repeat(32),
+  });
+  expect(config.origin).toBe("");
+  expect(config.imageOrigin).toBe("");
+  expect(config.secureCookie).toBe(false);
 });

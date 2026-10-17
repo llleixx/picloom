@@ -156,6 +156,7 @@ export interface PostSavePlugin extends Runtime {
       operationId: string;
       fileId: string;
       publicPath: string;
+      /** Relative when no site/image origin is configured. */
       url: string;
       file: FileInput;
     },

@@ -212,7 +212,7 @@ export const zhCN = {
   "settings.website": "网站",
   "settings.siteOrigin": "站点地址",
   "settings.siteHint":
-    "用于 API 来源验证和登录 Cookie。修改后请通过新地址继续访问。",
+    "留空使用请求地址。后台传递图片 URL 时需配置；经 HTTPS 代理访问时填写外部站点地址。",
   "settings.openSite": "打开更新后的站点",
   "settings.cache": "浏览器与 CDN 缓存",
   "settings.cacheAge": "缓存有效期（秒）",

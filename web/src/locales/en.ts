@@ -246,7 +246,7 @@ export const en = {
   "settings.website": "Website",
   "settings.siteOrigin": "Site origin",
   "settings.siteHint":
-    "Used for API origin checks and login cookies. After changing it, continue at the new address.",
+    "Leave blank to use the request address. Set a public origin for background URL delivery; behind HTTPS proxies, set the external origin.",
   "settings.openSite": "Open the updated site",
   "settings.cache": "Browser & CDN cache",
   "settings.cacheAge": "Cache lifetime (seconds)",

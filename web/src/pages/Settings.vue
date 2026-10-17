@@ -157,7 +157,7 @@ async function save() {
     });
     draft.value = value;
     siteLink.value =
-      value.publicOrigin !== window.location.origin
+      value.publicOrigin && value.publicOrigin !== window.location.origin
         ? value.publicOrigin + "/app/settings"
         : "";
     domains.value = value.hotlinkAllowedHosts.join("\n");
@@ -289,7 +289,6 @@ async function save() {
             <Input
               v-model="draft.publicOrigin"
               type="url"
-              required
               placeholder="https://img.example.com"
               :aria-invalid="!!fields['/publicOrigin']"
               aria-describedby="site-hint site-error"

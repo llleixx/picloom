@@ -14,7 +14,7 @@ import { publicPath } from "../infra/files";
 import { webPage } from "./static";
 import { configurationRequest } from "./configuration";
 import { PACKAGE_LIMIT } from "../plugins/archive";
-const json = (
+const jsonResponse = (
   value: unknown,
   status = 200,
   headers: Record<string, string> = {},
@@ -73,6 +73,22 @@ const view = (f: FileRecord, origin: string): FileView => ({
 export function handler(app: Application) {
   return async (req: Request, client = "127.0.0.1"): Promise<Response> => {
     const requestId = crypto.randomUUID();
+    const requestOrigin = new URL(req.url).origin;
+    const json = (
+      value: unknown,
+      status = 200,
+      headers: Record<string, string> = {},
+    ) => {
+      // Upload services can return a relative URL when no site origin is configured.
+      if (
+        value &&
+        typeof value === "object" &&
+        "url" in value &&
+        typeof value.url === "string"
+      )
+        value = { ...value, url: new URL(value.url, requestOrigin).href };
+      return jsonResponse(value, status, headers);
+    };
     try {
       const url = new URL(req.url);
       const path = url.pathname;
@@ -82,7 +98,7 @@ export function handler(app: Application) {
       if (
         path.startsWith("/api/") &&
         req.headers.has("origin") &&
-        req.headers.get("origin") !== app.config.origin
+        req.headers.get("origin") !== (app.config.origin || requestOrigin)
       )
         throw new AppError("ORIGIN", "Origin not allowed", 403);
       if (path === "/api/auth/login" && method === "POST") {
@@ -101,7 +117,9 @@ export function handler(app: Application) {
             },
           },
           200,
-          { "set-cookie": app.auth.cookie(result.secret) },
+          {
+            "set-cookie": app.auth.cookie(result.secret, false, requestOrigin),
+          },
         );
       }
       if (path.startsWith("/api/")) {
@@ -359,7 +377,7 @@ export function handler(app: Application) {
             r.revokeCredential("session", auth.credential.id, auth.user.id),
           );
           return json({ ok: true }, 200, {
-            "set-cookie": app.auth.cookie("", true),
+            "set-cookie": app.auth.cookie("", true, requestOrigin),
           });
         }
         if (path === "/api/auth/password" && method === "POST") {
@@ -370,7 +388,7 @@ export function handler(app: Application) {
             field(b, "password"),
           );
           return json({ ok: true }, 200, {
-            "set-cookie": app.auth.cookie("", true),
+            "set-cookie": app.auth.cookie("", true, requestOrigin),
           });
         }
         if (path === "/api/tokens" && method === "POST") {
@@ -480,7 +498,7 @@ export function handler(app: Application) {
           const result = await app.db.read(async (r) => ({
             items: await Promise.all(
               (await r.files(limit, offset, filter)).map(async (f) => {
-                const item = view(f, app.config.imageOrigin);
+                const item = view(f, app.config.imageOrigin || requestOrigin);
                 if (filter.storageInstanceId)
                   item.backgroundPending = (await r.tasks(f.id)).some(
                     (t) =>
@@ -572,7 +590,7 @@ export function handler(app: Application) {
             const data = await app.db.read(async (r) => {
               const f = requireValue(await r.file(id));
               app.auth.assertFile(auth, f);
-              const result = view(f, app.config.imageOrigin);
+              const result = view(f, app.config.imageOrigin || requestOrigin);
               const tasks = await r.tasks(id);
               result.backgroundPending = tasks.some((task) =>
                 ["pending", "running"].includes(task.status),

@@ -154,8 +154,8 @@ export class Auth {
       .update("csrf:" + digest)
       .digest("hex");
   }
-  cookie(secret: string, clear = false) {
-    return `session=${secret}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${clear ? 0 : 604800}${this.config.secureCookie ? "; Secure" : ""}`;
+  cookie(secret: string, clear = false, requestOrigin = "") {
+    return `session=${secret}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${clear ? 0 : 604800}${(this.config.origin ? this.config.secureCookie : requestOrigin.startsWith("https://")) ? "; Secure" : ""}`;
   }
   uploadOwner(identity: UploadIdentity) {
     return identity && "user" in identity

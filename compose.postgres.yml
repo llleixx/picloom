@@ -6,11 +6,11 @@ services:
     restart: unless-stopped
     stop_grace_period: 60s
     ports:
-      - "${PUBLISH_ADDRESS:-127.0.0.1}:${HTTP_PORT:-3000}:3000"
+      - "${PUBLISH_ADDRESS:-0.0.0.0}:${HTTP_PORT:-3000}:3000"
     environment:
       ENCRYPTION_KEY: ${ENCRYPTION_KEY:?Set ENCRYPTION_KEY in docker/.env}
       INITIAL_OWNER_PASSWORD: ${INITIAL_OWNER_PASSWORD:-}
-      PUBLIC_ORIGIN: ${PUBLIC_ORIGIN:-http://localhost:3000}
+      PUBLIC_ORIGIN: ${PUBLIC_ORIGIN:-}
       TRUSTED_PROXIES: ${TRUSTED_PROXIES:-}
       DATABASE_URL: postgresql://picloom:${POSTGRES_PASSWORD:?Set a URL-safe POSTGRES_PASSWORD in docker/.env}@postgres:5432/picloom
     volumes:

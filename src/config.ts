@@ -26,8 +26,7 @@ export interface Settings extends RuntimeSettings {
   webRoot: string;
 }
 export function settings(overrides: Partial<Settings> = {}): Settings {
-  const origin =
-    overrides.origin ?? process.env.PUBLIC_ORIGIN ?? "http://localhost:3000";
+  const origin = overrides.origin ?? process.env.PUBLIC_ORIGIN ?? "";
   const key = overrides.encryptionKey ?? process.env.ENCRYPTION_KEY ?? "";
   if (!/^[a-fA-F0-9]{64}$/.test(key))
     throw new Error(
@@ -100,7 +99,7 @@ export function settings(overrides: Partial<Settings> = {}): Settings {
       "TASK_CONCURRENCY",
       runtimeDefaults.taskConcurrency,
     ),
-    secureCookie: new URL(origin).protocol === "https:",
+    secureCookie: origin.startsWith("https://"),
     webRoot: resolve("dist/web"),
     ...overrides,
   };
@@ -114,22 +113,26 @@ export function settings(overrides: Partial<Settings> = {}): Settings {
     !["postgres:", "postgresql:"].includes(new URL(value.databaseUrl).protocol)
   )
     throw new Error("DATABASE_URL must use postgres:// or postgresql://");
-  const parsed = new URL(value.origin);
-  if (
-    !["http:", "https:"].includes(parsed.protocol) ||
-    parsed.origin !== value.origin
-  )
-    throw new Error(
-      "PUBLIC_ORIGIN must be an HTTP(S) origin without a trailing slash",
-    );
-  const image = new URL(value.imageOrigin);
-  if (
-    !["http:", "https:"].includes(image.protocol) ||
-    image.origin !== value.imageOrigin
-  )
-    throw new Error(
-      "IMAGE_ORIGIN must be an HTTP(S) origin without a path or trailing slash",
-    );
+  if (value.origin) {
+    const parsed = new URL(value.origin);
+    if (
+      !["http:", "https:"].includes(parsed.protocol) ||
+      parsed.origin !== value.origin
+    )
+      throw new Error(
+        "PUBLIC_ORIGIN must be an HTTP(S) origin without a trailing slash",
+      );
+  }
+  if (value.imageOrigin) {
+    const image = new URL(value.imageOrigin);
+    if (
+      !["http:", "https:"].includes(image.protocol) ||
+      image.origin !== value.imageOrigin
+    )
+      throw new Error(
+        "IMAGE_ORIGIN must be an HTTP(S) origin without a path or trailing slash",
+      );
+  }
   for (const setting of ["HOTLINK_ENABLED", "HOTLINK_ALLOW_EMPTY"])
     if (
       process.env[setting] !== undefined &&
