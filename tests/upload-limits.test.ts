@@ -18,6 +18,8 @@ test("account limits apply to concurrent uploads and tokens; deletion and restar
     );
     expect((await f.upload()).status).toBe(413);
     await f.app.db.transaction((r) => r.setUserUploadLimits(user.id, null, 2));
+    // Exercise the daily quota with all three requests admitted.
+    f.app.config.uploadConcurrency = 3;
     const results = await Promise.all([f.upload(), f.upload(), f.upload()]);
     expect(results.filter((r) => r.status === 201)).toHaveLength(2);
     expect(results.filter((r) => r.status === 429)).toHaveLength(1);

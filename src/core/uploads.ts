@@ -19,6 +19,7 @@ export class Uploads {
   private locks = new Map<string, { mutex: Mutex; users: number }>();
   private inFlight = new InFlight();
   private partsInFlight = new InFlight();
+  private partCounts = new Map<string, number>();
   private closing = false;
   private lastCleanup = 0;
   private root: string;
@@ -46,6 +47,16 @@ export class Uploads {
       if (--entry.users === 0) this.locks.delete(id);
       end();
     }
+  }
+  private reservation(session: UploadSession) {
+    const size = session.byte_size;
+    return Math.max(
+      size + this.config.partConcurrency * Math.min(size, session.part_size),
+      2 * size,
+    );
+  }
+  private key(id: string) {
+    return "upload:" + id;
   }
   private async owned(id: string, key: string) {
     const session = await this.db.read((r) => r.uploadSession(id));
@@ -114,21 +125,22 @@ export class Uploads {
       file_id: crypto.randomUUID(),
       expires_at: Date.now() + this.config.uploadSessionTtlMs,
     };
-    await this.db.transaction(async (r) => {
-      await this.auth.authorizeUpload(identity, input.profileId as string, r);
-      const active = (await r.uploadSessions()).filter(
-        (x) => x.status === "pending" || x.status === "completing",
-      );
-      // Reserve room for parts, assembly, the pipeline input copy, and one replacing part.
-      const reservation = (x: UploadSession) => 3 * x.byte_size + x.part_size;
-      if (
-        active.length >= this.config.uploadSessionLimit ||
-        active.reduce((n, x) => n + reservation(x), reservation(session)) >
-          this.config.uploadTempBytes
-      )
-        throw new AppError("UPLOAD_CAPACITY", "Upload staging is full", 503);
-      await r.insertUploadSession(session);
-    });
+    const reservation = this.key(session.id);
+    this.files.temporary.reserve(reservation, this.reservation(session));
+    try {
+      await this.db.transaction(async (r) => {
+        await this.auth.authorizeUpload(identity, input.profileId as string, r);
+        const active = (await r.uploadSessions()).filter(
+          (x) => x.status === "pending" || x.status === "completing",
+        );
+        if (active.length >= this.config.uploadSessionLimit)
+          throw new AppError("UPLOAD_CAPACITY", "Upload staging is full", 503);
+        await r.insertUploadSession(session);
+      });
+    } catch (error) {
+      this.files.temporary.release(reservation);
+      throw error;
+    }
     return {
       id: session.id,
       uploadKey,
@@ -167,7 +179,28 @@ export class Uploads {
           "Upload no longer accepts parts",
           409,
         );
-      return { session, release: this.partsInFlight.enter(id) };
+      const active = this.partCounts.get(id) ?? 0;
+      if (active >= this.config.partConcurrency)
+        throw new AppError("BUSY", "Too many in-flight parts", 503);
+      const reservationKey = this.key(id);
+      this.files.temporary.reserve(
+        reservationKey,
+        Math.max(
+          this.files.temporary.size(reservationKey),
+          this.reservation(session),
+        ),
+      );
+      this.partCounts.set(id, active + 1);
+      const end = this.partsInFlight.enter(id);
+      return {
+        session,
+        release: () => {
+          const count = this.partCounts.get(id)! - 1;
+          if (count) this.partCounts.set(id, count);
+          else this.partCounts.delete(id);
+          end();
+        },
+      };
     });
     try {
       return await this.locked(`${id}:${index}`, async () => {
@@ -220,96 +253,111 @@ export class Uploads {
     };
   }
   async complete(id: string, key: string, signal: AbortSignal) {
-    return this.exclusive(id, async () => {
-      const session = await this.owned(id, key);
-      const identity = {
-        ownerId: session.owner_id,
-        sourceTokenId: session.source_token_id,
-      };
-      await this.auth.authorizeUpload(identity, session.profile_id);
-      if (session.status === "completed") return this.result(session);
-      if (session.status !== "pending")
-        throw new AppError(
-          "UPLOAD_CLOSED",
-          "Upload failed; start a new upload",
-          409,
-        );
-      await this.files.validateUpload(
-        session.profile_id,
-        session.byte_size,
-        identity,
-        session.guest_ip,
-      );
-      const directory = join(this.root, session.id);
-      const count = Math.ceil(session.byte_size / session.part_size);
-      for (let index = 0; index < count; index++) {
-        const info = await stat(join(directory, String(index))).catch(
-          () => null,
-        );
-        if (
-          info?.size !==
-          Math.min(
-            session.part_size,
-            session.byte_size - index * session.part_size,
-          )
-        )
-          throw new AppError("INCOMPLETE", "Upload parts are missing");
-      }
-      session.status = "completing";
-      session.updated_at = Date.now();
-      await this.db.transaction((r) => r.saveUploadSession(session));
-      try {
-        const combined = join(directory, "combined");
-        async function* chunks() {
-          for (let index = 0; index < count; index++)
-            for await (const chunk of Bun.file(
-              join(directory, String(index)),
-            ).stream())
-              yield chunk;
-        }
-        const iterator = chunks();
-        const stream = new ReadableStream<Uint8Array>({
-          async pull(controller) {
-            const next = await iterator.next();
-            if (next.done) controller.close();
-            else controller.enqueue(next.value);
-          },
-          async cancel() {
-            await iterator.return(undefined);
-          },
-        });
-        await writeStream(combined, stream, session.byte_size, signal);
-        const blob = Bun.file(combined);
-        const result = await this.files.upload(
-          {
-            size: blob.size,
-            name: session.source_name,
-            stream: () => blob.stream(),
-          },
+    const leave = this.files.temporary.enterUpload();
+    try {
+      return await this.exclusive(id, async () => {
+        const session = await this.owned(id, key);
+        const identity = {
+          ownerId: session.owner_id,
+          sourceTokenId: session.source_token_id,
+        };
+        await this.auth.authorizeUpload(identity, session.profile_id);
+        if (session.status === "completed") return this.result(session);
+        if (session.status !== "pending")
+          throw new AppError(
+            "UPLOAD_CLOSED",
+            "Upload failed; start a new upload",
+            409,
+          );
+        await this.files.validateUpload(
           session.profile_id,
+          session.byte_size,
           identity,
-          signal,
-          session.params_json,
-          session.file_id,
           session.guest_ip,
         );
-        session.status = "completed";
+        const directory = join(this.root, session.id);
+        const count = Math.ceil(session.byte_size / session.part_size);
+        for (let index = 0; index < count; index++) {
+          const info = await stat(join(directory, String(index))).catch(
+            () => null,
+          );
+          if (
+            info?.size !==
+            Math.min(
+              session.part_size,
+              session.byte_size - index * session.part_size,
+            )
+          )
+            throw new AppError("INCOMPLETE", "Upload parts are missing");
+        }
+        session.status = "completing";
+        session.updated_at = Date.now();
         await this.db.transaction((r) => r.saveUploadSession(session));
-        return result;
-      } catch (error) {
-        // Publication may have succeeded before the response/session update failed.
-        const file = await this.db.read((r) => r.file(session.file_id));
-        session.status =
-          file && ["ready", "blocked"].includes(file.status)
-            ? "completed"
-            : "failed";
-        await this.db.transaction((r) => r.saveUploadSession(session));
-        if (session.status === "completed") return this.result(session);
-        throw error;
-      } finally {
-        await rm(directory, { recursive: true, force: true });
-      }
-    });
+        try {
+          const combined = join(directory, "combined");
+          async function* chunks() {
+            for (let index = 0; index < count; index++)
+              for await (const chunk of Bun.file(
+                join(directory, String(index)),
+              ).stream())
+                yield chunk;
+          }
+          const iterator = chunks();
+          const stream = new ReadableStream<Uint8Array>({
+            async pull(controller) {
+              const next = await iterator.next();
+              if (next.done) controller.close();
+              else controller.enqueue(next.value);
+            },
+            async cancel() {
+              await iterator.return(undefined);
+            },
+          });
+          await writeStream(combined, stream, session.byte_size, signal);
+          for (let index = 0; index < count; index++)
+            await remove(join(directory, String(index)));
+          const inputPath = await this.files.temporary.takeSession(
+            this.key(id),
+            combined,
+            session.byte_size,
+          );
+          this.files.temporary.release(this.key(id));
+          const blob = Bun.file(inputPath);
+          const result = await this.files.upload(
+            {
+              size: blob.size,
+              name: session.source_name,
+              stream: () => blob.stream(),
+            },
+            session.profile_id,
+            identity,
+            signal,
+            session.params_json,
+            session.file_id,
+            session.guest_ip,
+            inputPath,
+          );
+          session.status = "completed";
+          await this.db.transaction((r) => r.saveUploadSession(session));
+          return result;
+        } catch (error) {
+          // Publication may have succeeded before the response/session update failed.
+          const file = await this.db.read((r) => r.file(session.file_id));
+          session.status =
+            file && ["ready", "blocked"].includes(file.status)
+              ? "completed"
+              : "failed";
+          await this.db.transaction((r) => r.saveUploadSession(session));
+          if (session.status === "completed") return this.result(session);
+          throw error;
+        } finally {
+          await rm(directory, { recursive: true, force: true });
+          this.files.temporary.release(this.key(id));
+        }
+      });
+    } finally {
+      leave();
+    }
   }
   async cancel(id: string, key: string) {
     return this.exclusive(id, async () => {
@@ -318,6 +366,7 @@ export class Uploads {
         throw new AppError("UPLOAD_CLOSED", "Upload already completed", 409);
       await rm(join(this.root, session.id), { recursive: true, force: true });
       await this.db.transaction((r) => r.deleteUploadSession(id));
+      this.files.temporary.release(this.key(id));
     });
   }
   async recover() {
@@ -344,6 +393,12 @@ export class Uploads {
       if (!known.has(name))
         await rm(join(this.root, name), { recursive: true, force: true });
     await this.cleanup(true);
+    for (const session of await this.db.read((r) => r.uploadSessions()))
+      if (session.status === "pending")
+        this.files.temporary.restore(
+          this.key(session.id),
+          this.reservation(session),
+        );
   }
   async cleanup(force = false) {
     if (this.closing || (!force && Date.now() - this.lastCleanup < 60_000))
@@ -357,10 +412,23 @@ export class Uploads {
     for (const session of await this.db.read((r) => r.uploadSessions())) {
       if (session.expires_at > Date.now() || this.locks.has(session.id))
         continue;
-      await this.exclusive(session.id, async () => {
-        await rm(join(this.root, session.id), { recursive: true, force: true });
-        await this.db.transaction((r) => r.deleteUploadSession(session.id));
-      });
+      try {
+        await this.exclusive(session.id, async () => {
+          await rm(join(this.root, session.id), {
+            recursive: true,
+            force: true,
+          });
+          await this.db.transaction((r) => r.deleteUploadSession(session.id));
+          this.files.temporary.release(this.key(session.id));
+        });
+      } catch {
+        console.warn(
+          JSON.stringify({
+            event: "upload_cleanup_failed",
+            sessionId: session.id,
+          }),
+        );
+      }
     }
   }
   async close() {

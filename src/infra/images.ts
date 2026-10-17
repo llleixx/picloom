@@ -63,7 +63,7 @@ export async function thumbnail(path: string, maxPixels: number, edge: number) {
       .webp({ quality: 80 })
       .toBuffer({ resolveWithObject: true });
     return {
-      bytes: new Uint8Array(data),
+      bytes: data,
       metadata: {
         mimeType: "image/webp",
         byteSize: data.byteLength,

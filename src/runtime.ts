@@ -37,25 +37,45 @@ export async function startRuntime(
   const maintenanceFlight = new InFlight();
   const active = new InFlight(),
     backups = new Backups(base.root);
-  let sweeping = false;
+  const jobs = [
+    {
+      run: () => app.files.sweep(),
+      event: "task_cleanup_failed",
+      running: false,
+    },
+    {
+      run: () => app.files.temporary.clean(),
+      event: "temp_cleanup_failed",
+      running: false,
+    },
+    {
+      run: () => app.uploads.cleanup(),
+      event: "upload_cleanup_failed",
+      running: false,
+    },
+    {
+      run: () => app.files.cache.clean(false),
+      event: "cache_cleanup_failed",
+      running: false,
+    },
+  ];
   const timer =
     options.sweep === false
       ? undefined
       : setInterval(() => {
-          if (maintenance || stopped || sweeping) return;
-          sweeping = true;
-          const leave = active.enter("requests");
-          void app.files
-            .sweep()
-            .then(() => app.files.cache.clean(false))
-            .then(() => app.uploads.cleanup())
-            .catch(() =>
-              console.error(JSON.stringify({ event: "cleanup_failed" })),
-            )
-            .finally(() => {
-              sweeping = false;
-              leave();
-            });
+          if (maintenance || stopped) return;
+          for (const job of jobs) {
+            if (job.running) continue;
+            job.running = true;
+            const leave = active.enter("requests");
+            void job
+              .run()
+              .catch(() => console.error(JSON.stringify({ event: job.event })))
+              .finally(() => {
+                job.running = false;
+                leave();
+              });
+          }
         }, 2000);
   const json = (data: unknown, status = 200) =>
     Response.json(data, { status, headers: { "cache-control": "no-store" } });

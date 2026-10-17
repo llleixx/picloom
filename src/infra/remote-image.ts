@@ -1,3 +1,4 @@
+import { Readable } from "node:stream";
 import { lookup } from "node:dns/promises";
 import { BlockList, isIP } from "node:net";
 import { request as http } from "node:http";
@@ -38,11 +39,16 @@ export function publicImageAddress(address: string): boolean {
 }
 const invalid = () =>
   new AppError("REMOTE_IMAGE_FAILED", "Could not download this image URL", 400);
-export async function downloadImage(
+export async function downloadImage<T>(
   value: string,
   limit: number,
   parent: AbortSignal,
-): Promise<File> {
+  consume: (
+    stream: ReadableStream<Uint8Array>,
+    name: string,
+    signal: AbortSignal,
+  ) => Promise<T>,
+): Promise<T> {
   const signal = AbortSignal.any([parent, AbortSignal.timeout(30_000)]);
   try {
     let url = new URL(value);
@@ -99,7 +105,11 @@ export async function downloadImage(
       }
       if (response.statusCode !== 200) {
         response.destroy();
-        throw new AppError("REMOTE_IMAGE_HTTP", "Image host rejected the download", 400);
+        throw new AppError(
+          "REMOTE_IMAGE_HTTP",
+          "Image host rejected the download",
+          400,
+        );
       }
       if (Number(response.headers["content-length"]) > limit) {
         response.destroy();
@@ -109,27 +119,34 @@ export async function downloadImage(
           413,
         );
       }
-      const chunks: Buffer[] = [];
-      let size = 0;
-      for await (const chunk of response) {
-        size += chunk.length;
-        if (size > limit) {
-          response.destroy();
-          throw new AppError(
-            "TOO_LARGE",
-            "Remote image exceeds the upload limit",
-            413,
-          );
-        }
-        chunks.push(Buffer.from(chunk));
+      try {
+        const name = decodeURIComponent(
+          url.pathname.split("/").pop() || "remote-image",
+        );
+        let size = 0;
+        const stream = (
+          Readable.toWeb(response) as unknown as ReadableStream<Uint8Array>
+        ).pipeThrough(
+          new TransformStream<Uint8Array, Uint8Array>({
+            transform(chunk, controller) {
+              size += chunk.byteLength;
+              if (size > limit)
+                throw new AppError(
+                  "TOO_LARGE",
+                  "Remote image exceeds upload limit",
+                  413,
+                );
+              controller.enqueue(chunk);
+            },
+            flush() {
+              if (!size) throw invalid();
+            },
+          }),
+        );
+        return await consume(stream, name, signal);
+      } finally {
+        response.destroy();
       }
-      if (!size) throw invalid();
-      const name = decodeURIComponent(
-        url.pathname.split("/").pop() || "remote-image",
-      );
-      return new File([new Uint8Array(Buffer.concat(chunks))], name, {
-        type: response.headers["content-type"] ?? "application/octet-stream",
-      });
     }
     throw invalid();
   } catch (e) {

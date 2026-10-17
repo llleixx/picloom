@@ -1,3 +1,4 @@
+import { maxDirectUploadBytes } from "../../shared/runtime-settings";
 import { normalizeGuestIp } from "./guest-ip";
 import { isPluginError } from "../../plugin-sdk/api";
 import { downloadImage } from "../infra/remote-image";
@@ -138,23 +139,48 @@ export function handler(app: Application) {
           const profile = (await app.files.uploadProfiles(auth)).find(
             (p) => p.id === input.profileId,
           )!;
-          const file = await downloadImage(
-            input.url,
-            profile.maxUploadBytes,
-            req.signal,
-          );
-          return json(
-            await app.files.upload(
-              file,
-              input.profileId,
-              auth,
+          const leave = app.files.temporary.enterUpload();
+          let inputPath: string | undefined;
+          let handedOff = false;
+          try {
+            inputPath = app.files.temporary.create(profile.maxUploadBytes);
+            const name = await downloadImage(
+              input.url,
+              profile.maxUploadBytes,
               req.signal,
-              {},
-              undefined,
-              guestIp,
-            ),
-            201,
-          );
+              async (stream, name, signal) => {
+                await app.files.temporary.write(
+                  inputPath!,
+                  stream,
+                  profile.maxUploadBytes,
+                  signal,
+                );
+                return name;
+              },
+            );
+            const blob = Bun.file(inputPath);
+            handedOff = true;
+            return json(
+              await app.files.upload(
+                { size: blob.size, name, stream: () => blob.stream() },
+                input.profileId,
+                auth,
+                req.signal,
+                {},
+                undefined,
+                guestIp,
+                inputPath,
+              ),
+              201,
+            );
+          } finally {
+            try {
+              if (inputPath && !handedOff)
+                await app.files.temporary.remove(inputPath);
+            } finally {
+              leave();
+            }
+          }
         }
         const upload = path === "/api/files" && method === "POST";
         const chunks = path.match(
@@ -190,39 +216,74 @@ export function handler(app: Application) {
           if (upload) {
             const limits = await app.auth.uploadLimits(auth);
             await app.auth.checkUploadQuota(auth, 0, guestIp);
-            const stream = limitedBody(req, limits.maxBytes + 65536);
-            const form = await new Response(stream, {
-              headers: {
-                "content-type": req.headers.get("content-type") ?? "",
-              },
-            }).formData();
-            const blob = form.get("file");
-            const profile = form.get("profileId");
-            if (
-              !(blob instanceof File) ||
-              typeof profile !== "string" ||
-              form.getAll("file").length !== 1 ||
-              form.getAll("profileId").length !== 1
-            )
-              throw new AppError(
-                "INVALID_INPUT",
-                "Expected one file and profileId",
+            const maximum = Math.min(limits.maxBytes, maxDirectUploadBytes);
+            const length = Number(req.headers.get("content-length"));
+            const leave = app.files.temporary.enterUpload();
+            let inputPath: string | undefined;
+            let handedOff = false;
+            try {
+              if (length > maximum + 65536)
+                throw new AppError(
+                  "TOO_LARGE",
+                  "Use chunked upload for large files",
+                  413,
+                );
+              inputPath = app.files.temporary.create(
+                length > 0 ? Math.min(length, maximum) : maximum,
               );
-            if (form.getAll("params").length > 1)
-              throw new AppError("INVALID_PARAMS", "Expected one params field");
-            const params = parseUploadParams(form.get("params"));
-            return json(
-              await app.files.upload(
-                blob,
-                profile,
-                auth,
+              const stream = limitedBody(req, maximum + 65536);
+              const form = await new Response(stream, {
+                headers: {
+                  "content-type": req.headers.get("content-type") ?? "",
+                },
+              }).formData();
+              const blob = form.get("file");
+              const profile = form.get("profileId");
+              if (
+                !(blob instanceof File) ||
+                typeof profile !== "string" ||
+                form.getAll("file").length !== 1 ||
+                form.getAll("profileId").length !== 1
+              )
+                throw new AppError(
+                  "INVALID_INPUT",
+                  "Expected one file and profileId",
+                );
+              if (form.getAll("params").length > 1)
+                throw new AppError(
+                  "INVALID_PARAMS",
+                  "Expected one params field",
+                );
+              const params = parseUploadParams(form.get("params"));
+              await app.files.validateUpload(profile, blob.size, auth, guestIp);
+              await app.files.temporary.write(
+                inputPath,
+                blob.stream(),
+                maximum,
                 req.signal,
-                params,
-                undefined,
-                guestIp,
-              ),
-              201,
-            );
+              );
+              handedOff = true;
+              return json(
+                await app.files.upload(
+                  blob,
+                  profile,
+                  auth,
+                  req.signal,
+                  params,
+                  undefined,
+                  guestIp,
+                  inputPath,
+                ),
+                201,
+              );
+            } finally {
+              try {
+                if (inputPath && !handedOff)
+                  await app.files.temporary.remove(inputPath);
+              } finally {
+                leave();
+              }
+            }
           }
         }
         if (path === "/api/upload-profiles" && method === "GET")
@@ -238,7 +299,10 @@ export function handler(app: Application) {
             siteFaviconUrl: site.siteFaviconUrl,
             uploadConcurrency: app.config.uploadConcurrency,
             chunkedUpload: {
-              thresholdBytes: app.config.chunkThresholdBytes,
+              thresholdBytes: Math.min(
+                app.config.chunkThresholdBytes,
+                maxDirectUploadBytes,
+              ),
               partBytes: app.config.chunkPartBytes,
               concurrency: app.config.partConcurrency,
             },

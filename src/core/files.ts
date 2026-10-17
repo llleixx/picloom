@@ -1,3 +1,4 @@
+import { TemporarySpace } from "../infra/temporary-space";
 import { isPluginError } from "../../plugin-sdk/api";
 import { isSiteAdmin } from "../../shared/roles";
 import { DerivedImages } from "./derived-images";
@@ -6,6 +7,7 @@ import {
   imageHeaders,
   publicCacheControl,
   emptyImageResponse,
+  derivedImageResponse,
   type ImageRequest,
 } from "./image-response";
 import { pipelineData } from "./pipeline-data";
@@ -41,10 +43,8 @@ import {
   logicalKey,
   output,
   publicPath,
-  remove,
   retainStream,
   prefetchStream,
-  writeStream,
   scopedInput,
 } from "../infra/files";
 import { identify } from "../infra/images";
@@ -66,6 +66,7 @@ export class Files {
   private limit: Limiter;
   private derived: DerivedImages;
   readonly cache: ImageCache;
+  readonly temporary: TemporarySpace;
   constructor(
     private db: Persistence,
     private plugins: PluginManager,
@@ -73,6 +74,7 @@ export class Files {
     private config: Settings,
     private faults: Faults = {},
   ) {
+    this.temporary = new TemporarySpace(config);
     this.limit = new Limiter(
       config.processingConcurrency,
       config.processingQueue,
@@ -82,20 +84,28 @@ export class Files {
       config.cacheBytes,
       config.cacheTtlMs,
     );
-    this.derived = new DerivedImages(db, config, this.cache, this.limit, {
-      ready: (id) => this.ready(id),
-      read: async (file, signal) => {
-        const result = await this.read(file, "stream", this.context(signal));
-        if (result.type !== "stream") throw new Error("Expected stream");
-        return result.stream;
+    this.derived = new DerivedImages(
+      db,
+      config,
+      this.cache,
+      this.limit,
+      this.temporary,
+      {
+        ready: (id) => this.ready(id),
+        read: async (file, signal) => {
+          const result = await this.read(file, "stream", this.context(signal));
+          if (result.type !== "stream") throw new Error("Expected stream");
+          return result.stream;
+        },
       },
-    });
+    );
     this.tasks = new TaskExecutor(
       db,
       plugins,
       config,
       this.inFlight,
       this.cache,
+      this.temporary,
       faults.beforeDelete,
     );
   }
@@ -112,11 +122,10 @@ export class Files {
     };
   }
   private temp() {
-    const path = join(this.config.root, "temp", crypto.randomUUID());
-    return path;
+    return this.temporary.create();
   }
   private async discard(path: string) {
-    await remove(path);
+    await this.temporary.remove(path);
   }
   private acquireSteps(steps: Step[], stage: "upload" | "access") {
     const result: Array<{ step: Step } & ReturnType<PluginManager["acquire"]>> =
@@ -154,7 +163,8 @@ export class Files {
     const checking = { ...ctx, data: { get: data.get } };
     for (const [index, item] of steps.entries()) {
       ctx.signal.throwIfAborted();
-      const created = new Map<string, Output>();
+      const created = new Map<string, { output: Output; path: string }>();
+      const writes: Promise<void>[] = [];
       let scope = loaded
         ? scopedInput(fileInput(path, metadata), ctx.signal)
         : undefined;
@@ -184,8 +194,24 @@ export class Files {
         createOutput: async () => {
           const p = this.temp();
           owned.add(p);
-          const value = output(p);
-          created.set(value.handle, value);
+          let written = false;
+          const value = output(p, (stream) => {
+            if (!active || written)
+              throw new AppError("PLUGIN_OUTPUT", "Output is closed", 500);
+            written = true;
+            const pending = this.temporary
+              .write(
+                p,
+                stream,
+                load ? this.config.uploadTempBytes : this.config.maxUploadBytes,
+                ctx.signal,
+              )
+              .then(() => {});
+            writes.push(pending);
+            void pending.catch(() => {});
+            return pending;
+          });
+          created.set(value.handle, { output: value, path: p });
           return value;
         },
       };
@@ -216,14 +242,15 @@ export class Files {
         if (result.status === "reject")
           throw new AppError("REJECTED", result.reason, 422);
         if (result.status === "replace") {
-          if (created.get(result.output.handle) !== result.output)
+          if (created.get(result.output.handle)?.output !== result.output)
             throw new AppError(
               "PLUGIN_OUTPUT",
               "Plugin returned an unowned output",
               500,
             );
           loaded = true;
-          path = result.output.path;
+          await Promise.all(writes);
+          path = created.get(result.output.handle)!.path;
           metadata = await identify(path, this.config.maxPixels);
           if (
             metadata.width! > this.config.maxDimension ||
@@ -240,6 +267,7 @@ export class Files {
         throw error;
       } finally {
         active = false;
+        await Promise.allSettled(writes);
         if (pending) await pending.catch(() => {});
         await scope?.close();
       }
@@ -384,22 +412,32 @@ export class Files {
     params: Record<string, unknown> = {},
     fileId?: string,
     guestIp: string | null = null,
+    inputPath?: string,
   ) {
-    if (this.profileClosing.has(profileId))
-      throw new AppError("PROFILE_CLOSING", "上传配置正在删除", 409);
-    const end = this.profileInFlight.enter(profileId);
+    const prepared = inputPath
+      ? { path: inputPath, adopted: false }
+      : undefined;
     try {
-      return await this.performUpload(
-        blob,
-        profileId,
-        identity,
-        signal,
-        params,
-        fileId,
-        guestIp,
-      );
+      if (this.profileClosing.has(profileId))
+        throw new AppError("PROFILE_CLOSING", "上传配置正在删除", 409);
+      const end = this.profileInFlight.enter(profileId);
+      try {
+        return await this.performUpload(
+          blob,
+          profileId,
+          identity,
+          signal,
+          params,
+          fileId,
+          guestIp,
+          prepared,
+        );
+      } finally {
+        end();
+      }
     } finally {
-      end();
+      if (prepared && !prepared.adopted)
+        await this.temporary.remove(prepared.path);
     }
   }
   private async performUpload(
@@ -410,6 +448,7 @@ export class Files {
     params: Record<string, unknown>,
     fileId?: string,
     guestIp: string | null = null,
+    prepared?: { path: string; adopted: boolean },
   ) {
     await this.auth.authorizeUpload(identity, profileId);
     await this.auth.checkUploadQuota(identity, blob.size, guestIp);
@@ -423,6 +462,10 @@ export class Files {
     const base = { ...entity(), ...(fileId ? { id: fileId } : {}) };
     const end = this.inFlight.enter(base.id);
     const owned = new Set<string>();
+    if (prepared) {
+      owned.add(prepared.path);
+      prepared.adopted = true;
+    }
     let record: FileRecord | undefined;
     let replica: Replica | undefined;
     let written = false;
@@ -458,14 +501,17 @@ export class Files {
       storageLease = this.plugins.acquire(plan.storage, "storage");
       const storage =
         storageLease.runtime as import("../plugins/api").StoragePlugin;
-      const temp = this.temp();
+      const temp = prepared?.path ?? this.temp();
       owned.add(temp);
-      await writeStream(
-        temp,
-        blob.stream(),
-        plan.profile.max_upload_bytes,
-        signal,
-      );
+      if (!prepared) {
+        this.temporary.reserve(temp, blob.size);
+        await this.temporary.write(
+          temp,
+          blob.stream(),
+          plan.profile.max_upload_bytes,
+          signal,
+        );
+      }
       const current = await this.limit.run(async () => {
         signal.throwIfAborted();
         const metadata = await identify(temp, this.config.maxPixels);
@@ -604,7 +650,7 @@ export class Files {
       });
       published = true;
       if (!redundant.length && !plan.actions.length) {
-        await remove(current.path);
+        await this.temporary.remove(current.path);
         await this.db.transaction(async (r) => {
           const f = requireValue(await r.file(base.id));
           f.temp_path = null;
@@ -811,14 +857,11 @@ export class Files {
         this.config,
         "image/webp",
         `W/"thumbnail-${result.cacheIdentity}"`,
-        result.bytes.byteLength,
+        "stream" in result ? result.size : result.bytes.byteLength,
       );
       // This is an authenticated API response, not a public image URL.
       headers.set("cache-control", "private, no-cache, must-revalidate");
-      return (
-        emptyImageResponse(request, headers) ??
-        new Response(result.bytes as Uint8Array<ArrayBuffer>, { headers })
-      );
+      return await derivedImageResponse(result, request, headers);
     } finally {
       release();
     }
@@ -952,12 +995,9 @@ export class Files {
           useCache && result.cacheIdentity
             ? `W/"processed-${result.cacheIdentity}"`
             : undefined,
-          result.bytes.byteLength,
+          "stream" in result ? result.size : result.bytes.byteLength,
         );
-        return (
-          emptyImageResponse(request, headers) ??
-          new Response(result.bytes as Uint8Array<ArrayBuffer>, { headers })
-        );
+        return await derivedImageResponse(result, request, headers);
       } finally {
         for (const step of steps) await step.release();
       }
@@ -1084,6 +1124,7 @@ export class Files {
     await this.tasks.sweep();
   }
   async recover() {
+    await this.temporary.recover();
     await this.db.transaction(async (r) => {
       await r.recoverTasks();
       for (const f of await r.filesInStates(["preparing"])) {
@@ -1108,7 +1149,8 @@ export class Files {
       ).map((f) => f.temp_path),
     );
     for (const name of await readdir(join(this.config.root, "temp")))
-      if (!known.has(name)) await remove(join(this.config.root, "temp", name));
+      if (!known.has(name))
+        await this.temporary.remove(join(this.config.root, "temp", name));
     await this.cache.clean();
   }
   async close() {

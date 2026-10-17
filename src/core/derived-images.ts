@@ -1,11 +1,10 @@
-import { join } from "node:path";
+import type { TemporarySpace } from "../infra/temporary-space";
 import type { Settings } from "../config";
 import type { FileRecord, Persistence } from "../persistence/port";
-import type { ImageCache, ImageResult } from "./cache";
+import type { ImageCache, ImageResult, CachedImage } from "./cache";
 import { cacheKey } from "./cache";
 import type { Limiter } from "./concurrency";
 import { identify, thumbnail } from "../infra/images";
-import { remove, writeStream } from "../infra/files";
 
 /** Shared execution lifecycle for thumbnails and access transforms. */
 export class DerivedImages {
@@ -15,6 +14,7 @@ export class DerivedImages {
     private config: Settings,
     private cache: ImageCache,
     private limit: Limiter,
+    private temporary: TemporarySpace,
     private source: {
       ready(id: string): Promise<FileRecord>;
       read(
@@ -93,31 +93,36 @@ export class DerivedImages {
       signal: AbortSignal,
       owned: Set<string>,
     ) => Promise<ImageResult | null>,
-  ): Promise<ImageResult | null> {
+  ): Promise<ImageResult | CachedImage | null> {
     const cached = cacheable ? await this.cache.get(file.id, key) : null;
     if (cached) {
-      await this.source.ready(file.id);
-      return cached;
+      try {
+        await this.source.ready(file.id);
+        return cached;
+      } catch (error) {
+        await cached.stream.cancel();
+        throw error;
+      }
     }
     const combined = file.id + ":" + key;
     let pending = cacheable ? this.merged.get(combined) : undefined;
     if (!pending) {
       // One cancelled consumer must not interrupt work shared by others.
       const processingSignal = cacheable
-        ? new AbortController().signal
-        : signal;
+        ? AbortSignal.timeout(120_000)
+        : AbortSignal.any([signal, AbortSignal.timeout(120_000)]);
       pending = this.limit.run(async () => {
         await this.source.ready(file.id);
-        const source = join(this.config.root, "temp", crypto.randomUUID());
+        const source = this.temporary.create();
         const owned = new Set([source]);
         try {
           let loading: Promise<string> | undefined;
           const getSource = () =>
             (loading ??= (async () => {
-              await writeStream(
+              await this.temporary.write(
                 source,
                 await this.source.read(file, processingSignal),
-                file.byte_size ?? Number.MAX_SAFE_INTEGER,
+                file.byte_size ?? this.config.uploadTempBytes,
                 processingSignal,
               );
               return source;
@@ -146,7 +151,9 @@ export class DerivedImages {
           }
           return result;
         } finally {
-          for (const path of owned) await remove(path);
+          await Promise.allSettled(
+            [...owned].map((path) => this.temporary.remove(path)),
+          );
         }
       });
       if (cacheable) {

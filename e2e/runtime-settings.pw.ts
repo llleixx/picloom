@@ -13,12 +13,15 @@ test("web settings change chunking and browser concurrency, with advanced option
   await page
     .getByLabel("Concurrent chunks per file", { exact: true })
     .fill("1");
-  const uploadSection = page
-    .locator("section")
-    .filter({
-      has: page.getByRole("heading", { name: "Upload", exact: true }),
-    });
-  await expect(page.getByLabel("Staging budget (MiB)")).not.toBeVisible();
+  const uploadSection = page.locator("section").filter({
+    has: page.getByRole("heading", { name: "Upload", exact: true }),
+  });
+  await expect(page.getByLabel("Temporary space limit (MiB)")).toBeVisible();
+  await expect(
+    page.getByText(
+      "Shared by uploads and image processing, including reserved space. Retry later when full.",
+    ),
+  ).toBeVisible();
   const toggle = uploadSection.getByRole("button", {
     name: "Show advanced",
     exact: true,
@@ -28,7 +31,7 @@ test("web settings change chunking and browser concurrency, with advanced option
     .getByRole("button", { name: "Hide advanced", exact: true })
     .boundingBox())!.y;
   expect(
-    (await page.getByLabel("Staging budget (MiB)").boundingBox())!.y,
+    (await page.getByLabel("Unfinished upload sessions").boundingBox())!.y,
   ).toBeGreaterThan(y);
   await page.getByLabel("Upload session lifetime (hours)").fill("2");
   await page.getByRole("button", { name: "Save", exact: true }).click();
@@ -70,15 +73,13 @@ test("web settings change chunking and browser concurrency, with advanced option
   await expect(
     page.getByRole("button", { name: "Choose files", exact: true }),
   ).toBeEnabled();
-  await page
-    .getByTestId("upload-input")
-    .setInputFiles(
-      [1, 2, 3].map((i) => ({
-        name: `${i}.png`,
-        mimeType: "image/png",
-        buffer,
-      })),
-    );
+  await page.getByTestId("upload-input").setInputFiles(
+    [1, 2, 3].map((i) => ({
+      name: `${i}.png`,
+      mimeType: "image/png",
+      buffer,
+    })),
+  );
   await expect(page.getByText("Uploaded", { exact: true })).toHaveCount(3);
   expect(creations).toBe(3);
   expect(completions).toBe(3);

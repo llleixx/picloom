@@ -587,10 +587,8 @@ async function remove() {
               <Button
                 v-if="
                   task.status === 'failed' &&
-                  (task.kind === 'delete'
-                    ? ['ready', 'blocked', 'deleting'].includes(file.status)
-                    : file.status === 'ready' ||
-                      (task.kind === 'write' && file.status === 'blocked'))
+                  task.kind === 'delete' &&
+                  ['ready', 'blocked', 'deleting'].includes(file.status)
                 "
                 variant="outline"
                 size="sm"

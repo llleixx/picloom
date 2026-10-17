@@ -260,7 +260,11 @@ test("relative text and margin scale with the short side; fixed mode preserves p
           params: {},
           limits: { maxDimension: 2000, maxPixels: 4_000_000 },
           async createOutput() {
-            return { path } as any;
+            return {
+              async write(stream: ReadableStream<Uint8Array>) {
+                await Bun.write(path, new Response(stream));
+              },
+            } as any;
           },
         },
         {
@@ -295,6 +299,68 @@ test("relative text and margin scale with the short side; fixed mode preserves p
     expect(fixed.width).toBe(small.width);
     expect(fixed.margin).toBe(4);
     expect((await bounds(200, 400, "relative")).width).toBe(small.width);
+  } finally {
+    await f.close();
+  }
+});
+
+test("watermark positions use EXIF-oriented dimensions without a raw base image", async () => {
+  const f = await fixture();
+  try {
+    const logo = join(f.root, "oriented-mark.png");
+    await sharp({
+      create: { width: 6, height: 6, channels: 3, background: "red" },
+    })
+      .png()
+      .toFile(logo);
+    const pipeline = await f.app.configuration.savePipeline({
+      name: "Oriented",
+      kind: "upload",
+      steps: [
+        {
+          pluginId: "builtin.watermark",
+          onNotApplicable: "abort",
+          version: "1.0.0",
+          config: {
+            type: "image",
+            sizeMode: "fixed",
+            imagePath: logo,
+            imageWidth: 6,
+            margin: 0,
+            opacity: 100,
+            position: "bottom-right",
+          },
+        },
+      ],
+    });
+    const profile = await f.app.configuration.profileEditor(f.profileId);
+    await f.app.configuration.saveProfileEditor(
+      {
+        ...profile,
+        uploadPipelineId: pipeline.id,
+        expectedVersion: profile.configVersion,
+      },
+      profile.id,
+    );
+    const source = await sharp({
+      create: { width: 40, height: 20, channels: 3, background: "black" },
+    })
+      .withMetadata({ orientation: 6 })
+      .jpeg()
+      .toBuffer();
+    const response = await f.upload(undefined, source, "oriented.jpg");
+    expect(response.status).toBe(201);
+    const uploaded = await response.json();
+    const result = await f.request(new URL(uploaded.url).pathname);
+    const { data, info } = await sharp(await result.arrayBuffer())
+      .raw()
+      .toBuffer({ resolveWithObject: true });
+    expect([info.width, info.height]).toEqual([20, 40]);
+    const offset =
+      ((info.height - 3) * info.width + info.width - 3) * info.channels;
+    expect(data[offset]!).toBeGreaterThan(200);
+    expect(data[offset + 1]!).toBeLessThan(50);
+    expect(data[0]!).toBeLessThan(20);
   } finally {
     await f.close();
   }

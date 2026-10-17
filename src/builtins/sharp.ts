@@ -1,3 +1,4 @@
+import { Readable } from "node:stream";
 import {
   PluginError,
   type Definition,
@@ -112,7 +113,9 @@ function runtime(
         image = image.jpeg({ quality: (p.q ?? 80) as number });
       else image = image.webp({ quality: (p.q ?? 80) as number });
       const out = await createOutput();
-      await image.toFile(out.path);
+      await out.write(
+        Readable.toWeb(image) as unknown as ReadableStream<Uint8Array>,
+      );
       ctx.signal.throwIfAborted();
       return { status: "replace", output: out };
     },

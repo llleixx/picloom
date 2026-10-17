@@ -1,5 +1,5 @@
 import { test, expect } from "bun:test";
-import { mkdtemp, rm, utimes, readdir } from "node:fs/promises";
+import { mkdtemp, rm, utimes, readdir, mkdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ImageCache, type ImageResult } from "../src/core/cache";
@@ -27,12 +27,14 @@ test("cache maintenance throttles scans, applies new limits and serializes clear
       new Date(Date.now() - 1000),
     );
     await cache.put("file", "second", output(2));
-    expect(await cache.get("file", "first")).not.toBeNull();
+    expect(await cache.get("file", "first")).toBeNull();
     await cache.clean(false);
-    expect(await cache.get("file", "first")).not.toBeNull();
+    expect(await cache.get("file", "first")).toBeNull();
     await cache.clean();
     expect(await cache.get("file", "first")).toBeNull();
-    expect(await cache.get("file", "second")).not.toBeNull();
+    const second = await cache.get("file", "second");
+    expect(second).not.toBeNull();
+    await second!.stream.cancel();
     cache.configure(1, 60000);
     await cache.clean(false);
     expect(await cache.get("file", "second")).toBeNull();
@@ -110,5 +112,54 @@ test("admin cache clear requires CSRF, preserves originals, and settings update 
     expect(f.app.config.cacheTtlMs).toBe(60000);
   } finally {
     await f.close();
+  }
+});
+
+test("cache scans remove incomplete entries and empty directories while retaining valid images", async () => {
+  const root = await mkdtemp(join(tmpdir(), "picloom-cache-residue-"));
+  try {
+    const cache = new ImageCache(root, 100, 60000);
+    await cache.put("valid", "key", output(1));
+    for (const name of [
+      "missing-image",
+      "missing-meta",
+      "invalid-meta",
+      ".tmp-interrupted",
+    ]) {
+      const path = join(root, "broken", name);
+      await mkdir(path, { recursive: true });
+      if (name !== "missing-image")
+        await Bun.write(join(path, "image"), new Uint8Array(1));
+      if (name !== "missing-meta")
+        await Bun.write(join(path, "meta.json"), "{");
+    }
+    await mkdir(join(root, "empty"));
+    await cache.clean();
+    expect(await readdir(root)).toEqual(["valid"]);
+    const valid = await cache.get("valid", "key");
+    expect(valid).not.toBeNull();
+    await valid!.stream.cancel();
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("an opened cache stream survives eviction without holding the cache lock", async () => {
+  const root = await mkdtemp(join(tmpdir(), "picloom-cache-stream-"));
+  try {
+    const cache = new ImageCache(root, 1024 * 1024, 60000);
+    const value = output(512 * 1024);
+    value.bytes.fill(37);
+    await cache.put("file", "key", value);
+    const hit = (await cache.get("file", "key"))!;
+    expect(hit.size).toBe(value.bytes.length);
+    await cache.clear();
+    expect(await readdir(root)).toEqual([]);
+    const received: Uint8Array = new Uint8Array(
+      await new Response(hit.stream).arrayBuffer(),
+    );
+    expect(received).toEqual(value.bytes);
+  } finally {
+    await rm(root, { recursive: true, force: true });
   }
 });

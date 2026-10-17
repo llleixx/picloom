@@ -45,3 +45,22 @@ export function emptyImageResponse(
   }
   return request.method === "HEAD" ? new Response(null, { headers }) : null;
 }
+
+// Cache hits own an open file stream, including when HEAD/304 skips the body.
+export async function derivedImageResponse(
+  result: import("./cache").ImageResult | import("./cache").CachedImage,
+  request: ImageRequest,
+  headers: Headers,
+) {
+  const empty = emptyImageResponse(request, headers);
+  if (empty) {
+    if ("stream" in result) await result.stream.cancel();
+    return empty;
+  }
+  return new Response(
+    "stream" in result
+      ? result.stream
+      : (result.bytes as Uint8Array<ArrayBuffer>),
+    { headers },
+  );
+}

@@ -16,7 +16,8 @@ export interface FileInput {
 }
 export interface Output extends FileInput {
   readonly handle: string;
-  readonly path: string;
+  /** Write once through the host's temporary-space budget. */
+  write(stream: ReadableStream<Uint8Array>): Promise<void>;
 }
 export interface Context {
   signal: AbortSignal;

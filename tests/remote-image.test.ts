@@ -24,7 +24,7 @@ test("remote image download rejects local, reserved and mapped addresses", async
     "https://user:secret@example.com/x",
   ])
     await expect(
-      downloadImage(url, 1024, new AbortController().signal),
+      downloadImage(url, 1024, new AbortController().signal, async () => {}),
     ).rejects.toThrow();
 });
 test("URL uploads authorize before downloading and reject local URLs", async () => {
@@ -55,6 +55,81 @@ test("URL uploads authorize before downloading and reject local URLs", async () 
       ).status,
     ).toBe(400);
   } finally {
+    await f.close();
+  }
+});
+test("remote download streams into managed storage and enforces size during transfer", async () => {
+  const { spyOn } = await import("bun:test");
+  const http = await import("node:http");
+  const { Readable } = await import("node:stream");
+  const { EventEmitter } = await import("node:events");
+  const f = await fixture();
+  let destroyed = false;
+  let consumedBeforeEnd = false;
+  let consumed = false;
+  const requestSpy = spyOn(http, "request").mockImplementation(((
+    options: any,
+    callback: any,
+  ) => {
+    expect(options.hostname).toBe("93.184.216.34");
+    const incoming = Readable.from(
+      (async function* () {
+        yield Buffer.from(f.png);
+        for (let n = 0; n < 100 && !consumed; n++) await Bun.sleep(1);
+        consumedBeforeEnd = consumed;
+        yield Buffer.from(f.png);
+      })(),
+    ) as any;
+    incoming.statusCode = 200;
+    incoming.headers = {};
+    incoming.on("close", () => {
+      destroyed = true;
+    });
+    const outgoing = new EventEmitter() as any;
+    outgoing.end = () => callback(incoming);
+    return outgoing;
+  }) as any);
+  try {
+    const path = f.app.files.temporary.create(f.png.length * 2);
+    const name = await downloadImage(
+      "http://93.184.216.34/image.png",
+      f.png.length * 2,
+      new AbortController().signal,
+      async (stream, name, signal) => {
+        await f.app.files.temporary.write(
+          path,
+          stream.pipeThrough(
+            new TransformStream({
+              transform(chunk, controller) {
+                consumed = true;
+                controller.enqueue(chunk);
+              },
+            }),
+          ),
+          f.png.length * 2,
+          signal,
+        );
+        return name;
+      },
+    );
+    expect(name).toBe("image.png");
+    expect(consumedBeforeEnd).toBe(true);
+    expect(await Bun.file(path).size).toBe(f.png.length * 2);
+    await f.app.files.temporary.remove(path);
+    expect(destroyed).toBe(true);
+    const small = f.app.files.temporary.create(f.png.length);
+    await expect(
+      downloadImage(
+        "http://93.184.216.34/image.png",
+        f.png.length,
+        new AbortController().signal,
+        async (stream, _name, signal) =>
+          f.app.files.temporary.write(small, stream, f.png.length, signal),
+      ),
+    ).rejects.toMatchObject({ code: "TOO_LARGE" });
+    expect(f.app.files.temporary.bytes).toBe(0);
+  } finally {
+    requestSpy.mockRestore();
     await f.close();
   }
 });

@@ -59,7 +59,7 @@ export function scopedInput(input: FileInput, parent: AbortSignal) {
     },
   };
 }
-export function output(path: string): Output {
+export function output(path: string, write: Output["write"]): Output {
   return {
     ...fileInput(path, {
       mimeType: null,
@@ -67,7 +67,7 @@ export function output(path: string): Output {
       width: null,
       height: null,
     }),
-    path,
+    write,
     handle: crypto.randomUUID(),
   };
 }

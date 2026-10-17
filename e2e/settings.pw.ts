@@ -23,7 +23,7 @@ test("settings edit, validation, restart and mobile navigation", async ({
     .fill("https://images.example.com");
   await page.getByLabel("Enable hotlink protection").check();
   await page.getByLabel("Cache lifetime (seconds)").fill("3600");
-  await page.getByLabel("Capacity (MiB)").fill("128");
+  await page.getByLabel("Derived cache limit (MiB)").fill("128");
   await page.getByLabel("Retention (minutes)").fill("60");
   await page
     .getByLabel("Allowed domains", { exact: true })
@@ -46,7 +46,7 @@ test("settings edit, validation, restart and mobile navigation", async ({
     page.getByLabel("Allow requests without Referer"),
   ).not.toBeChecked();
   await expect(page.getByLabel("Cache lifetime (seconds)")).toHaveValue("3600");
-  await expect(page.getByLabel("Capacity (MiB)")).toHaveValue("128");
+  await expect(page.getByLabel("Derived cache limit (MiB)")).toHaveValue("128");
   await expect(page.getByLabel("Retention (minutes)")).toHaveValue("60");
   await page.setViewportSize({ width: 390, height: 844 });
   await page.getByRole("button", { name: "Open navigation" }).click();

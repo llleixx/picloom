@@ -1,3 +1,4 @@
+import { Readable } from "node:stream";
 import { PluginError, type Definition } from "../../plugin-sdk";
 
 export default {
@@ -48,7 +49,7 @@ export default {
             ).arrayBuffer();
             const output = await createOutput();
             // Sharp is supplied by the host; the package does not bundle its own copy.
-            await services.images
+            const image = services.images
               .sharp(bytes, { limitInputPixels: limits.maxPixels })
               .rotate()
               .resize({ width, withoutEnlargement: true })
@@ -58,8 +59,10 @@ export default {
                   : file.metadata.mimeType === "image/webp"
                     ? "webp"
                     : "png",
-              )
-              .toFile(output.path);
+              );
+            await output.write(
+              Readable.toWeb(image) as unknown as ReadableStream<Uint8Array>,
+            );
             signal.throwIfAborted();
             return { status: "replace", output };
           },

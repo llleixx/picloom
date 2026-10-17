@@ -43,6 +43,7 @@ const messages: Record<string, MessageKey> = {
   INVALID_CURSOR: "errors.invalidCursor",
   UPLOAD_EXPIRED: "errors.uploadExpired",
   UPLOAD_CLOSED: "errors.uploadClosed",
+  TEMP_CAPACITY: "errors.temporaryFull",
   UPLOAD_CAPACITY: "errors.uploadCapacity",
   UNAUTHORIZED: "ui.sessionExpiredSignInAgain",
   INCORRECT_PASSWORD: "ui.currentPasswordIsIncorrect",

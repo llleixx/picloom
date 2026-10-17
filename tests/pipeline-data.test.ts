@@ -48,7 +48,7 @@ test("execution data copies JSON values and enforces a total size limit", () => 
   expect(data.get("null-prototype")).toEqual({ valid: true });
 });
 
-test("all stages share data within an attempt; post-save retries start fresh and retained steps keep identity", async () => {
+test("all stages share data within an attempt; failed actions release sources and retained steps keep identity", async () => {
   const f = await fixture();
   let fail = true;
   const calls: string[] = [];
@@ -197,7 +197,7 @@ test("all stages share data within an attempt; post-save retries start fresh and
     });
     expect(JSON.stringify(operations)).not.toContain("sensitive-error-detail");
     fail = false;
-    await f.app.files.tasks.retry(tasks[0]!.id);
+    await expect(f.app.files.tasks.retry(tasks[0]!.id)).rejects.toThrow();
     await f.app.files.sweep();
     expect(calls).toEqual([
       "upload:produce",
@@ -206,14 +206,8 @@ test("all stages share data within an attempt; post-save retries start fresh and
       "access:consume",
       "post_save:produce",
       "post_save:consume",
-      "post_save:produce",
-      "post_save:consume",
     ]);
-    const recovered = await (
-      await f.request(`/api/files/${file.id}/operations`)
-    ).json();
-    expect(recovered.tasks[0].error).toBeNull();
-    expect(recovered.tasks[0].failedStep).toBeUndefined();
+    expect((await f.app.db.read((r) => r.file(file.id)))!.temp_path).toBeNull();
     const another = await (await f.upload()).json();
     await f.app.configuration.saveProfileEditor(
       {

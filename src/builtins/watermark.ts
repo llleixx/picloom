@@ -1,3 +1,4 @@
+import { Readable } from "node:stream";
 import { readFile } from "node:fs/promises";
 import {
   PluginError,
@@ -279,13 +280,16 @@ function stage(
           const file = "getFile" in input ? await input.getFile() : input.file;
           context.signal.throwIfAborted();
           const bytes = await new Response(await file.openRead()).arrayBuffer();
-          const base = await sharp(Buffer.from(bytes), {
+          const base = sharp(Buffer.from(bytes), {
             limitInputPixels: limits.maxPixels,
-          })
-            .autoOrient()
-            .raw()
-            .toBuffer({ resolveWithObject: true });
-          const { width, height } = base.info;
+          });
+          const metadata = await base.metadata();
+          const swap =
+            metadata.orientation !== undefined &&
+            metadata.orientation >= 5 &&
+            metadata.orientation <= 8;
+          const width = (swap ? metadata.height : metadata.width)!;
+          const height = (swap ? metadata.width : metadata.height)!;
           const shortSide = Math.min(width, height);
           const relative = config.sizeMode === "relative";
           const fontSize = Math.max(
@@ -368,16 +372,18 @@ function stage(
             : position.includes("bottom")
               ? height - margin - mark.info.height
               : Math.floor((height - mark.info.height) / 2);
-          const image = sharp(base.data, { raw: base.info }).composite([
-            { input: mark.data, raw: mark.info, left, top },
-          ]);
+          const image = base
+            .autoOrient()
+            .composite([{ input: mark.data, raw: mark.info, left, top }]);
           const output = await createOutput();
           const format = file.metadata.mimeType;
           if (format === "image/jpeg") image.jpeg({ quality: 90 });
           else if (format === "image/webp") image.webp({ quality: 90 });
           else image.png();
           context.signal.throwIfAborted();
-          await image.toFile(output.path);
+          await output.write(
+            Readable.toWeb(image) as unknown as ReadableStream<Uint8Array>,
+          );
           context.signal.throwIfAborted();
           return { status: "replace", output };
         },

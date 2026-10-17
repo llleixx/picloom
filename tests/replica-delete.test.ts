@@ -186,3 +186,40 @@ test("replica deletion failure can retry while file stays ready; upload tokens c
     await f.close();
   }
 });
+
+test("exhausted uncertain replica writes release local source without losing remote state", async () => {
+  const { f } = await setup();
+  try {
+    const image = await (await f.upload()).json();
+    const task = (await f.app.db.read((r) => r.tasks(image.id))).find(
+      (t) => t.kind === "write",
+    )!;
+    const replica = (await f.app.db.read((r) => r.replica(task.replica_id!)))!;
+    const lease = f.app.plugins.acquire(replica.storage_instance_id, "storage");
+    const original = lease.runtime.write;
+    try {
+      lease.runtime.write = async () => {
+        throw new PluginError("FAILED", "Uncertain write", false, "unknown");
+      };
+      await f.app.files.sweep();
+    } finally {
+      lease.runtime.write = original;
+      await lease.release();
+    }
+    expect((await f.app.db.read((r) => r.task(task.id)))!.status).toBe(
+      "failed",
+    );
+    expect((await f.app.db.read((r) => r.replica(replica.id)))!.status).toBe(
+      "write_unknown",
+    );
+    expect(
+      (await f.app.db.read((r) => r.file(image.id)))!.temp_path,
+    ).toBeNull();
+    expect(f.app.files.temporary.bytes).toBe(0);
+    const response = await f.request(new URL(image.url).pathname);
+    expect(response.status).toBe(200);
+    await response.arrayBuffer();
+  } finally {
+    await f.close();
+  }
+});

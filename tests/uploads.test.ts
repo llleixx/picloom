@@ -1,4 +1,5 @@
-import { test, expect } from "bun:test";
+import { test, expect, spyOn } from "bun:test";
+import * as fs from "node:fs/promises";
 import { readdir, mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { fixture } from "./helpers";
@@ -238,6 +239,54 @@ test("failed publication and interrupted completion are cleaned and never replay
     );
     expect(await readdir(join(f.root, "uploads"))).toEqual([]);
   } finally {
+    await f.close();
+  }
+});
+
+test("expired session cleanup continues after deletion failure and retries without releasing its budget early", async () => {
+  const f = await fixture();
+  let removeSpy: ReturnType<typeof spyOn> | undefined;
+  try {
+    const a = await create(f, f.png.length);
+    const b = await create(f, f.png.length);
+    await put(f, a.id, 0, f.png);
+    await put(f, b.id, 0, f.png);
+    const sessions = await f.app.db.read((r) => r.uploadSessions());
+    // Fail the first session in the actual cleanup order.
+    const failed = sessions[0]!;
+    const other = sessions[1]!;
+    await f.app.db.transaction(async (r) => {
+      for (const session of sessions) {
+        session.expires_at = 0;
+        await r.saveUploadSession(session);
+      }
+    });
+    const before = f.app.files.temporary.bytes;
+    const retained = f.app.files.temporary.size("upload:" + failed.id);
+    const path = join(f.root, "uploads", failed.id);
+    const originalRemove = fs.rm;
+    removeSpy = spyOn(fs, "rm").mockImplementation(async (target, options) => {
+      if (target === path)
+        throw Object.assign(new Error("Deletion denied"), { code: "EACCES" });
+      return originalRemove(target, options);
+    });
+    await f.app.uploads.cleanup(true);
+    expect(
+      await f.app.db.read((r) => r.uploadSession(failed.id)),
+    ).not.toBeNull();
+    expect(await f.app.db.read((r) => r.uploadSession(other.id))).toBeNull();
+    expect(await readdir(join(f.root, "uploads"))).toEqual([failed.id]);
+    expect(f.app.files.temporary.bytes).toBe(retained);
+    expect(retained).toBeGreaterThan(0);
+    expect(retained).toBeLessThan(before);
+    removeSpy.mockRestore();
+    removeSpy = undefined;
+    await f.app.uploads.cleanup(true);
+    expect(await f.app.db.read((r) => r.uploadSessions())).toEqual([]);
+    expect(await readdir(join(f.root, "uploads"))).toEqual([]);
+    expect(f.app.files.temporary.bytes).toBe(0);
+  } finally {
+    removeSpy?.mockRestore();
     await f.close();
   }
 });

@@ -398,7 +398,7 @@ test("redundancy uses temporary results, publishes tasks atomically, runs webhoo
 
 test("post-save retry restarts the whole pipeline with stable operation IDs", async () => {
   const f = await fixture();
-  let secondStatus = 400;
+  let secondStatus = 503;
   const operations: string[] = [];
   const calls: string[] = [];
   const receiver = Bun.serve({
@@ -440,7 +440,7 @@ test("post-save retry restarts the whole pipeline with stable operation IDs", as
     await f.app.files.sweep();
     const tasks = await f.app.db.read((r) => r.tasks(result.id));
     expect(tasks).toHaveLength(1);
-    expect(tasks[0]!.status).toBe("failed");
+    expect(tasks[0]!.status).toBe("pending");
     expect(calls).toEqual(["/first", "/second"]);
     secondStatus = 204;
     // Simulate a crash during a later attempt: recovery must restart at step one.
@@ -716,6 +716,112 @@ test("storage usage returns a replica count without enumerating file references"
       (await f.request("/api/storage-sources/" + sourceId, "DELETE")).status,
     ).toBe(409);
   } finally {
+    await f.close();
+  }
+});
+
+test("background tasks refill a free slot after failure while another task remains blocked", async () => {
+  const f = await fixture();
+  let release!: () => void;
+  let startedThird!: () => void;
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const third = new Promise<void>((resolve) => {
+    startedThird = resolve;
+  });
+  let sweep: Promise<void> | undefined;
+  let deadline: ReturnType<typeof setTimeout> | undefined;
+  let active = 0,
+    peak = 0;
+  const started: string[] = [];
+  const ids: string[] = [];
+  try {
+    f.app.config.taskConcurrency = 2;
+    f.app.plugins.register({
+      id: "test.refill",
+      name: "Refill",
+      kind: "processor",
+      version: "1",
+      apiVersion: 1,
+      stages: {
+        post_save: {
+          configSchemaVersion: 1,
+          configSchema: { type: "object", properties: {} },
+          async createInstance() {
+            return {
+              async execute(input) {
+                started.push(input.fileId);
+                peak = Math.max(peak, ++active);
+                try {
+                  if (input.fileId === ids[1])
+                    throw new PluginError(
+                      "TEST_FAILED",
+                      "Expected failure",
+                      false,
+                    );
+                  if (input.fileId === ids[2]) startedThird();
+                  await gate;
+                  return { status: "pass" as const };
+                } finally {
+                  active--;
+                }
+              },
+            };
+          },
+        },
+      },
+    });
+    const pipeline = await f.app.configuration.savePipeline({
+      name: "Refill",
+      kind: "post_save",
+      steps: [{ pluginId: "test.refill", version: "1", config: {} }],
+    });
+    const profile = await f.app.configuration.profileEditor(f.profileId);
+    await f.app.configuration.saveProfileEditor(
+      {
+        ...profile,
+        postSavePipelineId: pipeline.id,
+        expectedVersion: profile.configVersion,
+      },
+      profile.id,
+    );
+    for (let i = 0; i < 3; i++) {
+      const image = await (await f.upload()).json();
+      ids.push(image.id);
+      // Establish an explicit due order without depending on clock resolution.
+      await f.app.db.transaction(async (r) => {
+        const task = (await r.tasks(image.id))[0]!;
+        task.next_run_at = i;
+        await r.saveTask(task);
+      });
+    }
+    sweep = f.app.files.sweep();
+    await Promise.race([
+      third,
+      new Promise<never>((_, reject) => {
+        deadline = setTimeout(
+          () => reject(new Error("Free task slot was not refilled")),
+          1500,
+        );
+      }),
+    ]);
+    expect(started).toEqual(ids);
+    expect(active).toBe(2);
+    expect(peak).toBe(2);
+    expect((await f.app.db.read((r) => r.tasks(ids[0]!)))[0]!.status).toBe(
+      "running",
+    );
+    expect((await f.app.db.read((r) => r.tasks(ids[1]!)))[0]!.status).toBe(
+      "failed",
+    );
+    release();
+    await sweep;
+    expect(f.app.files.temporary.bytes).toBe(0);
+  } finally {
+    clearTimeout(deadline);
+    release();
+    await sweep;
     await f.close();
   }
 });

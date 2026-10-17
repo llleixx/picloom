@@ -67,7 +67,6 @@ const limitGroups: Array<{
         key: "uploadTempBytes",
         label: "settings.uploadTemp",
         unit: 1048576,
-        advanced: true,
       },
       {
         key: "uploadSessionLimit",
@@ -359,6 +358,9 @@ async function save() {
                     :aria-describedby="field.key + '-error'"
                   />
                 </label>
+                <p v-if="field.key === 'uploadTempBytes'" class="mt-1 subtle">
+                  {{ t("settings.temporaryHint") }}
+                </p>
                 <p
                   v-if="fields['/' + field.key]"
                   :id="field.key + '-error'"

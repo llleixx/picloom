@@ -139,6 +139,8 @@ test("different parts stream concurrently; duplicate parts serialize and complet
   const gates: ReturnType<typeof deferred>[] = [];
   try {
     f.app.config.chunkPartBytes = Math.ceil(f.png.length / 2);
+    // Two distinct parts plus one queued replacement.
+    f.app.config.partConcurrency = 3;
     const create = async () =>
       (
         await f.request("/api/uploads", "POST", {

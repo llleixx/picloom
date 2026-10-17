@@ -1,3 +1,4 @@
+import type { TemporarySpace } from "../infra/temporary-space";
 import { isPluginError } from "../../plugin-sdk/api";
 import type { ProcessingResult } from "../../shared/api";
 import { assertJson, pipelineData } from "./pipeline-data";
@@ -14,7 +15,7 @@ import { PluginError, type Context } from "../plugins/api";
 import type { Settings } from "../config";
 import { AppError, Conflict, requireValue } from "./errors";
 import { InFlight, Mutex } from "./concurrency";
-import { fileInput, scopedInput, remove, publicPath } from "../infra/files";
+import { fileInput, scopedInput, publicPath } from "../infra/files";
 import type { ImageCache } from "./cache";
 const terminal = (t: Task) => ["success", "cancelled"].includes(t.status);
 export class TaskExecutor {
@@ -30,6 +31,7 @@ export class TaskExecutor {
     private config: Settings,
     private flight: InFlight,
     private cache: ImageCache,
+    private temporary: TemporarySpace,
     private beforeDelete?: () => Promise<void>,
   ) {}
   cancel(fileId: string) {
@@ -51,11 +53,8 @@ export class TaskExecutor {
         file = requireValue(await r.file(task.file_id));
       if (
         task.status !== "failed" ||
-        (task.kind === "delete"
-          ? !["ready", "blocked", "deleting"].includes(file.status)
-          : task.kind === "write"
-            ? !["ready", "blocked"].includes(file.status)
-            : file.status !== "ready")
+        task.kind !== "delete" ||
+        !["ready", "blocked", "deleting"].includes(file.status)
       )
         throw new Conflict("Task cannot be retried");
       task.status = "pending";
@@ -71,23 +70,44 @@ export class TaskExecutor {
     );
     const lease = this.plugins.acquire(replica.storage_instance_id, "storage");
     try {
-      return (
-        (await lease.runtime.recoverWrite?.(
-          {
-            operationId: task?.id ?? `initial:${replica.id}`,
-            fileId: file.id,
-            storageKey: file.storage_key,
-            expectedSize: file.byte_size!,
-            locator: replica.locator_json,
-          },
-          this.context(new AbortController().signal),
-        )) ?? { status: "unknown" as const }
-      );
+      const signal = AbortSignal.timeout(120_000);
+      const result = (await lease.runtime.recoverWrite?.(
+        {
+          operationId: task?.id ?? `initial:${replica.id}`,
+          fileId: file.id,
+          storageKey: file.storage_key,
+          expectedSize: file.byte_size!,
+          locator: replica.locator_json,
+        },
+        this.context(signal),
+      )) ?? { status: "unknown" as const };
+      signal.throwIfAborted();
+      return result;
     } finally {
       await lease.release();
     }
   }
+  private async releaseTemporary(fileId: string) {
+    const file = requireValue(await this.db.read((r) => r.file(fileId)));
+    if (!file.temp_path || file.status === "preparing") return;
+    const needsSource = (tasks: Task[]) =>
+      tasks.some(
+        (task) =>
+          task.kind !== "delete" &&
+          ["pending", "running"].includes(task.status),
+      );
+    if (needsSource(await this.db.read((r) => r.tasks(fileId)))) return;
+    await this.flight.wait(fileId);
+    await this.temporary.remove(join(this.config.root, "temp", file.temp_path));
+    await this.db.transaction(async (r) => {
+      const current = requireValue(await r.file(fileId));
+      current.temp_path = null;
+      current.temp_status = "cleaned";
+      await r.saveFile(current, current.status);
+    });
+  }
   private async cleanup(file: FileRecord) {
+    await this.releaseTemporary(file.id);
     if (file.status === "failed" || file.status === "deleting") {
       this.cancel(file.id);
       await this.flight.wait(file.id);
@@ -170,6 +190,7 @@ export class TaskExecutor {
         }
       });
     }
+    await this.releaseTemporary(file.id);
     const current = requireValue(await this.db.read((r) => r.file(file.id)));
     if (!["ready", "blocked", "deleting"].includes(current.status)) return;
     const state = await this.db.read(async (r) => ({
@@ -189,8 +210,6 @@ export class TaskExecutor {
     )
       return;
     await this.flight.wait(file.id);
-    if (current.temp_path)
-      await remove(join(this.config.root, "temp", current.temp_path));
     await this.db.transaction(async (r) => {
       const f = requireValue(await r.file(file.id));
       if ((await r.tasks(file.id)).some((t) => !terminal(t))) return;
@@ -233,6 +252,10 @@ export class TaskExecutor {
       controller = new AbortController(),
       end = this.flight.enter(file.id);
     this.controllers.set(id, { fileId: file.id, kind: task.kind, controller });
+    const timeout = setTimeout(
+      () => controller.abort(new Error("Task timed out")),
+      120_000,
+    );
     let lease: ReturnType<PluginManager["acquire"]> | undefined;
     let activeStep: { id: string; name: string } | undefined;
     let decision: "pass" | "block" | "delete" = "pass";
@@ -417,6 +440,7 @@ export class TaskExecutor {
           replica!.status = "deleted";
         }
       }
+      controller.signal.throwIfAborted();
       await this.db.transaction(async (r) => {
         const current = requireValue(await r.task(id));
         if (current.status !== "running") throw new Conflict();
@@ -517,9 +541,13 @@ export class TaskExecutor {
         }
       });
     } finally {
-      await lease?.release();
-      this.controllers.delete(id);
-      end();
+      clearTimeout(timeout);
+      try {
+        await lease?.release();
+      } finally {
+        this.controllers.delete(id);
+        end();
+      }
     }
   }
   async sweep() {
@@ -539,13 +567,37 @@ export class TaskExecutor {
           );
         }
       const due = await this.db.read((r) => r.dueTasks(Date.now()));
-      for (let n = 0; n < due.length; ) {
-        const batch = due.slice(n, n + this.config.taskConcurrency);
-        n += batch.length;
-        await Promise.all(batch.map((t) => this.run(t.id)));
+      let next = 0;
+      await Promise.all(
+        Array.from(
+          { length: Math.min(this.config.taskConcurrency, due.length) },
+          async () => {
+            while (!this.stopping) {
+              const task = due[next++];
+              if (!task) return;
+              try {
+                await this.run(task.id);
+              } catch {
+                console.error(
+                  JSON.stringify({
+                    event: "task_execution_failed",
+                    taskId: task.id,
+                  }),
+                );
+              }
+            }
+          },
+        ),
+      );
+      for (const file of await this.db.read((r) => r.filesNeedingCleanup())) {
+        try {
+          await this.cleanup(file);
+        } catch {
+          console.error(
+            JSON.stringify({ event: "recovery_pending", fileId: file.id }),
+          );
+        }
       }
-      for (const file of await this.db.read((r) => r.filesNeedingCleanup()))
-        await this.cleanup(file);
     });
   }
   async close() {

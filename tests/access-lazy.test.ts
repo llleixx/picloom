@@ -1,3 +1,4 @@
+import { Readable } from "node:stream";
 import { test, expect, spyOn } from "bun:test";
 import { fixture } from "./helpers";
 import type { AccessPlugin } from "../src/plugins/api";
@@ -132,11 +133,13 @@ test("later access steps see replacements; parameterless output is cached", asyn
               const bytes = await new Response(
                 await file.openRead(),
               ).arrayBuffer();
-              await services.images
+              const image = services.images
                 .sharp(Buffer.from(bytes))
                 .resize(7, 5)
-                .png()
-                .toFile(output.path);
+                .png();
+              await output.write(
+                Readable.toWeb(image) as unknown as ReadableStream<Uint8Array>,
+              );
               return { status: "replace" as const, output };
             },
           };
