@@ -1,0 +1,9 @@
+node_modules/
+data/
+.env
+work/
+outputs/
+coverage/
+dist/
+test-results/
+playwright-report/

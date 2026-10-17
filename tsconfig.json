@@ -1,0 +1,26 @@
+{
+  "compilerOptions": {
+    "target": "ESNext",
+    "module": "Preserve",
+    "moduleResolution": "Bundler",
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noEmit": true,
+    "allowImportingTsExtensions": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "types": [
+      "bun"
+    ]
+  },
+  "include": [
+    "src/**/*.ts",
+    "plugin-sdk/**/*.ts",
+    "tests/**/*.ts",
+    "shared/**/*.ts",
+    "e2e/**/*.ts",
+    "playwright.config.ts",
+    "web/vite.config.ts",
+    "examples/**/*.ts"
+  ]
+}

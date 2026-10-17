@@ -1,0 +1,8 @@
+{
+  "id": "example.local-storage",
+  "name": "Example local storage",
+  "version": "1.0.0",
+  "kind": "storage",
+  "apiVersion": 1,
+  "entry": "index.js"
+}
