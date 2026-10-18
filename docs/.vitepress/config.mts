@@ -1,8 +1,8 @@
-import { defineConfig } from "vitepress";
+import { withMermaid } from "vitepress-plugin-mermaid";
 import { zh } from "./zh";
 
 // Add a locale (e.g. en: { lang: 'en-US', link: '/en/', ... }) only when translated pages exist.
-export default defineConfig({
+export default withMermaid({
   title: "Picloom",
   description: "自托管图片管理服务，支持多存储、水印、图片处理和插件扩展。",
   base: process.env.DOCS_BASE || "/",

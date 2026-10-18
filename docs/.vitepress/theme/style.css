@@ -25,3 +25,9 @@
   margin: 0 auto;
   padding: 0 24px 64px;
 }
+
+/* Keep document paragraph spacing out of Mermaid's measured labels. */
+.vp-doc .mermaid p {
+  margin: 0;
+  line-height: 1.5;
+}

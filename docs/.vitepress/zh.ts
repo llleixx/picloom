@@ -5,7 +5,6 @@ const guide = [
     items: [
       { text: "快速开始", link: "/guide/quick-start" },
       { text: "理解 Picloom", link: "/guide/concepts" },
-      { text: "上传与分享", link: "/guide/upload" },
     ],
   },
   {
@@ -13,7 +12,7 @@ const guide = [
     items: [
       { text: "存储源与存储组", link: "/guide/storage" },
       { text: "上传配置与公开路径", link: "/guide/profiles" },
-      { text: "三阶段流水线", link: "/guide/pipelines" },
+      { text: "流水线", link: "/guide/pipelines" },
       { text: "文件、副本与导入", link: "/guide/files" },
       { text: "用户、游客与令牌", link: "/guide/access" },
       { text: "常见场景", link: "/guide/recipes" },
