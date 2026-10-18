@@ -261,3 +261,46 @@ test("source-filtered file lists batch pending deletions for the current page", 
     await f.close();
   }
 });
+
+test("one failed replica recovery does not block deletion of healthy replicas", async () => {
+  const { f, source } = await setup();
+  let recovery: ReturnType<typeof spyOn> | undefined;
+  try {
+    const image = await (await f.upload()).json();
+    await f.app.files.sweep();
+    const replicas = await f.app.db.read((r) => r.replicas(image.id));
+    const uncertain = replicas.find(
+      (r) => r.storage_instance_id === source.id,
+    )!;
+    const healthy = replicas.find((r) => r.id !== uncertain.id)!;
+    await f.app.db.transaction((r) =>
+      r.saveReplica({ ...uncertain, status: "write_unknown" }),
+    );
+    const lease = f.app.plugins.acquire(source.id, "storage");
+    recovery = spyOn(lease.runtime, "recoverWrite").mockRejectedValue(
+      new Error("Unreachable storage"),
+    );
+    await lease.release();
+    await f.app.files.delete(image.id);
+    await f.app.files.sweep();
+    expect(recovery).toHaveBeenCalled();
+    expect((await f.app.db.read((r) => r.replica(healthy.id)))?.status).toBe(
+      "deleted",
+    );
+    expect((await f.app.db.read((r) => r.replica(uncertain.id)))?.status).toBe(
+      "write_unknown",
+    );
+    expect((await f.app.db.read((r) => r.file(image.id)))?.status).toBe(
+      "deleting",
+    );
+    recovery.mockRestore();
+    recovery = undefined;
+    await f.app.files.sweep();
+    expect((await f.app.db.read((r) => r.file(image.id)))?.status).toBe(
+      "deleted",
+    );
+  } finally {
+    recovery?.mockRestore();
+    await f.close();
+  }
+});

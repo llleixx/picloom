@@ -114,7 +114,18 @@ export class TaskExecutor {
       await this.flight.wait(file.id);
       for (const replica of await this.db.read((r) => r.replicas(file.id))) {
         if (["writing", "write_unknown"].includes(replica.status)) {
-          const recovered = await this.recoverReplica(file, replica);
+          const recovered = await this.recoverReplica(file, replica).catch(
+            () => {
+              console.error(
+                JSON.stringify({
+                  event: "replica_recovery_failed",
+                  fileId: file.id,
+                  replicaId: replica.id,
+                }),
+              );
+              return { status: "unknown" as const };
+            },
+          );
           if (recovered.status === "unknown") continue;
           replica.status = recovered.status === "stored" ? "ready" : "deleted";
           if (recovered.status === "stored")
