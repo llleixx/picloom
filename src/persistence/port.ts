@@ -306,7 +306,14 @@ export interface Repositories {
   task(id: string): Promise<Task | null>;
   insertTask(value: Task): Promise<void>;
   saveTask(value: Task, expectedStatus?: Task["status"]): Promise<void>;
-  dueTasks(now: number): Promise<Task[]>;
+  dueTasks(
+    now: number,
+    options?: {
+      limit: number;
+      excludedFiles: string[];
+      excludedTasks: string[];
+    },
+  ): Promise<Task[]>;
   recoverTasks(): Promise<void>;
 }
 export interface FileFilter {

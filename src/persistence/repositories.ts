@@ -1030,17 +1030,53 @@ export class SqlRepositories implements Repositories {
     const result = await query.executeTakeFirst();
     if (result.numUpdatedRows !== 1n) throw new Conflict();
   }
-  async dueTasks(now: number) {
+  async dueTasks(
+    now: number,
+    options?: {
+      limit: number;
+      excludedFiles: string[];
+      excludedTasks: string[];
+    },
+  ) {
+    let query = this.db
+      .selectFrom("tasks")
+      .selectAll()
+      .where("status", "=", "pending")
+      .where("next_run_at", "<=", now)
+      .where((eb) =>
+        eb.exists(
+          eb
+            .selectFrom("files")
+            .select("files.id")
+            .whereRef("files.id", "=", "tasks.file_id")
+            .where((eb) =>
+              eb.or([
+                eb.and([
+                  eb("tasks.kind", "=", "write"),
+                  eb("files.status", "in", ["ready", "blocked"]),
+                ]),
+                eb.and([
+                  eb("tasks.kind", "=", "action"),
+                  eb("files.status", "=", "ready"),
+                ]),
+                eb.and([
+                  eb("tasks.kind", "=", "delete"),
+                  eb("files.status", "in", ["ready", "blocked", "deleting"]),
+                ]),
+              ]),
+            ),
+        ),
+      );
+    if (options?.excludedFiles.length)
+      query = query.where("file_id", "not in", options.excludedFiles);
+    if (options?.excludedTasks.length)
+      query = query.where("id", "not in", options.excludedTasks);
     return this.rows<Task>(
-      this.db
-        .selectFrom("tasks")
-        .selectAll()
-        .where("status", "=", "pending")
-        .where("next_run_at", "<=", now)
+      query
         .orderBy("next_run_at")
         .orderBy("created_at")
         .orderBy("id")
-        .limit(50),
+        .limit(options?.limit ?? 50),
     );
   }
   async recoverTasks() {

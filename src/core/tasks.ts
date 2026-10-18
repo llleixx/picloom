@@ -21,7 +21,16 @@ import type { ImageCache } from "./cache";
 const terminal = (t: Task) => ["success", "cancelled"].includes(t.status);
 export class TaskExecutor {
   private stopping = false;
+  private paused = false;
+  private dispatchRequested = false;
+  private dispatching?: Promise<string[]>;
   private mutex = new Mutex();
+  private cleanupMutex = new Mutex();
+  private cleaning = new Set<string>();
+  private running = new Map<
+    string,
+    { fileId: string; promise: Promise<void> }
+  >();
   private controllers = new Map<
     string,
     { fileId: string; kind: Task["kind"]; controller: AbortController }
@@ -271,6 +280,8 @@ export class TaskExecutor {
       previousWriteUnknown =
         !!replica && ["writing", "write_unknown"].includes(replica.status);
     try {
+      if (this.stopping) controller.abort();
+      controller.signal.throwIfAborted();
       const ctx = this.context(controller.signal);
       if (task.kind === "action") {
         const steps = await this.db.read(async (r) => {
@@ -539,59 +550,132 @@ export class TaskExecutor {
       }
     }
   }
-  async sweep() {
-    await this.mutex.run(async () => {
+  // Concurrent completion notifications share one admission loop.
+  dispatch(): Promise<string[]> {
+    if (this.paused || this.stopping) return Promise.resolve([]);
+    this.dispatchRequested = true;
+    if (!this.dispatching) {
+      this.dispatching = (async () => {
+        const started: string[] = [];
+        do {
+          this.dispatchRequested = false;
+          started.push(...(await this.dispatchOnce()));
+        } while (this.dispatchRequested && !this.paused && !this.stopping);
+        return started;
+      })().finally(() => {
+        this.dispatching = undefined;
+        if (this.dispatchRequested) this.refill();
+      });
+    }
+    return this.dispatching;
+  }
+  private refill() {
+    void this.dispatch().catch(() => {
+      console.error(JSON.stringify({ event: "task_dispatch_failed" }));
+    });
+  }
+  // The lock protects admission only; plugin work runs outside it.
+  private async dispatchOnce() {
+    return this.mutex.run(async () => {
+      if (this.paused || this.stopping) return [];
+      const capacity = this.config.taskConcurrency - this.running.size;
+      if (capacity <= 0) return [];
+      const due = await this.db.read((r) =>
+        r.dueTasks(Date.now(), {
+          limit: capacity,
+          excludedFiles: [...this.cleaning],
+          excludedTasks: [...this.running.keys()],
+        }),
+      );
+      if (this.paused || this.stopping) return [];
+      for (const task of due) {
+        let completed = false;
+        const promise = Promise.resolve()
+          .then(() => this.run(task.id))
+          .then(() => {
+            completed = true;
+          })
+          .catch(() => {
+            console.error(
+              JSON.stringify({
+                event: "task_execution_failed",
+                taskId: task.id,
+              }),
+            );
+          })
+          .finally(() => {
+            this.running.delete(task.id);
+            // Unexpected persistence failures must not trigger their own immediate retry.
+            if (completed) this.refill();
+          });
+        this.running.set(task.id, { fileId: task.file_id, promise });
+      }
+      return due.map((task) => task.id);
+    });
+  }
+  async pause() {
+    this.paused = true;
+    await this.mutex.run(async () => {});
+    await this.dispatching;
+  }
+  resume() {
+    if (this.stopping) return;
+    this.paused = false;
+    this.refill();
+  }
+  async cleanupPending() {
+    await this.cleanupMutex.run(async () => {
+      if (this.stopping) return;
       const candidates = await this.db.read(async (r) => [
         ...(await r.filesInStates(["failed", "deleting"])),
         ...(await r.filesNeedingCleanup()),
       ]);
-      for (const file of [
-        ...new Map(candidates.map((f) => [f.id, f])).values(),
-      ])
+      for (const file of new Map(candidates.map((f) => [f.id, f])).values()) {
+        const admitted = await this.mutex.run(async () => {
+          if (this.stopping) return false;
+          if (
+            [...this.running.values()].some((task) => task.fileId === file.id)
+          ) {
+            if (file.status === "failed" || file.status === "deleting")
+              this.cancel(file.id);
+            return false;
+          }
+          this.cleaning.add(file.id);
+          return true;
+        });
+        if (!admitted) continue;
         try {
-          await this.cleanup(file);
+          await this.cleanup(
+            requireValue(await this.db.read((r) => r.file(file.id))),
+          );
         } catch {
           console.error(
             JSON.stringify({ event: "recovery_pending", fileId: file.id }),
           );
-        }
-      const due = await this.db.read((r) => r.dueTasks(Date.now()));
-      let next = 0;
-      await Promise.all(
-        Array.from(
-          { length: Math.min(this.config.taskConcurrency, due.length) },
-          async () => {
-            while (!this.stopping) {
-              const task = due[next++];
-              if (!task) return;
-              try {
-                await this.run(task.id);
-              } catch {
-                console.error(
-                  JSON.stringify({
-                    event: "task_execution_failed",
-                    taskId: task.id,
-                  }),
-                );
-              }
-            }
-          },
-        ),
-      );
-      for (const file of await this.db.read((r) => r.filesNeedingCleanup())) {
-        try {
-          await this.cleanup(file);
-        } catch {
-          console.error(
-            JSON.stringify({ event: "recovery_pending", fileId: file.id }),
-          );
+        } finally {
+          this.cleaning.delete(file.id);
         }
       }
     });
   }
+  async drain() {
+    while (this.dispatching || this.running.size) {
+      await this.dispatching;
+      await Promise.all([...this.running.values()].map((task) => task.promise));
+    }
+  }
+  // Explicit startup/manual sweep keeps its await-until-finished semantics.
+  async sweep() {
+    await this.cleanupPending();
+    await this.dispatch();
+    await this.drain();
+    await this.cleanupPending();
+  }
   async close() {
     this.stopping = true;
+    await this.pause();
     for (const item of this.controllers.values()) item.controller.abort();
-    await this.mutex.run(async () => {});
+    await this.drain();
+    await this.cleanupMutex.run(async () => {});
   }
 }

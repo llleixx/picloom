@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { startRuntime } from "../src/runtime";
 
-test("a blocked task sweep and failing cache maintenance do not block other cleanup", async () => {
+test("a blocked recovery sweep and failing cache maintenance do not block other cleanup", async () => {
   const root = await mkdtemp(join(tmpdir(), "picloom-maintenance-"));
   const runtime = await startRuntime(
     {
@@ -20,8 +20,12 @@ test("a blocked task sweep and failing cache maintenance do not block other clea
   const blocked = new Promise<void>((resolve) => {
     release = resolve;
   });
-  const sweep = spyOn(runtime.app.files, "sweep").mockImplementation(
-    () => blocked,
+  const sweep = spyOn(
+    runtime.app.files.tasks,
+    "cleanupPending",
+  ).mockImplementation(() => blocked);
+  const dispatch = spyOn(runtime.app.files.tasks, "dispatch").mockResolvedValue(
+    [],
   );
   const cache = spyOn(runtime.app.files.cache, "clean").mockRejectedValue(
     new Error("Unavailable"),
@@ -38,6 +42,7 @@ test("a blocked task sweep and failing cache maintenance do not block other clea
       await Bun.sleep(20);
     }
     expect(sweep).toHaveBeenCalledTimes(1);
+    expect(dispatch.mock.calls.length).toBeGreaterThanOrEqual(2);
     expect(cache.mock.calls.length).toBeGreaterThanOrEqual(2);
     expect(temporary.mock.calls.length).toBeGreaterThanOrEqual(2);
     expect(uploads.mock.calls.length).toBeGreaterThanOrEqual(2);
@@ -46,6 +51,7 @@ test("a blocked task sweep and failing cache maintenance do not block other clea
     release();
     await runtime.close();
     sweep.mockRestore();
+    dispatch.mockRestore();
     cache.mockRestore();
     temporary.mockRestore();
     uploads.mockRestore();

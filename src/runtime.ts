@@ -44,7 +44,12 @@ export async function startRuntime(
       running: false,
     },
     {
-      run: () => app.files.sweep(),
+      run: () => app.files.tasks.dispatch(),
+      event: "task_dispatch_failed",
+      running: false,
+    },
+    {
+      run: () => app.files.tasks.cleanupPending(),
       event: "task_cleanup_failed",
       running: false,
     },
@@ -94,7 +99,9 @@ export async function startRuntime(
     const finish = maintenanceFlight.enter("maintenance");
     let closed = false;
     try {
+      await app.files.tasks.pause();
       await active.drain();
+      await app.files.tasks.drain();
       const sources = await app.db.read((r) => r.instances());
       const snapshot: BackupSnapshot = {
         root: base.root,
@@ -124,6 +131,8 @@ export async function startRuntime(
           }
           serve = handler(app);
         }
+        if (stopped) await app.files.tasks.pause();
+        else app.files.tasks.resume();
         maintenance = false;
       } catch (e) {
         // Keep the gate closed if reopening fails; do not serve a closed database.
@@ -247,7 +256,9 @@ export async function startRuntime(
     async close() {
       stopped = true;
       clearInterval(timer);
+      await app.files.tasks.pause();
       await maintenanceFlight.drain();
+      await app.files.tasks.pause();
       await active.drain();
       await app.close();
       await unlock();

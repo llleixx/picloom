@@ -1,4 +1,4 @@
-import { test, expect } from "bun:test";
+import { test, expect, spyOn } from "bun:test";
 import {
   mkdtemp,
   rm,
@@ -423,6 +423,85 @@ test("backup Origin checks fall back to request origin only when site origin is 
       }
     }
   } finally {
+    await f.runtime.close();
+    await rm(parent, { recursive: true, force: true });
+  }
+});
+
+test("backup pauses automatic refill before draining tasks and resumes after preparation failure", async () => {
+  const parent = await mkdtemp(join(tmpdir(), "picloom-backup-tasks-"));
+  const f = await setup(parent);
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  let deletion: ReturnType<typeof spyOn> | undefined;
+  let directory: ReturnType<typeof spyOn> | undefined;
+  let lease:
+    | ReturnType<typeof f.runtime.app.plugins.acquire<"storage">>
+    | undefined;
+  let backup: ReturnType<typeof f.request> | undefined;
+  try {
+    const app = f.runtime.app;
+    app.config.taskConcurrency = 1;
+    const profile = await initializeDevelopment(app);
+    const ids: string[] = [];
+    for (let i = 0; i < 2; i++) {
+      const form = new FormData();
+      form.set("profileId", profile);
+      form.set(
+        "file",
+        new File(
+          [
+            '<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"></svg>',
+          ],
+          "test.svg",
+          { type: "image/svg+xml" },
+        ),
+      );
+      const uploaded = await f.request("/api/files", "POST", form);
+      expect(uploaded.status).toBe(201);
+      ids.push(uploaded.json().id);
+    }
+    for (const id of ids) await app.files.delete(id);
+    await app.files.tasks.cleanupPending();
+    const replica = (await app.db.read((r) => r.replicas(ids[0]!)))[0]!;
+    lease = app.plugins.acquire(replica.storage_instance_id, "storage");
+    let calls = 0;
+    deletion = spyOn(lease.runtime, "delete").mockImplementation(async () => {
+      calls++;
+      if (calls === 1) await gate;
+    });
+    directory = spyOn(app.plugins, "localDirectory").mockImplementation(() => {
+      expect(calls).toBe(1);
+      throw new Error("Backup preparation failed");
+    });
+    await app.files.tasks.dispatch();
+    const deadline = Date.now() + 2000;
+    while (calls === 0 && Date.now() < deadline) await Bun.sleep(1);
+    expect(calls).toBe(1);
+    backup = f.request("/api/system/backups", "POST");
+    let paused = false;
+    while (Date.now() < deadline) {
+      if ((await f.request("/api/client-settings")).status === 503) {
+        paused = true;
+        break;
+      }
+      await Bun.sleep(1);
+    }
+    expect(paused).toBe(true);
+    release();
+    expect((await backup).status).toBe(500);
+    await app.files.tasks.drain();
+    expect(calls).toBe(2);
+    expect((await f.request("/api/auth/session")).status).toBe(200);
+  } finally {
+    release();
+    await backup;
+    await f.runtime.app.files.tasks.drain();
+    deletion?.mockRestore();
+    directory?.mockRestore();
+    await lease?.release();
     await f.runtime.close();
     await rm(parent, { recursive: true, force: true });
   }
