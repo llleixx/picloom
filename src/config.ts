@@ -68,7 +68,7 @@ export function settings(overrides: Partial<Settings> = {}): Settings {
       .map((value) => value.trim().toLowerCase())
       .filter(Boolean),
     hotlinkAllowEmpty: process.env.HOTLINK_ALLOW_EMPTY !== "false",
-    imageCacheMaxAge: number("IMAGE_CACHE_MAX_AGE", 0),
+    imageCacheMaxAge: number("IMAGE_CACHE_MAX_AGE", 300),
     port: number("PORT", 3000),
     encryptionKey: key,
     uploadTempBytes: number(

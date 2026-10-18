@@ -28,7 +28,7 @@ Docker 部署使用 `docker/.env.example`，下载为 Compose 文件旁的 `.env
 | `HOTLINK_ENABLED`       | `hotlinkEnabled`      | `false`                        |
 | `HOTLINK_ALLOWED_HOSTS` | `hotlinkAllowedHosts` | 空列表                         |
 | `HOTLINK_ALLOW_EMPTY`   | `hotlinkAllowEmpty`   | `true`                         |
-| `IMAGE_CACHE_MAX_AGE`   | `imageCacheMaxAge`    | `0` 秒，客户端需要重新验证     |
+| `IMAGE_CACHE_MAX_AGE`   | `imageCacheMaxAge`    | `300` 秒（5 分钟）     |
 
 ## 容量与并发
 

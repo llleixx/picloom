@@ -28,7 +28,7 @@ const draft = ref<DeliverySettings>({
   cacheBytes: 1024 ** 3,
   cacheTtlMs: 86400000,
   publicOrigin: "",
-  imageCacheMaxAge: 0,
+  imageCacheMaxAge: 300,
   hotlinkEnabled: false,
   hotlinkAllowedHosts: [],
   hotlinkAllowEmpty: true,
@@ -63,11 +63,6 @@ const limitGroups: Array<{
         unit: 1,
       },
       { key: "partConcurrency", label: "settings.partConcurrency", unit: 1 },
-      {
-        key: "uploadTempBytes",
-        label: "settings.uploadTemp",
-        unit: 1048576,
-      },
       {
         key: "uploadSessionLimit",
         label: "settings.uploadSessions",
@@ -196,52 +191,6 @@ async function save() {
     <form v-if="loaded" class="mt-7" @submit.prevent="save">
       <fieldset :disabled="busy" class="space-y-7">
         <section class="border-t pt-6 space-y-4">
-          <h2 class="font-semibold">{{ t("limits.guest") }}</h2>
-          <p class="subtle">{{ t("limits.guestHint") }}</p>
-          <div class="grid gap-4 sm:grid-cols-2">
-            <label class="field"
-              >{{ t("limits.maxSize")
-              }}<Input
-                type="number"
-                min="0.001"
-                step="any"
-                :placeholder="t('limits.unlimited')"
-                :model-value="
-                  draft.guestMaxUploadBytes === null
-                    ? ''
-                    : draft.guestMaxUploadBytes / 1048576
-                "
-                @update:model-value="
-                  draft.guestMaxUploadBytes =
-                    $event === '' ? null : Math.round(Number($event) * 1048576)
-                "
-            /></label>
-            <label class="field"
-              >{{ t("limits.daily")
-              }}<Input
-                type="number"
-                min="0"
-                step="1"
-                :placeholder="t('limits.unlimited')"
-                :model-value="draft.guestDailyUploadLimit ?? ''"
-                @update:model-value="
-                  draft.guestDailyUploadLimit =
-                    $event === '' ? null : Number($event)
-                "
-            /></label>
-          </div>
-          <p
-            v-if="
-              fields['/guestMaxUploadBytes'] || fields['/guestDailyUploadLimit']
-            "
-            class="text-destructive"
-          >
-            {{
-              fields["/guestMaxUploadBytes"] || fields["/guestDailyUploadLimit"]
-            }}
-          </p>
-        </section>
-        <section class="border-t pt-6 space-y-4">
           <h2 class="font-medium">{{ t("settings.website") }}</h2>
           <p class="subtle">{{ t("settings.siteBrandingHint") }}</p>
           <div
@@ -358,9 +307,6 @@ async function save() {
                     :aria-describedby="field.key + '-error'"
                   />
                 </label>
-                <p v-if="field.key === 'uploadTempBytes'" class="mt-1 subtle">
-                  {{ t("settings.temporaryHint") }}
-                </p>
                 <p
                   v-if="fields['/' + field.key]"
                   :id="field.key + '-error'"
@@ -371,6 +317,52 @@ async function save() {
               </div>
             </div>
           </template>
+        </section>
+        <section class="border-t pt-6 space-y-4">
+          <h2 class="font-medium">{{ t("limits.guest") }}</h2>
+          <p class="subtle">{{ t("limits.guestHint") }}</p>
+          <div class="grid gap-4 sm:grid-cols-2">
+            <label class="field"
+              >{{ t("limits.maxSize")
+              }}<Input
+                type="number"
+                min="0.001"
+                step="any"
+                :placeholder="t('limits.unlimited')"
+                :model-value="
+                  draft.guestMaxUploadBytes === null
+                    ? ''
+                    : draft.guestMaxUploadBytes / 1048576
+                "
+                @update:model-value="
+                  draft.guestMaxUploadBytes =
+                    $event === '' ? null : Math.round(Number($event) * 1048576)
+                "
+            /></label>
+            <label class="field"
+              >{{ t("limits.daily")
+              }}<Input
+                type="number"
+                min="0"
+                step="1"
+                :placeholder="t('limits.unlimited')"
+                :model-value="draft.guestDailyUploadLimit ?? ''"
+                @update:model-value="
+                  draft.guestDailyUploadLimit =
+                    $event === '' ? null : Number($event)
+                "
+            /></label>
+          </div>
+          <p
+            v-if="
+              fields['/guestMaxUploadBytes'] || fields['/guestDailyUploadLimit']
+            "
+            class="text-destructive"
+          >
+            {{
+              fields["/guestMaxUploadBytes"] || fields["/guestDailyUploadLimit"]
+            }}
+          </p>
         </section>
         <section class="border-t pt-6 space-y-4">
           <h2 class="font-medium">{{ t("settings.imageDomain") }}</h2>
@@ -438,6 +430,72 @@ async function save() {
         <section class="border-t pt-6 space-y-4">
           <h2 class="font-medium">{{ t("settings.cache") }}</h2>
           <label class="field"
+            >{{ t("settings.uploadTemp") }}
+            <Input
+              :model-value="draft.uploadTempBytes / 1048576"
+              @update:model-value="
+                draft.uploadTempBytes = Math.round(Number($event) * 1048576)
+              "
+              type="number"
+              min="0.001"
+              step="any"
+              required
+              :aria-invalid="!!fields['/uploadTempBytes']"
+              aria-describedby="uploadTempBytes-hint uploadTempBytes-error"
+            />
+          </label>
+          <p
+            v-if="fields['/uploadTempBytes']"
+            id="uploadTempBytes-error"
+            class="text-sm text-destructive"
+          >
+            {{ fields["/uploadTempBytes"] }}
+          </p>
+          <p id="uploadTempBytes-hint" class="subtle">
+            {{ t("settings.temporaryHint") }}
+          </p>
+          <div class="grid gap-4 sm:grid-cols-2">
+            <div class="space-y-1">
+              <label class="field"
+                >{{ t("settings.cacheCapacity") }}
+                <Input
+                  :model-value="draft.cacheBytes / 1048576"
+                  @update:model-value="
+                    draft.cacheBytes = Number($event) * 1048576
+                  "
+                  type="number"
+                  min="1"
+                  step="1"
+                  required
+                  :aria-invalid="!!fields['/cacheBytes']"
+                />
+              </label>
+              <p v-if="fields['/cacheBytes']" class="text-sm text-destructive">
+                {{ fields["/cacheBytes"] }}
+              </p>
+            </div>
+            <div class="space-y-1">
+              <label class="field"
+                >{{ t("settings.cacheRetention") }}
+                <Input
+                  :model-value="draft.cacheTtlMs / 60000"
+                  @update:model-value="
+                    draft.cacheTtlMs = Number($event) * 60000
+                  "
+                  type="number"
+                  min="1"
+                  step="1"
+                  required
+                  :aria-invalid="!!fields['/cacheTtlMs']"
+                />
+              </label>
+              <p v-if="fields['/cacheTtlMs']" class="text-sm text-destructive">
+                {{ fields["/cacheTtlMs"] }}
+              </p>
+            </div>
+          </div>
+          <p class="subtle">{{ t("settings.localCacheHint") }}</p>
+          <label class="field"
             >{{ t("settings.cacheAge") }}
             <Input
               v-model.number="draft.imageCacheMaxAge"
@@ -457,40 +515,6 @@ async function save() {
             {{ fields["/imageCacheMaxAge"] }}
           </p>
           <p id="cache-hint" class="subtle">{{ t("settings.cacheHint") }}</p>
-        </section>
-        <section class="border-t pt-6 space-y-4">
-          <h2 class="font-medium">{{ t("settings.localCache") }}</h2>
-          <label class="field"
-            >{{ t("settings.cacheCapacity") }}
-            <Input
-              :model-value="draft.cacheBytes / 1048576"
-              @update:model-value="draft.cacheBytes = Number($event) * 1048576"
-              type="number"
-              min="1"
-              step="1"
-              required
-              :aria-invalid="!!fields['/cacheBytes']"
-            />
-          </label>
-          <p v-if="fields['/cacheBytes']" class="text-sm text-destructive">
-            {{ fields["/cacheBytes"] }}
-          </p>
-          <label class="field"
-            >{{ t("settings.cacheRetention") }}
-            <Input
-              :model-value="draft.cacheTtlMs / 60000"
-              @update:model-value="draft.cacheTtlMs = Number($event) * 60000"
-              type="number"
-              min="1"
-              step="1"
-              required
-              :aria-invalid="!!fields['/cacheTtlMs']"
-            />
-          </label>
-          <p v-if="fields['/cacheTtlMs']" class="text-sm text-destructive">
-            {{ fields["/cacheTtlMs"] }}
-          </p>
-          <p class="subtle">{{ t("settings.localCacheHint") }}</p>
         </section>
       </fieldset>
       <p v-if="siteLink" class="mt-5 text-sm">

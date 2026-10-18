@@ -143,8 +143,8 @@ export const en = {
   "errors.importUnsupported": "This storage source does not support import.",
   "errors.invalidCursor": "The scan cursor is invalid. Start the import again.",
   "settings.temporaryHint":
-    "Shared by uploads and image processing, including reserved space. Retry later when full.",
-  "errors.temporaryFull": "Temporary space is full. Please retry later.",
+    "Covers upload staging, chunks and processing files, including background task usage and reservations. New reservations or writes are rejected when full.",
+  "errors.temporaryFull": "Temporary cache space is full. Please retry later.",
   "settings.upload": "Upload",
   "settings.uploadHint":
     "File reception is limited across the server; chunk concurrency is per file. Files over 20 MiB always use chunks.",
@@ -153,7 +153,7 @@ export const en = {
   "settings.chunkSize": "Chunk size (MiB)",
   "settings.uploadConcurrency": "Concurrent files",
   "settings.partConcurrency": "Concurrent chunks per file",
-  "settings.uploadTemp": "Temporary space limit (MiB)",
+  "settings.uploadTemp": "Temporary cache limit (MiB)",
   "settings.uploadSessions": "Unfinished upload sessions",
   "settings.uploadLifetime": "Upload session lifetime (hours)",
   "settings.processing": "Processing & tasks",
@@ -201,9 +201,9 @@ export const en = {
   "images.deleteSummary": "Deletion requested: {accepted}. Failed: {failed}.",
   "images.previousImage": "Previous image",
   "images.nextImage": "Next image",
-  "settings.localCache": "Derived cache",
+  "settings.cache": "Cache",
   "settings.cacheCapacity": "Derived cache limit (MiB)",
-  "settings.cacheRetention": "Retention (minutes)",
+  "settings.cacheRetention": "Derived cache retention (minutes)",
   "settings.localCacheHint":
     "Thumbnails and processed images. Old entries are evicted when full; oversized results are not cached.",
   "system.clearCache": "Clear derived cache",
@@ -222,7 +222,7 @@ export const en = {
   "system.diskTotal": "Data disk capacity",
   "system.diskAvailable": "Data disk available",
   "system.originals": "Local originals",
-  "system.temp": "Temporary files",
+  "system.temp": "Temporary cache",
   "system.cache": "Derived cache",
   "system.scope":
     "Includes built-in local storage directories, including external paths. Overlapping paths are counted once. Remote storage is excluded. Disk capacity refers to the data directory’s filesystem.",
@@ -249,10 +249,9 @@ export const en = {
   "settings.siteHint":
     "Leave blank to use the request address. Set a public origin for background URL delivery; behind HTTPS proxies, set the external origin.",
   "settings.openSite": "Open the updated site",
-  "settings.cache": "Browser & CDN cache",
-  "settings.cacheAge": "Cache lifetime (seconds)",
+  "settings.cacheAge": "Browser & CDN cache lifetime (seconds)",
   "settings.cacheHint":
-    "0 revalidates each request. Applies with or without hotlink protection. Existing cached copies remain valid until expiry.",
+    "Controls browser and CDN caching through response headers, not server cache capacity. Default: 300 seconds; 0 revalidates before reuse. Cached images may remain visible until expiry after deletion or rule changes.",
   "settings.title": "Settings",
   "settings.imageDomain": "Image domain",
   "settings.domain": "Public image origin",

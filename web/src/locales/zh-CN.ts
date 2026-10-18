@@ -117,8 +117,8 @@ export const zhCN = {
   "errors.importUnsupported": "此存储源不支持导入。",
   "errors.invalidCursor": "扫描游标无效，请重新开始导入。",
   "settings.temporaryHint":
-    "上传和图片处理共用，包含任务预留空间。空间不足时请稍后重试。",
-  "errors.temporaryFull": "临时空间不足，请稍后重试。",
+    "用于上传暂存、分片和处理中间文件，包含后台任务占用与预留空间。空间不足时拒绝新的预留或写入。",
+  "errors.temporaryFull": "临时缓存空间不足，请稍后重试。",
   "settings.upload": "上传",
   "settings.uploadHint":
     "文件接收并发由服务端统一限制，分片并发按单文件限制。超过 20 MiB 的文件始终使用分片。",
@@ -127,7 +127,7 @@ export const zhCN = {
   "settings.chunkSize": "分片大小（MiB）",
   "settings.uploadConcurrency": "并发上传文件数",
   "settings.partConcurrency": "单文件并发分片数",
-  "settings.uploadTemp": "临时空间上限（MiB）",
+  "settings.uploadTemp": "临时缓存上限（MiB）",
   "settings.uploadSessions": "未完成的上传会话数",
   "settings.uploadLifetime": "上传会话有效期（小时）",
   "settings.processing": "处理与任务",
@@ -171,9 +171,9 @@ export const zhCN = {
   "images.deleteSummary": "已请求删除：{accepted}，失败：{failed}。",
   "images.previousImage": "上一张图片",
   "images.nextImage": "下一张图片",
-  "settings.localCache": "派生缓存",
+  "settings.cache": "缓存",
   "settings.cacheCapacity": "派生缓存上限（MiB）",
-  "settings.cacheRetention": "保留时间（分钟）",
+  "settings.cacheRetention": "派生缓存保留时间（分钟）",
   "settings.localCacheHint":
     "用于缩略图和访问处理结果。空间不足时清理旧缓存，单个结果过大时不缓存。",
   "system.clearCache": "清空派生缓存",
@@ -192,7 +192,7 @@ export const zhCN = {
   "system.diskTotal": "数据磁盘容量",
   "system.diskAvailable": "数据磁盘可用空间",
   "system.originals": "本地原图",
-  "system.temp": "临时文件",
+  "system.temp": "临时缓存",
   "system.cache": "派生缓存",
   "system.scope":
     "统计内置本地存储目录（含外部路径），重叠路径仅计算一次，不含远程存储。磁盘容量指数据目录所在文件系统的容量。",
@@ -216,10 +216,9 @@ export const zhCN = {
   "settings.siteHint":
     "留空使用请求地址。后台传递图片 URL 时需配置；经 HTTPS 代理访问时填写外部站点地址。",
   "settings.openSite": "打开更新后的站点",
-  "settings.cache": "浏览器与 CDN 缓存",
-  "settings.cacheAge": "缓存有效期（秒）",
+  "settings.cacheAge": "浏览器与 CDN 缓存有效期（秒）",
   "settings.cacheHint":
-    "设为 0 时每次请求都会重新验证。无论是否启用防盗链均适用。已有缓存会在过期前继续有效。",
+    "通过响应头控制浏览器与 CDN 缓存，不占用服务器缓存配额。默认 300 秒；设为 0 时每次使用缓存前重新验证。图片删除或规则修改后，客户端仍可能使用未过期的旧缓存。",
   "settings.title": "设置",
   "settings.imageDomain": "图片域名",
   "settings.domain": "图片公开地址",
