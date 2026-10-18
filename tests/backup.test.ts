@@ -85,6 +85,37 @@ test("first startup creates Owner once and only prints generated passwords", asy
       log: (s) => messages.push(s),
       sweep: false,
     });
+    const defaults = await runtime.app.db.read(async (r) => ({
+      profiles: await r.profiles(),
+      groups: await r.groups(),
+      instances: await r.instances(),
+      steps: await r.steps((await r.accessPipeline())!.id),
+    }));
+    expect(defaults.profiles).toHaveLength(1);
+    expect(defaults.groups).toHaveLength(1);
+    expect(defaults.instances).toHaveLength(2);
+    expect(defaults.steps).toHaveLength(0);
+    expect(defaults.profiles[0]).toMatchObject({
+      name: "Default",
+      public_prefix: "/i/",
+      enabled: true,
+      storage_group_id: defaults.groups[0]!.id,
+      upload_pipeline_id: null,
+      post_save_pipeline_id: null,
+    });
+    expect(defaults.groups[0]).toMatchObject({
+      name: "Default",
+      redundancy_count: 0,
+    });
+    expect(defaults.instances.find((x) => x.kind === "storage")).toMatchObject({
+      name: "Default",
+      plugin_id: "builtin.local",
+      config_json: { root: join(root, "images") },
+    });
+    expect(defaults.instances.find((x) => x.kind === "path")).toMatchObject({
+      name: "Default",
+      plugin_id: "builtin.random-path",
+    });
     expect(messages).toHaveLength(1);
     const generated = messages[0]!.match(
       /Initial password: ([A-Za-z0-9_-]+)/,
@@ -104,6 +135,18 @@ test("first startup creates Owner once and only prints generated passwords", asy
       (await runtime.app.auth.login("admin", generated, "test")).user.role,
     ).toBe("owner");
     expect(await runtime.app.db.read((r) => r.userCount())).toBe(1);
+    expect(await runtime.app.db.read((r) => r.profiles())).toEqual(
+      defaults.profiles,
+    );
+    expect(await runtime.app.db.read((r) => r.groups())).toEqual(
+      defaults.groups,
+    );
+    await runtime.app.db.transaction((r) =>
+      r.deleteProfile(defaults.profiles[0]!.id),
+    );
+    await runtime.close();
+    runtime = await startRuntime(config, { sweep: false });
+    expect(await runtime.app.db.read((r) => r.profiles())).toHaveLength(0);
   } finally {
     await runtime?.close();
     await rm(parent, { recursive: true, force: true });

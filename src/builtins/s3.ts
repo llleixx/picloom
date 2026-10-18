@@ -82,7 +82,6 @@ export const s3Storage: Definition<"storage"> = {
       region: {
         type: "string",
         title: "Region",
-        default: "us-east-1",
         minLength: 1,
         "x-immutable": true,
       },

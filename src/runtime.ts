@@ -1,4 +1,8 @@
-import { bootstrap, type Application } from "./bootstrap";
+import {
+  bootstrap,
+  initializeUploadDefaults,
+  type Application,
+} from "./bootstrap";
 import { settings, type Settings } from "./config";
 import { handler } from "./http/app";
 import { InFlight } from "./core/concurrency";
@@ -19,6 +23,8 @@ export async function startRuntime(
   let app: Application;
   try {
     app = await bootstrap(base, {}, { lock: false });
+    if (!(await app.db.read((r) => r.userCount())))
+      await initializeUploadDefaults(app);
     const password = await app.auth.initializeOnStartup(
       options.initialPassword ?? process.env.INITIAL_OWNER_PASSWORD,
     );

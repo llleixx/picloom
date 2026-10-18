@@ -18,7 +18,7 @@ bun run build:web
 bun run dev
 ```
 
-`init-dev` 创建本地存储、使用随机路径的默认上传配置与访问图片变换，用于本地开发。实际首次部署的手动配置步骤见 [快速开始](../guide/quick-start.md)。
+`init-dev` 创建本地存储、使用随机路径的默认上传配置与访问图片变换，用于本地开发。首次部署的默认配置见 [快速开始](../guide/quick-start.md)。
 
 后端默认监听 `127.0.0.1:3000`。修改前端时可另开终端执行 `bun run dev:web`，使用 Vite 输出的地址。
 

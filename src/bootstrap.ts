@@ -138,6 +138,12 @@ export async function bootstrap(
 }
 export type Application = Awaited<ReturnType<typeof bootstrap>>;
 export async function initializeDevelopment(app: Application) {
+  return initializeUploadDefaults(app, true);
+}
+export async function initializeUploadDefaults(
+  app: Application,
+  development = false,
+) {
   const existing = await app.db.read((r) => r.profiles());
   if (existing.length) return existing[0]!.id;
   const ensure = async (
@@ -159,17 +165,26 @@ export async function initializeDevelopment(app: Application) {
       })
     );
   };
-  const path = await ensure("builtin.random-path", "Default random path", {});
-  const storage = await ensure("builtin.local", "Default local storage", {
-    root: join(app.config.root, "originals"),
-  });
+  const path = await ensure(
+    "builtin.random-path",
+    development ? "Default random path" : "Default",
+    {},
+  );
+  const storage = await ensure(
+    "builtin.local",
+    development ? "Default local storage" : "Default",
+    {
+      root: development ? join(app.config.root, "originals") : "./images",
+    },
+  );
   const needsProcessor = await app.db.read(async (r) => {
     const access = (await r.accessPipeline())!;
     return access.config_version === 1 && !(await r.steps(access.id)).length;
   });
-  const processor = needsProcessor
-    ? await ensure("builtin.sharp", "Default image transform", {})
-    : null;
+  const processor =
+    development && needsProcessor
+      ? await ensure("builtin.sharp", "Default image transform", {})
+      : null;
   for (const x of [path, storage, ...(processor ? [processor] : [])]) {
     const lease = app.plugins.acquire(
       x.id,
@@ -182,7 +197,7 @@ export async function initializeDevelopment(app: Application) {
     if (profiles.length) return profiles[0]!.id;
     const group = {
       ...entity(),
-      name: "Local",
+      name: development ? "Local" : "Default",
       primary_strategy: "priority" as const,
       redundancy_strategy: "priority" as const,
       redundancy_count: 0,
