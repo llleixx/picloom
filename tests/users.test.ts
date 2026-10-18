@@ -142,7 +142,7 @@ test("member ownership scopes list/count/detail/thumbnail/batch deletion and con
   }
 });
 
-test("guest configuration, null ownership, rate limiting and invalid credentials never downgrade", async () => {
+test("guest configuration, null ownership and invalid credentials never downgrade", async () => {
   const f = await fixture();
   try {
     const guest = (
@@ -184,16 +184,15 @@ test("guest configuration, null ownership, rate limiting and invalid credentials
     expect(
       (await (await b.request("/api/upload-profiles")).json()).length,
     ).toBe(1);
-    f.app.config.guestUploadsPerMinute = 2;
-    expect(
-      (
-        await guest(
-          "/api/uploads",
-          "POST",
-          JSON.stringify({ profileId: f.profileId, size: f.png.length }),
-        )
-      ).status,
-    ).toBe(429);
+    // More than the former per-minute limit can start sessions from the same IP.
+    for (let i = 0; i < 11; i++) {
+      const response = await guest(
+        "/api/uploads",
+        "POST",
+        JSON.stringify({ profileId: f.profileId, size: f.png.length }),
+      );
+      expect(response.status).toBe(201);
+    }
   } finally {
     await f.close();
   }

@@ -9,7 +9,6 @@ export interface Settings extends RuntimeSettings {
   guestMaxUploadBytes: number | null;
   guestDailyUploadLimit: number | null;
   databaseUrl: string;
-  guestUploadsPerMinute: number;
   trustedProxies: string[];
   root: string;
   origin: string;
@@ -39,7 +38,6 @@ export function settings(overrides: Partial<Settings> = {}): Settings {
     guestMaxUploadBytes: null,
     guestDailyUploadLimit: null,
     databaseUrl: process.env.DATABASE_URL ?? "",
-    guestUploadsPerMinute: number("GUEST_UPLOADS_PER_MINUTE", 10),
     trustedProxies: (process.env.TRUSTED_PROXIES ?? "")
       .split(",")
       .map((x) => x.trim())
@@ -103,11 +101,6 @@ export function settings(overrides: Partial<Settings> = {}): Settings {
     webRoot: resolve("dist/web"),
     ...overrides,
   };
-  if (
-    !Number.isSafeInteger(value.guestUploadsPerMinute) ||
-    value.guestUploadsPerMinute < 1
-  )
-    throw new Error("Invalid GUEST_UPLOADS_PER_MINUTE");
   if (
     value.databaseUrl &&
     !["postgres:", "postgresql:"].includes(new URL(value.databaseUrl).protocol)

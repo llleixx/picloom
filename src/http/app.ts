@@ -128,7 +128,6 @@ export function handler(app: Application) {
         if (path === "/api/files/from-url" && method === "POST") {
           const auth = await app.auth.optional(req);
           const guestIp = auth ? null : normalizeGuestIp(client);
-          if (!auth) app.auth.guestUpload(guestIp!);
           const input = await body(req);
           if (
             typeof input.url !== "string" ||
@@ -208,7 +207,6 @@ export function handler(app: Application) {
         if (upload || (path === "/api/uploads" && method === "POST")) {
           const auth = await app.auth.optional(req);
           const guestIp = auth ? null : normalizeGuestIp(client);
-          if (!auth) app.auth.guestUpload(guestIp!);
           if (path === "/api/uploads")
             return json(
               await app.uploads.create(await body(req), auth, guestIp),

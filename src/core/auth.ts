@@ -288,22 +288,6 @@ export class Auth {
     };
     return repositories ? check(repositories) : this.db.read(check);
   }
-  private guestRate = new Map<string, { count: number; until: number }>();
-  guestUpload(client: string) {
-    const now = Date.now();
-    for (const [key, entry] of this.guestRate)
-      if (entry.until <= now) this.guestRate.delete(key);
-    const entry = this.guestRate.get(client) ?? {
-      count: 0,
-      until: now + 60_000,
-    };
-    if (
-      (!this.guestRate.has(client) && this.guestRate.size >= 10000) ||
-      ++entry.count > this.config.guestUploadsPerMinute
-    )
-      throw new AppError("RATE_LIMIT", "Too many guest uploads", 429);
-    this.guestRate.set(client, entry);
-  }
   async listUsers(limit: number, offset: number, q = "", status = "") {
     return this.db.read(async (r) => {
       const users = await r.users(limit, offset, q, status);
