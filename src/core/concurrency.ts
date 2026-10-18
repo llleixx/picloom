@@ -33,13 +33,28 @@ export class Limiter {
       this.queue.shift()!();
     }
   }
-  async run<T>(fn: () => Promise<T>): Promise<T> {
+  async run<T>(fn: () => Promise<T>, signal?: AbortSignal): Promise<T> {
+    signal?.throwIfAborted();
     if (this.active >= this.concurrency) {
       if (this.queue.length >= this.capacity)
         throw new AppError("BUSY", "Processing queue full", 503);
-      await new Promise<void>((resolve) => this.queue.push(resolve));
+      await new Promise<void>((resolve, reject) => {
+        const start = () => {
+          signal?.removeEventListener("abort", cancel);
+          resolve();
+        };
+        const cancel = () => {
+          const index = this.queue.indexOf(start);
+          if (index < 0) return;
+          this.queue.splice(index, 1);
+          reject(signal!.reason);
+        };
+        this.queue.push(start);
+        signal?.addEventListener("abort", cancel, { once: true });
+      });
     } else this.active++;
     try {
+      signal?.throwIfAborted();
       return await fn();
     } finally {
       this.active--;

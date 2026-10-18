@@ -271,6 +271,7 @@ export interface Repositories {
     offset: number,
     filter?: FileFilter,
   ): Promise<FileRecord[]>;
+  pendingFileDeletions(fileIds: string[]): Promise<string[]>;
   countFiles(filter?: FileFilter): Promise<number>;
   filesInStates(states: FileRecord["status"][]): Promise<FileRecord[]>;
   filesNeedingCleanup(): Promise<FileRecord[]>;

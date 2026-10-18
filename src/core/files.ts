@@ -518,7 +518,7 @@ export class Files {
         if (!plan.profile.allowed_mime_types.includes(metadata.mimeType!))
           throw new AppError("UNSUPPORTED", "Upload type not allowed", 415);
         return this.pipeline(temp, metadata, effective, chain, ctx, owned);
-      });
+      }, signal);
       if (current.metadata.byteSize! > this.config.maxUploadBytes)
         throw new AppError("TOO_LARGE", "Processed upload exceeds limit", 413);
       if (

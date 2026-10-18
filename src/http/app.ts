@@ -568,21 +568,20 @@ export function handler(app: Application) {
               throw new AppError("INVALID_INPUT", "Search too long");
             filter.q = q.trim();
           }
-          const result = await app.db.read(async (r) => ({
-            items: await Promise.all(
-              (await r.files(limit, offset, filter)).map(async (f) => {
+          const result = await app.db.read(async (r) => {
+            const files = await r.files(limit, offset, filter);
+            const pending = filter.storageInstanceId
+              ? new Set(await r.pendingFileDeletions(files.map((f) => f.id)))
+              : null;
+            return {
+              items: files.map((f) => {
                 const item = view(f, app.config.imageOrigin || requestOrigin);
-                if (filter.storageInstanceId)
-                  item.backgroundPending = (await r.tasks(f.id)).some(
-                    (t) =>
-                      t.kind === "delete" &&
-                      ["pending", "running"].includes(t.status),
-                  );
+                if (pending) item.backgroundPending = pending.has(f.id);
                 return item;
               }),
-            ),
-            total: await r.countFiles(filter),
-          }));
+              total: await r.countFiles(filter),
+            };
+          });
           return json(result.items, 200, {
             "X-Total-Count": String(result.total),
           });

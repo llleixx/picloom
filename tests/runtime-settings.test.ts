@@ -173,3 +173,36 @@ test("internal settings save applies cache and processing settings without HTTP"
     await f.close();
   }
 });
+
+test("cancelled queued work frees capacity and cancellation during handoff does not leak an active slot", async () => {
+  const limiter = new Limiter(1, 1);
+  let release!: () => void;
+  const active = limiter.run(
+    () =>
+      new Promise<void>((resolve) => {
+        release = resolve;
+      }),
+  );
+  try {
+    const cancelled = new AbortController();
+    const queued = limiter.run(async () => {
+      throw new Error("Must not execute");
+    }, cancelled.signal);
+    const reason = new Error("Cancelled while queued");
+    cancelled.abort(reason);
+    await expect(queued).rejects.toBe(reason);
+    const handedOff = new AbortController();
+    const replacement = limiter.run(async () => {
+      throw new Error("Must not execute");
+    }, handedOff.signal);
+    release();
+    // Wake-up resolves synchronously; execution resumes in a later microtask.
+    queueMicrotask(() => handedOff.abort(reason));
+    await expect(replacement).rejects.toBe(reason);
+    await active;
+    expect(await limiter.run(async () => "available")).toBe("available");
+  } finally {
+    release();
+    await active;
+  }
+});

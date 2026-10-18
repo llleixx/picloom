@@ -824,6 +824,18 @@ export class SqlRepositories implements Repositories {
         .offset(offset),
     );
   }
+  async pendingFileDeletions(fileIds: string[]) {
+    if (!fileIds.length) return [];
+    const rows = await this.db
+      .selectFrom("tasks")
+      .select("file_id")
+      .distinct()
+      .where("file_id", "in", fileIds)
+      .where("kind", "=", "delete")
+      .where("status", "in", ["pending", "running"])
+      .execute();
+    return rows.map((row) => row.file_id);
+  }
   async countFiles(filter?: FileFilter) {
     const r = await this.fileFilter(filter)
       .select((eb) => eb.fn.countAll<string | number>().as("n"))

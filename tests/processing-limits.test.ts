@@ -111,11 +111,13 @@ test("upload processing shares the thumbnail/access concurrency and queue limit"
     const upload = f.upload();
     await entered.promise;
     const run = files.limit.run.bind(files.limit);
-    limiterSpy = spyOn(files.limit, "run").mockImplementation((fn: any) => {
-      const result = run(fn);
-      queued.resolve();
-      return result;
-    });
+    limiterSpy = spyOn(files.limit, "run").mockImplementation(
+      (fn: any, signal?: AbortSignal) => {
+        const result = run(fn, signal);
+        queued.resolve();
+        return result;
+      },
+    );
     const thumb = f.request(`/api/files/${original.id}/thumbnail`);
     await queued.promise;
     expect(
@@ -236,6 +238,50 @@ test("different parts stream concurrently; duplicate parts serialize and complet
     expect(await readdir(join(f.root, "uploads"))).toEqual([]);
   } finally {
     for (const gate of gates) gate.resolve();
+    await f.close();
+  }
+});
+
+test("cancelling an upload waiting for processing releases its temporary allocation before active work finishes", async () => {
+  const f = await fixture();
+  const release = deferred(),
+    queued = deferred();
+  const files = f.app.files as any;
+  f.app.files.configureProcessing(1, 1);
+  const active = files.limit.run(() => release.promise);
+  const run = files.limit.run.bind(files.limit);
+  const spy = spyOn(files.limit, "run").mockImplementation(
+    (fn: any, signal?: AbortSignal) => {
+      const result = run(fn, signal);
+      queued.resolve();
+      return result;
+    },
+  );
+  let upload: Promise<Response> | undefined;
+  const controller = new AbortController();
+  try {
+    const form = new FormData();
+    form.set("profileId", f.profileId);
+    form.set("file", new File([new Uint8Array(f.png)], "queued.png"));
+    upload = handler(f.app)(
+      new Request("http://localhost/api/files", {
+        method: "POST",
+        headers: { cookie: f.cookie, "x-csrf-token": f.csrf },
+        body: form,
+        signal: controller.signal,
+      }),
+    );
+    await queued.promise;
+    expect(f.app.files.temporary.bytes).toBeGreaterThan(0);
+    controller.abort();
+    expect((await upload).ok).toBe(false);
+    expect(f.app.files.temporary.bytes).toBe(0);
+  } finally {
+    controller.abort();
+    release.resolve();
+    await active;
+    await upload;
+    spy.mockRestore();
     await f.close();
   }
 });

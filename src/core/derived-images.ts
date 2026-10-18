@@ -156,7 +156,7 @@ export class DerivedImages {
             [...owned].map((path) => this.temporary.remove(path)),
           );
         }
-      });
+      }, processingSignal);
       if (cacheable) {
         this.merged.set(combined, pending);
         void pending

@@ -1,4 +1,5 @@
-import { test, expect } from "bun:test";
+import { SqlRepositories } from "../src/persistence/repositories";
+import { test, expect, spyOn } from "bun:test";
 import { join } from "node:path";
 import { fixture } from "./helpers";
 import { PluginError } from "../src/plugins/api";
@@ -220,6 +221,43 @@ test("exhausted uncertain replica writes release local source without losing rem
     expect(response.status).toBe(200);
     await response.arrayBuffer();
   } finally {
+    await f.close();
+  }
+});
+
+test("source-filtered file lists batch pending deletions for the current page", async () => {
+  const { f, source } = await setup();
+  let tasks: ReturnType<typeof spyOn> | undefined;
+  let pending: ReturnType<typeof spyOn> | undefined;
+  try {
+    const first = await (await f.upload()).json();
+    const second = await (await f.upload()).json();
+    await f.app.files.sweep();
+    const replica = (await f.app.db.read((r) => r.replicas(first.id))).find(
+      (r) => r.storage_instance_id === source.id,
+    )!;
+    await f.app.files.deleteReplica(first.id, replica.id);
+    tasks = spyOn(SqlRepositories.prototype, "tasks");
+    pending = spyOn(SqlRepositories.prototype, "pendingFileDeletions");
+    const response = await f.request("/api/files?source=" + source.id);
+    expect(response.status).toBe(200);
+    const items = await response.json();
+    expect(
+      items.find((item: { id: string }) => item.id === first.id)
+        .backgroundPending,
+    ).toBe(true);
+    expect(
+      items.find((item: { id: string }) => item.id === second.id)
+        .backgroundPending,
+    ).toBe(false);
+    expect(tasks).not.toHaveBeenCalled();
+    expect(pending).toHaveBeenCalledTimes(1);
+    expect(new Set(pending.mock.calls[0]![0])).toEqual(
+      new Set([first.id, second.id]),
+    );
+  } finally {
+    tasks?.mockRestore();
+    pending?.mockRestore();
     await f.close();
   }
 });
