@@ -1,0 +1,1 @@
+ALTER TABLE tasks ADD COLUMN manual_retry INTEGER NOT NULL DEFAULT 0 CHECK(manual_retry IN (0,1));

@@ -120,7 +120,11 @@ function decode<T>(row: unknown): T {
       result[key] = JSON.parse(result[key] as string);
     if (typeof result[key] === "number" && key !== "weight")
       result[key] = integer(result[key]);
-    if (key === "enabled" || key === "allow_guest_upload")
+    if (
+      key === "enabled" ||
+      key === "allow_guest_upload" ||
+      key === "manual_retry"
+    )
       result[key] = result[key] === 1;
   }
   return result as T;
@@ -909,6 +913,55 @@ export class SqlRepositories implements Repositories {
       .execute();
     return rows.map((row) => row.file_id);
   }
+  async failedFileDeletions(fileIds: string[]) {
+    if (!fileIds.length) return [];
+    const rows = await this.db
+      .selectFrom("files")
+      .select("id")
+      .where("id", "in", fileIds)
+      .where("status", "=", "deleting")
+      .where((eb) =>
+        eb.not(
+          eb.exists(
+            eb
+              .selectFrom("tasks")
+              .select("id")
+              .whereRef("tasks.file_id", "=", "files.id")
+              .where("status", "in", ["pending", "running"]),
+          ),
+        ),
+      )
+      .where((eb) =>
+        eb.or([
+          eb.exists(
+            eb
+              .selectFrom("tasks")
+              .select("id")
+              .whereRef("tasks.file_id", "=", "files.id")
+              .where("kind", "=", "delete")
+              .where("status", "=", "failed"),
+          ),
+          eb.exists(
+            eb
+              .selectFrom("file_replicas")
+              .select("id")
+              .whereRef("file_replicas.file_id", "=", "files.id")
+              .where("status", "=", "write_unknown"),
+          ),
+        ]),
+      )
+      .execute();
+    return rows.map((row) => row.id);
+  }
+  async removeFile(id: string) {
+    // Called in a transaction after all work for this file has stopped.
+    await this.db.deleteFrom("tasks").where("file_id", "=", id).execute();
+    await this.db
+      .deleteFrom("file_replicas")
+      .where("file_id", "=", id)
+      .execute();
+    await this.db.deleteFrom("files").where("id", "=", id).execute();
+  }
   async countFiles(filter?: FileFilter) {
     const r = await this.fileFilter(filter)
       .select((eb) => eb.fn.countAll<string | number>().as("n"))
@@ -1080,6 +1133,16 @@ export class SqlRepositories implements Repositories {
     );
   }
   async recoverTasks() {
+    await this.db
+      .updateTable("tasks")
+      .set({
+        status: "failed",
+        next_run_at: null,
+        last_error: "INTERRUPTED_TASK",
+      })
+      .where("status", "=", "running")
+      .where("manual_retry", "=", 1)
+      .execute();
     await this.db
       .updateTable("tasks")
       .set({ status: "pending", next_run_at: Date.now() })

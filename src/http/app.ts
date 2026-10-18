@@ -569,12 +569,18 @@ export function handler(app: Application) {
           }
           const result = await app.db.read(async (r) => {
             const files = await r.files(limit, offset, filter);
+            const failedDeletions = new Set(
+              await r.failedFileDeletions(
+                files.filter((f) => f.status === "deleting").map((f) => f.id),
+              ),
+            );
             const pending = filter.storageInstanceId
               ? new Set(await r.pendingFileDeletions(files.map((f) => f.id)))
               : null;
             return {
               items: files.map((f) => {
                 const item = view(f, app.config.imageOrigin || requestOrigin);
+                if (failedDeletions.has(f.id)) item.error = "DELETE_FAILED";
                 if (pending) item.backgroundPending = pending.has(f.id);
                 return item;
               }),
@@ -621,6 +627,17 @@ export function handler(app: Application) {
                 : undefined,
             ),
           );
+        }
+        const forget = path.match(/^\/api\/files\/([^/]+)\/forget$/);
+        if (forget && method === "POST") {
+          app.auth.requireAdmin(auth);
+          if ((await body(req)).confirm !== true)
+            throw new AppError(
+              "INVALID_INPUT",
+              "Confirm removal of the record",
+            );
+          await app.files.tasks.forget(forget[1]!);
+          return json({ ok: true });
         }
         const replicaDelete = path.match(
           /^\/api\/files\/([^/]+)\/replicas\/([^/]+)$/,
@@ -674,7 +691,7 @@ export function handler(app: Application) {
                   : null;
               if (
                 f.status === "deleting" &&
-                tasks.some((t) => t.kind === "delete" && t.last_error)
+                (await r.failedFileDeletions([id])).length > 0
               )
                 result.error = "DELETE_FAILED";
               return result;

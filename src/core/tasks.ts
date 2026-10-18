@@ -27,6 +27,7 @@ export class TaskExecutor {
   private mutex = new Mutex();
   private cleanupMutex = new Mutex();
   private cleaning = new Set<string>();
+  private forgetting = new Set<string>();
   private running = new Map<
     string,
     { fileId: string; promise: Promise<void> }
@@ -49,6 +50,45 @@ export class TaskExecutor {
       if (item.fileId === fileId && item.kind !== "delete")
         item.controller.abort();
   }
+  async forget(fileId: string) {
+    // Wait for an existing recovery pass, then gate this file only. Do not hold
+    // either scheduling lock while waiting for plugin calls or disk cleanup.
+    await this.cleanupMutex.run(() =>
+      this.mutex.run(async () => {
+        if (this.stopping || this.forgetting.has(fileId))
+          throw new Conflict("File cleanup is already in progress");
+        const file = requireValue(await this.db.read((r) => r.file(fileId)));
+        if (file.status !== "deleting")
+          throw new Conflict("Only files pending deletion can be removed");
+        this.forgetting.add(fileId);
+      }),
+    );
+    try {
+      for (const item of this.controllers.values())
+        if (item.fileId === fileId) item.controller.abort();
+      await Promise.all(
+        [...this.running.values()]
+          .filter((task) => task.fileId === fileId)
+          .map((task) => task.promise),
+      );
+      await this.flight.wait(fileId);
+      const file = requireValue(await this.db.read((r) => r.file(fileId)));
+      if (file.temp_path)
+        await this.temporary.remove(
+          join(this.config.root, "temp", file.temp_path),
+        );
+      await this.cache.remove(fileId);
+      await this.db.transaction(async (r) => {
+        const current = requireValue(await r.file(fileId));
+        if (current.status !== "deleting")
+          throw new Conflict("File state changed");
+        await r.removeFile(fileId);
+      });
+    } finally {
+      this.forgetting.delete(fileId);
+      this.refill();
+    }
+  }
   private context(signal: AbortSignal): Context {
     return {
       signal,
@@ -68,7 +108,7 @@ export class TaskExecutor {
       )
         throw new Conflict("Task cannot be retried");
       task.status = "pending";
-      task.attempts = 0;
+      task.manual_retry = true;
       task.next_run_at = Date.now();
       task.last_error = null;
       await r.saveTask(task);
@@ -280,7 +320,7 @@ export class TaskExecutor {
       previousWriteUnknown =
         !!replica && ["writing", "write_unknown"].includes(replica.status);
     try {
-      if (this.stopping) controller.abort();
+      if (this.stopping || this.forgetting.has(file.id)) controller.abort();
       controller.signal.throwIfAborted();
       const ctx = this.context(controller.signal);
       if (task.kind === "action") {
@@ -506,7 +546,7 @@ export class TaskExecutor {
           (!isPluginError(error) || error.retryable);
         t.status = cancelled
           ? "cancelled"
-          : retryable && t.attempts < this.config.retryLimit
+          : !t.manual_retry && retryable && t.attempts < this.config.retryLimit
             ? "pending"
             : "failed";
         t.next_run_at =
@@ -583,7 +623,7 @@ export class TaskExecutor {
       const due = await this.db.read((r) =>
         r.dueTasks(Date.now(), {
           limit: capacity,
-          excludedFiles: [...this.cleaning],
+          excludedFiles: [...this.cleaning, ...this.forgetting],
           excludedTasks: [...this.running.keys()],
         }),
       );
@@ -632,7 +672,7 @@ export class TaskExecutor {
       ]);
       for (const file of new Map(candidates.map((f) => [f.id, f])).values()) {
         const admitted = await this.mutex.run(async () => {
-          if (this.stopping) return false;
+          if (this.stopping || this.forgetting.has(file.id)) return false;
           if (
             [...this.running.values()].some((task) => task.fileId === file.id)
           ) {

@@ -33,3 +33,9 @@ export const statuses = {
     return t("ui.deleted");
   },
 };
+
+export function fileStatus(file: import("../../../shared/api").FileView) {
+  return file.status === "deleting" && file.error === "DELETE_FAILED"
+    ? t("ui.deleteFailed")
+    : statuses[file.status];
+}

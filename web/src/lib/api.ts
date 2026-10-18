@@ -105,6 +105,7 @@ const messages: Record<string, MessageKey> = {
   PLUGIN_INVALID_DATA: "errors.plugin_invalid_data",
   PLUGIN_SERVICE: "errors.plugin_service",
   PLUGIN_FAILED: "errors.plugin_failed",
+  INTERRUPTED_TASK: "errors.interrupted_task",
   INTERRUPTED_UPLOAD: "errors.interrupted_upload",
   FRONTEND_NOT_BUILT: "errors.frontend_not_built",
   METHOD: "errors.method",

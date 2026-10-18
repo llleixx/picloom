@@ -93,6 +93,7 @@ curl --fail-with-body "$PICLOOM_URL/api/files/from-url" \
 | 文件列表、上传 | `GET /api/files`、`POST /api/files`           |
 | 文件详情、删除 | `GET /api/files/:id`、`DELETE /api/files/:id` |
 | 副本与任务详情 | `GET /api/files/:id/operations`               |
+| 放弃清理并移除记录 | `POST /api/files/:id/forget`，JSON：`{"confirm":true}`；仅管理员、仅删除中的图片，远端文件可能保留 |
 | 删除任务重试   | `POST /api/tasks/:id/retry`                   |
 | 存储源         | `/api/storage-sources`                        |
 | 存储组         | `/api/storage-groups`                         |

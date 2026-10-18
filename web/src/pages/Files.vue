@@ -28,7 +28,7 @@ import {
   copy,
   queryClient,
 } from "@/lib/api";
-import { date, size, statuses } from "@/lib/utils";
+import { date, size, statuses, fileStatus } from "@/lib/utils";
 import ImagePreview from "@/components/ImagePreview.vue";
 import UploadPanel from "@/components/UploadPanel.vue";
 import {
@@ -647,7 +647,7 @@ async function navigate(direction: -1 | 1) {
             v-else
             class="flex h-full items-center justify-center bg-muted text-xs text-muted-foreground"
           >
-            {{ statuses[file.status] }}
+            {{ fileStatus(file) }}
           </div>
         </div>
         <button

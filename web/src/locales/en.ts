@@ -92,6 +92,10 @@ export const en = {
 
   "images.blocked": "Blocked",
   "images.blockedHint": "Public access is blocked.",
+  "images.forget": "Abandon cleanup and remove record",
+  "images.forgetHint": "Removes only the Picloom record and local cache. Remote files may remain and must be cleaned up manually. This cannot be undone.",
+  "images.forgetWaiting": "Waiting for active operations on this image to finish.",
+  "images.forgetConfirm": "Remove record",
   "images.restoreAccess": "Restore access",
   "users.title": "Users",
   "users.member": "Member",
@@ -729,6 +733,7 @@ export const en = {
   "errors.write_failed": "Storage write failed.",
   "errors.delete_failed": "Storage cleanup failed.",
   "errors.action_failed": "Action failed.",
+  "errors.interrupted_task": "Task interrupted. Retry manually.",
   "errors.interrupted_upload": "Upload interrupted.",
   "errors.frontend_not_built": "Frontend not built.",
   "errors.method": "Method not allowed.",

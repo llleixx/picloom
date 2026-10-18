@@ -36,26 +36,30 @@ export async function openPostgres(
       await client.query(
         "CREATE TABLE IF NOT EXISTS schema_migrations(version BIGINT PRIMARY KEY,checksum TEXT NOT NULL,applied_at BIGINT NOT NULL)",
       );
-      const migration = readFileSync(
-        new URL("./001_initial.sql", import.meta.url),
-        "utf8",
-      );
-      const checksum = createHash("sha256").update(migration).digest("hex");
-      const { rows } = await client.query<{ checksum: string }>(
-        "SELECT checksum FROM schema_migrations WHERE version=1",
-      );
-      if (rows[0] && rows[0].checksum !== checksum)
-        throw new AppError(
-          "MIGRATION_MISMATCH",
-          "Migration checksum changed",
-          500,
+      for (const [version, name] of [
+        [1, "./001_initial.sql"],
+        [2, "../002_manual_retry.sql"],
+      ] as const) {
+        const migration = readFileSync(new URL(name, import.meta.url), "utf8");
+        const checksum = createHash("sha256").update(migration).digest("hex");
+        const { rows } = await client.query<{ checksum: string }>(
+          "SELECT checksum FROM schema_migrations WHERE version=$1",
+          [version],
         );
-      if (!rows.length) {
-        await client.query(migration);
-        await client.query("INSERT INTO schema_migrations VALUES(1,$1,$2)", [
-          checksum,
-          Date.now(),
-        ]);
+        if (rows[0] && rows[0].checksum !== checksum)
+          throw new AppError(
+            "MIGRATION_MISMATCH",
+            "Migration checksum changed",
+            500,
+          );
+        if (!rows.length) {
+          await client.query(migration);
+          await client.query("INSERT INTO schema_migrations VALUES($1,$2,$3)", [
+            version,
+            checksum,
+            Date.now(),
+          ]);
+        }
       }
       await client.query("COMMIT");
     } catch (error) {

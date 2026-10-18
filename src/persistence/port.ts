@@ -116,6 +116,8 @@ export interface Task extends Entity {
   pipeline_id: string | null;
   status: "pending" | "running" | "success" | "failed" | "cancelled";
   attempts: number;
+  /** Manual retries execute once; omitted on insertion defaults to false. */
+  manual_retry?: boolean;
   next_run_at: number | null;
   last_error: string | null;
 }
@@ -286,6 +288,8 @@ export interface Repositories {
     filter?: FileFilter,
   ): Promise<FileRecord[]>;
   pendingFileDeletions(fileIds: string[]): Promise<string[]>;
+  failedFileDeletions(fileIds: string[]): Promise<string[]>;
+  removeFile(id: string): Promise<void>;
   countFiles(filter?: FileFilter): Promise<number>;
   filesInStates(states: FileRecord["status"][]): Promise<FileRecord[]>;
   filesNeedingCleanup(): Promise<FileRecord[]>;

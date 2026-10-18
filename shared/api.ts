@@ -35,6 +35,7 @@ export interface FileView {
   storageKey: string;
   createdAt: number;
   deletedAt: number | null;
+  /** DELETE_FAILED while deleting means cleanup is stalled, not actively retrying. */
   error: string | null;
   url: string;
 }

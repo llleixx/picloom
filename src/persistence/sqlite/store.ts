@@ -15,32 +15,35 @@ export async function openSQLite(path: string): Promise<SqlStore> {
     db.exec(
       "CREATE TABLE IF NOT EXISTS schema_migrations(version INTEGER PRIMARY KEY,checksum TEXT NOT NULL,applied_at INTEGER NOT NULL)",
     );
-    const sql = readFileSync(
-      new URL("./001_initial.sql", import.meta.url),
-      "utf8",
-    );
-    const checksum = createHash("sha256").update(sql).digest("hex");
-    const existing = db
-      .query("SELECT checksum FROM schema_migrations WHERE version=1")
-      .get() as { checksum: string } | null;
-    if (existing && existing.checksum !== checksum)
-      throw new AppError(
-        "MIGRATION_MISMATCH",
-        "Migration checksum changed",
-        500,
-      );
-    if (!existing) {
-      db.exec("BEGIN IMMEDIATE");
-      try {
-        db.exec(sql);
-        db.query("INSERT INTO schema_migrations VALUES(1,?,?)").run(
-          checksum,
-          Date.now(),
+    for (const [version, name] of [
+      [1, "./001_initial.sql"],
+      [2, "../002_manual_retry.sql"],
+    ] as const) {
+      const sql = readFileSync(new URL(name, import.meta.url), "utf8");
+      const checksum = createHash("sha256").update(sql).digest("hex");
+      const existing = db
+        .query("SELECT checksum FROM schema_migrations WHERE version=?")
+        .get(version) as { checksum: string } | null;
+      if (existing && existing.checksum !== checksum)
+        throw new AppError(
+          "MIGRATION_MISMATCH",
+          "Migration checksum changed",
+          500,
         );
-        db.exec("COMMIT");
-      } catch (error) {
-        db.exec("ROLLBACK");
-        throw error;
+      if (!existing) {
+        db.exec("BEGIN IMMEDIATE");
+        try {
+          db.exec(sql);
+          db.query("INSERT INTO schema_migrations VALUES(?,?,?)").run(
+            version,
+            checksum,
+            Date.now(),
+          );
+          db.exec("COMMIT");
+        } catch (error) {
+          db.exec("ROLLBACK");
+          throw error;
+        }
       }
     }
   } finally {

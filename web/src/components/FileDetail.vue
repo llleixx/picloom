@@ -36,7 +36,7 @@ import {
   queryClient,
   isAdmin,
 } from "@/lib/api";
-import { date, size, statuses } from "@/lib/utils";
+import { date, size, fileStatus } from "@/lib/utils";
 import ImagePreview from "./ImagePreview.vue";
 import type { OperationsView } from "../../../shared/config";
 const props = defineProps<{
@@ -135,10 +135,33 @@ async function retryTask(id: string) {
   try {
     await api("/api/tasks/" + id + "/retry", { method: "POST" });
     await operations.refetch();
+    await detail.refetch();
+    await queryClient.invalidateQueries({ queryKey: ["files"] });
   } catch (e) {
     operationError.value = errorText(e);
   } finally {
     retrying.value = "";
+  }
+}
+const confirmForget = ref(false),
+  forgetting = ref(false),
+  forgetError = ref("");
+async function forgetRecord() {
+  if (forgetting.value) return;
+  forgetting.value = true;
+  forgetError.value = "";
+  try {
+    await api("/api/files/" + encodeURIComponent(props.id) + "/forget", {
+      method: "POST",
+      body: JSON.stringify({ confirm: true }),
+    });
+    confirmForget.value = false;
+    emit("close");
+    await queryClient.invalidateQueries({ queryKey: ["files"] });
+  } catch (error) {
+    forgetError.value = errorText(error);
+  } finally {
+    forgetting.value = false;
   }
 }
 const confirming = ref(false),
@@ -384,11 +407,19 @@ async function remove() {
           class="mt-5 rounded-lg bg-muted p-7 text-center"
           role="status"
         >
-          {{ statuses[file.status] }}
+          {{ fileStatus(file) }}
           <p v-if="file.status === 'deleting'" class="mt-2 subtle">
             {{ t("ui.publicAccessDisabledCleanupPending") }}
           </p>
         </div>
+        <Button
+          v-if="isAdmin && file.status === 'deleting'"
+          class="mt-4"
+          variant="destructive"
+          @click="confirmForget = true"
+        >
+          {{ t("images.forget") }}
+        </Button>
         <div v-if="file.status === 'blocked'" class="mt-4 space-y-2">
           <p class="subtle">{{ t("images.blockedHint") }}</p>
           <Button
@@ -399,7 +430,7 @@ async function remove() {
             >{{ t("images.restoreAccess") }}</Button
           >
         </div>
-        <p v-if="file.error" class="error-box">
+        <p v-if="file.error" class="mt-4 error-box">
           {{
             file.error === "DELETE_FAILED"
               ? t("ui.cleanupFailedCheckStorageIfRetriesKeep")
@@ -433,7 +464,7 @@ async function remove() {
           <dt class="text-muted-foreground">{{ t("ui.created") }}</dt>
           <dd>{{ date(file.createdAt) }}</dd>
           <dt class="text-muted-foreground">{{ t("ui.status") }}</dt>
-          <dd>{{ statuses[file.status] }}</dd>
+          <dd>{{ fileStatus(file) }}</dd>
         </dl>
         <ProcessingResults
           v-if="isAdmin && file.processingResults?.length"
@@ -604,6 +635,32 @@ async function remove() {
           </p>
         </section>
       </template>
+      <Dialog v-model:open="confirmForget">
+        <DialogContent :busy="forgetting">
+          <DialogTitle>{{ t("images.forget") }}</DialogTitle>
+          <DialogDescription>{{ t("images.forgetHint") }}</DialogDescription>
+          <p v-if="forgetting" class="subtle">
+            {{ t("images.forgetWaiting") }}
+          </p>
+          <p v-if="forgetError" role="alert" class="error-box">
+            {{ forgetError }}
+          </p>
+          <div class="flex justify-end gap-2">
+            <Button
+              variant="outline"
+              :disabled="forgetting"
+              @click="confirmForget = false"
+              >{{ t("ui.cancel") }}</Button
+            >
+            <Button
+              variant="destructive"
+              :loading="forgetting"
+              @click="forgetRecord"
+              >{{ t("images.forgetConfirm") }}</Button
+            >
+          </div>
+        </DialogContent>
+      </Dialog>
       <Dialog v-model:open="confirming"
         ><DialogContent :busy="deleting"
           ><DialogTitle>{{ t("ui.deleteImage2") }}</DialogTitle
