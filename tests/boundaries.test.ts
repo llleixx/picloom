@@ -3,7 +3,7 @@ import { fixture } from "./helpers";
 import { entity } from "../src/persistence/port";
 import type { Definition } from "../src/plugins/api";
 import { handler } from "../src/http/app";
-import { checkPrefixes, scopedInput } from "../src/infra/files";
+import { prefix, scopedInput } from "../src/infra/files";
 import { cacheKey } from "../src/core/cache";
 import { ImageCache } from "../src/core/cache";
 import { join } from "node:path";
@@ -62,9 +62,9 @@ test("path collision never overwrites existing image or tombstone", async () => 
     await f.close();
   }
 });
-test("prefix overlap, expiration and file size policy are enforced", async () => {
-  expect(() => checkPrefixes("/api/", [])).toThrow();
-  expect(() => checkPrefixes("/i/sub/", ["/i/"])).toThrow();
+test("reserved prefixes, expiration and file size policy are enforced", async () => {
+  expect(() => prefix("/api/")).toThrow();
+  expect(prefix("/i/sub/")).toBe("/i/sub/");
   const f = await fixture();
   try {
     const expired = {

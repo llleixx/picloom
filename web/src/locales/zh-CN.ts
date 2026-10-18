@@ -653,7 +653,6 @@ export const zhCN = {
   "errors.invalid_input": "输入无效，请检查字段。",
   "errors.invalid_path": "路径无效。",
   "errors.invalid_prefix": "公开路径前缀无效。",
-  "errors.prefix_conflict": "公开路径前缀与现有路径重叠。",
   "errors.invalid_weight": "权重必须大于零。",
   "errors.no_processor": "未配置图片处理器。",
   "errors.origin": "不允许此请求来源。",

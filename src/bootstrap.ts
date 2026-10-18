@@ -8,7 +8,7 @@ import { join } from "node:path";
 import { settings, type Settings } from "./config";
 import { openPersistence } from "./persistence/open";
 import { Secrets } from "./infra/secrets";
-import { workLock, checkPrefixes } from "./infra/files";
+import { workLock, prefix } from "./infra/files";
 import { PluginManager } from "./plugins/manager";
 import { datePath } from "./builtins/path";
 import { randomPath } from "./builtins/random-path";
@@ -223,7 +223,7 @@ export async function initializeUploadDefaults(
         "image/svg+xml",
       ],
     };
-    checkPrefixes(profile.public_prefix, await r.prefixes());
+    prefix(profile.public_prefix);
     await r.insertProfile(profile);
     const access = (await r.accessPipeline())!;
     if (

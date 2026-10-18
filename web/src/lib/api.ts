@@ -70,7 +70,6 @@ const messages: Record<string, MessageKey> = {
   INVALID_INPUT: "errors.invalid_input",
   INVALID_PATH: "errors.invalid_path",
   INVALID_PREFIX: "errors.invalid_prefix",
-  PREFIX_CONFLICT: "errors.prefix_conflict",
   INVALID_WEIGHT: "errors.invalid_weight",
   NO_PROCESSOR: "errors.no_processor",
   ORIGIN: "errors.origin",

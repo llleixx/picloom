@@ -710,7 +710,6 @@ export const en = {
   "errors.invalid_input": "Invalid input. Check the fields.",
   "errors.invalid_path": "Invalid path.",
   "errors.invalid_prefix": "Invalid public prefix.",
-  "errors.prefix_conflict": "Public prefix overlaps an existing path.",
   "errors.invalid_weight": "Weight must be greater than zero.",
   "errors.no_processor": "No image processor configured.",
   "errors.origin": "Request origin not allowed.",

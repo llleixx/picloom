@@ -1,3 +1,4 @@
+import { publicPath, publicPathKey } from "../infra/files";
 import { integer } from "./values";
 import { isDeepStrictEqual } from "node:util";
 import { sql, type Kysely } from "kysely";
@@ -85,7 +86,7 @@ export interface Schema {
   upload_profiles: Stored<Profile>;
   pipelines: Stored<Pipeline>;
   pipeline_steps: Stored<Step>;
-  files: Stored<FileRecord>;
+  files: Stored<FileRecord> & { public_path: string };
   file_replicas: Stored<Replica>;
   tasks: Stored<Task>;
   upload_sessions: Stored<UploadSession>;
@@ -802,16 +803,13 @@ export class SqlRepositories implements Repositories {
     if (i.stage !== p.kind) throw new Conflict("Invalid step stage");
     await this.db.insertInto("pipeline_steps").values(encode(v)).execute();
   }
-  async prefixes(excludeProfileId?: string) {
+  async prefixes() {
     return (
       await this.db
         .selectFrom("files")
         .select("public_prefix")
         .union(
-          this.db
-            .selectFrom("upload_profiles")
-            .select("public_prefix")
-            .where("id", "!=", excludeProfileId ?? ""),
+          this.db.selectFrom("upload_profiles").select("public_prefix"),
         )
         .execute()
     ).map((x) => x.public_prefix);
@@ -848,13 +846,12 @@ export class SqlRepositories implements Repositories {
         : isDeepStrictEqual(c.locator_json, locator),
     );
   }
-  async fileByPath(prefix: string, key: string) {
+  async fileByPath(path: string) {
     return this.first<FileRecord>(
       this.db
         .selectFrom("files")
         .selectAll()
-        .where("public_prefix", "=", prefix)
-        .where("logical_key", "=", key),
+        .where("public_path", "=", path),
     );
   }
   private fileFilter(filter: FileFilter = {}) {
@@ -975,7 +972,19 @@ export class SqlRepositories implements Repositories {
     );
   }
   async insertFile(v: FileRecord) {
-    await this.db.insertInto("files").values(encode(v)).execute();
+    if (!(await this.insertFileIfPathFree(v)))
+      throw new Conflict("Public path already exists");
+  }
+  async insertFileIfPathFree(v: FileRecord) {
+    const result = await this.db
+      .insertInto("files")
+      .values({
+        ...encode(v),
+        public_path: publicPathKey(publicPath(v.public_prefix, v.logical_key)),
+      })
+      .onConflict((oc) => oc.column("public_path").doNothing())
+      .executeTakeFirstOrThrow();
+    return result.numInsertedOrUpdatedRows === 1n;
   }
   async filesNeedingCleanup() {
     return this.rows<FileRecord>(
@@ -1022,7 +1031,15 @@ export class SqlRepositories implements Repositories {
   async saveFile(v: FileRecord, expected: FileRecord["status"]) {
     const result = await this.db
       .updateTable("files")
-      .set(encode({ ...v, updated_at: Date.now() }))
+      .set(
+        encode({
+          ...v,
+          public_path: publicPathKey(
+            publicPath(v.public_prefix, v.logical_key),
+          ),
+          updated_at: Date.now(),
+        }),
+      )
       .where("id", "=", v.id)
       .where("status", "=", expected)
       .executeTakeFirst();

@@ -274,14 +274,14 @@ export interface Repositories {
   steps(pipelineId: string): Promise<Step[]>;
   stepsForPipelines(ids: string[]): Promise<Map<string, Step[]>>;
   insertStep(value: Step): Promise<void>;
-  prefixes(excludeProfileId?: string): Promise<string[]>;
+  prefixes(): Promise<string[]>;
   file(id: string): Promise<FileRecord | null>;
   objectRegistered(
     instanceId: string,
     storageKey: string,
     locator: Locator,
   ): Promise<boolean>;
-  fileByPath(prefix: string, key: string): Promise<FileRecord | null>;
+  fileByPath(path: string): Promise<FileRecord | null>;
   files(
     limit: number,
     offset: number,
@@ -294,6 +294,7 @@ export interface Repositories {
   filesInStates(states: FileRecord["status"][]): Promise<FileRecord[]>;
   filesNeedingCleanup(): Promise<FileRecord[]>;
   insertFile(value: FileRecord): Promise<void>;
+  insertFileIfPathFree(value: FileRecord): Promise<boolean>;
   fillFileMetadata(
     id: string,
     metadata: Pick<FileRecord, "mime_type" | "byte_size" | "width" | "height">,

@@ -38,7 +38,8 @@ import {
 import { AppError, Conflict, requireValue } from "./errors";
 import { InFlight, Limiter } from "./concurrency";
 import {
-  checkPrefixes,
+  prefix,
+  publicPathKey,
   fileInput,
   logicalKey,
   output,
@@ -570,7 +571,7 @@ export class Files {
       };
       await this.db.transaction(async (r) => {
         await this.auth.authorizeUpload(identity, profileId, r);
-        checkPrefixes(record!.public_prefix, await r.prefixes());
+        prefix(record!.public_prefix);
         await r.insertFile(record!);
         await r.insertReplica(replica!);
         for (const item of redundant) await r.insertReplica(item);
@@ -708,20 +709,12 @@ export class Files {
     }
   }
   async find(pathname: string) {
-    return this.db.read(async (r) => {
-      const prefixes = await r.prefixes();
-      const p = prefixes.find((p) => pathname.startsWith(p));
-      if (!p) throw new AppError("NOT_FOUND", "Image not found", 404);
-      let key: string;
-      try {
-        key = decodeURIComponent(pathname.slice(p.length));
-      } catch {
-        throw new AppError("INVALID_PATH", "Malformed URL");
-      }
-      logicalKey(key);
-      return requireValue(await r.fileByPath(p, key), "Image not found");
-    });
+    const path = publicPathKey(pathname);
+    return this.db.read(async (r) =>
+      requireValue(await r.fileByPath(path), "Image not found"),
+    );
   }
+
   private async ready(id: string) {
     const f = requireValue(await this.db.read((r) => r.file(id)));
     if (f.status !== "ready")

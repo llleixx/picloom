@@ -12,14 +12,18 @@ export function prefix(value: string) {
   logicalKey(value.slice(1, -1));
   return value;
 }
-export function checkPrefixes(value: string, existing: string[]) {
-  prefix(value);
-  if (
-    existing.some(
-      (p) => p !== value && (p.startsWith(value) || value.startsWith(p)),
-    )
-  )
-    throw new AppError("PREFIX_CONFLICT", "Public prefixes overlap", 409);
+// Decode once, matching incoming URL paths while preserving literal % in filenames.
+export function publicPathKey(pathname: string) {
+  let path: string;
+  try {
+    path = decodeURIComponent(pathname);
+  } catch {
+    throw new AppError("INVALID_PATH", "Malformed URL");
+  }
+  if (!path.startsWith("/"))
+    throw new AppError("INVALID_PATH", "Invalid public path");
+  for (const segment of path.slice(1).split("/")) logicalKey(segment);
+  return path;
 }
 export function publicPath(p: string, key: string) {
   return p + key.split("/").map(encodeURIComponent).join("/");

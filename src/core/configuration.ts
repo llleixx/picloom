@@ -6,7 +6,7 @@ import {
 import type { PluginManager } from "../plugins/manager";
 import type { Files } from "./files";
 import { AppError, Conflict, requireValue } from "./errors";
-import { checkPrefixes } from "../infra/files";
+import { prefix } from "../infra/files";
 import type {
   GroupView,
   ProfileView,
@@ -600,7 +600,7 @@ export class Configuration {
         for (const step of await r.steps(key))
           await this.reference(r, step.plugin_instance_id, "processor");
     }
-    checkPrefixes(input.publicPrefix, await r.prefixes(id));
+    prefix(input.publicPrefix);
     const p = {
       ...(old ?? entity()),
       name: name(input.name),

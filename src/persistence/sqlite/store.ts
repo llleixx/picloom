@@ -1,3 +1,4 @@
+import { publicPath, publicPathKey } from "../../infra/files";
 import { Database } from "bun:sqlite";
 import { readFileSync } from "node:fs";
 import { createHash } from "node:crypto";
@@ -18,6 +19,7 @@ export async function openSQLite(path: string): Promise<SqlStore> {
     for (const [version, name] of [
       [1, "./001_initial.sql"],
       [2, "../002_manual_retry.sql"],
+      [3, "../003_public_path.sql"],
     ] as const) {
       const sql = readFileSync(new URL(name, import.meta.url), "utf8");
       const checksum = createHash("sha256").update(sql).digest("hex");
@@ -34,6 +36,23 @@ export async function openSQLite(path: string): Promise<SqlStore> {
         db.exec("BEGIN IMMEDIATE");
         try {
           db.exec(sql);
+          if (version === 3) {
+            const rows = db
+              .query("SELECT id, public_prefix, logical_key FROM files")
+              .all() as Array<{
+              id: string;
+              public_prefix: string;
+              logical_key: string;
+            }>;
+            const update = db.query(
+              "UPDATE files SET public_path=? WHERE id=?",
+            );
+            for (const row of rows)
+              update.run(
+                publicPathKey(publicPath(row.public_prefix, row.logical_key)),
+                row.id,
+              );
+          }
           db.query("INSERT INTO schema_migrations VALUES(?,?,?)").run(
             version,
             checksum,

@@ -4,7 +4,7 @@ import { entity } from "../persistence/port";
 import type { PluginManager } from "../plugins/manager";
 import type { Context, Locator } from "../plugins/api";
 import { AppError } from "./errors";
-import { checkPrefixes, logicalKey, prefix } from "../infra/files";
+import { logicalKey, prefix, publicPath, publicPathKey } from "../infra/files";
 import {
   imageMimeFromKey,
   importMimeTypes,
@@ -37,9 +37,6 @@ export class Imports {
       throw new AppError("INVALID_INPUT", "Invalid import options");
     if (input.scope) logicalKey((input.scope as string).replace(/\/$/, ""));
     const publicPrefix = prefix(input.publicPrefix);
-    await this.db.read(async (r) =>
-      checkPrefixes(publicPrefix, await r.prefixes()),
-    );
     const lease = this.plugins.acquire(sourceId, "storage");
     try {
       if (!lease.runtime.listFiles)
@@ -68,7 +65,6 @@ export class Imports {
         throw new AppError("PLUGIN_RESULT", "Invalid enumeration result", 502);
       ctx.signal.throwIfAborted();
       return await this.db.transaction(async (r) => {
-        checkPrefixes(publicPrefix, await r.prefixes());
         const result: ImportResult = {
           scanned: page.items.length,
           imported: 0,
@@ -115,10 +111,13 @@ export class Imports {
             result.skipped++;
             continue;
           }
-          const existing = await r.fileByPath(publicPrefix, key);
+          const existing = await r.fileByPath(
+            publicPathKey(publicPath(publicPrefix, key)),
+          );
           if (existing) {
             const same =
               existing.status === "ready" &&
+              existing.storage_key === key &&
               (await r.replicas(existing.id)).some(
                 (rep) =>
                   rep.storage_instance_id === sourceId &&
@@ -156,7 +155,11 @@ export class Imports {
             deleted_at: null,
             processing_results_json: null,
           };
-          await r.insertFile(file);
+          if (!(await r.insertFileIfPathFree(file))) {
+            result.conflicts++;
+            issue(key, "PATH_CONFLICT");
+            continue;
+          }
           await r.insertReplica({
             ...entity(),
             file_id: file.id,

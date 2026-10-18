@@ -1,3 +1,4 @@
+import { publicPath, publicPathKey } from "../../infra/files";
 import { readFileSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { Pool, types } from "pg";
@@ -39,6 +40,7 @@ export async function openPostgres(
       for (const [version, name] of [
         [1, "./001_initial.sql"],
         [2, "../002_manual_retry.sql"],
+        [3, "../003_public_path.sql"],
       ] as const) {
         const migration = readFileSync(new URL(name, import.meta.url), "utf8");
         const checksum = createHash("sha256").update(migration).digest("hex");
@@ -54,6 +56,21 @@ export async function openPostgres(
           );
         if (!rows.length) {
           await client.query(migration);
+          if (version === 3) {
+            const { rows } = await client.query<{
+              id: string;
+              public_prefix: string;
+              logical_key: string;
+            }>("SELECT id, public_prefix, logical_key FROM files");
+            for (const row of rows)
+              await client.query(
+                "UPDATE files SET public_path=$1 WHERE id=$2",
+                [
+                  publicPathKey(publicPath(row.public_prefix, row.logical_key)),
+                  row.id,
+                ],
+              );
+          }
           await client.query("INSERT INTO schema_migrations VALUES($1,$2,$3)", [
             version,
             checksum,
