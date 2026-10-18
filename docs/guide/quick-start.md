@@ -55,4 +55,4 @@ docker compose up -d
 
 上传页也支持拖拽、粘贴图片或公开图片直链；上传结果可复制为 URL、Markdown、HTML 或 BBCode。
 
-配置之间的关系见 [理解 Picloom](./concepts.md)。想让链接支持 `?w=320&format=webp`，再按 [缩略图场景](./recipes.md#访问时生成缩略图) 配置访问流水线。
+配置之间的关系见 [理解 Picloom](./concepts.md)。想让链接支持 `?w=320&format=webp`，再按 [缩略图场景](./recipes.md#用同一张原图生成不同尺寸) 配置访问流水线。

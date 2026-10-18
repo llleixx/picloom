@@ -53,6 +53,53 @@ type ReadResult =
 
 上传与访问的 `check` 返回 `applicable`、`noop` 或 `unsupported`；`process` 返回 `pass`、带输出的 `replace` 或带原因的 `reject`。
 
-保存后阶段使用 `execute`，返回 `pass`、`block` 或 `delete`。可附 `details`，用于保存简要 JSON 结果；整条任务的处理结果总量受 64 KiB 限制，不要放入密钥或图片字节。
+### 保存后结果与处置
+
+保存后阶段的 `execute` 接收 `input.currentStatus`（当前累计处置）和 `input.previousResults`（本次执行中已完成步骤的结果快照）。前序结果包含步骤 ID、插件 ID、版本、完成时间及原始返回结果；修改快照不会改变核心记录。
+
+```ts
+interface PostSaveResult {
+  status: "pass" | "block" | "delete";
+  details?: Config;
+  overrideStatus?: "pass" | "block" | "delete";
+}
+```
+
+例如，审核步骤返回屏蔽建议后，下一个插件收到的输入片段如下（ID、时间与审核内容均为示意）：
+
+```json
+{
+  "currentStatus": "block",
+  "previousResults": [
+    {
+      "stepId": "step-moderation",
+      "pluginId": "builtin.tencent-moderation",
+      "pluginVersion": "1.0.0",
+      "completedAt": 1792310400000,
+      "status": "block",
+      "details": {
+        "suggestion": "Review",
+        "label": "Porn",
+        "score": 65,
+        "requestId": "example-request-id"
+      }
+    }
+  ]
+}
+```
+
+`previousResults` 按执行顺序排列，不包含当前步骤。`status` 和可选的 `overrideStatus` 是各步骤的原始意见；`currentStatus` 才是累计结果。`details` 由对应插件定义，没有详情的步骤会省略该字段。
+
+每步必须返回 `status`。累计处置初始为 `pass`，默认按 `delete > block > pass` 更新；返回 `overrideStatus` 时，以它覆盖当前累计处置。覆盖只作用于当前步骤，后续步骤仍可改变结果。例如：
+
+| 步骤 | 返回值 | 累计处置 |
+| --- | --- | --- |
+| 初审 | `{ status: "block", details: { reason: "review" } }` | `block` |
+| 复核 | `{ status: "pass", overrideStatus: "pass" }` | `pass` |
+| 通知 | `{ status: "pass" }` | `pass` |
+
+`block/delete` 不停止后续步骤，也不立即执行物理删除。核心在本次执行结束时应用累计处置；后续插件抛错时，已完成步骤的处置和结果仍会保存。非法返回值不参与累计。累计为 `block/delete` 时任务失败后不再自动重试；为 `pass` 时按原有规则重试整条流水线，前序输入从空列表开始。
+
+每一步的结果都会记录，包括没有 `details` 的步骤。`details` 只保存简要 JSON 对象；整条执行的结果总量受 64 KiB 限制，不要放入密钥或图片字节。
 
 `context.data` 可在同一次流水线执行中按命名空间传递 JSON；检查阶段只读，处理阶段可写。它不是跨请求数据库。
