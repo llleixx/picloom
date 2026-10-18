@@ -19,6 +19,7 @@ import { Auth } from "./core/auth";
 import { Files, type Faults } from "./core/files";
 import { entity, type Persistence } from "./persistence/port";
 import { nodeImageStorage } from "./builtins/nodeimage";
+import { telegramNotification } from "./builtins/telegram-notification";
 import { telegramStorage } from "./builtins/telegram";
 import { webdavStorage } from "./builtins/webdav";
 import { openListStorage } from "./builtins/openlist";
@@ -72,6 +73,7 @@ export async function bootstrap(
     plugins.register(s3Storage);
     plugins.register(nodeImageStorage);
     plugins.register(telegramStorage);
+    plugins.register(telegramNotification);
     plugins.register(webdavStorage);
     plugins.register(openListStorage);
     plugins.register(tencentModeration);

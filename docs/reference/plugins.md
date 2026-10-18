@@ -15,10 +15,21 @@
 | `builtin.sharp`              | 上传／访问图片变换 | 尺寸、格式、质量；访问参数需显式启用            |
 | `builtin.watermark`          | 上传／访问水印     | 文字或图片、大小、位置和透明度                  |
 | `builtin.tencent-moderation` | 保存后内容审核     | 凭证、模式、输入大小上限、命中处理策略          |
+| `builtin.telegram-notification` | 保存后 Telegram 通知 | 机器人令牌、聊天 ID、通知状态、是否附带前序详情 |
 
 ## S3 配置
 
 字段填写与读写验证见 [添加 S3 兼容存储](../guide/storage.md#添加-s3-兼容存储)。启用 302 重定向时，分享 Picloom 的公开链接，避免分享会过期的签名地址。
+
+## Telegram 通知
+
+与 Telegram 存储插件独立，用于保存后流水线。按执行到该步骤时的累计状态筛选，默认通知 `block/delete`；成功或跳过均返回 `pass`，不会覆盖已有处置。
+
+消息包含当前累计状态、文件 ID 和图片链接，可选附带前序步骤的 `details`（默认关闭）。使用纯文本并关闭链接预览，超过 [Telegram 消息长度限制](https://core.telegram.org/bots/api#sendmessage) 时截断为一条消息，不发送图片内容。
+
+建议放在流水线最后；消息中的 `delete` 表示当前删除决定，不代表存储副本已清理完毕。发送失败记录为任务错误，不撤销已有处置；累计为 `block/delete` 时不会自动重试。网络结果不明时不自动重发，但整条流水线因后续步骤失败而重试仍可能重复通知。
+
+配置示例见 [屏蔽或删除时发送 Telegram 通知](../guide/recipes.md#屏蔽或删除时发送-telegram-通知)。
 
 ## 导入、恢复和删除
 
