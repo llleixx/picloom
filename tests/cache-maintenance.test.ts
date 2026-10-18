@@ -1,4 +1,5 @@
-import { test, expect } from "bun:test";
+import * as fs from "node:fs/promises";
+import { test, expect, spyOn } from "bun:test";
 import { mkdtemp, rm, utimes, readdir, mkdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -160,6 +161,30 @@ test("an opened cache stream survives eviction without holding the cache lock", 
     );
     expect(received).toEqual(value.bytes);
   } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("failed eviction skips new cache writes and recovers after deletion succeeds", async () => {
+  const root = await mkdtemp(join(tmpdir(), "picloom-cache-capacity-"));
+  const cache = new ImageCache(root, 10, 60000);
+  const original = fs.rm;
+  let removal: ReturnType<typeof spyOn> | undefined;
+  try {
+    await cache.put("file", "old", output(8));
+    removal = spyOn(fs, "rm").mockImplementation(async (path, options) => {
+      if (String(path) === join(root, "file", "old"))
+        throw Object.assign(new Error("Deletion failed"), { code: "EACCES" });
+      return original(path, options);
+    });
+    await cache.put("file", "new", output(8));
+    expect(await readdir(join(root, "file"))).toEqual(["old"]);
+    removal.mockRestore();
+    removal = undefined;
+    await cache.put("file", "new", output(8));
+    expect(await readdir(join(root, "file"))).toEqual(["new"]);
+  } finally {
+    removal?.mockRestore();
     await rm(root, { recursive: true, force: true });
   }
 });

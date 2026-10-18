@@ -132,6 +132,7 @@ export class ImageCache {
       await this.mutex.run(async () => {
         if (result.bytes.byteLength > this.maxBytes) return;
         await this.cleanLocked(false, result.bytes.byteLength);
+        if (this.bytes + result.bytes.byteLength > this.maxBytes) return;
         const parent = join(this.root, fileId);
         await mkdir(parent, { recursive: true });
         const temp = join(parent, `.tmp-${crypto.randomUUID()}`);
