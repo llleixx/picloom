@@ -24,7 +24,10 @@
     "test:postgres": "REQUIRE_POSTGRES_TEST=1 bun test tests/postgres.test.ts",
     "build:plugin-sdk": "bun build plugin-sdk/index.ts --target=bun --outfile=dist/plugin-sdk.js",
     "build:examples": "bun examples/build.ts",
-    "test:docker": "bun docker/smoke.ts"
+    "test:docker": "bun docker/smoke.ts",
+    "docs:dev": "bun run --cwd docs dev",
+    "docs:build": "bun run --cwd docs build",
+    "docs:preview": "bun run --cwd docs preview"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "3.1151.0",
