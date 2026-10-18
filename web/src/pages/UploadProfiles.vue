@@ -93,7 +93,7 @@ async function edit(id?: string) {
           id: "",
           name: "",
           publicPrefix: "/i/",
-          path: { pluginId: "", version: "", config: {} },
+          path: { pluginId: "builtin.random-path", version: "1.0.0", config: {} },
           storageGroupId: "",
           enabled: true,
           allowGuestUpload: false,

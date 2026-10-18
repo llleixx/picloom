@@ -8,12 +8,10 @@ services:
     ports:
       - "${PUBLISH_ADDRESS:-0.0.0.0}:${HTTP_PORT:-3000}:3000"
     environment:
-      ENCRYPTION_KEY: ${ENCRYPTION_KEY:?Set ENCRYPTION_KEY in docker/.env}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:?Set ENCRYPTION_KEY in .env}
       INITIAL_OWNER_PASSWORD: ${INITIAL_OWNER_PASSWORD:-}
       PUBLIC_ORIGIN: ${PUBLIC_ORIGIN:-}
       TRUSTED_PROXIES: ${TRUSTED_PROXIES:-}
       DATABASE_URL: ""
     volumes:
-      - picloom-state:/var/lib/picloom
-volumes:
-  picloom-state:
+      - ./data:/var/lib/picloom

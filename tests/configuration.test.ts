@@ -825,3 +825,45 @@ test("background tasks refill a free slot after failure while another task remai
     await f.close();
   }
 });
+
+test("relative local directories resolve under data and preserve immutable targets", async () => {
+  const f = await fixture();
+  try {
+    const source = await payload(
+      await f.request("/api/storage-sources", "POST", {
+        pluginId: "builtin.local",
+        version: "1.0.0",
+        name: "Relative",
+        config: { root: "./images" },
+        secretEdits: {},
+      }),
+    );
+    expect(source.config.root).toBe(join(f.root, "images"));
+    expect(source.ready).toBe(true);
+    const record = await f.app.db.read((r) => r.instance(source.id));
+    expect(f.app.plugins.localDirectory(record!)!.root).toBe(
+      join(f.root, "images"),
+    );
+    const same = await f.request(`/api/storage-sources/${source.id}`, "PUT", {
+      pluginId: "builtin.local",
+      version: "1.0.0",
+      name: "Relative",
+      config: { root: "./images" },
+      secretEdits: {},
+      expectedVersion: source.configVersion,
+    });
+    expect(same.status).toBe(200);
+    const saved = await same.json();
+    const moved = await f.request(`/api/storage-sources/${source.id}`, "PUT", {
+      pluginId: "builtin.local",
+      version: "1.0.0",
+      name: "Relative",
+      config: { root: "./other-images" },
+      secretEdits: {},
+      expectedVersion: saved.configVersion,
+    });
+    expect((await moved.json()).error.code).toBe("NEW_INSTANCE_REQUIRED");
+  } finally {
+    await f.close();
+  }
+});

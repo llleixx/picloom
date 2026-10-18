@@ -30,10 +30,10 @@ async function enter(input: typeof process.stdin, value: string | null) {
 test("Owner recovery prompts hide input, confirm, cancel, and require a terminal", async () => {
   const t = terminal();
   const result = promptOwnerPassword(t.input, t.output);
-  await enter(t.input, "recovered-password-123\r");
-  await enter(t.input, "recovered-password-123\r");
-  expect(await result).toBe("recovered-password-123");
-  expect(t.text()).not.toContain("recovered-password-123");
+  await enter(t.input, "sixsix\r");
+  await enter(t.input, "sixsix\r");
+  expect(await result).toBe("sixsix");
+  expect(t.text()).not.toContain("sixsix");
   const mismatch = terminal();
   const pending = promptOwnerPassword(mismatch.input, mismatch.output);
   pending.catch(() => {});
@@ -61,18 +61,18 @@ test("Owner recovery revokes sessions, retains upload tokens, and rejects invali
     expect(tokenResponse.status).toBe(201);
     const token = (await tokenResponse.json()).token;
     await expect(f.app.auth.recoverOwnerPassword("short")).rejects.toThrow(
-      "at least 12",
+      "at least 6",
     );
     expect((await f.request("/api/auth/session")).status).toBe(200);
     expect(
-      await f.app.auth.recoverOwnerPassword("recovered-password-123"),
+      await f.app.auth.recoverOwnerPassword("sixsix"),
     ).toBe("admin");
     expect((await f.request("/api/auth/session")).status).toBe(401);
     await expect(
       f.app.auth.login("admin", "test-password-123", "old"),
     ).rejects.toThrow("Invalid login");
     expect(
-      (await f.app.auth.login("admin", "recovered-password-123", "new")).user
+      (await f.app.auth.login("admin", "sixsix", "new")).user
         .id,
     ).toBe(owner!.id);
     expect(
@@ -103,7 +103,7 @@ test("Owner recovery refuses missing or ambiguous Owner accounts", async () => {
     };
     const auth = new Auth(db as never, {} as never);
     await expect(
-      auth.recoverOwnerPassword("recovered-password-123"),
+      auth.recoverOwnerPassword("sixsix"),
     ).rejects.toThrow("exactly one Owner");
     expect(changed).toBe(false);
   }

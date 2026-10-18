@@ -42,10 +42,10 @@ export class Auth {
     return created && generated ? value : null;
   }
   async initialize(username: string, password: string) {
-    if (!username.trim() || password.length < 12)
+    if (!username.trim() || password.length < 6)
       throw new AppError(
         "INVALID_INPUT",
-        "Username and password of at least 12 characters required",
+        "Username and password of at least 6 characters required",
       );
     const encoded = await Bun.password.hash(password, {
       algorithm: "argon2id",
@@ -358,11 +358,11 @@ export class Auth {
         typeof input.username !== "string" ||
         !/^[a-zA-Z0-9_.-]{1,64}$/.test(input.username.trim()) ||
         typeof input.password !== "string" ||
-        input.password.length < 12
+        input.password.length < 6
       )
         throw new AppError(
           "INVALID_INPUT",
-          "Use a valid username and password of at least 12 characters",
+          "Use a valid username and password of at least 6 characters",
         );
       password = await Bun.password.hash(input.password, {
         algorithm: "argon2id",
@@ -407,10 +407,10 @@ export class Auth {
     });
   }
   private async encodePassword(password: string) {
-    if (password.length < 12)
+    if (password.length < 6)
       throw new AppError(
         "INVALID_INPUT",
-        "Password must contain at least 12 characters",
+        "Password must contain at least 6 characters",
       );
     return Bun.password.hash(password, { algorithm: "argon2id" });
   }

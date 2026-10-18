@@ -8,14 +8,14 @@ import {
   readdir,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, dirname } from "node:path";
 import { create, extract } from "tar";
 import { startRuntime } from "../src/runtime";
 import { initializeDevelopment } from "../src/bootstrap";
 import { Secrets } from "../src/infra/secrets";
 import { workLock } from "../src/infra/files";
 import { externalBuiltin } from "./package-fixtures";
-const password = "test-password-123";
+const password = "sixsix";
 async function setup(parent: string, name = "data", key = "ab".repeat(32)) {
   const root = join(parent, name);
   const runtime = await startRuntime(
@@ -360,7 +360,7 @@ test("maintenance drains streams and failed restore preserves existing data", as
     const stage = join(parent, "modified");
     await mkdir(stage);
     await extract({
-      file: join(f.root + ".backups", backup.json().id),
+      file: join(dirname(f.root), "backups", backup.json().id),
       cwd: stage,
     });
     await writeFile(join(stage, "data", "delivery-settings.json"), "{}");

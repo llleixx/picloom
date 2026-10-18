@@ -369,7 +369,7 @@ export const en = {
     "Changing your password signs out all sessions. Upload tokens stay active.",
   "ui.currentPassword": "Current password",
   "ui.newPassword": "New password",
-  "ui.atLeast12Characters": "At least 12 characters",
+  "ui.atLeast6Characters": "At least 6 characters",
   "ui.confirmPassword": "Confirm password",
   "ui.signOut": "Sign out",
   "ui.uploadTokens": "Upload Tokens",

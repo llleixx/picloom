@@ -37,7 +37,7 @@ export async function promptOwnerPassword(
     });
   try {
     const password = await question(
-      "New Owner password (at least 12 characters): ",
+      "New Owner password (at least 6 characters): ",
     );
     const confirmation = await question("Confirm new Owner password: ");
     if (password !== confirmation)

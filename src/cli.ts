@@ -39,7 +39,7 @@ if (command === "reset-owner-password") {
       const username = process.env.ADMIN_USERNAME ?? "admin";
       const password = process.env.ADMIN_PASSWORD;
       if (!password)
-        throw new Error("Set ADMIN_PASSWORD (at least 12 characters)");
+        throw new Error("Set ADMIN_PASSWORD (at least 6 characters)");
       console.info(
         (await app.auth.initialize(username, password))
           ? "Administrator created"

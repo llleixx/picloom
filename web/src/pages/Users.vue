@@ -212,7 +212,7 @@ async function resetPassword() {
                 v-model="draft.password"
                 type="password"
                 required
-                minlength="12"
+                minlength="6"
                 autocomplete="new-password"
             /></label>
             <label class="field"
@@ -276,14 +276,14 @@ async function resetPassword() {
                 }}<Input
                   v-model="draft.password"
                   type="password"
-                  minlength="12"
+                  minlength="6"
                   autocomplete="new-password"
               /></label>
               <p class="subtle">{{ t("users.resetHint") }}</p>
               <Button
                 type="button"
                 variant="outline"
-                :disabled="busy || draft.password.length < 12"
+                :disabled="busy || draft.password.length < 6"
                 @click="resetPassword"
                 >{{ t("users.resetPassword") }}</Button
               >

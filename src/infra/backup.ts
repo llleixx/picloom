@@ -12,7 +12,7 @@ import {
   rm,
   chmod,
 } from "node:fs/promises";
-import { join, resolve, relative, isAbsolute } from "node:path";
+import { join, dirname, resolve, relative, isAbsolute } from "node:path";
 import { create, extract, list } from "tar";
 import type { BackupView } from "../../shared/backup";
 import type { DeliverySettings } from "../../shared/api";
@@ -73,7 +73,7 @@ async function copyTree(
 export class Backups {
   readonly directory: string;
   constructor(private root: string) {
-    this.directory = root + ".backups";
+    this.directory = join(dirname(root), "backups");
   }
   private async init() {
     await mkdir(this.directory, { recursive: true, mode: 0o700 });

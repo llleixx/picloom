@@ -81,16 +81,16 @@ async function change() {
         }}<Input
           v-model="password"
           required
-          minlength="12"
+          minlength="6"
           type="password"
           autocomplete="new-password"
-          :placeholder="t('ui.atLeast12Characters')" /></label
+          :placeholder="t('ui.atLeast6Characters')" /></label
       ><label class="field"
         >{{ t("ui.confirmPassword")
         }}<Input
           v-model="confirm"
           required
-          minlength="12"
+          minlength="6"
           type="password"
           autocomplete="new-password"
       /></label>

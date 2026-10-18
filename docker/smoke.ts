@@ -19,7 +19,7 @@ const composeKeys = new Set([
 const childEnv = Object.fromEntries(
   Object.entries(process.env).filter(([key]) => !composeKeys.has(key)),
 );
-// Opt-in integration test: real Docker images, isolated Compose projects and volumes.
+// Opt-in integration test: real Docker images, isolated Compose projects and bind directories.
 async function command(args: string[]) {
   const p = Bun.spawn(args, { stdout: "pipe", stderr: "pipe", env: childEnv });
   const [out, err, code] = await Promise.all([
@@ -42,7 +42,18 @@ for (const backend of ["sqlite", "postgres"]) {
     overrideFile,
     JSON.stringify({
       services: {
-        picloom: { image: "picloom:local", pull_policy: "never" },
+        picloom: {
+          image: "picloom:local",
+          pull_policy: "never",
+          volumes: [`${temp}/data:/var/lib/picloom`],
+        },
+        ...(backend === "postgres"
+          ? {
+              postgres: {
+                volumes: [`${temp}/postgres:/var/lib/postgresql/data`],
+              },
+            }
+          : {}),
       },
     }),
   );
@@ -158,7 +169,7 @@ PUBLISH_ADDRESS=127.0.0.1
       ).status,
       200,
     );
-    // Recreate containers and their networks, retaining only named volumes.
+    // Recreate containers and their networks, retaining only bind-mounted data.
     await compose("down");
     await compose("up", "-d", "--no-build", "--wait", "--wait-timeout", "180");
     await login();
@@ -198,6 +209,25 @@ PUBLISH_ADDRESS=127.0.0.1
       assert.ok(
         (await (await request("/api/system/backups")).json()).length > 0,
       );
+      const restored = await fetch(
+        origin + `/api/system/backups/${backups[0].id}/restore`,
+        {
+          method: "POST",
+          headers: {
+            cookie,
+            origin,
+            "x-csrf-token": csrf,
+            "x-confirm-restore": "restore",
+          },
+          signal: AbortSignal.timeout(30000),
+        },
+      );
+      assert.equal(restored.status, 200, await restored.clone().text());
+      await login();
+      assert.deepEqual(
+        Buffer.from(await (await request(path)).arrayBuffer()),
+        png,
+      );
     } else {
       assert.equal((await backup.json()).error.code, "BACKUP_UNSUPPORTED");
     }
@@ -221,7 +251,7 @@ PUBLISH_ADDRESS=127.0.0.1
       `${backend}: healthy startup, Owner login, upload, Sharp, recreated-container persistence, SIGKILL recovery, backups policy and deletion passed`,
     );
   } finally {
-    // Only this test's UUID-named project and volumes are disposable.
+    // Only this test's isolated project and temporary directories are disposable.
     await compose("down", "--volumes", "--remove-orphans");
     await rm(temp, { recursive: true, force: true });
   }

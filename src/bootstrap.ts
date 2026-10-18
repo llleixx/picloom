@@ -60,7 +60,11 @@ export async function bootstrap(
             "Web UI disabled: existing image prefix overlaps a reserved route",
         }),
       );
-    const plugins = new PluginManager(db, new Secrets(config.encryptionKey));
+    const plugins = new PluginManager(
+      db,
+      new Secrets(config.encryptionKey),
+      config.root,
+    );
     plugins.register(datePath);
     plugins.register(randomPath);
     plugins.register(localStorage);
@@ -155,7 +159,7 @@ export async function initializeDevelopment(app: Application) {
       })
     );
   };
-  const path = await ensure("builtin.date-path", "Default date path", {});
+  const path = await ensure("builtin.random-path", "Default random path", {});
   const storage = await ensure("builtin.local", "Default local storage", {
     root: join(app.config.root, "originals"),
   });

@@ -329,7 +329,7 @@ export const zhCN = {
     "修改密码后所有登录会话将失效，上传令牌仍然有效。",
   "ui.currentPassword": "当前密码",
   "ui.newPassword": "新密码",
-  "ui.atLeast12Characters": "至少 12 个字符",
+  "ui.atLeast6Characters": "至少 6 个字符",
   "ui.confirmPassword": "确认密码",
   "ui.signOut": "退出登录",
   "ui.uploadTokens": "上传令牌",

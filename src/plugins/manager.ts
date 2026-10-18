@@ -5,7 +5,7 @@ import { assertTranslations } from "../../shared/plugin-localization";
 import Ajv2020 from "ajv/dist/2020";
 import addFormats from "ajv-formats";
 import { readFile } from "node:fs/promises";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { AppError, Conflict, requireValue } from "../core/errors";
 import { Mutex } from "../core/concurrency";
@@ -126,6 +126,7 @@ export class PluginManager {
   constructor(
     private db: Persistence,
     private secrets: Secrets,
+    private dataRoot: string,
   ) {
     addFormats(this.ajv);
     this.ajv.addKeyword({
@@ -621,11 +622,15 @@ export class PluginManager {
       );
     if ("localDirectory" in def && def.localDirectory) {
       try {
-        directoryRoot(full, def.localDirectory.configPath);
+        const path = def.localDirectory.configPath;
+        const value = readPointer(full, path);
+        if (typeof value !== "string" || !value.trim()) throw new Error();
+        writePointer(full, path, resolve(this.dataRoot, value));
+        directoryRoot(full, path);
       } catch {
         throw new AppError(
           "CONFIG_INVALID",
-          "Local directory must be absolute",
+          "Local directory must be a non-empty path",
         );
       }
     }

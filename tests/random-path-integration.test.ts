@@ -3,19 +3,9 @@ import { fixture } from "./helpers";
 test("random path works through upload profiles and keeps historical URLs after profile edits", async () => {
   const f = await fixture();
   try {
-    let profile = await f.app.configuration.profileEditor(f.profileId);
-    profile = await f.app.configuration.saveProfileEditor(
-      {
-        ...profile,
-        expectedVersion: profile.configVersion,
-        path: {
-          pluginId: "builtin.random-path",
-          version: "1.0.0",
-          config: { directoryDepth: 2 },
-        },
-      },
-      profile.id,
-    );
+    const profile = await f.app.configuration.profileEditor(f.profileId);
+    expect(profile.path.pluginId).toBe("builtin.random-path");
+    expect(profile.path.config.directoryDepth).toBe(2);
     const response = await f.upload();
     expect(response.status).toBe(201);
     const file = await response.json();

@@ -8,13 +8,13 @@ services:
     ports:
       - "${PUBLISH_ADDRESS:-0.0.0.0}:${HTTP_PORT:-3000}:3000"
     environment:
-      ENCRYPTION_KEY: ${ENCRYPTION_KEY:?Set ENCRYPTION_KEY in docker/.env}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:?Set ENCRYPTION_KEY in .env}
       INITIAL_OWNER_PASSWORD: ${INITIAL_OWNER_PASSWORD:-}
       PUBLIC_ORIGIN: ${PUBLIC_ORIGIN:-}
       TRUSTED_PROXIES: ${TRUSTED_PROXIES:-}
-      DATABASE_URL: postgresql://picloom:${POSTGRES_PASSWORD:?Set a URL-safe POSTGRES_PASSWORD in docker/.env}@postgres:5432/picloom
+      DATABASE_URL: postgresql://picloom:${POSTGRES_PASSWORD:?Set a URL-safe POSTGRES_PASSWORD in .env}@postgres:5432/picloom
     volumes:
-      - picloom-state:/var/lib/picloom
+      - ./data:/var/lib/picloom
     depends_on:
       postgres:
         condition: service_healthy
@@ -25,14 +25,11 @@ services:
     environment:
       POSTGRES_USER: picloom
       POSTGRES_DB: picloom
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in docker/.env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
     volumes:
-      - postgres-data:/var/lib/postgresql/data
+      - ./postgres:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U picloom -d picloom"]
       interval: 5s
       timeout: 5s
       retries: 12
-volumes:
-  picloom-state:
-  postgres-data:
