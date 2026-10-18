@@ -31,6 +31,7 @@ test("a blocked task sweep and failing cache maintenance do not block other clea
     "clean",
   ).mockResolvedValue();
   const uploads = spyOn(runtime.app.uploads, "cleanup").mockResolvedValue();
+  const packages = spyOn(runtime.app.packages, "cleanup").mockResolvedValue();
   try {
     const deadline = Date.now() + 4800;
     while (uploads.mock.calls.length < 2 && Date.now() < deadline) {
@@ -40,6 +41,7 @@ test("a blocked task sweep and failing cache maintenance do not block other clea
     expect(cache.mock.calls.length).toBeGreaterThanOrEqual(2);
     expect(temporary.mock.calls.length).toBeGreaterThanOrEqual(2);
     expect(uploads.mock.calls.length).toBeGreaterThanOrEqual(2);
+    expect(packages.mock.calls.length).toBeGreaterThanOrEqual(2);
   } finally {
     release();
     await runtime.close();
@@ -47,6 +49,7 @@ test("a blocked task sweep and failing cache maintenance do not block other clea
     cache.mockRestore();
     temporary.mockRestore();
     uploads.mockRestore();
+    packages.mockRestore();
     await rm(root, { recursive: true, force: true });
   }
 }, 10000);

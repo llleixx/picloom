@@ -18,6 +18,7 @@ type Installed = {
   error: string | null;
 };
 export class PluginPackages {
+  private lastCleanup = Date.now();
   private installed = new Map<string, Installed>();
   private staged = new Map<
     string,
@@ -122,13 +123,30 @@ export class PluginPackages {
       }
     return [...views.values()];
   }
+  async cleanup() {
+    const now = Date.now();
+    if (now - this.lastCleanup < 60 * 60_000) return;
+    this.lastCleanup = now;
+    await this.plugins.exclusive(() => this.removeExpired());
+  }
+  private async removeExpired() {
+    const now = Date.now();
+    for (const [ticket, item] of this.staged) {
+      if (item.expires > now) continue;
+      try {
+        await this.removeDirectory(item.directory);
+        this.staged.delete(ticket);
+      } catch {
+        // Retain failed entries for the next cleanup without blocking other packages.
+        console.error(
+          JSON.stringify({ event: "plugin_stage_cleanup_failed", ticket }),
+        );
+      }
+    }
+  }
   async inspect(bytes: Uint8Array): Promise<PackageInspection> {
     return this.plugins.exclusive(async () => {
-      for (const [ticket, item] of this.staged)
-        if (item.expires < Date.now()) {
-          await this.removeDirectory(item.directory);
-          this.staged.delete(ticket);
-        }
+      await this.removeExpired();
       if (this.staged.size >= 8)
         throw new AppError(
           "PLUGIN_STAGE_LIMIT",

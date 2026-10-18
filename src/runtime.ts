@@ -39,6 +39,11 @@ export async function startRuntime(
     backups = new Backups(base.root);
   const jobs = [
     {
+      run: () => app.packages.cleanup(),
+      event: "plugin_stage_cleanup_failed",
+      running: false,
+    },
+    {
       run: () => app.files.sweep(),
       event: "task_cleanup_failed",
       running: false,

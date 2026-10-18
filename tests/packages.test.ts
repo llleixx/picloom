@@ -1,5 +1,5 @@
 import { hash } from "../src/core/auth";
-import { test, expect } from "bun:test";
+import { test, expect, spyOn } from "bun:test";
 import { fixture } from "./helpers";
 import { demoPackage, zip, demoCode } from "./package-fixtures";
 import { archiveFiles } from "../src/plugins/archive";
@@ -289,6 +289,48 @@ test("only Owner manages packages; admins retain installed-plugin configuration 
     }
     expect((await f.request(url, "DELETE")).status).toBe(200);
   } finally {
+    await f.close();
+  }
+});
+
+test("staged packages are cleaned hourly and failed removals retry without blocking other entries", async () => {
+  const f = await fixture();
+  let now = Date.now();
+  const clock = spyOn(Date, "now").mockImplementation(() => now);
+  const packages = f.app.packages as unknown as {
+    removeDirectory(path: string): Promise<void>;
+  };
+  const remove = packages.removeDirectory.bind(packages);
+  const removal = spyOn(packages, "removeDirectory");
+  try {
+    const first = await f.app.packages.inspect(demoPackage());
+    const second = await f.app.packages.inspect(demoPackage());
+    const manifest = (ticket: string) =>
+      Bun.file(`${f.root}/plugins/.staging-${ticket}/plugin.json`);
+    now += 16 * 60_000;
+    await f.app.packages.cleanup();
+    expect(await manifest(first.ticket).exists()).toBe(true);
+    expect(await manifest(second.ticket).exists()).toBe(true);
+    removal.mockImplementation(async (path) => {
+      if (path.endsWith(first.ticket)) throw new Error("Deletion failed");
+      await remove(path);
+    });
+    now += 44 * 60_000;
+    await f.app.packages.cleanup();
+    expect(await manifest(first.ticket).exists()).toBe(true);
+    expect(await manifest(second.ticket).exists()).toBe(false);
+    removal.mockImplementation(remove);
+    await f.app.packages.cleanup();
+    expect(await manifest(first.ticket).exists()).toBe(true);
+    now += 60 * 60_000;
+    await f.app.packages.cleanup();
+    expect(await manifest(first.ticket).exists()).toBe(false);
+    const fresh = await f.app.packages.inspect(demoPackage());
+    await f.app.packages.cleanup();
+    expect(await manifest(fresh.ticket).exists()).toBe(true);
+  } finally {
+    removal.mockRestore();
+    clock.mockRestore();
     await f.close();
   }
 });
