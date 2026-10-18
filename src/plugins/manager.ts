@@ -811,8 +811,8 @@ export class PluginManager {
       path,
     );
   }
-  async view(id: string): Promise<import("../../shared/config").InstanceView> {
-    const record = requireValue(await this.db.read((r) => r.instance(id)));
+  configurationView(record: Instance) {
+    const id = record.id;
     const definition = this.definitions.get(
       record.plugin_id + "@" + record.plugin_version,
     );
@@ -823,26 +823,55 @@ export class PluginManager {
       : [])
       presence[path] = readPointer(secret, path) !== undefined;
     return {
-      id,
+      key: id,
       pluginId: record.plugin_id,
       version: record.plugin_version,
-      kind: record.kind,
-      name: record.name,
       config: structuredClone(record.config_json),
-      configVersion: record.config_version,
-      canImport:
-        record.kind === "storage" &&
-        typeof (
-          this.slots.get(id)?.runtime as
-            | import("./api").StoragePlugin
-            | undefined
-        )?.listFiles === "function",
+      secretPresence: presence,
       ready: this.isReady(id),
       error: record.last_init_error ? "插件初始化失败，请检查配置后重试" : null,
-      secretPresence: presence,
-      references: await this.db.read((r) => r.instanceReferences(id)),
-      replicaCount: await this.db.read((r) => r.instanceReplicaCount(id)),
     };
+  }
+  async view(id: string): Promise<import("../../shared/config").InstanceView> {
+    return this.db.read(
+      async (r) =>
+        (await this.instanceViews(r, [requireValue(await r.instance(id))]))[0]!,
+    );
+  }
+  async storageViews(): Promise<import("../../shared/config").InstanceView[]> {
+    return this.db.read(async (r) =>
+      this.instanceViews(
+        r,
+        (await r.instances()).filter((i) => i.kind === "storage"),
+      ),
+    );
+  }
+  private async instanceViews(
+    r: import("../persistence/port").Repositories,
+    records: Instance[],
+  ): Promise<import("../../shared/config").InstanceView[]> {
+    const ids = records.map((i) => i.id);
+    const references = await r.referencesForInstances(ids);
+    const counts = await r.replicaCounts(ids);
+    return records.map((record) => {
+      const { key, ...configuration } = this.configurationView(record);
+      return {
+        ...configuration,
+        id: key,
+        kind: record.kind,
+        name: record.name,
+        configVersion: record.config_version,
+        canImport:
+          record.kind === "storage" &&
+          typeof (
+            this.slots.get(record.id)?.runtime as
+              | import("./api").StoragePlugin
+              | undefined
+          )?.listFiles === "function",
+        references: references.get(record.id) ?? [],
+        replicaCount: counts.get(record.id) ?? 0,
+      };
+    });
   }
   async reinitialize(id: string) {
     return this.mutex.run(async () => {

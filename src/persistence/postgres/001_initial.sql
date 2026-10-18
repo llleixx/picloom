@@ -167,6 +167,7 @@ CREATE UNIQUE INDEX file_action ON tasks(file_id) WHERE kind='action';
 CREATE INDEX file_owner ON files(owner_id,status,created_at,id);
 CREATE INDEX file_status ON files(status,created_at,id);
 CREATE INDEX file_group ON files(storage_group_id) WHERE storage_group_id IS NOT NULL;
+CREATE INDEX replica_source ON file_replicas(storage_instance_id);
 CREATE INDEX replica_status ON file_replicas(file_id,status);
 CREATE INDEX task_due ON tasks(status,next_run_at);
 CREATE INDEX task_file ON tasks(file_id);

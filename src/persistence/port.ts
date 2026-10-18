@@ -185,6 +185,7 @@ export interface Repositories {
   ): Promise<void>;
   revokeUserCredentials(id: string): Promise<void>;
   userProfiles(id: string): Promise<string[]>;
+  profilesForUsers(ids: string[]): Promise<Map<string, string[]>>;
   replaceUserProfiles(id: string, profiles: string[]): Promise<void>;
   tokenById(id: string): Promise<Credential | null>;
   insertUser(user: User): Promise<void>;
@@ -204,7 +205,11 @@ export interface Repositories {
     userId: string,
   ): Promise<void>;
   tokens(userId: string): Promise<Credential[]>;
-  instances(): Promise<Instance[]>;
+  instances(ids?: string[]): Promise<Instance[]>;
+  referencesForInstances(
+    ids: string[],
+  ): Promise<Map<string, import("../../shared/config").Reference[]>>;
+  replicaCounts(ids: string[]): Promise<Map<string, number>>;
   instanceReferences(
     id: string,
   ): Promise<import("../../shared/config").Reference[]>;
@@ -237,6 +242,14 @@ export interface Repositories {
   ): Promise<
     Array<{ storage_instance_id: string; priority: number; weight: number }>
   >;
+  membersForGroups(
+    ids: string[],
+  ): Promise<
+    Map<
+      string,
+      Array<{ storage_instance_id: string; priority: number; weight: number }>
+    >
+  >;
   insertGroup(value: Group): Promise<void>;
   insertMember(
     groupId: string,
@@ -257,6 +270,7 @@ export interface Repositories {
   deletePipeline(id: string): Promise<void>;
   replaceSteps(pipelineId: string, steps: Step[]): Promise<void>;
   steps(pipelineId: string): Promise<Step[]>;
+  stepsForPipelines(ids: string[]): Promise<Map<string, Step[]>>;
   insertStep(value: Step): Promise<void>;
   prefixes(excludeProfileId?: string): Promise<string[]>;
   file(id: string): Promise<FileRecord | null>;

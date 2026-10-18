@@ -305,9 +305,11 @@ export class Auth {
     this.guestRate.set(client, entry);
   }
   async listUsers(limit: number, offset: number, q = "", status = "") {
-    return this.db.read(async (r) => ({
-      items: await Promise.all(
-        (await r.users(limit, offset, q, status)).map(async (u) => ({
+    return this.db.read(async (r) => {
+      const users = await r.users(limit, offset, q, status);
+      const profiles = await r.profilesForUsers(users.map((u) => u.id));
+      return {
+        items: users.map((u) => ({
           id: u.id,
           username: u.username,
           maxUploadBytes: u.max_upload_bytes,
@@ -315,11 +317,11 @@ export class Auth {
           role: u.role,
           status: u.status,
           createdAt: u.created_at,
-          profileIds: await r.userProfiles(u.id),
+          profileIds: profiles.get(u.id) ?? [],
         })),
-      ),
-      total: await r.countUsers(q, status),
-    }));
+        total: await r.countUsers(q, status),
+      };
+    });
   }
   private assertManageUser(
     actor: Identity,

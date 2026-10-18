@@ -102,13 +102,7 @@ export async function configurationRequest(
       return json(await app.plugins.reinitialize(id));
     if (!instances[2] && method === "GET")
       return json(
-        id
-          ? await app.plugins.view(id)
-          : await Promise.all(
-              (await app.db.read((r) => r.instances()))
-                .filter((i) => i.kind === "storage")
-                .map((i) => app.plugins.view(i.id)),
-            ),
+        id ? await app.plugins.view(id) : await app.plugins.storageViews(),
       );
     if (
       !instances[2] &&

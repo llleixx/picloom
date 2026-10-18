@@ -61,8 +61,10 @@ export class Configuration {
             name: p.name,
           });
       }
-      for (const p of await r.pipelines()) {
-        const steps = await r.steps(p.id);
+      const pipelines = await r.pipelines();
+      const allSteps = await r.stepsForPipelines(pipelines.map((p) => p.id));
+      for (const p of pipelines) {
+        const steps = allSteps.get(p.id) ?? [];
         steps.forEach((step, index) => {
           const i = instances.get(step.plugin_instance_id);
           if (i)
@@ -83,17 +85,10 @@ export class Configuration {
   private async pluginConfiguration(
     id: string,
   ): Promise<import("../../shared/config").PluginConfiguration> {
-    const view = await this.plugins.view(id);
-    return {
-      key: view.id,
-      pluginId: view.pluginId,
-      version: view.version,
-      config: view.config,
-      secretPresence: view.secretPresence,
-      ready: view.ready,
-      error: view.error,
-    };
+    const record = requireValue(await this.db.read((r) => r.instance(id)));
+    return this.plugins.configurationView(record);
   }
+
   async profileEditor(
     id: string,
   ): Promise<import("../../shared/config").ProfileEditor> {
@@ -243,40 +238,60 @@ export class Configuration {
     return this.profileEditor(result);
   }
   async pipelines(): Promise<PipelineView[]> {
-    return Promise.all(
-      (await this.db.read((r) => r.pipelines())).map((p) =>
-        this.pipeline(p.id),
-      ),
+    return this.db.read(async (r) =>
+      this.pipelineViews(r, await r.pipelines()),
     );
   }
   async pipeline(id: string): Promise<PipelineView> {
-    const data = await this.db.read(async (r) => ({
-      pipeline: requireValue(await r.pipeline(id)),
-      steps: await r.steps(id),
-      references: (await r.profiles())
-        .filter(
-          (p) => p.upload_pipeline_id === id || p.post_save_pipeline_id === id,
-        )
-        .map((p) => ({ type: "profile", id: p.id, name: p.name })),
+    return this.db.read(
+      async (r) =>
+        (await this.pipelineViews(r, [requireValue(await r.pipeline(id))]))[0]!,
+    );
+  }
+  private async pipelineViews(
+    r: Repositories,
+    pipelines: import("../persistence/port").Pipeline[],
+  ): Promise<PipelineView[]> {
+    if (!pipelines.length) return [];
+    const steps = await r.stepsForPipelines(pipelines.map((p) => p.id));
+    const ids = [
+      ...new Set([...steps.values()].flat().map((s) => s.plugin_instance_id)),
+    ];
+    const instances = new Map(
+      (await r.instances(ids)).map((i) => [
+        i.id,
+        this.plugins.configurationView(i),
+      ]),
+    );
+    const references = new Map<
+      string,
+      import("../../shared/config").Reference[]
+    >();
+    for (const p of await r.profiles()) {
+      for (const id of new Set([
+        p.upload_pipeline_id,
+        p.post_save_pipeline_id,
+      ])) {
+        if (!id) continue;
+        const refs = references.get(id) ?? [];
+        refs.push({ type: "profile", id: p.id, name: p.name });
+        references.set(id, refs);
+      }
+    }
+    return pipelines.map((p) => ({
+      id: p.id,
+      name: p.name,
+      kind: p.kind,
+      configVersion: p.config_version,
+      references: references.get(p.id) ?? [],
+      steps: (steps.get(p.id) ?? []).map((s) => ({
+        ...requireValue(instances.get(s.plugin_instance_id)),
+        ...(p.kind !== "post_save" ? { enabledParams: s.enabled_params } : {}),
+        ...(s.on_not_applicable
+          ? { onNotApplicable: s.on_not_applicable }
+          : {}),
+      })),
     }));
-    return {
-      id,
-      name: data.pipeline.name,
-      kind: data.pipeline.kind,
-      configVersion: data.pipeline.config_version,
-      references: data.references,
-      steps: await Promise.all(
-        data.steps.map(async (s) => ({
-          ...(await this.pluginConfiguration(s.plugin_instance_id)),
-          ...(data.pipeline.kind !== "post_save"
-            ? { enabledParams: s.enabled_params }
-            : {}),
-          ...(s.on_not_applicable
-            ? { onNotApplicable: s.on_not_applicable }
-            : {}),
-        })),
-      ),
-    };
   }
   async savePipeline(input: PipelineInput, id?: string) {
     const result = await this.plugins.exclusive(async () => {
@@ -427,26 +442,31 @@ export class Configuration {
       throw new AppError("INSTANCE_UNAVAILABLE", "不能引用尚未就绪的实例", 409);
   }
   async groups(): Promise<GroupView[]> {
-    return Promise.all(
-      (await this.db.read((r) => r.groups())).map((g) => this.group(g.id)),
-    );
+    return this.db.read(async (r) => this.groupViews(r, await r.groups()));
   }
   async group(id: string): Promise<GroupView> {
-    return this.db.read(async (r) => {
-      const g = requireValue(await r.group(id));
-      return {
-        id: g.id,
-        name: g.name,
-        primaryStrategy: g.primary_strategy,
-        redundancyStrategy: g.redundancy_strategy,
-        redundancyCount: g.redundancy_count,
-        configVersion: g.config_version,
-        members: (await r.members(id)).map((m) => ({
-          instanceId: m.storage_instance_id,
-          weight: m.weight,
-        })),
-      };
-    });
+    return this.db.read(
+      async (r) =>
+        (await this.groupViews(r, [requireValue(await r.group(id))]))[0]!,
+    );
+  }
+  private async groupViews(
+    r: Repositories,
+    groups: import("../persistence/port").Group[],
+  ): Promise<GroupView[]> {
+    const members = await r.membersForGroups(groups.map((g) => g.id));
+    return groups.map((g) => ({
+      id: g.id,
+      name: g.name,
+      primaryStrategy: g.primary_strategy,
+      redundancyStrategy: g.redundancy_strategy,
+      redundancyCount: g.redundancy_count,
+      configVersion: g.config_version,
+      members: (members.get(g.id) ?? []).map((m) => ({
+        instanceId: m.storage_instance_id,
+        weight: m.weight,
+      })),
+    }));
   }
   async saveGroup(input: GroupInput, id?: string) {
     if (

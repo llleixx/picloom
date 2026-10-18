@@ -20,6 +20,17 @@ import type {
 } from "./port";
 import type { Config, Locator } from "../plugins/api";
 
+function groupRows<T>(rows: T[], key: (row: T) => string): Map<string, T[]> {
+  const groups = new Map<string, T[]>();
+  for (const row of rows) {
+    const id = key(row);
+    const group = groups.get(id);
+    if (group) group.push(row);
+    else groups.set(id, [row]);
+  }
+  return groups;
+}
+
 const jsonKeys = [
   "processing_results_json",
   "params_json",
@@ -338,14 +349,22 @@ export class SqlRepositories implements Repositories {
         .execute();
   }
   async userProfiles(id: string) {
-    return (
-      await this.db
-        .selectFrom("user_upload_profiles")
-        .select("upload_profile_id")
-        .where("user_id", "=", id)
-        .orderBy("upload_profile_id")
-        .execute()
-    ).map((x) => x.upload_profile_id);
+    return (await this.profilesForUsers([id])).get(id) ?? [];
+  }
+  async profilesForUsers(ids: string[]) {
+    if (!ids.length) return new Map<string, string[]>();
+    const rows = await this.db
+      .selectFrom("user_upload_profiles")
+      .select(["user_id", "upload_profile_id"])
+      .where("user_id", "in", ids)
+      .orderBy("upload_profile_id")
+      .execute();
+    return new Map(
+      [...groupRows(rows, (r) => r.user_id)].map(([id, rows]) => [
+        id,
+        rows.map((r) => r.upload_profile_id),
+      ]),
+    );
   }
   async replaceUserProfiles(id: string, profiles: string[]) {
     await this.db
@@ -439,39 +458,72 @@ export class SqlRepositories implements Repositories {
         .orderBy("created_at", "desc"),
     );
   }
-  async instances() {
-    return this.rows<Instance>(
-      this.db.selectFrom("plugin_instances").selectAll(),
-    );
+  async instances(ids?: string[]) {
+    if (ids && !ids.length) return [];
+    let query = this.db.selectFrom("plugin_instances").selectAll();
+    if (ids) query = query.where("id", "in", ids);
+    return this.rows<Instance>(query);
   }
   async instanceReferences(id: string) {
-    return this.db
+    return (await this.referencesForInstances([id])).get(id) ?? [];
+  }
+  async referencesForInstances(ids: string[]) {
+    if (!ids.length)
+      return new Map<string, import("../../shared/config").Reference[]>();
+    const rows = await this.db
       .selectFrom("upload_profiles")
-      .select([sql<string>`'profile'`.as("type"), "id", "name"])
-      .where("path_instance_id", "=", id)
+      .select([
+        sql<string>`'profile'`.as("type"),
+        "id",
+        "name",
+        "path_instance_id as instance_id",
+      ])
+      .where("path_instance_id", "in", ids)
       .union(
         this.db
           .selectFrom("storage_groups as g")
           .innerJoin("storage_group_members as m", "m.group_id", "g.id")
-          .select([sql<string>`'group'`.as("type"), "g.id", "g.name"])
-          .where("m.storage_instance_id", "=", id),
+          .select([
+            sql<string>`'group'`.as("type"),
+            "g.id",
+            "g.name",
+            "m.storage_instance_id as instance_id",
+          ])
+          .where("m.storage_instance_id", "in", ids),
       )
       .union(
         this.db
           .selectFrom("pipeline_steps as s")
           .innerJoin("pipelines as p", "p.id", "s.pipeline_id")
-          .select([sql<string>`'pipeline'`.as("type"), "p.id", "p.name"])
-          .where("s.plugin_instance_id", "=", id),
+          .select([
+            sql<string>`'pipeline'`.as("type"),
+            "p.id",
+            "p.name",
+            "s.plugin_instance_id as instance_id",
+          ])
+          .where("s.plugin_instance_id", "in", ids),
       )
       .execute();
+    return new Map(
+      [...groupRows(rows, (r) => r.instance_id)].map(([id, rows]) => [
+        id,
+        rows.map(({ instance_id, ...reference }) => reference),
+      ]),
+    );
   }
   async instanceReplicaCount(id: string) {
-    const r = await this.db
+    return (await this.replicaCounts([id])).get(id) ?? 0;
+  }
+  async replicaCounts(ids: string[]) {
+    if (!ids.length) return new Map<string, number>();
+    const rows = await this.db
       .selectFrom("file_replicas")
+      .select("storage_instance_id")
       .select((eb) => eb.fn.countAll<string | number>().as("n"))
-      .where("storage_instance_id", "=", id)
-      .executeTakeFirstOrThrow();
-    return integer(r.n);
+      .where("storage_instance_id", "in", ids)
+      .groupBy("storage_instance_id")
+      .execute();
+    return new Map(rows.map((r) => [r.storage_instance_id, integer(r.n)]));
   }
   async deleteInstance(id: string) {
     await this.db.deleteFrom("plugin_instances").where("id", "=", id).execute();
@@ -599,13 +651,29 @@ export class SqlRepositories implements Repositories {
     await this.db.deleteFrom("storage_groups").where("id", "=", id).execute();
   }
   async members(id: string) {
-    const members = await this.db
+    return (await this.membersForGroups([id])).get(id) ?? [];
+  }
+  async membersForGroups(ids: string[]) {
+    if (!ids.length)
+      return new Map<
+        string,
+        Array<{ storage_instance_id: string; priority: number; weight: number }>
+      >();
+    const rows = await this.db
       .selectFrom("storage_group_members")
-      .select(["storage_instance_id", "priority", "weight"])
-      .where("group_id", "=", id)
+      .select(["group_id", "storage_instance_id", "priority", "weight"])
+      .where("group_id", "in", ids)
       .orderBy("priority")
       .execute();
-    return members.map((m) => ({ ...m, priority: integer(m.priority) }));
+    return new Map(
+      [...groupRows(rows, (r) => r.group_id)].map(([id, rows]) => [
+        id,
+        rows.map(({ group_id, ...m }) => ({
+          ...m,
+          priority: integer(m.priority),
+        })),
+      ]),
+    );
   }
   async insertGroup(v: Group) {
     await this.db.insertInto("storage_groups").values(encode(v)).execute();
@@ -701,13 +769,18 @@ export class SqlRepositories implements Repositories {
     }
   }
   async steps(id: string) {
-    return this.rows<Step>(
+    return (await this.stepsForPipelines([id])).get(id) ?? [];
+  }
+  async stepsForPipelines(ids: string[]) {
+    if (!ids.length) return new Map<string, Step[]>();
+    const rows = await this.rows<Step>(
       this.db
         .selectFrom("pipeline_steps")
         .selectAll()
-        .where("pipeline_id", "=", id)
+        .where("pipeline_id", "in", ids)
         .orderBy("position"),
     );
+    return groupRows(rows, (r) => r.pipeline_id);
   }
   async insertStep(v: Step) {
     await this.insertPipelineStep(v, await this.pipeline(v.pipeline_id));
