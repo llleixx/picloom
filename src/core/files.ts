@@ -140,7 +140,6 @@ export class Files {
         step: Step;
         runtime: ProcessorPlugin | AccessPlugin;
         record: ReturnType<PluginManager["acquire"]>["record"];
-        cacheConfig: import("../plugins/api").Config;
         release: () => Promise<void>;
       }>;
     } catch (e) {
@@ -940,19 +939,25 @@ export class Files {
         const useCache = steps.every(
           (s) => (s.runtime as AccessPlugin).cacheable !== false,
         );
-        const key = await cacheKey(
-          file.id,
-          {
-            // Invalidate transforms produced before EXIF orientation was applied.
-            processingVersion: 3,
-            params: effective,
-            limits: {
-              maxDimension: this.config.maxDimension,
-              maxPixels: this.config.maxPixels,
-            },
-          },
-          steps,
-        );
+        const key = useCache
+          ? await cacheKey(
+              file.id,
+              {
+                // Invalidate transforms produced before EXIF orientation was applied.
+                processingVersion: 3,
+                params: effective,
+                limits: {
+                  maxDimension: this.config.maxDimension,
+                  maxPixels: this.config.maxPixels,
+                },
+              },
+              steps.map((item) => ({
+                step: item.step,
+                record: item.record,
+                cacheConfig: this.plugins.cacheConfiguration(item.record),
+              })),
+            )
+          : "";
         const result = await this.derived.render(
           file,
           key,

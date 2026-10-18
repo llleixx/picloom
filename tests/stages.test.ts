@@ -272,3 +272,51 @@ test("multipart params override enabled upload settings only; malformed requests
     await f.close();
   }
 });
+
+test("cache configuration is only prepared for cacheable image access", async () => {
+  const f = await fixture();
+  const config = spyOn(f.app.plugins, "cacheConfiguration");
+  let lease: ReturnType<typeof f.app.plugins.acquire<"access">> | undefined;
+  try {
+    const chain = await f.app.configuration.savePipeline({
+      name: "Upload transform",
+      kind: "upload",
+      steps: [{ ...plugin, config: { w: 16 } }],
+    });
+    const profile = await f.app.configuration.profileEditor(f.profileId);
+    await f.app.configuration.saveProfileEditor(
+      {
+        ...profile,
+        uploadPipelineId: chain.id,
+        expectedVersion: profile.configVersion,
+      },
+      profile.id,
+    );
+    const response = await f.upload();
+    expect(response.status).toBe(201);
+    const file = await response.json();
+    expect(config).not.toHaveBeenCalled();
+    const access = (await f.app.configuration.pipelines()).find(
+      (p) => p.kind === "access",
+    )!;
+    lease = f.app.plugins.acquire(access.steps[0]!.key!, "access");
+    expect(config).not.toHaveBeenCalled();
+    const read = async (width: number) => {
+      const result = await f.request(
+        new URL(file.url).pathname + `?w=${width}`,
+      );
+      expect(result.status).toBe(200);
+      return sharp(Buffer.from(await result.arrayBuffer())).metadata();
+    };
+    expect((await read(8)).width).toBe(8);
+    expect(config).toHaveBeenCalledTimes(1);
+    config.mockClear();
+    lease.runtime.cacheable = false;
+    expect((await read(10)).width).toBe(10);
+    expect(config).not.toHaveBeenCalled();
+  } finally {
+    config.mockRestore();
+    await lease?.release();
+    await f.close();
+  }
+});

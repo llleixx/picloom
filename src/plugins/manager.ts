@@ -724,13 +724,18 @@ export class PluginManager {
       );
     });
   }
+  cacheConfiguration(record: Instance): Config {
+    return mergeConfig(
+      record.config_json,
+      this.secrets.decrypt(record.secrets_encrypted, record.id),
+    );
+  }
   acquire<K extends keyof Runtimes>(
     id: string,
     kind: K,
   ): {
     runtime: Runtimes[K];
     record: Instance;
-    cacheConfig: Config;
     release: () => Promise<void>;
   } {
     const slot = this.slots.get(id);
@@ -745,19 +750,11 @@ export class PluginManager {
         "Plugin instance is unavailable",
         503,
       );
-    const cacheConfig =
-      slot.record.kind === "processor"
-        ? mergeConfig(
-            slot.record.config_json,
-            this.secrets.decrypt(slot.record.secrets_encrypted, slot.record.id),
-          )
-        : structuredClone(slot.record.config_json);
     slot.refs++;
     let released = false;
     return {
       runtime: slot.runtime as Runtimes[K],
       record: structuredClone(slot.record),
-      cacheConfig,
       release: async () => {
         if (released) return;
         released = true;
