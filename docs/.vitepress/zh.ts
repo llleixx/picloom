@@ -13,7 +13,7 @@ const guide = [
       { text: "存储源与存储组", link: "/guide/storage" },
       { text: "上传配置与公开路径", link: "/guide/profiles" },
       { text: "流水线", link: "/guide/pipelines" },
-      { text: "文件、副本与导入", link: "/guide/files" },
+      { text: "图片管理", link: "/guide/files" },
       { text: "用户、游客与令牌", link: "/guide/access" },
       { text: "常见场景", link: "/guide/recipes" },
     ],
