@@ -1,4 +1,4 @@
-import { test, expect } from "bun:test";
+import { test, expect, spyOn } from "bun:test";
 import { fixture } from "./helpers";
 import { handler } from "../src/http/app";
 import { settings } from "../src/config";
@@ -259,6 +259,53 @@ test("SVG responses retain restrictive CSP across GET, HEAD and 304 without rewr
     const response = await f.request(new URL(png.url).pathname);
     expect(response.headers.get("content-security-policy")).toBeNull();
     await response.arrayBuffer();
+  } finally {
+    await f.close();
+  }
+});
+
+test("redirect caching respects both URL expiration and the configured maximum", async () => {
+  const f = await fixture();
+  try {
+    const uploaded = await (await f.upload()).json();
+    const path = new URL(uploaded.url).pathname;
+    const replica = (await f.app.db.read((r) => r.replicas(uploaded.id)))[0]!;
+    const lease = f.app.plugins.acquire(replica.storage_instance_id, "storage");
+    const read = spyOn(lease.runtime, "read");
+    const now = Date.now();
+    const clock = spyOn(Date, "now").mockReturnValue(now);
+    try {
+      f.app.config.imageCacheMaxAge = 120;
+      for (const [remaining, expected] of [
+        [60500, 60],
+        [500, 0],
+        [300000, 120],
+        [undefined, 120],
+      ] as const) {
+        read.mockResolvedValue({
+          type: "redirect",
+          url: "https://example.com/image.png",
+          expiresAt: remaining === undefined ? undefined : now + remaining,
+        });
+        const response = await f.request(path);
+        expect(response.status).toBe(302);
+        expect(response.headers.get("cache-control")).toBe(
+          `public, max-age=${expected}, must-revalidate`,
+        );
+      }
+      for (const expiresAt of [now, NaN, Infinity]) {
+        read.mockResolvedValue({
+          type: "redirect",
+          url: "https://example.com/image.png",
+          expiresAt,
+        });
+        expect((await f.request(path)).status).toBe(502);
+      }
+    } finally {
+      clock.mockRestore();
+      read.mockRestore();
+      await lease.release();
+    }
   } finally {
     await f.close();
   }

@@ -70,7 +70,12 @@ export type ReadResult =
       mimeType?: string;
       byteSize?: number;
     }
-  | { type: "redirect"; url: string; expiresAt?: number };
+  | {
+      type: "redirect";
+      url: string;
+      /** URL expiration as a Unix timestamp in milliseconds. */
+      expiresAt?: number;
+    };
 export interface StoragePlugin extends Runtime {
   write(
     input: {

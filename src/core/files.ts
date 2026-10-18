@@ -886,18 +886,25 @@ export class Files {
         }
         if (result.type === "redirect") {
           const url = new URL(result.url);
+          const now = Date.now();
           if (
             !["http:", "https:"].includes(url.protocol) ||
             url.username ||
             url.password ||
-            (result.expiresAt !== undefined && result.expiresAt <= Date.now())
+            (result.expiresAt !== undefined &&
+              (!Number.isFinite(result.expiresAt) || result.expiresAt <= now))
           )
             throw new AppError("PLUGIN_RESULT", "Invalid redirect", 502);
           return new Response(null, {
             status: 302,
             headers: {
               location: url.href,
-              "cache-control": publicCacheControl(this.config),
+              "cache-control": publicCacheControl(
+                this.config,
+                result.expiresAt === undefined
+                  ? undefined
+                  : Math.floor((result.expiresAt - now) / 1000),
+              ),
             },
           });
         }

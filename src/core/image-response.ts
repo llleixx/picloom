@@ -3,8 +3,11 @@ export interface ImageRequest {
   method?: string;
   ifNoneMatch?: string | null;
 }
-export function publicCacheControl(config: Settings) {
-  return `public, max-age=${config.imageCacheMaxAge}, must-revalidate`;
+export function publicCacheControl(
+  config: Settings,
+  maxAge = config.imageCacheMaxAge,
+) {
+  return `public, max-age=${Math.min(config.imageCacheMaxAge, maxAge)}, must-revalidate`;
 }
 export function imageHeaders(
   config: Settings,
