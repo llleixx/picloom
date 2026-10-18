@@ -18,7 +18,10 @@ import { AppError, Conflict, requireValue } from "./errors";
 import { InFlight, Mutex } from "./concurrency";
 import { fileInput, scopedInput, publicPath } from "../infra/files";
 import type { ImageCache } from "./cache";
-const terminal = (t: Task) => ["success", "cancelled"].includes(t.status);
+const terminal = (t: Task) =>
+  ["success", "cancelled"].includes(t.status) ||
+  (t.kind === "action" && t.status === "failed");
+const dispositionRank = { pass: 0, block: 1, delete: 2 } as const;
 export class TaskExecutor {
   private stopping = false;
   private paused = false;
@@ -372,16 +375,22 @@ export class TaskExecutor {
                     this.config.imageOrigin +
                     publicPath(file.public_prefix, file.logical_key),
                   file: scope.file,
+                  currentStatus: decision,
+                  previousResults: structuredClone(results),
                 },
                 { ...ctx, data },
               );
+              controller.signal.throwIfAborted();
               if (
                 !result ||
-                !["pass", "block", "delete"].includes(result.status)
+                !["pass", "block", "delete"].includes(result.status) ||
+                (result.overrideStatus !== undefined &&
+                  !["pass", "block", "delete"].includes(result.overrideStatus))
               )
                 throw new AppError("PLUGIN_RESULT", "Invalid Post-save result");
-              if (result.details !== undefined) {
-                try {
+              let completed: ProcessingResult;
+              try {
+                if (result.details !== undefined) {
                   if (
                     !result.details ||
                     typeof result.details !== "object" ||
@@ -389,27 +398,38 @@ export class TaskExecutor {
                   )
                     throw new Error();
                   assertJson(result.details);
-                  results.push({
-                    stepId: step.id,
-                    pluginId: stage.record.plugin_id,
-                    pluginVersion: stage.record.plugin_version,
-                    completedAt: Date.now(),
-                    status: result.status,
-                    details: JSON.parse(JSON.stringify(result.details)),
-                  });
-                  if (Buffer.byteLength(JSON.stringify(results)) > 64 * 1024)
-                    throw new Error();
-                } catch {
-                  throw new AppError(
-                    "PROCESSING_RESULT_INVALID",
-                    "Processing results must be JSON objects totaling at most 64 KiB",
-                  );
                 }
+                completed = {
+                  stepId: step.id,
+                  pluginId: stage.record.plugin_id,
+                  pluginVersion: stage.record.plugin_version,
+                  completedAt: Date.now(),
+                  status: result.status,
+                  ...(result.overrideStatus !== undefined
+                    ? { overrideStatus: result.overrideStatus }
+                    : {}),
+                  ...(result.details !== undefined
+                    ? { details: JSON.parse(JSON.stringify(result.details)) }
+                    : {}),
+                };
+                if (
+                  Buffer.byteLength(JSON.stringify([...results, completed])) >
+                  64 * 1024
+                )
+                  throw new Error();
+              } catch {
+                throw new AppError(
+                  "PROCESSING_RESULT_INVALID",
+                  "Processing results must be JSON objects totaling at most 64 KiB",
+                );
               }
-              if (result.status !== "pass") {
-                decision = result.status;
-                break;
-              }
+              // Accept a step atomically only after its entire result is valid.
+              results.push(completed);
+              decision =
+                completed.overrideStatus ??
+                (dispositionRank[completed.status] > dispositionRank[decision]
+                  ? completed.status
+                  : decision);
             } finally {
               await scope.close();
             }
@@ -519,6 +539,14 @@ export class TaskExecutor {
           f = requireValue(await r.file(file.id));
         if (t.status !== "running") return;
         const cancelled = t.kind === "action" && f.status === "deleting";
+        // Never overwrite a concurrent user deletion. Keep completed decisions even
+        // when a later plugin throws, times out or returns an invalid result.
+        if (t.kind === "action" && f.status === "ready" && results.length) {
+          if (decision !== "pass")
+            f.status = decision === "block" ? "blocked" : "deleting";
+          f.processing_results_json = results;
+          await r.saveFile(f, "ready");
+        }
         if (replica) {
           if (t.kind === "write")
             replica.status =
@@ -535,12 +563,14 @@ export class TaskExecutor {
           await r.saveReplica(replica);
         }
         const retryable =
+          (t.kind !== "action" || decision === "pass") &&
           !(
             error instanceof AppError &&
             [
               "TEMP_MISSING",
               "PIPELINE_MISSING",
               "PROCESSING_RESULT_INVALID",
+              "PLUGIN_RESULT",
             ].includes(error.code)
           ) &&
           (!isPluginError(error) || error.retryable);
@@ -580,6 +610,7 @@ export class TaskExecutor {
           await r.saveFile(f, f.status);
         }
       });
+      if (decision === "delete") this.cancel(file.id);
     } finally {
       clearTimeout(timeout);
       try {

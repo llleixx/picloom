@@ -59,10 +59,11 @@ export const zhCN = {
     "这是最后一个可用副本。删除后，图片将被删除，公开链接也将失效。",
   "processingResults.title": "处理结果",
   "processingResults.hint":
-    "最近一次成功执行的结果。恢复访问不会改变这些结果。",
-  "processingResults.pass": "已通过",
-  "processingResults.block": "已封禁",
-  "processingResults.delete": "已请求删除",
+    "已完成步骤的结果，可能来自未全部成功的执行。以下状态是各步骤的处置意见，恢复访问不会改变这些记录。",
+  "processingResults.pass": "放行",
+  "processingResults.block": "屏蔽",
+  "processingResults.delete": "删除",
+  "processingResults.override": "覆盖累计处置",
   "processingResults.details": "详情",
   "errors.processing_result_invalid":
     "插件结果必须为 JSON 对象，总大小不超过 64 KiB。",

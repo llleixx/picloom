@@ -153,10 +153,19 @@ export interface AccessPlugin extends ProcessorPlugin<
 > {
   cacheable?: boolean;
 }
+export type PostSaveStatus = "pass" | "block" | "delete";
 export interface PostSaveResult {
-  status: "pass" | "block" | "delete";
+  status: PostSaveStatus;
+  /** Replace the accumulated disposition at this step; later steps may change it. */
+  overrideStatus?: PostSaveStatus;
   /** Compact file-related JSON summary; never include secrets or file bytes. */
   details?: Config;
+}
+export interface PostSaveStepResult extends PostSaveResult {
+  stepId: string;
+  pluginId: string;
+  pluginVersion: string;
+  completedAt: number;
 }
 export interface PostSavePlugin extends Runtime {
   execute(
@@ -164,6 +173,10 @@ export interface PostSavePlugin extends Runtime {
       operationId: string;
       fileId: string;
       publicPath: string;
+      /** Accumulated disposition before this step; does not end the pipeline. */
+      readonly currentStatus: PostSaveStatus;
+      /** Isolated snapshot of successfully completed steps in this attempt. */
+      readonly previousResults: readonly Readonly<PostSaveStepResult>[];
       /** Relative when no site/image origin is configured. */
       url: string;
       file: FileInput;

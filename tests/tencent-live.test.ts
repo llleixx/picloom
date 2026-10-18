@@ -43,6 +43,8 @@ const enabled = process.env.TENCENT_LIVE === "1";
             fileId: crypto.randomUUID(),
             url: "http://localhost/unused",
             publicPath: "/unused",
+            currentStatus: "pass" as const,
+            previousResults: [],
             file: {
               metadata: {
                 mimeType: "image/png",

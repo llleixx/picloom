@@ -24,7 +24,6 @@ import { webdavStorage } from "./builtins/webdav";
 import { openListStorage } from "./builtins/openlist";
 import { s3Storage } from "./builtins/s3";
 import { tencentModeration } from "./builtins/tencent-moderation";
-import { webhook } from "./builtins/webhook";
 import { Configuration } from "./core/configuration";
 import { PluginPackages } from "./plugins/packages";
 export async function bootstrap(
@@ -75,7 +74,6 @@ export async function bootstrap(
     plugins.register(telegramStorage);
     plugins.register(webdavStorage);
     plugins.register(openListStorage);
-    plugins.register(webhook);
     plugins.register(tencentModeration);
     const packages = new PluginPackages(
       join(config.root, "plugins"),

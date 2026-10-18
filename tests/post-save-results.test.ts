@@ -8,11 +8,14 @@ import type { PostSavePlugin } from "../src/plugins/api";
 
 async function pipeline(
   f: Awaited<ReturnType<typeof fixture>>,
-  execute: PostSavePlugin["execute"],
+  execute: PostSavePlugin["execute"] | PostSavePlugin["execute"][],
 ) {
   let following = 0;
   for (const [id, fn] of [
-    ["test.decision", execute],
+    ...(Array.isArray(execute) ? execute : [execute]).map(
+      (fn, index) =>
+        [index ? `test.decision-${index}` : "test.decision", fn] as const,
+    ),
     [
       "test.following",
       async () => {
@@ -40,7 +43,12 @@ async function pipeline(
   const chain = await f.app.configuration.savePipeline({
     name: "Review",
     kind: "post_save",
-    steps: ["test.decision", "test.following"].map((pluginId) => ({
+    steps: [
+      ...(Array.isArray(execute) ? execute : [execute]).map((_, index) =>
+        index ? `test.decision-${index}` : "test.decision",
+      ),
+      "test.following",
+    ].map((pluginId) => ({
       pluginId,
       version: "1",
       config: {},
@@ -58,7 +66,7 @@ async function pipeline(
   return () => following;
 }
 
-test("block stops the chain, denies cached public access, preserves copies and allows admin recovery", async () => {
+test("block continues the chain, denies cached public access, preserves copies and allows admin recovery", async () => {
   const f = await fixture();
   try {
     const following = await pipeline(f, async () => ({
@@ -118,7 +126,7 @@ test("block stops the chain, denies cached public access, preserves copies and a
     expect((await f.app.db.read((r) => r.file(uploaded.id)))!.status).toBe(
       "blocked",
     );
-    expect(following()).toBe(0);
+    expect(following()).toBe(1);
     const action = (await f.app.db.read((r) => r.tasks(uploaded.id))).find(
       (t) => t.kind === "action",
     )!;
@@ -126,7 +134,7 @@ test("block stops the chain, denies cached public access, preserves copies and a
     expect(action.attempts).toBe(1);
     const report = (await (await f.request("/api/files/" + uploaded.id)).json())
       .processingResults;
-    expect(report).toHaveLength(1);
+    expect(report).toHaveLength(2);
     expect(report[0]).toMatchObject({
       pluginId: "test.decision",
       pluginVersion: "1",
@@ -251,7 +259,7 @@ test("delete records successful action and existing cleanup retries across resta
     const following = await pipeline(f, async () => ({ status: "delete" }));
     const uploaded = await (await f.upload()).json();
     await f.app.files.sweep();
-    expect(following()).toBe(0);
+    expect(following()).toBe(1);
     expect(
       (await f.app.db.read((r) => r.tasks(uploaded.id))).find(
         (t) => t.kind === "action",
@@ -384,7 +392,7 @@ test("private preview cancels its storage stream when the final state query fail
   }
 });
 
-test("Post-save summaries commit only on success and invalid results fail without retry", async () => {
+test("Post-save summaries survive later failures and invalid results fail without retry", async () => {
   const f = await fixture();
   try {
     let invalid = false;
@@ -409,7 +417,7 @@ test("Post-save summaries commit only on success and invalid results fail withou
     expect(
       (await f.app.db.read((r) => r.file(uploaded.id)))!
         .processing_results_json,
-    ).toBeNull();
+    ).toHaveLength(1);
     const task = (await f.app.db.read((r) => r.tasks(uploaded.id))).find(
       (t) => t.kind === "action",
     )!;
@@ -422,7 +430,7 @@ test("Post-save summaries commit only on success and invalid results fail withou
     expect(
       (await f.app.db.read((r) => r.file(uploaded.id)))!
         .processing_results_json,
-    ).toHaveLength(1);
+    ).toHaveLength(2);
     invalid = true;
     const oversized = await (await f.upload()).json();
     await f.app.files.sweep();
@@ -438,5 +446,99 @@ test("Post-save summaries commit only on success and invalid results fail withou
     );
   } finally {
     await f.close();
+  }
+});
+
+test("steps read isolated prior results, accumulate severity and explicitly override at that step only", async () => {
+  const f = await fixture();
+  try {
+    await pipeline(f, [
+      async (input) => {
+        expect(input.currentStatus).toBe("pass");
+        expect(input.previousResults).toEqual([]);
+        return { status: "delete", details: { label: "first" } };
+      },
+      async (input) => {
+        expect(input.currentStatus).toBe("delete");
+        expect(input.previousResults[0]).toMatchObject({
+          pluginId: "test.decision",
+          status: "delete",
+          details: { label: "first" },
+        });
+        // A plugin cannot rewrite the core's history by mutating its input snapshot.
+        (input.previousResults[0]!.details as any).label = "changed";
+        return { status: "block" };
+      },
+      async (input) => {
+        expect(input.currentStatus).toBe("delete");
+        expect(input.previousResults).toHaveLength(2);
+        expect(input.previousResults[0]!.details!.label).toBe("first");
+        return { status: "pass", overrideStatus: "pass" };
+      },
+      async (input) => {
+        expect(input.currentStatus).toBe("pass");
+        expect(input.previousResults[2]!.overrideStatus).toBe("pass");
+        return { status: "block" };
+      },
+      async (input) => {
+        expect(input.currentStatus).toBe("block");
+        return { status: "pass", overrideStatus: "pass" };
+      },
+    ]);
+    const image = await (await f.upload()).json();
+    await f.app.files.sweep();
+    const file = (await f.app.db.read((r) => r.file(image.id)))!;
+    expect(file.status).toBe("ready");
+    expect(file.processing_results_json).toHaveLength(6);
+    expect(file.processing_results_json![0]!.details!.label).toBe("first");
+  } finally {
+    await f.close();
+  }
+});
+
+test("later execution or invalid-result failures preserve block/delete and do not prevent cleanup", async () => {
+  for (const status of ["block", "delete"] as const) {
+    for (const invalid of [false, true]) {
+      const f = await fixture();
+      try {
+        await pipeline(f, [
+          async () => ({ status, details: { reason: "moderation" } }),
+          async (input) => {
+            expect(input.currentStatus).toBe(status);
+            expect(input.previousResults).toHaveLength(1);
+            if (invalid)
+              return { status: "pass", overrideStatus: "invalid" } as any;
+            throw new Error("notification unavailable");
+          },
+        ]);
+        const image = await (await f.upload()).json();
+        await f.app.files.sweep();
+        const action = (await f.app.db.read((r) => r.tasks(image.id))).find(
+          (t) => t.kind === "action",
+        )!;
+        expect(action.status).toBe("failed");
+        expect(action.next_run_at).toBeNull();
+        expect(action.last_error).toContain(
+          invalid ? "PLUGIN_RESULT" : "ACTION_FAILED",
+        );
+        const file = (await f.app.db.read((r) => r.file(image.id)))!;
+        expect(file.status).toBe(status === "block" ? "blocked" : "deleting");
+        expect(file.processing_results_json).toHaveLength(1);
+        expect(file.processing_results_json![0]!.status).toBe(status);
+        await f.restart();
+        await f.app.files.sweep();
+        expect((await f.app.db.read((r) => r.file(image.id)))!.status).toBe(
+          status === "block" ? "blocked" : "deleted",
+        );
+        expect((await f.app.db.read((r) => r.task(action.id)))!.status).toBe(
+          "failed",
+        );
+        expect(
+          (await f.app.db.read((r) => r.file(image.id)))!.temp_path,
+        ).toBeNull();
+      } finally {
+        await f.close();
+      }
+    }
   }
 });

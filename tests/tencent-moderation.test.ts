@@ -108,6 +108,8 @@ test("Tencent Cloud signs file submissions, maps decisions, stores safe summarie
       fileId: "file-id",
       url: "http://localhost/i/test.png",
       publicPath: "/i/test.png",
+      currentStatus: "pass" as const,
+      previousResults: [],
       file: {
         metadata: {
           mimeType: "image/png",
@@ -234,6 +236,8 @@ test("Tencent URL mode submits only the public URL without reading or resolving 
           operationId: "task:step",
           fileId: "file-id",
           publicPath: "/i/image%20name.svg",
+          currentStatus: "pass" as const,
+          previousResults: [],
           url: "https://images.example.com/i/image%20name.svg",
           file: {
             metadata: {
@@ -290,6 +294,8 @@ test("content size limits reject declared and streamed oversize without contacti
       fileId: "file",
       url: "https://example.com/image",
       publicPath: "/image",
+      currentStatus: "pass" as const,
+      previousResults: [],
       file: {
         metadata: {
           mimeType: "image/png",

@@ -82,10 +82,11 @@ export const en = {
 
   "processingResults.title": "Processing Results",
   "processingResults.hint":
-    "Last successful run. Restoring access does not change these results.",
-  "processingResults.pass": "Passed",
-  "processingResults.block": "Blocked",
-  "processingResults.delete": "Deletion requested",
+    "Completed step results, including partial runs. Statuses are individual step decisions; restoring access does not change these records.",
+  "processingResults.pass": "Pass",
+  "processingResults.block": "Block",
+  "processingResults.delete": "Delete",
+  "processingResults.override": "Override accumulated disposition",
   "processingResults.details": "Details",
   "errors.processing_result_invalid":
     "Plugin results must be JSON objects totaling at most 64 KiB.",

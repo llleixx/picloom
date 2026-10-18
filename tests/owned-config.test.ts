@@ -1,5 +1,5 @@
 import { test, expect } from "bun:test";
-import { fixture } from "./helpers";
+import { fixture } from "./action-fixture";
 const path = () => ({
   pluginId: "builtin.date-path",
   version: "1.0.0",
@@ -22,7 +22,7 @@ test("pipelines own encrypted settings, share references, duplicate independentl
           kind: "post_save",
           steps: [
             {
-              pluginId: "builtin.webhook",
+              pluginId: "test.action",
               version: "1.0.0",
               config: { url: "invalid" },
             },
@@ -36,7 +36,7 @@ test("pipelines own encrypted settings, share references, duplicate independentl
       kind: "post_save",
       steps: [
         {
-          pluginId: "builtin.webhook",
+          pluginId: "test.action",
           version: "1.0.0",
           config: { url: "http://localhost/hook" },
           secretEdits: {
@@ -284,7 +284,7 @@ test("removed steps are deleted immediately and pending pipelines use current st
       kind: "post_save",
       steps: [
         {
-          pluginId: "builtin.webhook",
+          pluginId: "test.action",
           version: "1.0.0",
           config: { url: receiver.url.href },
         },

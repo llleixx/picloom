@@ -1,5 +1,5 @@
 import { test, expect } from "bun:test";
-import { fixture } from "./helpers";
+import { fixture } from "./action-fixture";
 import { join } from "node:path";
 import { entity } from "../src/persistence/port";
 import { PluginError } from "../src/plugins/api";
@@ -293,7 +293,7 @@ test("configuration API enforces type, concurrency, references, prefixes and ato
   }
 });
 
-test("redundancy uses temporary results, publishes tasks atomically, runs webhook and deletes all copies", async () => {
+test("redundancy uses temporary results, publishes tasks atomically, runs post-save actions and deletes all copies", async () => {
   const f = await fixture();
   const calls: Array<{ body: any; key: string | null }> = [];
   const receiver = Bun.serve({
@@ -320,7 +320,7 @@ test("redundancy uses temporary results, publishes tasks atomically, runs webhoo
       g.id,
     );
     const action = await f.app.plugins.save({
-      pluginId: "builtin.webhook",
+      pluginId: "test.action",
       stage: "post_save",
       version: "1.0.0",
       name: "Notify",
@@ -416,7 +416,7 @@ test("post-save retry restarts the whole pipeline with stable operation IDs", as
     for (const path of ["/first", "/second"])
       actions.push(
         await f.app.plugins.save({
-          pluginId: "builtin.webhook",
+          pluginId: "test.action",
           stage: "post_save",
           version: "1.0.0",
           name: path,

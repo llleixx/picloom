@@ -9,14 +9,7 @@ export type FileStatus =
   | "failed"
   | "deleting"
   | "deleted";
-export interface ProcessingResult {
-  stepId: string;
-  pluginId: string;
-  pluginVersion: string;
-  completedAt: number;
-  status: "pass" | "block" | "delete";
-  details: Config;
-}
+export type ProcessingResult = import("../plugin-sdk/api").PostSaveStepResult;
 export interface FileView {
   id: string;
   ownerId: string | null;

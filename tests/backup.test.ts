@@ -210,13 +210,16 @@ test("backup restores images, external local roots, settings and encrypted crede
       name: "external",
       config: { root: external },
     });
-    const hook = await source.runtime.app.plugins.save({
-      pluginId: "builtin.webhook",
+    const moderation = await source.runtime.app.plugins.save({
+      pluginId: "builtin.tencent-moderation",
       version: "1.0.0",
       name: "secret",
       stage: "post_save",
-      config: { url: "https://example.com/hook" },
-      secretEdits: { "/token": { action: "replace", value: "kept-secret" } },
+      config: { bizType: "test" },
+      secretEdits: {
+        "/secretId": { action: "replace", value: "test-id" },
+        "/secretKey": { action: "replace", value: "kept-secret" },
+      },
     });
     await source.runtime.app.delivery.save({
       ...source.runtime.app.delivery.get(),
@@ -263,12 +266,14 @@ test("backup restores images, external local roots, settings and encrypted crede
         "utf8",
       ),
     ).toBe("external original");
-    const restoredHook = (await target.runtime.app.db.read((r) =>
-      r.instance(hook.id),
+    const restoredModeration = (await target.runtime.app.db.read((r) =>
+      r.instance(moderation.id),
     ))!;
     expect(
-      new Secrets(target.key).decrypt(restoredHook.secrets_encrypted, hook.id)
-        .token,
+      new Secrets(target.key).decrypt(
+        restoredModeration.secrets_encrypted,
+        moderation.id,
+      ).secretKey,
     ).toBe("kept-secret");
     expect(
       await Bun.file(join(target.root, "cache", "not-backed-up")).exists(),

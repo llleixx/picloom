@@ -1,12 +1,12 @@
 import { test, expect } from "bun:test";
-import { fixture } from "./helpers";
+import { fixture } from "./action-fixture";
 import { handler } from "../src/http/app";
 
 test("saved plugin secrets are revealed only explicitly to authenticated administrators", async () => {
   const f = await fixture();
   try {
     const instance = await f.app.plugins.save({
-      pluginId: "builtin.webhook",
+      pluginId: "test.action",
       stage: "post_save",
       version: "1.0.0",
       name: "Reveal test",

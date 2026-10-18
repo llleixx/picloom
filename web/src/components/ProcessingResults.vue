@@ -21,6 +21,10 @@ const complex = (value: unknown) => value !== null && typeof value === "object";
         {{ date(result.completedAt) }} ·
         {{ t(`processingResults.${result.status}`) }}
       </p>
+      <p v-if="result.overrideStatus" class="subtle">
+        {{ t("processingResults.override") }} ·
+        {{ t(`processingResults.${result.overrideStatus}`) }}
+      </p>
       <dl class="grid grid-cols-[7rem_minmax(0,1fr)] gap-x-4 gap-y-2">
         <template v-for="(value, key) in result.details" :key="key">
           <dt class="break-all text-muted-foreground">{{ key }}</dt>

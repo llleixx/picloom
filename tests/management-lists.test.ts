@@ -1,6 +1,6 @@
 import { expect, spyOn, test } from "bun:test";
 import { join } from "node:path";
-import { fixture } from "./helpers";
+import { fixture } from "./action-fixture";
 import { SqlRepositories } from "../src/persistence/repositories";
 
 test("management lists batch related data and configuration views omit usage queries", async () => {
@@ -11,7 +11,7 @@ test("management lists batch related data and configuration views omit usage que
       name: "Ordered notifications",
       kind: "post_save",
       steps: ["first", "second"].map((name) => ({
-        pluginId: "builtin.webhook",
+        pluginId: "test.action",
         version: "1.0.0",
         config: { url: `http://localhost/${name}` },
         secretEdits: {

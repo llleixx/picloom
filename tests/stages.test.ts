@@ -18,7 +18,7 @@ test("stage definitions filter support; upload Sharp transforms the stored origi
   try {
     const summaries = await (await f.request("/api/plugins")).json();
     expect(
-      summaries.find((p: any) => p.id === "builtin.webhook"),
+      summaries.find((p: any) => p.id === "builtin.tencent-moderation"),
     ).toMatchObject({ kind: "processor", supportedStages: ["post_save"] });
     const view = await (
       await f.request("/api/plugins/builtin.sharp/versions/1.0.0")
@@ -33,9 +33,9 @@ test("stage definitions filter support; upload Sharp transforms the stored origi
           kind: "upload",
           steps: [
             {
-              pluginId: "builtin.webhook",
+              pluginId: "builtin.tencent-moderation",
               version: "1.0.0",
-              config: { url: "http://localhost/hook" },
+              config: {},
               onNotApplicable: "abort",
             },
           ],
