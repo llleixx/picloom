@@ -108,3 +108,42 @@ test("system status is admin-only, counts images and tasks, caches local usage i
     await rm(external, { recursive: true, force: true });
   }
 });
+
+test("missing storage definitions only make original usage unknown, including cached measurements", async () => {
+  const f = await fixture();
+  try {
+    await f.upload();
+    await f.app.system.get();
+    await f.app.system.close(); // Wait for the background measurement.
+    expect((await f.app.system.get()).local.originals).not.toBeNull();
+    const missing = await f.app.db.transaction(async (r) => {
+      const record = (await r.instances()).find((i) => i.kind === "storage")!;
+      const next = {
+        ...record,
+        plugin_id: "test.missing-storage",
+        config_version: record.config_version + 1,
+      };
+      await r.saveInstance(next, record.config_version);
+      return next;
+    });
+    // Directory discovery remains strict for backup callers.
+    expect(() => f.app.plugins.localDirectory(missing)).toThrow(
+      "Plugin is not loaded",
+    );
+    const cached = await f.request("/api/system/status");
+    expect(cached.status).toBe(200);
+    expect((await cached.json()).local.originals).toBeNull();
+    await f.app.system.invalidateUsage();
+    await f.app.system.get();
+    await f.app.system.close();
+    const status = await (await f.request("/api/system/status")).json();
+    expect(status.readyFiles).toBe(1);
+    expect(status.local.originals).toBeNull();
+    expect(status.local.calculating).toBe(false);
+    expect(status.local.diskTotal).toBeGreaterThan(0);
+    expect(status.local.temporary).not.toBeNull();
+    expect(status.local.cache).not.toBeNull();
+  } finally {
+    await f.close();
+  }
+});
