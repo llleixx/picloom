@@ -337,7 +337,7 @@ function stage(
             } else {
               if (String(config.text).length * fontSize ** 2 > limits.maxPixels)
                 throw new PluginError(
-                  "INVALID_PARAMS",
+                  "INVALID_INPUT",
                   "Watermark text exceeds the pixel limit",
                   false,
                   "notApplied",

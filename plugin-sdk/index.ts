@@ -7,3 +7,4 @@ export type {
   PluginTranslation,
   PluginTranslations,
 } from "./config";
+export * from "./errors";

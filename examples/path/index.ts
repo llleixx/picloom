@@ -16,7 +16,7 @@ export default {
           ?.replace("svg+xml", "svg")
           .replace("jpeg", "jpg");
         if (!extension)
-          throw new PluginError("FORMAT", "Image format is required");
+          throw new PluginError("UNSUPPORTED", "Image format is required");
         const day = new Date(uploadedAt)
           .toISOString()
           .slice(0, 10)

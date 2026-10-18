@@ -174,7 +174,7 @@ test("WebDAV HTTP protocol: conditional PUT, encoded directories, stream reads, 
       ),
     ).toEqual({ status: "unknown" });
     await expect(storage.write(input, context())).rejects.toMatchObject({
-      code: "WEBDAV_CONFLICT",
+      code: "CONFLICT",
       outcome: "notApplied",
     });
     expect(dav.objects.get(path)?.bytes).toEqual(
@@ -216,7 +216,7 @@ test("WebDAV cannot infer write ownership after a failed response or from HEAD s
     };
     dav.faults.put = 500;
     await expect(storage.write(input, context())).rejects.toMatchObject({
-      code: "WEBDAV_PUT",
+      code: "SERVICE",
       retryable: true,
       outcome: "unknown",
     });
@@ -294,7 +294,7 @@ test("WebDAV rejects invalid locators, logical keys and unknown sizes before HTT
     ]) {
       await expect(
         storage.read({ storageKey: "x", locator, mode: "stream" }, context()),
-      ).rejects.toMatchObject({ code: "LOCATOR" });
+      ).rejects.toMatchObject({ code: "INVALID_INPUT" });
     }
     const input = {
       operationId: "x",
@@ -303,7 +303,7 @@ test("WebDAV rejects invalid locators, logical keys and unknown sizes before HTT
       file: file(),
     };
     await expect(storage.write(input, context())).rejects.toMatchObject({
-      code: "LOCATOR",
+      code: "INVALID_INPUT",
     });
     await expect(
       storage.write(
@@ -314,7 +314,7 @@ test("WebDAV rejects invalid locators, logical keys and unknown sizes before HTT
         },
         context(),
       ),
-    ).rejects.toMatchObject({ code: "WEBDAV_SIZE" });
+    ).rejects.toMatchObject({ code: "INVALID_INPUT" });
     expect(dav.requests).toHaveLength(0);
     dav.objects.set("/dav/objects", { bytes: new Uint8Array(), mime: "" });
     await expect(
@@ -451,7 +451,10 @@ test("WebDAV endpoint validation rejects ambiguous URLs and preserves sensitive 
         endpoint: "https://example.com/dav",
         keyPrefix,
       }),
-    ).toContainEqual({ path: "/keyPrefix", message: "Invalid directory prefix" });
+    ).toContainEqual({
+      path: "/keyPrefix",
+      message: "Invalid directory prefix",
+    });
   }
   expect(
     await webdavStorage.validateConfig!({
@@ -542,7 +545,7 @@ test("WebDAV concurrent creation preserves the first object", async () => {
     ).toHaveLength(1);
     const rejected = results.find((result) => result.status === "rejected");
     expect(rejected?.status === "rejected" && rejected.reason.code).toBe(
-      "WEBDAV_CONFLICT",
+      "CONFLICT",
     );
     expect(dav.objects.size).toBe(1);
     expect(["first", "other"]).toContain(
@@ -574,7 +577,7 @@ test("WebDAV operation deadline bounds stalled recovery and directory creation",
       ),
     ).toEqual({ status: "unknown" });
     await expect(storage.write(input, context())).rejects.toMatchObject({
-      code: "WEBDAV_MKCOL",
+      code: "NETWORK",
     });
   } finally {
     server.closeAllConnections();

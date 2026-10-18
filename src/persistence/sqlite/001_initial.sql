@@ -140,7 +140,7 @@ CREATE TABLE file_replicas (
   file_id TEXT NOT NULL REFERENCES files(id),
   storage_instance_id TEXT NOT NULL REFERENCES plugin_instances(id),
   role TEXT NOT NULL CHECK(role IN ('primary','redundant')),
-  status TEXT NOT NULL CHECK(status IN ('pending','writing','ready','write_failed','write_unknown','delete_pending','deleting','delete_failed','delete_unknown','deleted','cancelled')),
+  status TEXT NOT NULL CHECK(status IN ('pending','writing','ready','write_failed','write_unknown','delete_pending','deleting','delete_failed','delete_unknown','deleted')),
   locator_json TEXT CHECK(locator_json IS NULL OR (json_valid(locator_json) AND json_type(locator_json) IN ('text','object'))),
   UNIQUE(file_id,storage_instance_id),
   UNIQUE(id,file_id)

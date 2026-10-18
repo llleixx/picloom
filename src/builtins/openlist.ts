@@ -29,7 +29,11 @@ function endpointUrl(value: string) {
 }
 function error(code: string, writing = false) {
   return new PluginError(
-    "OPENLIST_" + code,
+    code === "CONFIG"
+      ? "INVALID_CONFIG"
+      : code === "RESPONSE" || code === "URL"
+        ? "INVALID_DATA"
+        : "SERVICE",
     "OpenList request failed",
     !writing,
     writing ? "unknown" : "notApplied",
@@ -135,7 +139,7 @@ export const openListStorage: Definition<"storage"> = {
         validateLogicalKey(path.slice(prefix.length));
       } catch {
         throw new PluginError(
-          "LOCATOR",
+          "INVALID_INPUT",
           "Invalid OpenList locator",
           false,
           "notApplied",
@@ -165,8 +169,10 @@ export const openListStorage: Definition<"storage"> = {
           await response.body?.cancel();
           throw new PluginError(
             response.status === 401 || response.status === 403
-              ? "OPENLIST_AUTH"
-              : "OPENLIST_HTTP",
+              ? "ACCESS_DENIED"
+              : response.status === 429
+                ? "RATE_LIMITED"
+                : "SERVICE",
             "OpenList rejected the request",
             response.status === 429 || (!writing && response.status >= 500),
             (writing || deleting) && ![401, 403, 429].includes(response.status)
@@ -178,7 +184,11 @@ export const openListStorage: Definition<"storage"> = {
         if (result?.code !== 200) {
           const code = result?.code;
           throw new PluginError(
-            code === 401 || code === 403 ? "OPENLIST_AUTH" : "OPENLIST_API",
+            code === 401 || code === 403
+              ? "ACCESS_DENIED"
+              : code === 429
+                ? "RATE_LIMITED"
+                : "SERVICE",
             "OpenList rejected the request",
             code === 429 || (!writing && code >= 500),
             (writing || deleting) && ![401, 403, 429].includes(code)
@@ -192,7 +202,7 @@ export const openListStorage: Definition<"storage"> = {
       } catch (cause) {
         if (isPluginError(cause)) throw cause;
         throw new PluginError(
-          writing ? "OPENLIST_WRITE" : "OPENLIST_REQUEST",
+          "NETWORK",
           "OpenList request failed",
           !writing,
           "unknown",
@@ -240,7 +250,7 @@ export const openListStorage: Definition<"storage"> = {
         const size = file.metadata.byteSize;
         if (size === null || !Number.isSafeInteger(size) || size < 0)
           throw new PluginError(
-            "OPENLIST_SIZE",
+            "INVALID_INPUT",
             "OpenList upload requires a known file size",
             false,
             "notApplied",
@@ -253,7 +263,7 @@ export const openListStorage: Definition<"storage"> = {
           reader = (await file.openRead()).getReader();
         } catch {
           throw new PluginError(
-            "OPENLIST_INPUT",
+            "FAILED",
             "Could not prepare OpenList upload",
             false,
             "notApplied",

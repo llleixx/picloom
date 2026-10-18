@@ -48,13 +48,13 @@ export const localStorage: Definition<"storage"> = {
       if (locator === null) return objectKey(storageKey);
       if (typeof locator === "object" && typeof locator.key === "string")
         return locator.key;
-      throw new PluginError("LOCATOR", "Invalid local locator");
+      throw new PluginError("INVALID_INPUT", "Invalid local locator");
     };
     const objectKey = (logical: string) => {
       const value = validateKey(logical);
       if (value === ".picloom" || value.startsWith(".picloom/"))
         throw new PluginError(
-          "LOCATOR",
+          "INVALID_INPUT",
           "Reserved storage directory",
           false,
           "notApplied",
@@ -88,7 +88,7 @@ export const localStorage: Definition<"storage"> = {
                 !f.directory.startsWith(scope + "/")),
           )
         )
-          throw new PluginError("INVALID_CURSOR", "Invalid scan cursor");
+          throw new PluginError("INVALID_INPUT", "Invalid scan cursor");
         const items: Array<{ storageKey: string; byteSize: number }> = [];
         // Bound directory work too: an empty page may still have a next cursor.
         let work = 0;
@@ -188,7 +188,7 @@ export const localStorage: Definition<"storage"> = {
             Bun.file(target).size !== file.metadata.byteSize
           )
             throw new PluginError(
-              "CORRUPT",
+              "INVALID_DATA",
               "Existing object has incorrect size",
             );
           return { locator: null };
@@ -202,7 +202,7 @@ export const localStorage: Definition<"storage"> = {
             ctx.signal,
           );
           if (size !== file.metadata.byteSize)
-            throw new PluginError("INCOMPLETE", "Incomplete input");
+            throw new PluginError("INVALID_DATA", "Incomplete input");
           await Bun.write(
             record,
             JSON.stringify({

@@ -1,3 +1,5 @@
+import type { PluginErrorCode } from "./errors";
+export type { PluginErrorCode } from "./errors";
 import type { Config, Json } from "./config";
 export type { Config, Json } from "./config";
 export type Kind = "path" | "storage" | "processor";
@@ -221,9 +223,11 @@ export type Definition<K extends Kind = Kind> = K extends "processor"
     : never;
 export class PluginError extends Error {
   constructor(
-    public code: string,
+    public code: PluginErrorCode,
     message: string,
+    // Allows task retries; never inferred from code.
     public retryable = false,
+    // Use notApplied only when the operation is known not to have taken effect.
     public outcome: "notApplied" | "unknown" = "unknown",
   ) {
     super(message);
@@ -232,7 +236,13 @@ export class PluginError extends Error {
 }
 
 /** Structural error protocol: works when each package bundles its own SDK. */
-export function isPluginError(error: unknown): error is PluginError {
+export function isPluginError(
+  error: unknown,
+): error is Error & {
+  code: string;
+  retryable: boolean;
+  outcome: "notApplied" | "unknown";
+} {
   if (!error || typeof error !== "object") return false;
   const e = error as Partial<PluginError>;
   return (

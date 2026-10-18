@@ -486,14 +486,14 @@ export class SqlRepositories implements Repositories {
           .selectFrom("file_replicas")
           .select("id")
           .where("storage_instance_id", "=", id)
-          .where("status", "in", ["deleted", "cancelled"]),
+          .where("status", "=", "deleted"),
       )
       .where("status", "in", ["success", "cancelled"])
       .execute();
     await this.db
       .deleteFrom("file_replicas")
       .where("storage_instance_id", "=", id)
-      .where("status", "in", ["deleted", "cancelled"])
+      .where("status", "=", "deleted")
       .where((eb) =>
         eb.not(
           eb.exists(
@@ -754,7 +754,7 @@ export class SqlRepositories implements Repositories {
       .innerJoin("files as f", "f.id", "r.file_id")
       .select(["r.locator_json", "f.storage_key"])
       .where("r.storage_instance_id", "=", instanceId)
-      .where("r.status", "not in", ["deleted", "cancelled"]);
+      .where("r.status", "!=", "deleted");
     q =
       locator === null
         ? q
@@ -790,7 +790,7 @@ export class SqlRepositories implements Repositories {
             .select("r.id")
             .whereRef("r.file_id", "=", "files.id")
             .where("r.storage_instance_id", "=", filter.storageInstanceId!)
-            .where("r.status", "not in", ["deleted", "cancelled"]),
+            .where("r.status", "!=", "deleted"),
         ),
       );
     if (filter.ownerId !== undefined)

@@ -100,8 +100,8 @@ export type ReplicaStatus =
   | "deleting"
   | "delete_failed"
   | "delete_unknown"
-  | "deleted"
-  | "cancelled";
+  // Terminal: no remaining remote cleanup, including a cancelled unwritten replica.
+  | "deleted";
 export interface Replica extends Entity {
   file_id: string;
   storage_instance_id: string;

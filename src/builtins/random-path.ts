@@ -51,7 +51,7 @@ export const randomPath: Definition<"path"> = {
         const ext = extensions.get(metadata.mimeType ?? "");
         if (!ext)
           throw new PluginError(
-            "UNSUPPORTED_IMAGE_TYPE",
+            "UNSUPPORTED",
             "Random path requires a supported final image type",
             false,
             "notApplied",

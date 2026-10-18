@@ -11,7 +11,7 @@ function locatorId(storageKey: string, locator: Locator): string {
         : undefined;
   if (typeof id !== "string" || !/^[a-zA-Z0-9_-]+$/.test(id))
     throw new PluginError(
-      "LOCATOR",
+      "INVALID_INPUT",
       "Invalid NodeImage image ID",
       false,
       "notApplied",
@@ -20,13 +20,13 @@ function locatorId(storageKey: string, locator: Locator): string {
 }
 function imageUrl(value: unknown): string {
   if (typeof value !== "string")
-    throw new PluginError("NODEIMAGE_RESPONSE", "Missing NodeImage image URL");
+    throw new PluginError("INVALID_DATA", "Missing NodeImage image URL");
   try {
     const url = new URL(value);
     if (url.protocol !== "https:" || url.username || url.password) throw 0;
     return url.href;
   } catch {
-    throw new PluginError("NODEIMAGE_RESPONSE", "Invalid NodeImage image URL");
+    throw new PluginError("INVALID_DATA", "Invalid NodeImage image URL");
   }
 }
 export const nodeImageStorage: Definition<"storage"> = {
@@ -107,7 +107,7 @@ export const nodeImageStorage: Definition<"storage"> = {
       if (!response.ok) throw httpError(response.status);
       if (value?.image_id !== id || typeof value?.size !== "number")
         throw new PluginError(
-          "NODEIMAGE_RESPONSE",
+          "INVALID_DATA",
           "Invalid NodeImage image metadata",
         );
       return {
@@ -118,7 +118,11 @@ export const nodeImageStorage: Definition<"storage"> = {
     }
     function httpError(status: number, writing = false) {
       return new PluginError(
-        status === 401 || status === 403 ? "NODEIMAGE_AUTH" : "NODEIMAGE_HTTP",
+        status === 401 || status === 403
+          ? "ACCESS_DENIED"
+          : status === 429
+            ? "RATE_LIMITED"
+            : "SERVICE",
         "NodeImage rejected the request",
         status === 429 || status >= 500,
         writing && status >= 500 ? "unknown" : "notApplied",
@@ -146,7 +150,7 @@ export const nodeImageStorage: Definition<"storage"> = {
           }
         } catch {
           throw new PluginError(
-            "NODEIMAGE_UPLOAD",
+            "FAILED",
             "Could not prepare NodeImage upload",
             true,
             "notApplied",
@@ -181,7 +185,7 @@ export const nodeImageStorage: Definition<"storage"> = {
             !/^[a-zA-Z0-9_-]+$/.test(data.image_id)
           )
             throw new PluginError(
-              "NODEIMAGE_RESPONSE",
+              "INVALID_DATA",
               "Invalid NodeImage upload result",
               false,
               "unknown",
@@ -196,7 +200,7 @@ export const nodeImageStorage: Definition<"storage"> = {
           if (isPluginError(error)) throw error;
           // No idempotency key or lookup by operation ID: retry could create a duplicate.
           throw new PluginError(
-            "NODEIMAGE_UPLOAD",
+            "FAILED",
             "NodeImage upload outcome is unknown",
             false,
             "unknown",
@@ -219,7 +223,7 @@ export const nodeImageStorage: Definition<"storage"> = {
         if (!response.ok || !response.body) {
           await response.body?.cancel();
           throw new PluginError(
-            "NODEIMAGE_READ",
+            "SERVICE",
             "NodeImage download failed",
             response.status >= 500,
           );
@@ -249,7 +253,7 @@ export const nodeImageStorage: Definition<"storage"> = {
           // A missing API route is also HTTP 404. Confirm object absence before reporting success.
           if ((await info(id, signal)) === null) return;
           throw new PluginError(
-            "NODEIMAGE_DELETE_UNAVAILABLE",
+            "UNSUPPORTED",
             "NodeImage API deletion is unavailable; remove the image on NodeImage and retry",
             false,
             "notApplied",
@@ -265,7 +269,7 @@ export const nodeImageStorage: Definition<"storage"> = {
             : await response.json().catch(() => null);
         if (response.status !== 204 && result?.success !== true)
           throw new PluginError(
-            "NODEIMAGE_RESPONSE",
+            "INVALID_DATA",
             "Unconfirmed NodeImage deletion",
             false,
             "unknown",

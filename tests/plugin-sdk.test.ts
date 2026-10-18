@@ -153,7 +153,7 @@ test("an independently bundled SDK error preserves retry and write outcome", asy
       await bundledPackage(
         "external.errors",
         "path",
-        `import { PluginError } from ${JSON.stringify(sdk)}; export default {id:"external.errors",name:"external.errors",kind:"path",version:"1.0.0",apiVersion:1,configSchemaVersion:1,configSchema:{type:"object",properties:{}},async createInstance(){return {async generate(){throw new PluginError("INVALID_PARAMS","External failure",false,"notApplied")}}}};`,
+        `import { PluginError } from ${JSON.stringify(sdk)}; export default {id:"external.errors",name:"external.errors",kind:"path",version:"1.0.0",apiVersion:1,configSchemaVersion:1,configSchema:{type:"object",properties:{}},async createInstance(){return {async generate(){throw new PluginError("INVALID_INPUT","External failure",false,"notApplied")}}}};`,
       ),
     );
     const instance = await f.app.plugins.save({
@@ -200,7 +200,11 @@ test("an independently bundled SDK error preserves retry and write outcome", asy
       },
       profile.id,
     );
-    expect((await f.upload()).status).toBe(502);
+    const response = await f.upload();
+    expect(response.status).toBe(502);
+    const body = await response.json();
+    expect(body.error.code).toBe("PLUGIN_INVALID_INPUT");
+    expect(JSON.stringify(body)).not.toContain("External failure");
   } finally {
     await f.close();
   }

@@ -21,7 +21,7 @@ export async function multipartWrite(
   const size = file.metadata.byteSize!;
   if (Math.ceil(size / partSize) > 10000)
     throw new PluginError(
-      "S3_SIZE",
+      "RESOURCE_LIMIT",
       "Increase part size: upload exceeds 10,000 parts",
       false,
       "notApplied",
@@ -127,7 +127,13 @@ export async function multipartWrite(
     const status = (error as { $metadata?: { httpStatusCode?: number } })
       .$metadata?.httpStatusCode;
     throw new PluginError(
-      "S3_WRITE",
+      status === 401 || status === 403
+        ? "ACCESS_DENIED"
+        : status === 429
+          ? "RATE_LIMITED"
+          : status === undefined
+            ? "NETWORK"
+            : "SERVICE",
       "S3 multipart upload failed",
       status === undefined || status === 429 || status >= 500,
       "notApplied",

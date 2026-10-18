@@ -34,7 +34,7 @@ test("actual process exit after storage commit recovers without publishing", asy
 test("failure before write creates no public object and can be cleaned", async () => {
   const f = await fixture({
     beforeWrite: async () => {
-      throw new PluginError("OFFLINE", "Before write", false, "notApplied");
+      throw new PluginError("NETWORK", "Before write", false, "notApplied");
     },
   });
   try {
@@ -44,7 +44,7 @@ test("failure before write creates no public object and can be cleaned", async (
     expect(rows[0]!.status).toBe("deleted");
     expect(
       (await f.app.db.read((r) => r.replicas(rows[0]!.id)))[0]!.status,
-    ).toBe("cancelled");
+    ).toBe("deleted");
   } finally {
     await f.close();
   }

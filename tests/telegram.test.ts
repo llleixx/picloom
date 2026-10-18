@@ -148,7 +148,7 @@ test("Telegram rejects unknown, excessive and mismatched file sizes before a rem
         },
         context,
       ),
-    ).rejects.toMatchObject({ code: "TELEGRAM_SIZE", outcome: "notApplied" });
+    ).rejects.toMatchObject({ code: "RESOURCE_LIMIT", outcome: "notApplied" });
   }
   expect(mock).not.toHaveBeenCalled();
 });
@@ -217,7 +217,7 @@ test("Telegram deletion requires explicit true and addresses the saved message",
     if (result === true) await promise;
     else
       await expect(promise).rejects.toMatchObject({
-        code: "TELEGRAM_DELETE",
+        code: "SERVICE",
         outcome: "unknown",
       });
     mock?.mockRestore();
@@ -237,7 +237,7 @@ test("Telegram rejects legacy or malformed locators and unsafe getFile paths", a
         { storageKey: "a.png", locator: value, mode: "auto" },
         context,
       ),
-    ).rejects.toMatchObject({ code: "LOCATOR" });
+    ).rejects.toMatchObject({ code: "INVALID_INPUT" });
   for (const path of [
     "../private",
     "/absolute",
@@ -257,7 +257,7 @@ test("Telegram rejects legacy or malformed locators and unsafe getFile paths", a
     );
     await expect(
       plugin.read({ storageKey: "a.png", locator, mode: "auto" }, context),
-    ).rejects.toMatchObject({ code: "TELEGRAM_RESPONSE" });
+    ).rejects.toMatchObject({ code: "INVALID_DATA" });
     expect(mock).toHaveBeenCalledTimes(1);
     mock?.mockRestore();
   }
@@ -285,7 +285,7 @@ test("Telegram deletion retries accept only the exact missing-message response",
       await action;
     else
       await expect(action).rejects.toMatchObject({
-        code: "TELEGRAM_DELETE_UNAVAILABLE",
+        code: "UNSUPPORTED",
         outcome: "notApplied",
       });
     mock?.mockRestore();
@@ -316,7 +316,7 @@ test("Telegram late download errors cannot expose the bot token", async () => {
     await new Response(result.stream).arrayBuffer();
     throw new Error("expected failure");
   } catch (error) {
-    expect(error).toMatchObject({ code: "TELEGRAM_READ" });
+    expect(error).toMatchObject({ code: "NETWORK" });
     expect(String(error)).not.toContain(botToken);
   }
 });

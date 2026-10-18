@@ -1,5 +1,23 @@
 // UI copy lives here. Keep keys stable when editing English wording.
 export const en = {
+  "errors.plugin_invalid_config": "Plugin configuration is missing or invalid",
+  "errors.plugin_invalid_input": "Plugin input or parameters are invalid",
+  "errors.plugin_access_denied":
+    "Plugin authentication failed or access was denied",
+  "errors.plugin_not_found": "A resource required by the plugin was not found",
+  "errors.plugin_conflict":
+    "The resource state conflicts with the plugin operation",
+  "errors.plugin_resource_limit":
+    "A plugin size, capacity or quota limit was exceeded",
+  "errors.plugin_rate_limited": "Plugin requests were rate limited",
+  "errors.plugin_unsupported":
+    "The plugin does not support this operation or format",
+  "errors.plugin_network": "A plugin network request failed or timed out",
+  "errors.plugin_io": "Plugin local I/O failed",
+  "errors.plugin_invalid_data": "Plugin data is corrupt, incomplete or invalid",
+  "errors.plugin_service": "A service used by the plugin failed",
+  "errors.plugin_failed": "Plugin execution failed",
+
   "limits.maxSize": "Maximum File Size (MiB)",
   "limits.daily": "Daily Upload Limit",
   "limits.unlimited": "No additional limit",
@@ -71,28 +89,6 @@ export const en = {
   "processingResults.details": "Details",
   "errors.processing_result_invalid":
     "Plugin results must be JSON objects totaling at most 64 KiB.",
-  "errors.tencent_auth":
-    "Check Tencent Cloud credentials, permissions and service quota.",
-  "errors.tencent_content_size":
-    "Image exceeds the moderation plugin’s content size limit.",
-  "errors.tencent_input":
-    "Image or request rejected. Check Tencent Cloud image requirements.",
-  "errors.tencent_network": "Tencent Cloud request failed or timed out.",
-  "errors.tencent_image_download":
-    "Tencent Cloud could not download the image. Use a publicly reachable image URL; localhost and private addresses are not accessible.",
-  "errors.telegram_auth": "Check the Telegram bot token and chat permissions.",
-  "errors.telegram_size": "Telegram storage supports files up to 20 MB.",
-  "errors.telegram_delete_unavailable":
-    "Telegram could not delete the message. Check permissions and the 48-hour deletion limit.",
-  "errors.openlist_auth":
-    "Check the OpenList API token and directory permissions.",
-  "errors.nodeimage_auth": "NodeImage rejected the API key or permissions.",
-  "errors.nodeimage_delete_unavailable":
-    "NodeImage API deletion is unavailable. Delete the image on NodeImage, then retry cleanup.",
-  "errors.tencent_service":
-    "Tencent Cloud moderation is unavailable or rejected the request.",
-  "errors.tencent_response":
-    "Tencent Cloud returned an invalid moderation result.",
 
   "images.blocked": "Blocked",
   "images.blockedHint": "Public access is blocked.",
@@ -734,8 +730,6 @@ export const en = {
   "errors.write_failed": "Storage write failed.",
   "errors.delete_failed": "Storage cleanup failed.",
   "errors.action_failed": "Action failed.",
-  "errors.webhook_http": "Webhook returned an error.",
-  "errors.webhook_network": "Webhook timed out or could not connect.",
   "errors.interrupted_upload": "Upload interrupted.",
   "errors.frontend_not_built": "Frontend not built.",
   "errors.method": "Method not allowed.",

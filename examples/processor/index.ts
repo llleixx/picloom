@@ -40,7 +40,7 @@ export default {
           async process({ file, limits, createOutput }, { signal }) {
             if (width > limits.maxDimension)
               throw new PluginError(
-                "TOO_LARGE",
+                "RESOURCE_LIMIT",
                 "Width exceeds processing limit",
               );
             signal.throwIfAborted();

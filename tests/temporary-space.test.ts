@@ -156,7 +156,7 @@ test("automatic retries retain sources only until exhausted; pending sessions su
             return {
               async execute() {
                 throw new PluginError(
-                  "TEST_FAILED",
+                  "FAILED",
                   "retry automatically",
                   true,
                 );

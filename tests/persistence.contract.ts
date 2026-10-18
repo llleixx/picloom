@@ -209,7 +209,7 @@ export function persistenceContract(
               status: i === 0 ? "pending" : i === 1 ? "running" : "failed",
               attempts: 1,
               next_run_at: i === 0 ? Date.now() : null,
-              last_error: i >= 2 ? "WEBHOOK_HTTP" : null,
+              last_error: i >= 2 ? "PLUGIN_SERVICE" : null,
             });
           }
         });

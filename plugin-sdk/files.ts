@@ -8,7 +8,7 @@ export function logicalKey(key: string) {
     /[\\\x00-\x1f\x7f?#:]/.test(key) ||
     key.split("/").some((s) => !s || s === "." || s === "..")
   )
-    throw new PluginError("INVALID_PATH", "Invalid logical path");
+    throw new PluginError("INVALID_INPUT", "Invalid logical path");
   return key;
 }
 export function contained(root: string, key: string) {
@@ -16,7 +16,7 @@ export function contained(root: string, key: string) {
   const path = resolve(root, key);
   const rel = relative(resolve(root), path);
   if (rel.startsWith("..") || isAbsolute(rel))
-    throw new PluginError("INVALID_PATH", "Path outside root");
+    throw new PluginError("INVALID_INPUT", "Path outside root");
   return path;
 }
 export async function safePath(
@@ -34,13 +34,13 @@ export async function safePath(
       const s = await lstat(current);
       if (s.isSymbolicLink())
         throw new PluginError(
-          "INVALID_PATH",
+          "INVALID_INPUT",
           "Symbolic links are not supported",
         );
       const actual = await realpath(current);
       const r = relative(canonical, actual);
       if (r.startsWith("..") || isAbsolute(r))
-        throw new PluginError("INVALID_PATH", "Path outside root");
+        throw new PluginError("INVALID_INPUT", "Path outside root");
     } catch (e) {
       if ((e as NodeJS.ErrnoException).code === "ENOENT") break;
       throw e;
@@ -77,7 +77,7 @@ export async function writeStream(
       total += value.byteLength;
       if (total > limit)
         throw new PluginError(
-          "TOO_LARGE",
+          "RESOURCE_LIMIT",
           "File exceeds size limit",
           false,
           "notApplied",

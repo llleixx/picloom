@@ -262,7 +262,7 @@ export class Files {
             );
         }
       } catch (error) {
-        if (isPluginError(error) && error.code === "INVALID_PARAMS")
+        if (isPluginError(error) && error.code === "INVALID_INPUT")
           throw new AppError("INVALID_PARAMS", "Invalid processor parameters");
         throw error;
       } finally {
@@ -1050,7 +1050,6 @@ export class Files {
         ["deleting", "deleted"].includes(file.status) ||
         [
           "deleted",
-          "cancelled",
           "delete_pending",
           "deleting",
           "delete_failed",
@@ -1094,7 +1093,7 @@ export class Files {
           await r.saveTask(task);
         }
       if (["pending", "write_failed"].includes(replica.status)) {
-        replica.status = "cancelled";
+        replica.status = "deleted";
       } else {
         replica.status = "delete_pending";
         await r.insertTask({

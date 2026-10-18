@@ -44,7 +44,7 @@ function headers(
 async function content(file: FileInput, signal: AbortSignal, limit: number) {
   const tooLarge = () =>
     new PluginError(
-      "TENCENT_CONTENT_SIZE",
+      "RESOURCE_LIMIT",
       "Image exceeds the configured content submission limit",
       false,
       "notApplied",
@@ -79,30 +79,30 @@ async function content(file: FileInput, signal: AbortSignal, limit: number) {
 function apiError(code: string): PluginError {
   if (code === "ResourceUnavailable.ImageDownloadError")
     return new PluginError(
-      "TENCENT_IMAGE_DOWNLOAD",
+      "SERVICE",
       "Tencent Cloud could not download the image. Check that its public URL is reachable.",
     );
-  if (
-    /^(AuthFailure|UnauthorizedOperation|OperationDenied|ResourceInsufficient|LimitExceeded)/.test(
-      code,
-    )
-  )
+  if (code.startsWith("RequestLimitExceeded"))
+    return new PluginError("RATE_LIMITED", "Request rate exceeded", true);
+  if (/^(ResourceInsufficient|LimitExceeded)/.test(code))
+    return new PluginError("RESOURCE_LIMIT", "Service quota exceeded");
+  if (code.startsWith("UnsupportedOperation"))
+    return new PluginError("UNSUPPORTED", "Operation is unsupported");
+  if (/^(AuthFailure|UnauthorizedOperation|OperationDenied)/.test(code))
     return new PluginError(
-      "TENCENT_AUTH",
+      "ACCESS_DENIED",
       "Check Tencent Cloud credentials, permissions and service quota",
     );
   if (
-    /^(InvalidParameter|MissingParameter|UnknownParameter|UnsupportedOperation)/.test(
-      code,
-    ) ||
+    /^(InvalidParameter|MissingParameter|UnknownParameter)/.test(code) ||
     code.endsWith("InvalidImageContent")
   )
     return new PluginError(
-      "TENCENT_INPUT",
+      "INVALID_INPUT",
       "Tencent Cloud rejected the image or request parameters",
     );
   return new PluginError(
-    "TENCENT_SERVICE",
+    "SERVICE",
     "Tencent Cloud moderation failed",
     /^(InternalError|RequestLimitExceeded)/.test(code) ||
       code === "ResourceUnavailable.ModelCallFailed",
@@ -271,7 +271,7 @@ export const tencentModeration: Definition<"processor"> = {
               !/^https?:\/\//.test(input.url)
             )
               throw new PluginError(
-                "SITE_ORIGIN_REQUIRED",
+                "INVALID_CONFIG",
                 "Configure a site or image origin for background URL delivery.",
               );
             const secrets = (await services.readSecrets()).value;
@@ -313,7 +313,7 @@ export const tencentModeration: Definition<"processor"> = {
               if (!response.ok) {
                 await response.body?.cancel();
                 throw new PluginError(
-                  "TENCENT_SERVICE",
+                  "SERVICE",
                   "Tencent Cloud returned an HTTP error",
                   response.status === 429 || response.status >= 500,
                 );
@@ -323,7 +323,7 @@ export const tencentModeration: Definition<"processor"> = {
               } catch (error) {
                 signal.throwIfAborted();
                 throw new PluginError(
-                  "TENCENT_RESPONSE",
+                  "INVALID_DATA",
                   "Invalid Tencent Cloud response",
                 );
               }
@@ -331,7 +331,7 @@ export const tencentModeration: Definition<"processor"> = {
               ctx.signal.throwIfAborted();
               if (isPluginError(error)) throw error;
               throw new PluginError(
-                "TENCENT_NETWORK",
+                "NETWORK",
                 "Tencent Cloud request failed or timed out",
                 true,
               );
@@ -343,7 +343,7 @@ export const tencentModeration: Definition<"processor"> = {
               !["Pass", "Review", "Block"].includes(result.Suggestion)
             )
               throw new PluginError(
-                "TENCENT_RESPONSE",
+                "INVALID_DATA",
                 "Missing or unknown Tencent Cloud suggestion",
               );
             const details: Config = { suggestion: result.Suggestion };

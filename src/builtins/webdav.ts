@@ -28,7 +28,7 @@ function validKey(value: string) {
     return storageKey(value);
   } catch {
     throw new PluginError(
-      "LOCATOR",
+      "INVALID_INPUT",
       "Invalid WebDAV object path",
       false,
       "notApplied",
@@ -46,7 +46,13 @@ function failure(
   outcome: "notApplied" | "unknown" = "unknown",
 ) {
   return new PluginError(
-    "WEBDAV_" + operation,
+    status === 401 || status === 403
+      ? "ACCESS_DENIED"
+      : status === 429
+        ? "RATE_LIMITED"
+        : status === 507
+          ? "RESOURCE_LIMIT"
+          : "SERVICE",
     "WebDAV " + operation + " failed (HTTP " + status + ")",
     [408, 409, 423, 425, 429].includes(status) || status >= 500,
     outcome,
@@ -165,7 +171,7 @@ export const webdavStorage: Definition<"storage"> = {
       if (typeof locator === "object" && typeof locator.key === "string")
         return validKey(locator.key);
       throw new PluginError(
-        "LOCATOR",
+        "INVALID_INPUT",
         "Invalid WebDAV locator",
         false,
         "notApplied",
@@ -200,7 +206,7 @@ export const webdavStorage: Definition<"storage"> = {
         return await fetch(url, init);
       } catch {
         throw new PluginError(
-          "WEBDAV_" + method,
+          "NETWORK",
           "WebDAV " + method + " request failed",
           true,
           method === "PUT" || method === "DELETE" ? "unknown" : "notApplied",
@@ -232,7 +238,7 @@ export const webdavStorage: Definition<"storage"> = {
         const size = file.metadata.byteSize;
         if (size === null || !Number.isSafeInteger(size) || size < 0)
           throw new PluginError(
-            "WEBDAV_SIZE",
+            "INVALID_INPUT",
             "WebDAV PUT requires a known file size",
             false,
             "notApplied",
@@ -287,7 +293,7 @@ export const webdavStorage: Definition<"storage"> = {
           await discard(response);
           if (status === 412)
             throw new PluginError(
-              "WEBDAV_CONFLICT",
+              "CONFLICT",
               "WebDAV object already exists",
               false,
               "notApplied",
@@ -300,7 +306,7 @@ export const webdavStorage: Definition<"storage"> = {
             );
           if (!complete)
             throw new PluginError(
-              "WEBDAV_PUT",
+              "INVALID_DATA",
               "WebDAV server accepted an incomplete request",
               false,
               "unknown",

@@ -1,3 +1,4 @@
+import { pluginErrorCode } from "./errors";
 import type { TemporarySpace } from "../infra/temporary-space";
 import { isPluginError } from "../../plugin-sdk/api";
 import type { ProcessingResult } from "../../shared/api";
@@ -11,7 +12,7 @@ import type {
 } from "../persistence/port";
 import { entity } from "../persistence/port";
 import type { PluginManager } from "../plugins/manager";
-import { PluginError, type Context } from "../plugins/api";
+import { type Context } from "../plugins/api";
 import type { Settings } from "../config";
 import { AppError, Conflict, requireValue } from "./errors";
 import { InFlight, Mutex } from "./concurrency";
@@ -115,8 +116,7 @@ export class TaskExecutor {
         if (["writing", "write_unknown"].includes(replica.status)) {
           const recovered = await this.recoverReplica(file, replica);
           if (recovered.status === "unknown") continue;
-          replica.status =
-            recovered.status === "stored" ? "ready" : "cancelled";
+          replica.status = recovered.status === "stored" ? "ready" : "deleted";
           if (recovered.status === "stored")
             replica.locator_json = recovered.locator ?? null;
           await this.db.transaction(async (r) => {
@@ -153,7 +153,7 @@ export class TaskExecutor {
           }
         for (const replica of replicas) {
           if (["pending", "write_failed"].includes(replica.status)) {
-            replica.status = "cancelled";
+            replica.status = "deleted";
             await r.saveReplica(replica);
             for (const task of tasks)
               if (
@@ -166,11 +166,7 @@ export class TaskExecutor {
                 await r.saveTask(task);
               }
           }
-          if (
-            ["writing", "write_unknown", "cancelled", "deleted"].includes(
-              replica.status,
-            )
-          )
+          if (["writing", "write_unknown", "deleted"].includes(replica.status))
             continue;
           if (tasks.some((t) => t.replica_id === replica.id && !terminal(t)))
             continue;
@@ -206,7 +202,7 @@ export class TaskExecutor {
       return;
     if (
       current.status === "deleting" &&
-      state.replicas.some((r) => !["deleted", "cancelled"].includes(r.status))
+      state.replicas.some((r) => r.status !== "deleted")
     )
       return;
     await this.flight.wait(file.id);
@@ -342,7 +338,7 @@ export class TaskExecutor {
                   if (Buffer.byteLength(JSON.stringify(results)) > 64 * 1024)
                     throw new Error();
                 } catch {
-                  throw new PluginError(
+                  throw new AppError(
                     "PROCESSING_RESULT_INVALID",
                     "Processing results must be JSON objects totaling at most 64 KiB",
                   );
@@ -378,12 +374,7 @@ export class TaskExecutor {
               ctx,
             );
             if (!result || result.status === "unknown")
-              throw new PluginError(
-                "WRITE_UNKNOWN",
-                "写入结果仍未知",
-                true,
-                "unknown",
-              );
+              throw new AppError("WRITE_UNKNOWN", "写入结果仍未知", 502);
             if (result.status === "stored") {
               replica!.locator_json = result.locator ?? null;
               stored = true;
@@ -484,7 +475,11 @@ export class TaskExecutor {
         const retryable =
           !(
             error instanceof AppError &&
-            ["TEMP_MISSING", "PIPELINE_MISSING"].includes(error.code)
+            [
+              "TEMP_MISSING",
+              "PIPELINE_MISSING",
+              "PROCESSING_RESULT_INVALID",
+            ].includes(error.code)
           ) &&
           (!isPluginError(error) || error.retryable);
         t.status = cancelled
@@ -498,26 +493,8 @@ export class TaskExecutor {
           ? null
           : error instanceof AppError
             ? error.code
-            : isPluginError(error) &&
-                [
-                  "TELEGRAM_AUTH",
-                  "TELEGRAM_SIZE",
-                  "TELEGRAM_DELETE_UNAVAILABLE",
-                  "OPENLIST_AUTH",
-                  "NODEIMAGE_AUTH",
-                  "NODEIMAGE_DELETE_UNAVAILABLE",
-                  "WEBHOOK_HTTP",
-                  "WEBHOOK_NETWORK",
-                  "PROCESSING_RESULT_INVALID",
-                  "TENCENT_AUTH",
-                  "TENCENT_INPUT",
-                  "TENCENT_CONTENT_SIZE",
-                  "TENCENT_IMAGE_DOWNLOAD",
-                  "TENCENT_NETWORK",
-                  "TENCENT_SERVICE",
-                  "TENCENT_RESPONSE",
-                ].includes(error.code)
-              ? error.code
+            : isPluginError(error)
+              ? pluginErrorCode(error.code)
               : t.kind === "delete"
                 ? "DELETE_FAILED"
                 : t.kind === "write"

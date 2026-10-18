@@ -16,7 +16,7 @@ export function decodeCursor<T>(
     return value.data as T;
   } catch {
     throw new PluginError(
-      "INVALID_CURSOR",
+      "INVALID_INPUT",
       "Invalid scan cursor; restart the import",
     );
   }

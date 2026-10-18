@@ -1,3 +1,9 @@
+import { normalizePluginErrorCode } from "../../plugin-sdk/errors";
+
+export function pluginErrorCode(code: string) {
+  return `PLUGIN_${normalizePluginErrorCode(code)}`;
+}
+
 export class AppError extends Error {
   constructor(
     public code: string,

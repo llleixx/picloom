@@ -131,7 +131,7 @@ test("NodeImage storage: upload, redirect, processing stream, uncertain writes a
           ctx,
         ),
       ).rejects.toMatchObject({
-        code: "NODEIMAGE_UPLOAD",
+        code: "FAILED",
         outcome: "unknown",
         retryable: false,
       });
@@ -148,7 +148,7 @@ test("NodeImage storage: upload, redirect, processing stream, uncertain writes a
       tasks.some(
         (t) =>
           t.status === "failed" &&
-          t.last_error?.includes("NODEIMAGE_DELETE_UNAVAILABLE"),
+          t.last_error?.includes("UNSUPPORTED"),
       ),
     ).toBe(true);
     // An HTML 404 from the absent DELETE route must not be interpreted as a deleted image.

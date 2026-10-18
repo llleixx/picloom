@@ -26,7 +26,7 @@ function stored(locator: Locator): TelegramLocator {
     typeof locator.mimeType !== "string"
   )
     throw new PluginError(
-      "LOCATOR",
+      "INVALID_INPUT",
       "Invalid Telegram locator",
       false,
       "notApplied",
@@ -97,7 +97,7 @@ export const telegramStorage: Definition<"storage"> = {
       const value = (await services.readSecrets()).value.botToken;
       if (typeof value !== "string" || !/^\d+:[A-Za-z0-9_-]+$/.test(value))
         throw new PluginError(
-          "TELEGRAM_AUTH",
+          "ACCESS_DENIED",
           "Invalid Telegram bot token",
           false,
           "notApplied",
@@ -134,10 +134,10 @@ export const telegramStorage: Definition<"storage"> = {
           const status = data.error_code;
           throw new PluginError(
             status === 401 || status === 403
-              ? "TELEGRAM_AUTH"
+              ? "ACCESS_DENIED"
               : status === 429
-                ? "TELEGRAM_RATE_LIMIT"
-                : "TELEGRAM_API",
+                ? "RATE_LIMITED"
+                : "SERVICE",
             "Telegram rejected the request",
             status === 429 || (!writing && status >= 500),
             status >= 400 && status < 500 ? "notApplied" : "unknown",
@@ -145,7 +145,7 @@ export const telegramStorage: Definition<"storage"> = {
         }
         if (!response.ok || data?.ok !== true || data.result === undefined)
           throw new PluginError(
-            "TELEGRAM_RESPONSE",
+            "INVALID_DATA",
             "Unconfirmed Telegram response",
             !writing,
             "unknown",
@@ -155,7 +155,7 @@ export const telegramStorage: Definition<"storage"> = {
         if (isPluginError(error)) throw error;
         // fetch errors may contain the token-bearing URL. Never forward their text/cause.
         throw new PluginError(
-          "TELEGRAM_REQUEST",
+          "NETWORK",
           "Telegram request outcome is unknown",
           !writing,
           "unknown",
@@ -182,10 +182,7 @@ export const telegramStorage: Definition<"storage"> = {
           .split("/")
           .some((part: string) => !part || part === "." || part === "..")
       )
-        throw new PluginError(
-          "TELEGRAM_RESPONSE",
-          "Invalid Telegram file metadata",
-        );
+        throw new PluginError("INVALID_DATA", "Invalid Telegram file metadata");
       return result as { file_size: number; file_path: string };
     }
     return {
@@ -199,7 +196,7 @@ export const telegramStorage: Definition<"storage"> = {
           size > maxBytes
         )
           throw new PluginError(
-            "TELEGRAM_SIZE",
+            "RESOURCE_LIMIT",
             "Telegram requires a known size of at most 20,000,000 bytes",
             false,
             "notApplied",
@@ -225,7 +222,7 @@ export const telegramStorage: Definition<"storage"> = {
           if (length !== size) throw new Error();
         } catch {
           throw new PluginError(
-            "TELEGRAM_SIZE",
+            "RESOURCE_LIMIT",
             "Could not prepare Telegram upload with the declared size",
             false,
             "notApplied",
@@ -255,7 +252,7 @@ export const telegramStorage: Definition<"storage"> = {
           result.document.file_size !== size
         )
           throw new PluginError(
-            "TELEGRAM_RESPONSE",
+            "INVALID_DATA",
             "Unconfirmed Telegram document upload",
             false,
             "unknown",
@@ -278,7 +275,7 @@ export const telegramStorage: Definition<"storage"> = {
         const result = await info(value, signal, secret);
         if (result.file_size !== value.byteSize)
           throw new PluginError(
-            "TELEGRAM_RESPONSE",
+            "INVALID_DATA",
             "Telegram file size differs from the stored locator",
           );
         try {
@@ -290,7 +287,7 @@ export const telegramStorage: Definition<"storage"> = {
           if (!response.ok || !response.body) {
             await response.body?.cancel();
             throw new PluginError(
-              "TELEGRAM_READ",
+              "NETWORK",
               "Telegram download failed",
               response.status === 429 || response.status >= 500,
             );
@@ -308,7 +305,7 @@ export const telegramStorage: Definition<"storage"> = {
                 // Body errors can also include the credential-bearing upstream URL.
                 controller.error(
                   new PluginError(
-                    "TELEGRAM_READ",
+                    "NETWORK",
                     "Telegram download stream failed",
                     true,
                   ),
@@ -329,11 +326,7 @@ export const telegramStorage: Definition<"storage"> = {
           };
         } catch (error) {
           if (isPluginError(error)) throw error;
-          throw new PluginError(
-            "TELEGRAM_READ",
-            "Telegram download failed",
-            true,
-          );
+          throw new PluginError("NETWORK", "Telegram download failed", true);
         }
       },
       async delete({ locator }, ctx) {
@@ -352,11 +345,11 @@ export const telegramStorage: Definition<"storage"> = {
         } catch (error) {
           if (
             isPluginError(error) &&
-            error.code === "TELEGRAM_API" &&
+            error.code === "SERVICE" &&
             error.outcome === "notApplied"
           )
             throw new PluginError(
-              "TELEGRAM_DELETE_UNAVAILABLE",
+              "UNSUPPORTED",
               "Telegram refused message deletion; check the 48-hour limit, message existence and bot permissions",
               false,
               "notApplied",
@@ -365,7 +358,7 @@ export const telegramStorage: Definition<"storage"> = {
         }
         if (result !== true)
           throw new PluginError(
-            "TELEGRAM_DELETE",
+            "SERVICE",
             "Telegram did not confirm message deletion",
             true,
             "unknown",

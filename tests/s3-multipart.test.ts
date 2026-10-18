@@ -155,7 +155,7 @@ test("S3 multipart batches, conditional completion, recovery and abort cleanup",
       await lease.runtime.write(input, ctx); // Same operation is recoverable after 412.
       await expect(
         lease.runtime.write({ ...input, operationId: "other" }, ctx),
-      ).rejects.toMatchObject({ code: "S3_CONFLICT", outcome: "notApplied" });
+      ).rejects.toMatchObject({ code: "CONFLICT", outcome: "notApplied" });
       mode = "lost";
       await expect(
         lease.runtime.write({ ...input, storageKey: "lost" }, ctx),

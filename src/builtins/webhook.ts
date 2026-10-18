@@ -59,7 +59,7 @@ export const webhook: Definition<"processor"> = {
             ctx.signal.throwIfAborted();
             if (!/^https?:\/\//.test(input.url))
               throw new PluginError(
-                "SITE_ORIGIN_REQUIRED",
+                "INVALID_CONFIG",
                 "Configure a site or image origin for background URL delivery.",
               );
             const secret = (await services.readSecrets()).value;
@@ -92,16 +92,12 @@ export const webhook: Definition<"processor"> = {
                 }),
               });
             } catch {
-              throw new PluginError(
-                "WEBHOOK_NETWORK",
-                "Webhook 网络错误或超时",
-                true,
-              );
+              throw new PluginError("NETWORK", "Webhook 网络错误或超时", true);
             }
             await response.body?.cancel();
             if (!response.ok)
               throw new PluginError(
-                "WEBHOOK_HTTP",
+                response.status === 429 ? "RATE_LIMITED" : "SERVICE",
                 "Webhook 返回失败状态",
                 response.status === 429 || response.status >= 500,
                 "notApplied",

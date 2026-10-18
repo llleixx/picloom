@@ -1,6 +1,20 @@
 import type { en } from "./en";
 
 export const zhCN = {
+  "errors.plugin_invalid_config": "插件配置缺失或无效",
+  "errors.plugin_invalid_input": "插件输入或参数无效",
+  "errors.plugin_access_denied": "插件认证失败或权限不足",
+  "errors.plugin_not_found": "插件所需资源不存在",
+  "errors.plugin_conflict": "资源状态与插件操作冲突",
+  "errors.plugin_resource_limit": "超出插件大小、容量或配额限制",
+  "errors.plugin_rate_limited": "插件请求受到限流",
+  "errors.plugin_unsupported": "插件不支持此操作或格式",
+  "errors.plugin_network": "插件网络请求失败或超时",
+  "errors.plugin_io": "插件本地读写失败",
+  "errors.plugin_invalid_data": "插件读取的数据损坏、不完整或格式无效",
+  "errors.plugin_service": "插件依赖服务执行失败",
+  "errors.plugin_failed": "插件执行失败",
+
   "limits.maxSize": "单文件大小上限（MiB）",
   "limits.daily": "每日上传数量",
   "limits.unlimited": "不额外限制",
@@ -52,22 +66,6 @@ export const zhCN = {
   "processingResults.details": "详情",
   "errors.processing_result_invalid":
     "插件结果必须为 JSON 对象，总大小不超过 64 KiB。",
-  "errors.tencent_auth": "请检查腾讯云凭据、权限和服务配额。",
-  "errors.tencent_content_size": "图片超过审核插件的内容大小上限。",
-  "errors.tencent_input": "图片或请求被拒绝，请检查腾讯云的图片要求。",
-  "errors.tencent_network": "腾讯云请求失败或超时。",
-  "errors.tencent_image_download":
-    "腾讯云无法下载图片。请使用可公开访问的图片链接；本机和内网地址无法访问。",
-  "errors.telegram_auth": "请检查 Telegram 机器人令牌和聊天权限。",
-  "errors.telegram_size": "Telegram 存储支持最大 20 MB 的文件。",
-  "errors.telegram_delete_unavailable":
-    "Telegram 无法删除消息。请检查权限和 48 小时删除限制。",
-  "errors.openlist_auth": "请检查 OpenList API 令牌和目录权限。",
-  "errors.nodeimage_auth": "NodeImage 拒绝了 API 密钥或权限。",
-  "errors.nodeimage_delete_unavailable":
-    "NodeImage API 暂不支持删除。请在 NodeImage 删除图片后重试清理。",
-  "errors.tencent_service": "腾讯云内容审核不可用或拒绝了请求。",
-  "errors.tencent_response": "腾讯云返回了无效的审核结果。",
   "images.blocked": "已封禁",
   "images.blockedHint": "公开访问已被封禁。",
   "images.restoreAccess": "恢复访问",
@@ -673,8 +671,6 @@ export const zhCN = {
   "errors.write_failed": "存储写入失败。",
   "errors.delete_failed": "存储清理失败。",
   "errors.action_failed": "操作失败。",
-  "errors.webhook_http": "Webhook 返回错误。",
-  "errors.webhook_network": "Webhook 超时或无法连接。",
   "errors.interrupted_upload": "上传中断。",
   "errors.frontend_not_built": "前端尚未构建。",
   "errors.method": "不允许此请求方法。",

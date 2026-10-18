@@ -144,15 +144,11 @@ test("Tencent Cloud signs file submissions, maps decisions, stores safe summarie
         expect(JSON.stringify(result)).not.toContain("private");
       }
       for (const [value, expected, retryable] of [
-        ["AuthFailure.SignatureFailure", "TENCENT_AUTH", false],
-        [
-          "ResourceUnavailable.ImageDownloadError",
-          "TENCENT_IMAGE_DOWNLOAD",
-          false,
-        ],
-        ["InvalidParameter.ImageSizeTooSmall", "TENCENT_INPUT", false],
-        ["RequestLimitExceeded", "TENCENT_SERVICE", true],
-        ["InternalError", "TENCENT_SERVICE", true],
+        ["AuthFailure.SignatureFailure", "ACCESS_DENIED", false],
+        ["ResourceUnavailable.ImageDownloadError", "SERVICE", false],
+        ["InvalidParameter.ImageSizeTooSmall", "INVALID_INPUT", false],
+        ["RequestLimitExceeded", "RATE_LIMITED", true],
+        ["InternalError", "SERVICE", true],
       ] as const) {
         code = value;
         try {
@@ -166,7 +162,7 @@ test("Tencent Cloud signs file submissions, maps decisions, stores safe summarie
       code = "";
       malformed = true;
       await expect(lease.runtime.execute(input, ctx)).rejects.toMatchObject({
-        code: "TENCENT_RESPONSE",
+        code: "INVALID_DATA",
         retryable: false,
       });
       malformed = false;
@@ -325,13 +321,13 @@ test("content size limits reject declared and streamed oversize without contacti
     };
     try {
       await expect(lease.runtime.execute(input, ctx)).rejects.toMatchObject({
-        code: "TENCENT_CONTENT_SIZE",
+        code: "RESOURCE_LIMIT",
         retryable: false,
       });
       expect(opens).toBe(0);
       input.file.metadata.byteSize = null;
       await expect(lease.runtime.execute(input, ctx)).rejects.toMatchObject({
-        code: "TENCENT_CONTENT_SIZE",
+        code: "RESOURCE_LIMIT",
         retryable: false,
       });
       expect(cancelled).toBe(true);

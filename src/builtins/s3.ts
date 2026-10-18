@@ -13,6 +13,15 @@ import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { Readable } from "node:stream";
 import { PluginError, type Definition, type Locator } from "../../plugin-sdk";
 import { logicalKey as storageKey } from "../../plugin-sdk";
+function failureCode(error: unknown) {
+  const status = (error as { $metadata?: { httpStatusCode?: number } })
+    ?.$metadata?.httpStatusCode;
+  if (status === 401 || status === 403) return "ACCESS_DENIED";
+  if (status === 404) return "NOT_FOUND";
+  if (status === 409 || status === 412) return "CONFLICT";
+  if (status === 429) return "RATE_LIMITED";
+  return status === undefined ? "NETWORK" : "SERVICE";
+}
 export const s3Storage: Definition<"storage"> = {
   id: "builtin.s3",
   name: "S3-compatible storage",
@@ -186,7 +195,7 @@ export const s3Storage: Definition<"storage"> = {
           ? locator.key
           : (() => {
               throw new PluginError(
-                "LOCATOR",
+                "INVALID_INPUT",
                 "Invalid S3 locator",
                 false,
                 "notApplied",
@@ -224,7 +233,7 @@ export const s3Storage: Definition<"storage"> = {
         const scope = inputScope ?? "";
         const token = decodeCursor<string>(cursor, scope);
         if (token !== undefined && typeof token !== "string")
-          throw new PluginError("INVALID_CURSOR", "Invalid scan cursor");
+          throw new PluginError("INVALID_INPUT", "Invalid scan cursor");
         const base = prefix ? prefix + "/" : "";
         const result = await client.send(
           new ListObjectsV2Command({
@@ -236,7 +245,7 @@ export const s3Storage: Definition<"storage"> = {
           { abortSignal: ctx.signal },
         );
         if (result.IsTruncated && !result.NextContinuationToken)
-          throw new PluginError("PLUGIN_RESULT", "Missing continuation token");
+          throw new PluginError("INVALID_DATA", "Missing continuation token");
         return {
           items: (result.Contents ?? [])
             .filter((o) => o.Key?.startsWith(base) && !o.Key.endsWith("/"))
@@ -254,7 +263,7 @@ export const s3Storage: Definition<"storage"> = {
         const size = file.metadata.byteSize;
         if (size === null || !Number.isSafeInteger(size) || size < 0)
           throw new PluginError(
-            "S3_SIZE",
+            "INVALID_INPUT",
             "S3 upload requires a known non-negative size",
             false,
             "notApplied",
@@ -307,14 +316,14 @@ export const s3Storage: Definition<"storage"> = {
             );
             if (result.status === "stored") return { locator: result.locator };
             throw new PluginError(
-              "S3_CONFLICT",
+              "CONFLICT",
               "S3 对象已被其他操作占用",
               false,
               "notApplied",
             );
           }
           throw new PluginError(
-            "S3_WRITE",
+            failureCode(e),
             "S3 写入失败",
             status === undefined ||
               status === 409 ||
@@ -346,7 +355,8 @@ export const s3Storage: Definition<"storage"> = {
           const result = await client.send(command, {
             abortSignal: ctx.signal,
           });
-          if (!result.Body) throw new Error();
+          if (!result.Body)
+            throw new PluginError("INVALID_DATA", "Missing S3 response body");
           return {
             type: "stream" as const,
             stream: retainStream(
@@ -357,8 +367,10 @@ export const s3Storage: Definition<"storage"> = {
             mimeType: result.ContentType,
             byteSize: result.ContentLength,
           };
-        } catch {
-          throw new PluginError("S3_READ", "S3 读取失败", true);
+        } catch (error) {
+          ctx.signal.throwIfAborted();
+          if (isPluginError(error)) throw error;
+          throw new PluginError(failureCode(error), "S3 读取失败", true);
         }
       },
       async delete({ storageKey: logical, locator }, ctx) {
@@ -371,8 +383,10 @@ export const s3Storage: Definition<"storage"> = {
             }),
             { abortSignal: ctx.signal },
           );
-        } catch {
-          throw new PluginError("S3_DELETE", "S3 删除失败", true);
+        } catch (error) {
+          ctx.signal.throwIfAborted();
+          if (isPluginError(error)) throw error;
+          throw new PluginError(failureCode(error), "S3 删除失败", true);
         }
       },
       async recoverWrite(input, ctx) {

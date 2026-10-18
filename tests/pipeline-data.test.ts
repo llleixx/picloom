@@ -2,7 +2,6 @@ import { test, expect } from "bun:test";
 import { pipelineData } from "../src/core/pipeline-data";
 import { fixture } from "./helpers";
 import {
-  PluginError,
   type Definition,
   type PipelineContext,
   type Config,
@@ -65,7 +64,12 @@ test("all stages share data within an attempt; failed actions release sources an
     } else {
       expect(ctx.data.get("example")).toEqual({ value: 7 });
       if (stage === "post_save" && fail)
-        throw new PluginError("TEST", "sensitive-error-detail", false);
+        throw Object.assign(new Error("sensitive-error-detail"), {
+          name: "PluginError",
+          code: "EXTERNAL_PRIVATE_CODE",
+          retryable: false,
+          outcome: "unknown",
+        });
     }
   };
   const transform = (stage: string) => ({
@@ -192,7 +196,7 @@ test("all stages share data within an attempt; failed actions release sources an
       await f.request(`/api/files/${file.id}/operations`)
     ).json();
     expect(operations.tasks[0]).toMatchObject({
-      error: "ACTION_FAILED",
+      error: "PLUGIN_FAILED",
       failedStep: { id: before[1]!.id, name: "Data" },
     });
     expect(JSON.stringify(operations)).not.toContain("sensitive-error-detail");

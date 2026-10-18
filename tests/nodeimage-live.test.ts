@@ -71,7 +71,7 @@ const enabled = !!process.env.NODEIMAGE_TEST_KEY;
         );
         console.log("NodeImage test object deleted");
       } catch (error: any) {
-        expect(error.code).toBe("NODEIMAGE_DELETE_UNAVAILABLE");
+        expect(error.code).toBe("UNSUPPORTED");
         console.log(
           "NodeImage test object retained: API deletion unavailable",
           JSON.stringify(locator),

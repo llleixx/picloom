@@ -67,7 +67,7 @@ function runtime(
         (p.fit && !w && !h)
       )
         throw new PluginError(
-          "INVALID_PARAMS",
+          "INVALID_INPUT",
           "Invalid image dimensions",
           false,
           "notApplied",

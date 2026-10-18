@@ -488,7 +488,7 @@ test("unknown redundant writes recover with task ID without writing twice", asyn
             writes++;
             operation = input.operationId;
             await new Response(await input.file.openRead()).arrayBuffer();
-            throw new PluginError("LOST", "response lost", true);
+            throw new PluginError("NETWORK", "response lost", true);
           },
           async read() {
             throw Error();
@@ -756,7 +756,7 @@ test("background tasks refill a free slot after failure while another task remai
                 try {
                   if (input.fileId === ids[1])
                     throw new PluginError(
-                      "TEST_FAILED",
+                      "FAILED",
                       "Expected failure",
                       false,
                     );

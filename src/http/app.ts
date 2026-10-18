@@ -1,3 +1,4 @@
+import { pluginErrorCode } from "../core/errors";
 import { maxDirectUploadBytes } from "../../shared/runtime-settings";
 import { normalizeGuestIp } from "./guest-ip";
 import { isPluginError } from "../../plugin-sdk/api";
@@ -704,7 +705,7 @@ export function handler(app: Application) {
       const code = known
         ? error.code
         : isPluginError(error)
-          ? "PLUGIN_ERROR"
+          ? pluginErrorCode(error.code)
           : "INTERNAL";
       const status = known ? error.status : isPluginError(error) ? 502 : 500;
       console.error(

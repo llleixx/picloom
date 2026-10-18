@@ -248,7 +248,7 @@ test("OpenList HTTP protocol: PUT, fresh raw URL, credential-free download, remo
         },
         ctx(),
       ),
-    ).rejects.toMatchObject({ code: "LOCATOR", outcome: "notApplied" });
+    ).rejects.toMatchObject({ code: "INVALID_INPUT", outcome: "notApplied" });
     expect(runtime.listFiles).toBeUndefined();
   } finally {
     remote.stop(true);
