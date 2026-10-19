@@ -130,9 +130,11 @@ export const en = {
   "import.title": "Import",
   "import.description":
     "Register existing images without moving or downloading them.",
+  "import.stripDirectories": "Public path strip depth",
+  "import.stripHint": "Remove leading directories from the full storage key, without moving files. For example, 2 maps ab/cd/image.png to image.png. Scan scope does not change the starting point.",
+  "import.pathTooShallow": "Too few directories for the requested strip depth",
   "import.scope": "Scan scope (optional)",
   "import.scopeHint": "Leave blank to scan the entire storage source.",
-  "import.example": "Example path: {path}",
   "import.takeover": "Deleting an imported image also deletes its source file.",
   "import.restart":
     "Keep the source unchanged while scanning. Restarting skips registered files; progress is not saved after closing this page.",

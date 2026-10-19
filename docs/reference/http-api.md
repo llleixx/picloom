@@ -202,6 +202,7 @@ curl --fail-with-body "$PICLOOM_URL/api/files/$PICLOOM_FILE_ID" \
 | `POST /api/tasks/:id/retry` | 管理员重试失败的删除任务 |
 | `GET /api/settings`、`PUT /api/settings` | 读取、保存全套运行设置 |
 | `GET /api/system/status` | 管理员查看系统运行状态 |
+| `POST /api/storage-sources/:id/import` | 管理员分页导入，JSON：`publicPrefix`、`mimeTypes`，可选 `scope`、`cursor`、`stripDirectories`（默认 `0`，非负整数） |
 | `/api/storage-sources`、`/api/storage-groups` | 管理存储源和存储组 |
 | `/api/upload-profiles`、`/api/pipelines` | 管理上传配置与流水线 |
 

@@ -10,6 +10,8 @@ export const importMimeTypes = [
 export interface ImportInput {
   publicPrefix: string;
   scope?: string;
+  /** Leading storage-key directories omitted from the public path; defaults to 0. */
+  stripDirectories?: number;
   cursor?: string;
   mimeTypes: string[];
 }

@@ -21,6 +21,7 @@ const open = ref(true),
   error = ref("");
 const scope = ref(""),
   publicPrefix = ref("/i/"),
+  stripDirectories = ref(0),
   types = ref<string[]>([...importMimeTypes]);
 const totals = reactive({
   scanned: 0,
@@ -47,6 +48,7 @@ async function start() {
   const options = {
     scope: scope.value,
     publicPrefix: publicPrefix.value,
+    stripDirectories: stripDirectories.value,
     mimeTypes: [...types.value],
   };
   let cursor: string | undefined;
@@ -95,25 +97,32 @@ function close(value: boolean) {
           <p class="subtle">{{ t("import.description") }}</p>
           <label class="field"
             >{{ t("import.scope")
-            }}<Input v-model="scope" :disabled="busy" aria-describedby="import-scope-hint"
+            }}<Input
+              v-model="scope"
+              :disabled="busy"
+              aria-describedby="import-scope-hint"
           /></label>
-          <p id="import-scope-hint" class="subtle">{{ t("import.scopeHint") }}</p>
+          <p id="import-scope-hint" class="subtle">
+            {{ t("import.scopeHint") }}
+          </p>
           <label class="field"
             >{{ t("ui.publicPrefix")
-            }}<Input
-              v-model="publicPrefix"
-              :disabled="busy"
-              required
+            }}<Input v-model="publicPrefix" :disabled="busy" required
           /></label>
-          <p class="subtle break-all">
-            {{
-              t("import.example", {
-                path:
-                  publicPrefix +
-                  (scope ? scope.replace(/\/$/, "") + "/" : "") +
-                  "image.png",
-              })
-            }}
+          <label class="field">
+            {{ t("import.stripDirectories") }}
+            <Input
+              v-model="stripDirectories"
+              type="number"
+              min="0"
+              step="1"
+              required
+              :disabled="busy"
+              aria-describedby="import-strip-hint"
+            />
+          </label>
+          <p id="import-strip-hint" class="subtle">
+            {{ t("import.stripHint") }}
           </p>
           <fieldset :disabled="busy">
             <legend class="mb-2 text-sm">{{ t("ui.allowedFormats") }}</legend>
@@ -141,7 +150,9 @@ function close(value: boolean) {
               {{
                 item.code === "PATH_CONFLICT"
                   ? t("import.conflict")
-                  : t("import.invalid")
+                  : item.code === "PATH_TOO_SHALLOW"
+                    ? t("import.pathTooShallow")
+                    : t("import.invalid")
               }}
             </li>
           </ul>

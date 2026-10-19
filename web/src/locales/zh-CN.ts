@@ -104,9 +104,11 @@ export const zhCN = {
   "users.guestUnavailable": "访客上传不可用，请登录后上传。",
   "import.title": "导入",
   "import.description": "登记现有图片，无需移动或下载文件。",
+  "import.stripDirectories": "公开路径去除层数",
+  "import.stripHint": "从存储源内的完整路径开头去除目录层数，不移动文件。例如 2：ab/cd/image.png → image.png。扫描范围不改变计算起点。",
+  "import.pathTooShallow": "路径目录不足，无法去除指定层数",
   "import.scope": "扫描范围（可选）",
   "import.scopeHint": "留空则扫描整个存储源。",
-  "import.example": "路径示例：{path}",
   "import.takeover": "删除已导入的图片时，也会删除源文件。",
   "import.restart":
     "扫描期间请勿更改源文件。重新扫描会跳过已登记的文件；关闭页面后不会保存进度。",

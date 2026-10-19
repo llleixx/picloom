@@ -20,8 +20,9 @@ export const randomPath: Definition<"path"> = {
       name: "随机路径",
       configSchema: {
         "/properties/directoryDepth": {
-          title: "目录层数",
-          description: "仅影响存储目录，公开链接保持平铺。",
+          title: "分片目录层数",
+          description:
+            "按文件名每两位分一层目录，仅影响存储路径，公开链接保持平铺。0 表示不分层。",
         },
       },
       description:
@@ -37,10 +38,11 @@ export const randomPath: Definition<"path"> = {
     properties: {
       directoryDepth: {
         type: "integer",
-        title: "Directory depth",
+        title: "Directory shard depth",
         enum: [0, 1, 2],
         default: 2,
-        description: "Storage directories only; public URLs stay flat.",
+        description:
+          "Use two filename characters per directory level. Only storage paths change; public URLs stay flat. 0 disables sharding.",
       },
     },
     additionalProperties: false,

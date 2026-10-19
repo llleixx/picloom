@@ -271,11 +271,11 @@ test("optional enumeration validates entries and never reads content; opaque loc
                   return {
                     items: [
                       {
-                        storageKey: "a.png",
+                        storageKey: "ab/cd/a.png",
                         locator: { key: "remote", namespace: "test" },
                       },
                       {
-                        storageKey: "b.png",
+                        storageKey: "xy/zz/b.png",
                         locator: { namespace: "test", key: "remote" },
                       },
                       { storageKey: "../bad.png" },
@@ -296,12 +296,18 @@ test("optional enumeration validates entries and never reads content; opaque loc
       config: {},
     });
     expect((await f.app.plugins.view(src.id)).canImport).toBe(true);
-    expect(await scan(f, src.id)).toMatchObject({
+    expect(await scan(f, src.id, { stripDirectories: 2 })).toMatchObject({
       imported: 1,
       skipped: 1,
       failed: 2,
     });
-    expect((await scan(f, src.id)).imported).toBe(0);
+    expect((await scan(f, src.id, { stripDirectories: 2 })).imported).toBe(0);
+    const imported = (await f.app.db.read((r) => r.files(10, 0)))[0]!;
+    expect(imported.storage_key).toBe("ab/cd/a.png");
+    expect(imported.logical_key).toBe("a.png");
+    expect(
+      (await f.app.db.read((r) => r.replicas(imported.id)))[0]!.locator_json,
+    ).toEqual({ key: "remote", namespace: "test" });
     enumeration = false;
     await f.app.plugins.reinitialize(src.id);
     expect((await f.app.plugins.view(src.id)).canImport).toBe(false);
@@ -391,6 +397,81 @@ test("metadata is learned lazily from original bytes, before transforms; thumbna
       injection.mockRestore();
       reads.mockRestore();
     }
+  } finally {
+    await f.close();
+  }
+});
+
+test("import strips public directories without changing storage, and handles races, duplicates and collisions", async () => {
+  const f = await fixture();
+  try {
+    const src = await source(f);
+    const root = join(f.root, "legacy");
+    await Bun.write(join(root, "ab/cd/photo.png"), f.png);
+    await Bun.write(join(root, "xy/zz/photo.png"), f.png);
+    await Bun.write(join(root, "short.png"), f.png);
+    const options = { scope: "ab", stripDirectories: 2 };
+    const results = await Promise.all([
+      scan(f, src.id, options),
+      scan(f, src.id, options),
+    ]);
+    expect(results.reduce((n, r) => n + r.imported, 0)).toBe(1);
+    expect(results.reduce((n, r) => n + r.skipped, 0)).toBe(1);
+    const file = (await f.app.db.read((r) => r.files(10, 0)))[0]!;
+    expect(file).toMatchObject({
+      logical_key: "photo.png",
+      storage_key: "ab/cd/photo.png",
+    });
+    expect(
+      new Uint8Array(
+        await (await f.request("/legacy/photo.png")).arrayBuffer(),
+      ),
+    ).toEqual(new Uint8Array(f.png));
+    expect(await scan(f, src.id, { stripDirectories: 2 })).toMatchObject({
+      imported: 0,
+      skipped: 1,
+      conflicts: 1,
+      failed: 1,
+    });
+    expect(
+      await scan(f, src.id, {
+        scope: "ab",
+        publicPrefix: "/alias/",
+        stripDirectories: 0,
+      }),
+    ).toMatchObject({ imported: 0, skipped: 1 });
+    expect(
+      await scan(f, src.id, { scope: "ab", stripDirectories: 3 }),
+    ).toMatchObject({
+      failed: 1,
+      issues: [{ logicalKey: "ab/cd/photo.png", code: "PATH_TOO_SHALLOW" }],
+    });
+    for (const stripDirectories of [
+      -1,
+      0.5,
+      "2",
+      null,
+      Number.MAX_SAFE_INTEGER + 1,
+    ]) {
+      expect(
+        (
+          await f.request(`/api/storage-sources/${src.id}/import`, "POST", {
+            publicPrefix: "/legacy/",
+            mimeTypes: ["image/png"],
+            stripDirectories,
+          })
+        ).status,
+      ).toBe(400);
+    }
+    await f.restart();
+    expect(await scan(f, src.id, options)).toMatchObject({
+      imported: 0,
+      skipped: 1,
+    });
+    await f.request(`/api/files/${file.id}`, "DELETE");
+    await f.app.files.sweep();
+    expect(await Bun.file(join(root, "ab/cd/photo.png")).exists()).toBe(false);
+    expect(await Bun.file(join(root, "xy/zz/photo.png")).exists()).toBe(true);
   } finally {
     await f.close();
   }

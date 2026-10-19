@@ -195,7 +195,7 @@ listFiles(input: {
 | `items[].mimeType` | `string` | 否 | MIME 类型 |
 | `nextCursor` | `string \| null` | 是 | 下一页游标；结束必须返回 `null` |
 
-游标由插件定义，核心原样传回。`scope` 只缩小扫描范围，不改变存储根目录，也不应从返回的键中剥离该范围前缀。
+游标由插件定义，核心原样传回。`scope` 只缩小扫描范围，不改变存储根目录，也不应从返回的键中剥离该范围前缀。导入选项 `stripDirectories` 由核心用于生成逻辑路径，默认 `0`；不传给插件，不修改 `storageKey` 或 `locator`。
 
 ## 最小实现
 

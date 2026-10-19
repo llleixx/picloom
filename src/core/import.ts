@@ -24,6 +24,9 @@ export class Imports {
   ): Promise<ImportResult> {
     if (
       typeof input.publicPrefix !== "string" ||
+      (input.stripDirectories !== undefined &&
+        (!Number.isSafeInteger(input.stripDirectories) ||
+          (input.stripDirectories as number) < 0)) ||
       (input.scope !== undefined &&
         (typeof input.scope !== "string" || input.scope.length > 2048)) ||
       (input.cursor !== undefined &&
@@ -37,6 +40,8 @@ export class Imports {
       throw new AppError("INVALID_INPUT", "Invalid import options");
     if (input.scope) logicalKey((input.scope as string).replace(/\/$/, ""));
     const publicPrefix = prefix(input.publicPrefix);
+    const stripDirectories =
+      (input.stripDirectories as number | undefined) ?? 0;
     const lease = this.plugins.acquire(sourceId, "storage");
     try {
       if (!lease.runtime.listFiles)
@@ -80,10 +85,12 @@ export class Imports {
         };
         for (const item of page.items) {
           let key: string;
+          let storageKey: string;
           let locator: Locator;
           try {
             if (!item || typeof item.storageKey !== "string") throw 0;
-            key = logicalKey(item.storageKey);
+            storageKey = logicalKey(item.storageKey);
+            key = storageKey;
             locator = item.locator ?? null;
             if (
               (item.byteSize !== undefined &&
@@ -111,13 +118,20 @@ export class Imports {
             result.skipped++;
             continue;
           }
+          const parts = storageKey.split("/");
+          if (stripDirectories >= parts.length) {
+            result.failed++;
+            issue(storageKey, "PATH_TOO_SHALLOW");
+            continue;
+          }
+          key = parts.slice(stripDirectories).join("/");
           const existing = await r.fileByPath(
             publicPathKey(publicPath(publicPrefix, key)),
           );
           if (existing) {
             const same =
               existing.status === "ready" &&
-              existing.storage_key === key &&
+              existing.storage_key === storageKey &&
               (await r.replicas(existing.id)).some(
                 (rep) =>
                   rep.storage_instance_id === sourceId &&
@@ -131,7 +145,7 @@ export class Imports {
             }
             continue;
           }
-          if (await r.objectRegistered(sourceId, key, locator)) {
+          if (await r.objectRegistered(sourceId, storageKey, locator)) {
             result.skipped++;
             continue;
           }
@@ -143,7 +157,7 @@ export class Imports {
             storage_group_id: null,
             public_prefix: publicPrefix,
             logical_key: key,
-            storage_key: key,
+            storage_key: storageKey,
             mime_type: item.mimeType ?? null,
             byte_size: item.byteSize ?? null,
             width: null,

@@ -31,3 +31,5 @@ Create a storage source, add it to a storage group, and select that group in an 
 ## Behavior and limitations
 
 Supports streamed reads and writes, deletion, enumeration and write recovery. Relative paths resolve against the application working directory. The root must be readable and writable and cannot be changed after instance creation. `.picloom/` stores operation records used for write recovery; do not remove it as cache. Enumeration skips symlinks, internal metadata and `.part` files.
+
+Import preserves the full storage key as the public path by default. “Public path strip depth” removes leading directories: stripping two levels maps `ab/cd/photo.jpg` to `photo.jpg`. Scan scope does not change the starting point, and the storage key stays unchanged. Too few directories fail; public path collisions are not overwritten, and registered storage objects are skipped.

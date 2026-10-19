@@ -14,7 +14,7 @@ The core fills defaults when saving an instance. “Required” means a value mu
 
 | Field | Meaning | Required | Default | Constraints |
 | --- | --- | --- | --- | --- |
-| `directoryDepth` | Directory depth | No | `2` | `0`, `1`, `2` |
+| `directoryDepth` | Directory shard depth | No | `2` | `0`, `1`, `2` |
 
 No request parameters.
 
@@ -30,4 +30,6 @@ Create an instance and select it in an upload profile. For file ID `12345678-123
 
 ## Behavior and limitations
 
-Directory depth affects storage only, not public links. The same file ID produces the same path, without dates or original filenames. Supported MIME types are JPEG, PNG, WebP, SVG, GIF, AVIF and TIFF; the upload profile must also allow the format.
+Each directory level uses two filename characters; `0` disables sharding. Sharding affects storage only, not public links. The same file ID produces the same path, without dates or original filenames. Supported MIME types are JPEG, PNG, WebP, SVG, GIF, AVIF and TIFF; the upload profile must also allow the format.
+
+When importing existing images, set “Public path strip depth” to the original shard depth to retain flat public URLs. For example, stripping two directories maps `ab/cd/abcdef.jpg` to `abcdef.jpg` without changing its storage key.
