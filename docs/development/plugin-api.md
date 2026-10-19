@@ -1,105 +1,39 @@
-# 插件能力与返回协议
+# 处理插件
 
-SDK 的类型入口是 [`plugin-sdk/index.ts`](https://github.com/llleixx/picloom/blob/main/plugin-sdk/index.ts)，接口定义在 [`api.ts`](https://github.com/llleixx/picloom/blob/main/plugin-sdk/api.ts)。内置和外部插件使用相同协议，当前 `apiVersion` 为 `1`。
+处理插件用于改变图片内容，或在保存后给出处理意见。先确定你的需求发生在什么时候：
 
-## 三类插件
-
-| `kind`      | 运行方法                    | 返回值                           |
-| ----------- | --------------------------- | -------------------------------- |
-| `path`      | `generate(input, context)`  | `logicalKey`，可选 `storageKey`  |
-| `storage`   | `write` / `read` / `delete` | 定位信息、读取结果、无返回值     |
-| `processor` | 按 `stages` 提供处理能力    | 上传、访问、保存后各自的结果协议 |
-
-`createInstance` 接收实例 ID、只读配置和宿主服务。可提供 `dispose` 释放连接等资源。
-
-## 文件输入与输出
-
-`FileInput` 包含只读元数据和 `openRead()`，不要假设输入一定是本地路径。元数据字段可能为 `null`。
-
-处理插件通过 `createOutput()` 获取宿主管理的输出，用 `output.write(stream)` 写入一次，再返回 `{ status: "replace", output }`。这样输出会计入宿主临时空间预算；不要返回自行创建的句柄。
-
-访问插件通过 `getFile()` 延迟读取原图，仅检查参数时无需下载。`cacheable: false` 用于不应共享派生缓存的访问插件。
-
-## 存储读取
-
-```ts
-type ReadResult =
-  | {
-      type: "stream";
-      stream: ReadableStream<Uint8Array>;
-      mimeType?: string;
-      byteSize?: number;
-    }
-  | { type: "redirect"; url: string; expiresAt?: number };
-```
-
-`mode: "auto"` 允许流或跳转；`mode: "stream"` 必须返回流，图片处理需要实际内容。
-
-`expiresAt` 是 **Unix 毫秒时间戳**。核心验证 URL 和有效期，并将跳转缓存时间限制在链接剩余寿命内。
-
-## 存储写入与恢复
-
-`write` 接收 `operationId`、`fileId`、`storageKey` 和文件，返回可选 `locator`。定位信息可以是字符串、JSON 对象或 `null`，会传回后续读取、删除和恢复调用。
-
-可选的 `recoverWrite` 返回：
-
-- `stored`：确认写入，必要时附定位信息。
-- `notStored`：确认未写入。
-- `unknown`：仍无法确定。
-
-不要用一次查询失败来推断 `notStored`。可选的 `listFiles` 供导入使用，返回文件列表和下一页游标。
-
-## 处理阶段
-
-上传与访问的 `check` 返回 `applicable`、`noop` 或 `unsupported`；`process` 返回 `pass`、带输出的 `replace` 或带原因的 `reject`。
-
-### 保存后结果与处置
-
-保存后阶段的 `execute` 接收 `input.currentStatus`（当前累计处置）和 `input.previousResults`（本次执行中已完成步骤的结果快照）。前序结果包含步骤 ID、插件 ID、版本、完成时间及原始返回结果；修改快照不会改变核心记录。
-
-```ts
-interface PostSaveResult {
-  status: "pass" | "block" | "delete";
-  details?: Config;
-  overrideStatus?: "pass" | "block" | "delete";
-}
-```
-
-例如，审核步骤返回屏蔽建议后，下一个插件收到的输入片段如下（ID、时间与审核内容均为示意）：
-
-```json
-{
-  "currentStatus": "block",
-  "previousResults": [
-    {
-      "stepId": "step-moderation",
-      "pluginId": "builtin.tencent-moderation",
-      "pluginVersion": "1.0.0",
-      "completedAt": 1792310400000,
-      "status": "block",
-      "details": {
-        "suggestion": "Review",
-        "label": "Porn",
-        "score": 65,
-        "requestId": "example-request-id"
-      }
-    }
-  ]
-}
-```
-
-`previousResults` 按执行顺序排列，不包含当前步骤。`status` 和可选的 `overrideStatus` 是各步骤的原始意见；`currentStatus` 才是累计结果。`details` 由对应插件定义，没有详情的步骤会省略该字段。
-
-每步必须返回 `status`。累计处置初始为 `pass`，默认按 `delete > block > pass` 更新；返回 `overrideStatus` 时，以它覆盖当前累计处置。覆盖只作用于当前步骤，后续步骤仍可改变结果。例如：
-
-| 步骤 | 返回值 | 累计处置 |
+| 阶段 | 示例需求 | 处理结果影响什么 |
 | --- | --- | --- |
-| 初审 | `{ status: "block", details: { reason: "review" } }` | `block` |
-| 复核 | `{ status: "pass", overrideStatus: "pass" }` | `pass` |
-| 通知 | `{ status: "pass" }` | `pass` |
+| [上传处理](./processors/upload.md) | 保存前缩小图片、添加水印 | 最终存储的图片内容 |
+| [访问处理](./processors/access.md) | 用链接参数请求缩略图 | 本次访问结果，原图不变 |
+| [保存后处理](./processors/post-save.md) | 审核已保存图片、发送通知 | 文件的公开可用状态或外部操作 |
 
-`block/delete` 不停止后续步骤，也不立即执行物理删除。核心在本次执行结束时应用累计处置；后续插件抛错时，已完成步骤的处置和结果仍会保存。非法返回值不参与累计。累计为 `block/delete` 时任务失败后不再自动重试；为 `pass` 时按原有规则重试整条流水线，前序输入从空列表开始。
+上传和访问阶段每一步都可以把结果交给下一步。保存后阶段传递处理意见和摘要，不输出替换图片。
 
-每一步的结果都会记录，包括没有 `details` 的步骤。`details` 只保存简要 JSON 对象；整条执行的结果总量受 64 KiB 限制，不要放入密钥或图片字节。
+## 定义与阶段
 
-`context.data` 可在同一次流水线执行中按命名空间传递 JSON；检查阶段只读，处理阶段可写。它不是跨请求数据库。
+三者都声明 `kind: "processor"`。在 `stages` 中声明支持的阶段，每个阶段有自己的配置和 `createInstance`：
+
+```text
+插件定义（身份、版本、kind）
+└── stages
+    ├── upload    → 配置描述 + createInstance → check / process
+    ├── access    → 配置描述 + createInstance → check / process
+    └── post_save → 配置描述 + createInstance → execute
+```
+
+| 定义字段 | 类型 | 必需 | 含义 |
+| --- | --- | --- | --- |
+| `kind` | `"processor"` | 是 | 插件类型 |
+| `stages` | `StageDefinitions` | 是 | 至少包含一个阶段描述 |
+| `stages.upload` | `Descriptor<ProcessorPlugin>`，可附 `paramsSchema` | 否 | 上传处理实现 |
+| `stages.access` | `Descriptor<AccessPlugin>`，可附 `paramsSchema` | 否 | 访问处理实现 |
+| `stages.post_save` | `Descriptor<PostSavePlugin>` | 否 | 保存后处理实现，不支持请求参数 |
+
+其他身份字段见 [插件基础](./plugin-start.md#代码默认导出什么)，各阶段描述的必需和可选字段见 [配置描述字段](./plugin-config.md#配置描述字段)。
+
+只实现需要的阶段即可。教程分别使用三个独立示例，便于单独构建和验证；正式插件也可以同时声明多个阶段。
+
+## 先完成一个阶段
+
+每个教程都会从具体效果讲到完整实现。固定配置、请求参数、密钥等共用能力见 [配置与宿主服务](./plugin-config.md)；异常、取消和实例复用见 [错误、取消与并发](./plugin-errors.md)。

@@ -1,60 +1,92 @@
 # 设置与环境变量
 
-Docker 部署使用 `docker/.env.example`，下载为 Compose 文件旁的 `.env`；本地开发使用仓库根目录的 `.env.example`。
+部署参数决定应用如何启动；Web「设置」调整运行中的网站、上传和缓存行为。下表中的 Web 字段是 API 名称，方便脚本调用；页面中的大小和时间输入会换算为相应单位。
 
-## 优先级
+## 在哪里配置
 
-启动时读取环境默认值，再加载 `DATA_DIR/delivery-settings.json`。Web 设置保存到该文件，**覆盖对应环境默认值**，并应用到当前进程。
+| 配置方式 | 适用内容 | 生效方式 |
+| --- | --- | --- |
+| 环境变量 | 密钥、数据库、监听地址，以及运行设置的初始值 | 启动时读取，修改后需重启 |
+| Web「设置」 | 网站、域名、防盗链、缓存、游客额度、容量与并发 | 保存到 `DATA_DIR/delivery-settings.json`，立即应用并在重启后保留 |
 
-`ENCRYPTION_KEY`、数据库连接、数据目录和监听参数属于部署配置，不在 Web 设置里修改。Docker 只传入 Compose 中列出的变量；想额外传入变量，需要修改 Compose 的 `environment`。
+**已保存的 Web 设置覆盖对应环境默认值。** 修改 `.env` 后没有变化时，先检查是否已在 Web 保存过设置。部署参数不受这个文件覆盖。
 
-## 部署配置
+Docker 使用 `docker/.env.example`，源码开发使用根目录的 `.env.example`。Compose 旁的 `.env` 用于替换 Compose 变量，不会自动把所有变量传入容器；额外变量需加入 Compose 的 `environment`。
 
-| 环境变量                 | 默认或要求           | 用途                                              |
-| ------------------------ | -------------------- | ------------------------------------------------- |
-| `ENCRYPTION_KEY`         | 必填，64 位十六进制  | 32 字节加密密钥                                   |
-| `DATA_DIR`               | 源码运行时 `./data`  | 数据目录；Docker 为 `/var/lib/picloom/app`       |
-| `DATABASE_URL`           | 空                   | 空值使用 SQLite；否则为专用 PostgreSQL 数据库连接 |
-| `HOST` / `PORT`          | `127.0.0.1` / `3000` | 源码运行监听；Docker 监听 `0.0.0.0`               |
-| `INITIAL_OWNER_PASSWORD` | 空                   | 首次启动随机生成；指定值至少 6 字符              |
-| `TRUSTED_PROXIES`        | 空                   | 可信代理 IP，逗号分隔                             |
+## 部署参数
 
-## 域名与访问
+| 环境变量 | 默认或要求 | 用途 |
+| --- | --- | --- |
+| `ENCRYPTION_KEY` | 必填，64 位十六进制 | 加密插件凭证等敏感数据。保留原密钥，不能通过换一个值来轮换已保存数据的密钥 |
+| `DATA_DIR` | 源码为 `./data`；Docker 为 `/var/lib/picloom/app` | 保存数据库、设置、插件和临时内容；不代表所有存储源图片都位于这里 |
+| `DATABASE_URL` | 空 | 空值使用数据目录内的 SQLite，否则连接指定 PostgreSQL 数据库 |
+| `HOST` / `PORT` | `127.0.0.1` / `3000` | HTTP 监听地址和端口；Docker 镜像监听 `0.0.0.0`，对外端口由 Compose 映射决定 |
+| `INITIAL_OWNER_PASSWORD` | 空，指定时至少 6 字符 | 仅首次创建 Owner 时使用；留空会生成随机密码并打印，不能用于修改已有密码 |
+| `TRUSTED_PROXIES` | 空 | 逗号分隔的可信代理 IP 或 CIDR；仅信任这些来源传入的 `X-Real-IP` |
 
-| 环境默认值              | Web 字段              | 默认                           |
-| ----------------------- | --------------------- | ------------------------------ |
-| `PUBLIC_ORIGIN`         | `publicOrigin`        | 当前请求来源；后台无请求上下文 |
-| `IMAGE_ORIGIN`          | `imageOrigin`         | 跟随站点来源                   |
-| `HOTLINK_ENABLED`       | `hotlinkEnabled`      | `false`                        |
-| `HOTLINK_ALLOWED_HOSTS` | `hotlinkAllowedHosts` | 空列表                         |
-| `HOTLINK_ALLOW_EMPTY`   | `hotlinkAllowEmpty`   | `true`                         |
-| `IMAGE_CACHE_MAX_AGE`   | `imageCacheMaxAge`    | `300` 秒（5 分钟）     |
+密钥生成与目录映射见 [Docker 部署](../operations/deploy.md)，反代配置见 [域名与反向代理](../operations/proxy.md)。
 
-## 容量与并发
+## 网站与域名
 
-大小均为字节；下表用 MiB/GiB 表示便于阅读的默认值。
+| Web 字段 | 环境变量 / 默认 | 用途 |
+| --- | --- | --- |
+| `siteName` | 无环境变量，空 | 自定义站点名称；留空使用默认名称 |
+| `siteDescription` | 无环境变量，空 | 首页简介；留空使用默认文案 |
+| `siteLogoUrl` | 无环境变量，空 | 自定义 Logo 的 HTTP(S) 图片地址；留空使用默认图标 |
+| `siteFaviconUrl` | 无环境变量，空 | 浏览器标签页图标地址；留空使用默认图标 |
+| `publicOrigin` | `PUBLIC_ORIGIN`，空 | 网站来源，如 `https://pic.example.com`；用于来源检查和链接生成，留空时普通请求使用当前来源 |
+| `imageOrigin` | `IMAGE_ORIGIN`，跟随网站来源 | 独立图片域名；为空时使用网站来源，再回退到当前请求来源 |
 
-| 环境默认值               | Web 字段                | 默认                     |
-| ------------------------ | ----------------------- | ------------------------ |
-| `MAX_UPLOAD_BYTES`       | `maxUploadBytes`        | 20 MiB                   |
-| `UPLOAD_TEMP_BYTES`      | `uploadTempBytes`       | 1 GiB                    |
-| `CACHE_BYTES`            | `cacheBytes`            | 1 GiB                    |
-| `CACHE_TTL_MS`           | `cacheTtlMs`            | 86400000 毫秒（24 小时） |
-| `UPLOAD_SESSION_LIMIT`   | `uploadSessionLimit`    | 100                      |
-| `UPLOAD_SESSION_TTL_MS`  | `uploadSessionTtlMs`    | 86400000 毫秒            |
-| `CHUNK_THRESHOLD_BYTES`  | `chunkThresholdBytes`   | 8 MiB                    |
-| `CHUNK_PART_BYTES`       | `chunkPartBytes`        | 4 MiB                    |
-| `UPLOAD_CONCURRENCY`     | `uploadConcurrency`     | 2                        |
-| `PART_CONCURRENCY`       | `partConcurrency`       | 2                        |
-| `PROCESSING_CONCURRENCY` | `processingConcurrency` | 2                        |
-| `PROCESSING_QUEUE`       | `processingQueue`       | 16                       |
-| `TASK_CONCURRENCY`       | `taskConcurrency`       | 2                        |
-| `RETRY_LIMIT`            | `retryLimit`            | 5 次尝试                 |
-| `MAX_DIMENSION`          | `maxDimension`          | 8192 像素                |
-| `MAX_PIXELS`             | `maxPixels`             | 40000000 像素            |
+域名字段只填协议和主机，不带路径。后台任务没有当前请求来源，需要生成完整图片 URL 时应配置域名，例如使用 URL 模式审核。
 
-分片上传与直接上传的接口限制见 [HTTP API](./http-api.md)。大小上限不等于进程内存上限，见 [容量与并发](../operations/resources.md)。
+## 防盗链
 
-游客大小、游客每日额度和站点名称、说明、Logo、图标在 Web 设置中配置。当前没有游客分钟限流项。
+| Web 字段 | 环境变量 / 默认 | 用途 |
+| --- | --- | --- |
+| `hotlinkEnabled` | `HOTLINK_ENABLED=false` | 是否根据请求的 Referer 限制图片访问 |
+| `hotlinkAllowedHosts` | `HOTLINK_ALLOWED_HOSTS`，空列表 | 允许引用图片的主机名；支持 `*.example.com`，该写法仅匹配子域名 |
+| `hotlinkAllowEmpty` | `HOTLINK_ALLOW_EMPTY=true` | 允许不带 Referer 的请求，例如直接打开图片链接 |
 
-约束与完整字段以 [`src/config.ts`](https://github.com/llleixx/picloom/blob/main/src/config.ts)、[`shared/runtime-settings.ts`](https://github.com/llleixx/picloom/blob/main/shared/runtime-settings.ts) 和 [`shared/api.ts`](https://github.com/llleixx/picloom/blob/main/shared/api.ts) 为准。
+网站和图片域名自动允许。Web 使用主机名列表，环境变量使用逗号分隔；不要填写完整 URL。防盗链不是身份认证，详见 [域名与反向代理](../operations/proxy.md)。
+
+## 缓存
+
+| Web 字段 | 环境变量 / 默认 | 用途 |
+| --- | --- | --- |
+| `uploadTempBytes` | `UPLOAD_TEMP_BYTES=1073741824`（1 GiB） | 临时缓存总预算：上传分片、合并、处理中间结果及后台所需源文件，包含空间预留 |
+| `cacheBytes` | `CACHE_BYTES=1073741824`（1 GiB） | 派生缓存上限，保存可重新生成的访问结果；空间不足时淘汰缓存，过大的单项不写入缓存 |
+| `cacheTtlMs` | `CACHE_TTL_MS=86400000`（24 小时） | 派生缓存保留时间；过期内容由缓存机制清理 |
+| `imageCacheMaxAge` | `IMAGE_CACHE_MAX_AGE=300`（5 分钟） | 控制浏览器和 CDN 的新鲜度；`0` 要求重新验证，正值可能使已删除图片在客户端继续显示至缓存到期 |
+
+临时缓存与派生缓存使用独立预算，不是进程内存上限。临时预算不足会拒绝新工作，不会删除仍被使用的文件腾空间。浏览器与 CDN 缓存控制的是客户端行为，不占用上述服务器缓存预算。
+
+## 游客与上传
+
+游客是否允许上传、可用哪些上传配置，在各上传配置的授权中设置。以下两项只限制额度，不负责开放游客权限。
+
+| Web 字段 | 环境变量 / 默认 | 用途 |
+| --- | --- | --- |
+| `guestMaxUploadBytes` | 无环境变量，空 | 游客单文件大小上限；空值跟随全局上限 |
+| `guestDailyUploadLimit` | 无环境变量，空 | 按游客 IP、UTC 日期计算的每日上传次数；空值不另设每日额度，`0` 禁止上传 |
+| `maxUploadBytes` | `MAX_UPLOAD_BYTES=20971520`（20 MiB） | 全局单文件上限，还需同时满足用户与上传配置的限制 |
+| `uploadSessionLimit` | `UPLOAD_SESSION_LIMIT=100` | 允许同时存在的待完成／完成中分片会话数量 |
+| `uploadSessionTtlMs` | `UPLOAD_SESSION_TTL_MS=86400000`（24 小时） | 从创建起计算的分片会话有效期，超期不能续传 |
+| `chunkThresholdBytes` | `CHUNK_THRESHOLD_BYTES=8388608`（8 MiB） | Web 上传器切换到分片上传的阈值；客户端得到的值不会超过普通上传的 20 MiB 上限 |
+| `chunkPartBytes` | `CHUNK_PART_BYTES=4194304`（4 MiB） | 新分片会话的分片大小；已有会话仍使用创建时的值 |
+
+大小字段以字节保存，`1 MiB = 1048576` 字节。普通 multipart 上传另有固定的 20 MiB 文件上限，提高全局上限不会解除它；大文件使用 [分片上传](./http-api.md#分片上传)。
+
+## 并发与图片处理
+
+| Web 字段 | 环境变量 / 默认 | 用途 |
+| --- | --- | --- |
+| `uploadConcurrency` | `UPLOAD_CONCURRENCY=4` | 上传接收与完成处理的并发名额，也提供给 Web 上传器作为文件并发值 |
+| `partConcurrency` | `PART_CONCURRENCY=2` | 单个分片会话同时接收的分片数，也提供给 Web 上传器 |
+| `processingConcurrency` | `PROCESSING_CONCURRENCY=2` | 上传流水线与派生图片处理共用的并发数 |
+| `processingQueue` | `PROCESSING_QUEUE=16` | 上述图片处理可排队的工作数，满时拒绝新工作 |
+| `taskConcurrency` | `TASK_CONCURRENCY=4` | 后台冗余写入、保存后处理、删除任务共用的执行名额 |
+| `retryLimit` | `RETRY_LIMIT=5` | 可自动重试任务的总尝试次数，包含首次执行；不强制重试不可重试的错误 |
+| `maxDimension` | `MAX_DIMENSION=8192` | 处理插件的单边尺寸上限，核心也用于校验处理输出 |
+| `maxPixels` | `MAX_PIXELS=40000000` | 图片总像素上限，限制解码和处理规模 |
+
+这些值作用在不同环节，不应全部同时调高。具体预算关系见 [容量与并发](../operations/resources.md)；变换参数见 [Sharp 插件](./plugins/sharp.md)。

@@ -1,8 +1,25 @@
-# 维护文档站
+# 文档站维护
 
-文档使用 VitePress，源码与应用同仓库，依赖和锁文件独立放在 `docs/`。不进入应用的 Docker 构建。
+文档站使用 VitePress，与应用同仓库维护。Markdown 页面、导航和示例共同构成文档；依赖单独安装在 `docs/`，不进入应用 Docker 构建。
 
-## 本地预览
+## 文件放在哪里
+
+| 位置 | 内容 |
+| --- | --- |
+| `docs/guide/` | 用户概念与使用流程 |
+| `docs/operations/` | 部署、数据与运行维护 |
+| `docs/development/` | 插件开发与核心开发 |
+| `docs/reference/` | 配置等参考信息 |
+| `docs/.vitepress/zh.ts` | 中文导航、侧栏和首页配置 |
+| `docs/.vitepress/config.mts` | 站点路径、多语言、搜索与 Mermaid 配置 |
+| `docs/.vitepress/theme/` | 主题样式与扩展 |
+| `docs/public/` | 图标等静态文件 |
+| `docs/package.json`、`docs/bun.lock` | 独立依赖与锁文件 |
+| `.github/workflows/docs.yml` | GitHub Pages 构建与发布 |
+
+`docs/dev/` 被排除在站点之外，不作为公开文档来源。
+
+## 本地修改与预览
 
 在仓库根目录执行：
 
@@ -11,46 +28,63 @@ bun install --cwd docs --frozen-lockfile
 bun run docs:dev
 ```
 
-构建与预览：
+新增页面后，在 `zh.ts` 中加入侧栏入口。正文使用相对 Markdown 链接，例如 `[本地开发](./contributing.md)`；改标题时检查指向旧标题锚点的链接。
 
-```sh
-bun run docs:build
-bun run docs:preview
-```
-
-构建会检查站内页面链接。涉及 SDK 示例时，同时执行 `bun run build:examples`。
-
-## GitHub Pages
-
-工作流位于 `.github/workflows/docs.yml`。在 GitHub 仓库的 **Settings → Pages → Build and deployment** 中，将 Source 设为 **GitHub Actions**。
-
-PR 构建校验，主分支更新后发布；也可手动触发工作流。默认路径为 `/<仓库名>/`，例如本仓库为 `/picloom/`。
-
-绑定独立域名后，在仓库 Actions variables 中设置 `DOCS_BASE=/`，并在 Pages 设置里完成域名与 DNS 配置。若仓库名本身为 `<用户>.github.io`，也应设置 `DOCS_BASE=/`。
-
-本地验证仓库子路径：
+完成后验证构建与预览：
 
 ```sh
 DOCS_BASE=/picloom/ bun run docs:build
 DOCS_BASE=/picloom/ bun run docs:preview
 ```
 
+在预览输出的地址后加上 `/picloom/`。构建检查页面链接；还需打开改动页面，检查标题跳转、表格、流程图和代码展示。构建成功不代表示例命令或所有锚点正确。
+
+## 示例与流程图
+
+接口字段、配置名称和默认值以代码为准。优先引用仓库中可运行的示例，如在 `docs/development/` 的页面引用路径插件：
+
+```md
+<<< ../../examples/path/index.ts
+```
+
+引用会随源码更新，但仍需解释输入、输出和调用时机。修改插件示例时执行：
+
+```sh
+bun run build:examples
+bun test tests/examples.test.ts
+```
+
+流程图直接写成 Mermaid，便于随正文维护：
+
+````md
+```mermaid
+flowchart LR
+  request[请求] --> core[核心服务] --> plugin[插件]
+```
+````
+
+使用项目现有图标，保持 `docs/public/picloom.svg` 与 `web/src/assets/picloom.svg` 一致。
+
+## 发布到 GitHub Pages
+
+先将 `.github/workflows/docs.yml` 提交到仓库，并在 **Settings → Pages → Build and deployment** 将 Source 设为 **GitHub Actions**。
+
+工作流在文档、插件示例、SDK 或工作流文件变更时触发：PR 只构建，`main` 分支构建后发布，也支持手动触发。默认站点路径为 `/<仓库名>/`，本仓库为 `/picloom/`。
+
+独立域名或 `<用户>.github.io` 仓库应在 Actions variables 中设置 `DOCS_BASE=/`。独立域名还需在 Pages 设置中完成域名与 DNS 配置；本地验证时使用同样的 `DOCS_BASE`。
+
 ## 增加语言
 
-中文内容使用根目录路径，中文导航和界面文字位于 `.vitepress/zh.ts`。
+中文位于根路径。新增英文时：
 
-增加英文时：在 `docs/en/` 放置对应页面，新建英文导航配置，再向 `.vitepress/config.mts` 的 `locales` 增加 `en` 项并设置 `link: '/en/'`、`lang: 'en-US'`。页面路径尽量镜像中文结构，搜索翻译在同一配置中补齐。
+1. 在 `docs/en/` 建立对应页面，路径尽量镜像中文结构。
+2. 增加英文导航配置，链接指向 `/en/` 下的页面。
+3. 在 `config.mts` 的 `locales` 增加 `en`，设置 `link: '/en/'`、`lang: 'en-US'`，补齐搜索界面翻译。
 
-翻译完成前不要放出空白语言入口。插件自身的 `translations` 与文档站语言配置是两个独立接口。
+翻译完成前不开放空语言入口。插件的 `translations` 与文档站语言配置相互独立。
 
-## 写作规则
+## 内容约定
 
-- 使用教程写清操作入口、必填值和完成后的验证方法；字段使用界面中的名称。
-- 给出可照做的最小示例，说明值从哪里取得、哪些需要替换。接口示例同时给出请求和响应。
-- 流程图直接写在 Markdown 的 `mermaid` 代码块中，便于随正文修改。
-- 概念用具体场景解释；内部类型名和状态机放到开发者文档。避免只有功能概述而没有操作步骤。
-- 规则只在一处完整解释，其余页面链接过去。
-- 示例优先引用真实源码；不要使用真实凭证、个人域名或用户数据截图。
-- 行为变化时同步更新文档。当前只维护一套开发版本文档，不复制多版本目录。
+先解释对象和流程，再说明如何操作；开发接口应明确必需与可选能力、输入和输出。示例标明需要替换的值，不使用真实凭证或用户数据。
 
-文档站使用项目原有图标，`docs/public/picloom.svg` 与 `web/src/assets/picloom.svg` 保持一致；更新图标时同步这两个文件。
+一条规则只在一处完整解释，其他页面链接过去。文字修改只验证文档；示例、命令或行为变化时，再运行对应的必要验证。

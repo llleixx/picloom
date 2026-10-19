@@ -42,7 +42,7 @@
 | `https://img.example.com/i/photo.jpg?w=640&h=360&fit=cover` | 裁剪为 640 × 360 像素 |
 | `https://img.example.com/i/photo.jpg?w=640&format=webp&q=80` | 缩放后输出质量为 80 的 WebP |
 
-默认不放大小图。不带参数时，该步骤不改变图片；若流水线还有其他步骤，仍会按其配置执行。更多参数见 [图片参数](../reference/image-params.md)。
+默认不放大小图。不带参数时，该步骤不改变图片；若流水线还有其他步骤，仍会按其配置执行。更多参数见 [Sharp 插件](../reference/plugins/sharp.md)。
 
 ## 为博客图片添加水印
 

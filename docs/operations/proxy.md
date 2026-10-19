@@ -1,39 +1,121 @@
 # 域名与反向代理
 
-## 站点域名与图片域名
+## 使用一个域名
 
-- `PUBLIC_ORIGIN`：站点来源，例如 `https://pic.example.com`，不含路径和末尾斜杠。
-- 图片域名：可在设置中单独配置，例如 `https://img.example.com`；留空跟随站点域名。
-- 都未设置时，浏览器请求生成的链接使用当前请求来源；后台没有浏览器请求，因此需要绝对链接的通知应配置域名。
+管理页面、上传和图片访问可以共用 `https://pic.example.com`：
 
-两个域名都需要指向实际提供 Picloom 服务的入口。只填写图片域名不会自动配置 DNS、证书或反向代理。
+```mermaid
+flowchart LR
+    A[浏览器] -->|HTTPS| B[反向代理]
+    B -->|HTTP| C[Picloom:3000]
+```
 
-## Nginx 示例
+先将域名解析到服务器，并为反向代理准备该域名的 HTTPS 证书。下面以 Nginx 运行在 Picloom 所在宿主机上为例。
 
-以下片段放入**已有证书的 HTTPS server 块**。示例允许 64 MiB 请求，适合默认上传与分片大小；修改应用限制后，也要同步评估代理限制。
+## 配置 Picloom
+
+修改部署目录中的 `.env`：
+
+```dotenv
+PUBLIC_ORIGIN=https://pic.example.com
+PUBLISH_ADDRESS=127.0.0.1
+HTTP_PORT=3000
+```
+
+站点域名包含协议，不带路径和末尾斜杠。`127.0.0.1` 让应用端口仅供宿主机访问，对外通过 Nginx 提供服务。
+
+在部署目录应用配置：
+
+```sh
+docker compose up -d
+```
+
+如果已在 Web 保存过设置，应在 **设置** 页面修改站点域名；已保存的值会覆盖环境默认值。站点域名设为 HTTPS 后，登录 Cookie 会启用 `Secure` 属性。
+
+## 配置 Nginx
+
+将以下配置放入 Nginx 的站点配置文件（由 `http` 块加载），替换域名及证书路径：
 
 ```nginx
-client_max_body_size 64m;
+server {
+    listen 80;
+    server_name pic.example.com;
+    return 301 https://pic.example.com$request_uri;
+}
 
-location / {
-    proxy_pass http://127.0.0.1:3000;
-    proxy_set_header Host $host;
-    proxy_set_header X-Forwarded-Proto $scheme;
-    proxy_set_header X-Real-IP $remote_addr;
-    proxy_read_timeout 180s;
+server {
+    listen 443 ssl;
+    server_name pic.example.com;
+
+    ssl_certificate /etc/nginx/certs/pic.example.com/fullchain.pem;
+    ssl_certificate_key /etc/nginx/certs/pic.example.com/privkey.pem;
+    ssl_protocols TLSv1.2 TLSv1.3;
+
+    client_max_body_size 64m;
+
+    location / {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_read_timeout 180s;
+    }
 }
 ```
 
-设置 `PUBLIC_ORIGIN` 为 HTTPS 来源，使会话 Cookie 使用 HTTPS 策略。
+`64m` 限制的是单次请求体，适用于默认上传和分片大小。提高上传或分片限制、上传较大备份时，也要调整代理限制。`180s` 是读取上游响应时两次读取之间的超时，并非整个请求的总时长。指令说明见 [Nginx 代理文档](https://nginx.org/en/docs/http/ngx_http_proxy_module.html)。
 
-## 真实 IP
+检查配置，通过后重载：
 
-`TRUSTED_PROXIES` 填写 Picloom 实际看到的代理 IP，逗号分隔。代理必须**覆盖**客户端传入的 `X-Real-IP`。
+```sh
+sudo nginx -t && sudo nginx -s reload
+```
 
-Docker 网络中代理地址未必是 `127.0.0.1`，应按实际网络配置填写。该设置影响游客每日额度等基于客户端 IP 的行为。
+如果 Nginx 运行在另一个容器中，应让两者加入同一 Docker 网络，并将上游改为 `http://picloom:3000`。容器中的 `127.0.0.1` 指向容器自身。
 
-## 防盗链与缓存
+## 获取真实客户端 IP
 
-防盗链可以允许精确域名或 `*.example.com` 子域名，并决定是否允许无 Referer 的访问。它不是登录校验。
+游客每日额度等功能依赖客户端 IP。Picloom 仅在直连来源属于可信代理时读取 `X-Real-IP`，否则使用直连来源 IP。
 
-图片响应缓存时间控制浏览器/CDN 的新鲜期；设置较长时间后，即使站内删除图片，客户端也可能暂时继续展示旧缓存。签名跳转的缓存时间还会受链接有效期约束。
+代理必须覆盖 `X-Real-IP`，上面的 Nginx 示例已包含此配置。`TRUSTED_PROXIES` 支持 IPv4、IPv6 地址和 CIDR 网段，多个值用逗号分隔；留空则不信任任何代理，格式错误会阻止启动。
+
+Docker 部署可在 `.env` 中使用以下便捷配置，覆盖全部私有 IPv4 网段，避免常规 Docker 网络重建后需要修改地址：
+
+```dotenv
+TRUSTED_PROXIES=10.0.0.0/8,172.16.0.0/12,192.168.0.0/16
+```
+
+仅适用于应用入口受反向代理保护、内部网络和容器均可信的环境；这些网段内能直连 Picloom 的设备都可以提供客户端 IP。此配置不默认启用，不符合条件时请填写具体代理 IP 或专用网络 CIDR。
+
+修改后执行 `docker compose up -d` 应用配置。
+
+如果前面还有 CDN，应先按 CDN 的官方说明，让 Nginx 仅信任该 CDN 的来源地址并还原客户端 IP，再转发给 Picloom。否则 `$remote_addr` 可能只是 CDN 节点地址。
+
+## 单独使用图片域名（可选）
+
+需要区分管理入口和图片链接时，在 **设置** 页面配置：
+
+| 配置 | 示例 | 用途 |
+| --- | --- | --- |
+| 站点域名 | `https://pic.example.com` | 管理与上传入口 |
+| 图片域名 | `https://img.example.com` | 生成图片链接 |
+
+图片域名留空时跟随站点域名。后台通知没有浏览器请求上下文，需要绝对图片链接时，应配置站点域名或图片域名。
+
+为图片域名单独配置解析、证书和反向代理，同样转发到 Picloom。填写该设置不会自动配置代理，也不会限制这个域名只能访问图片。
+
+## CDN 与防盗链（可选）
+
+CDN 按图片路径配置缓存，并遵循响应的 `Cache-Control`；管理页面、认证和上传 API 不要配置强制缓存。图片支持处理参数时，缓存键应保留查询参数，避免不同尺寸共用同一缓存。
+
+浏览器/CDN 缓存时间在 **设置 → 缓存** 中调整。清空服务端派生缓存不会清除客户端缓存，删除或屏蔽图片后，已有缓存也可能继续展示。参数与行为见 [容量与并发](./resources.md#服务端缓存与客户端缓存)。
+
+防盗链按 Referer 判断，支持精确域名、`*.example.com` 和是否允许空 Referer。它不等同于访问认证；CDN 命中缓存时不会经过 Picloom，若要在命中时也检查，需在 CDN 配置相应规则。
+
+## 验证部署
+
+- 通过 HTTPS 登录并上传一张图片。
+- 检查复制出的图片链接是否使用预期域名，并能正常打开。
+- 启用游客上传时，确认可信代理地址与实际来源一致，避免所有访客共用代理 IP 的额度。
+
+遇到问题时，见 [故障排查](./troubleshooting.md)。

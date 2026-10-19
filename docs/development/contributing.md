@@ -1,16 +1,31 @@
-# 本地开发与贡献
+# 本地开发
 
-当前 Docker 构建使用 Bun `1.4.3`；本地建议使用相同版本。需要 Git，构建插件示例另需 `zip`。
+本地开发直接运行 Bun 后端和 Vue 前端。默认使用 SQLite，无需启动数据库容器；数据保存在仓库的 `data/` 中。不要与正在运行的部署共用数据目录。
 
-## 启动
+## 准备环境
+
+需要 Git、Bun；当前 Docker 与文档 CI 使用 Bun `1.4.3`，本地建议保持一致。构建插件示例还需要 `zip`。
 
 ```sh
+git clone https://github.com/llleixx/picloom.git
+cd picloom
 bun install --frozen-lockfile
 cp .env.example .env
+```
+
+这里使用仓库根目录的 `.env.example`，Docker 使用 `docker/.env.example`。
+
+生成加密密钥：
+
+```sh
 bun -e "console.log(require('node:crypto').randomBytes(32).toString('hex'))"
 ```
 
-将生成值填入 `.env` 的 `ENCRYPTION_KEY`，设置 `INITIAL_OWNER_PASSWORD`。在服务未运行时初始化开发用配置：
+将输出填入 `.env` 的 `ENCRYPTION_KEY`。单独设置 `INITIAL_OWNER_PASSWORD`，至少 6 个字符；首次启动时创建用户名为 `admin` 的 Owner。已有账号不会被这个变量修改。
+
+## 第一次启动
+
+在服务尚未运行时执行：
 
 ```sh
 bun run init-dev
@@ -18,24 +33,48 @@ bun run build:web
 bun run dev
 ```
 
-`init-dev` 创建本地存储、使用随机路径的默认上传配置与访问图片变换，用于本地开发。首次部署的默认配置见 [快速开始](../guide/quick-start.md)。
+打开 `http://127.0.0.1:3000`，用上述账号登录，上传一张图片并打开返回的链接。
 
-后端默认监听 `127.0.0.1:3000`。修改前端时可另开终端执行 `bun run dev:web`，使用 Vite 输出的地址。
+`init-dev` 创建开发用上传配置，不创建管理员：
 
-## 检查改动
+| 项目 | 开发用配置 |
+| --- | --- |
+| 路径 | 内置随机路径插件 |
+| 存储 | `DATA_DIR/originals` 下的本地目录 |
+| 存储组与上传配置 | `Local` 存储组、`Default` 上传配置，公开前缀 `/i/` |
+| 访问处理 | 为初始空流水线加入图片变换，开放 `w`、`h`、`fit`、`q`、`format` 参数 |
+
+已有上传配置时，`init-dev` 直接返回，不重置配置。如果先启动过应用，它也不会再补入开发用配置。首次部署使用 `./images` 存储、空访问流水线，详见 [快速开始](../guide/quick-start.md)。
+
+## 修改前端
+
+`bun run dev` 监视后端代码，前端页面来自 `dist/web`。需要前端热更新时，保持后端运行，另开终端：
 
 ```sh
-bun run typecheck
-bun test tests/task-scheduling.test.ts
+bun run dev:web
 ```
 
-按改动选择相关测试文件，不必为文字修改运行全部后端测试。涉及插件示例时执行 `bun run build:examples`；涉及文档时见 [文档站维护](./docs.md)。
+打开 `http://127.0.0.1:5173`。Vite 将 API 和图片请求代理到 `http://127.0.0.1:3000`。若后端改为 3001 端口，前端也要指定代理目标：
 
-## 修改边界
+```sh
+BACKEND_URL=http://127.0.0.1:3001 bun run dev:web
+```
 
-- HTTP 层负责认证、参数解析和响应；业务规则放在核心层。
-- 数据访问通过持久化接口，注意同时兼容 SQLite 与 PostgreSQL。
-- 内置插件不得使用外部插件无法获得的特殊业务接口。
-- 修改配置、协议或用户行为时，在同一 PR 更新对应文档和必要测试。
+仅使用后端地址预览时，前端改动后需重新执行 `bun run build:web`。
 
-当前开发阶段的初始结构有校验。不要为了让个人数据目录启动而提交绕过结构校验的代码。
+## 修改与验证
+
+先从 [架构与代码导航](./architecture.md) 找到业务入口，再选择相关测试。
+
+| 改动 | 验证方式 |
+| --- | --- |
+| TypeScript 代码或接口 | `bun run typecheck`，再运行相关测试文件 |
+| 后台调度 | `bun test tests/task-scheduling.test.ts` |
+| 数据访问或迁移 | 按 [数据访问与迁移](./persistence.md) 验证两种数据库 |
+| 前端页面 | `bun run build:web`，打开对应页面检查操作 |
+| 插件示例 | `bun run build:examples` 与 `bun test tests/examples.test.ts` |
+| 文档 | 按 [文档站维护](./docs.md) 构建并预览 |
+
+`tests/helpers.ts` 提供独立临时目录中的应用 fixture，可用于业务测试；测试结束应关闭应用并释放资源。真实存储服务测试需要额外凭证，不能替代本地测试。
+
+修改用户行为、配置或公共协议时，同步更新对应文档。不要为修复个人开发数据而绕过迁移校验。
