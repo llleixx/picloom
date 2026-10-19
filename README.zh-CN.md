@@ -44,7 +44,7 @@ flowchart TD
 | --- | --- |
 | 存储 | [本地](src/builtins/storage/local/README.zh-CN.md)、[S3](src/builtins/storage/s3/README.zh-CN.md)、[WebDAV](src/builtins/storage/webdav/README.zh-CN.md)、[OpenList](src/builtins/storage/openlist/README.zh-CN.md)、[NodeImage](src/builtins/storage/nodeimage/README.zh-CN.md)、[Telegram](src/builtins/storage/telegram/README.zh-CN.md) |
 | 路径 | [随机路径](src/builtins/path/random-path/README.zh-CN.md)、[日期路径](src/builtins/path/date-path/README.zh-CN.md) |
-| 处理 | [Sharp 图片处理](src/builtins/processor/sharp/README.zh-CN.md)、[水印](src/builtins/processor/watermark/README.zh-CN.md)、[腾讯云内容审核](src/builtins/processor/tencent-moderation/README.zh-CN.md)、[Telegram 通知](src/builtins/processor/telegram-notification/README.zh-CN.md) |
+| 处理 | [图片处理](src/builtins/processor/sharp/README.zh-CN.md)、[水印](src/builtins/processor/watermark/README.zh-CN.md)、[腾讯云内容审核](src/builtins/processor/tencent-moderation/README.zh-CN.md)、[Telegram 通知](src/builtins/processor/telegram-notification/README.zh-CN.md) |
 
 各插件的 README 说明配置与限制；删除、导入等能力因存储后端而异。
 

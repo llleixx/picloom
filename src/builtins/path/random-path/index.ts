@@ -12,7 +12,7 @@ const extensions = new Map([
 
 export const randomPath: Definition<"path"> = {
   id: "builtin.random-path",
-  name: "Random path",
+  name: "Random Path",
   description:
     "A stable 32-character random filename derived from the upload ID, without dates or original filenames.",
   translations: {

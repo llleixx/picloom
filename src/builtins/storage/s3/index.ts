@@ -24,10 +24,12 @@ function failureCode(error: unknown) {
 }
 export const s3Storage: Definition<"storage"> = {
   id: "builtin.s3",
-  name: "S3-compatible storage",
+  name: "S3-Compatible Storage",
+  description: "Store files in an S3-compatible bucket.",
   translations: {
     "zh-CN": {
       name: "S3 兼容存储",
+      description: "将文件保存到 S3 兼容存储桶。",
       configSchema: {
         "/properties/multipartThresholdMiB": { title: "分片阈值（MiB）" },
         "/properties/partSizeMiB": { title: "分片大小（MiB）" },
@@ -35,8 +37,14 @@ export const s3Storage: Definition<"storage"> = {
         "/properties/endpoint": { title: "端点" },
         "/properties/region": { title: "区域" },
         "/properties/bucket": { title: "存储桶" },
-        "/properties/keyPrefix": { title: "对象前缀" },
-        "/properties/forcePathStyle": { title: "路径寻址" },
+        "/properties/keyPrefix": {
+          title: "对象前缀",
+          description: "为所有存储对象添加统一路径前缀，留空不添加。",
+        },
+        "/properties/forcePathStyle": {
+          title: "路径寻址",
+          description: "使用端点/桶名形式访问，是否启用以服务商要求为准。",
+        },
         "/properties/accessKeyId": { title: "访问密钥 ID" },
         "/properties/secretAccessKey": { title: "访问密钥" },
         "/properties/sessionToken": { title: "会话令牌" },
@@ -94,12 +102,14 @@ export const s3Storage: Definition<"storage"> = {
       keyPrefix: {
         type: "string",
         title: "Object prefix",
+        description: "Prefix all stored object keys; leave empty to add no prefix.",
         default: "",
         "x-immutable": true,
       },
       forcePathStyle: {
         type: "boolean",
         title: "Path-style addressing",
+        description: "Use endpoint/bucket URLs; follow your storage provider’s requirements.",
         default: true,
         "x-immutable": true,
       },

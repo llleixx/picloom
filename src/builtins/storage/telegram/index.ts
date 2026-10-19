@@ -35,7 +35,7 @@ function stored(locator: Locator): TelegramLocator {
 }
 export const telegramStorage: Definition<"storage"> = {
   id: "builtin.telegram",
-  name: "Telegram",
+  name: "Telegram Storage",
   description:
     "Store originals as bot documents (20 MB limit). Non-deletable messages finish local cleanup but may remain on Telegram.",
   kind: "storage",
@@ -73,7 +73,7 @@ export const telegramStorage: Definition<"storage"> = {
   uiHints: { "/timeoutMs": { advanced: true } },
   translations: {
     "zh-CN": {
-      name: "Telegram",
+      name: "Telegram 存储",
       description:
         "以机器人文档保存原文件（上限 20 MB）。消息无法删除时仅完成本地清理，Telegram 消息可能保留。",
       configSchema: {

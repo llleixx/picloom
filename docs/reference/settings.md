@@ -89,4 +89,4 @@ Docker 使用 `docker/.env.example`，源码开发使用根目录的 `.env.examp
 | `maxDimension` | `MAX_DIMENSION=8192` | 处理插件的单边尺寸上限，核心也用于校验处理输出 |
 | `maxPixels` | `MAX_PIXELS=40000000` | 图片总像素上限，限制解码和处理规模 |
 
-这些值作用在不同环节，不应全部同时调高。具体预算关系见 [容量与并发](../operations/resources.md)；变换参数见 [Sharp 插件](./plugins/sharp.md)。
+这些值作用在不同环节，不应全部同时调高。具体预算关系见 [容量与并发](../operations/resources.md)；变换参数见 [图片处理插件](./plugins/sharp.md)。

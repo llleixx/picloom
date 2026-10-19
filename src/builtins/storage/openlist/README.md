@@ -1,4 +1,4 @@
-# OpenList storage
+# OpenList Storage
 
 [English](https://github.com/llleixx/picloom/blob/main/src/builtins/storage/openlist/README.md) | [简体中文](https://github.com/llleixx/picloom/blob/main/src/builtins/storage/openlist/README.zh-CN.md)
 

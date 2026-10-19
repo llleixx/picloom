@@ -1,4 +1,4 @@
-# Telegram storage
+# Telegram Storage
 
 [English](https://github.com/llleixx/picloom/blob/main/src/builtins/storage/telegram/README.md) | [简体中文](https://github.com/llleixx/picloom/blob/main/src/builtins/storage/telegram/README.zh-CN.md)
 

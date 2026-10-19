@@ -67,7 +67,7 @@ function failure(
 
 export const webdavStorage: Definition<"storage"> = {
   id: "builtin.webdav",
-  name: "WebDAV storage",
+  name: "WebDAV Storage",
   description: "Authenticated WebDAV storage with streamed reads",
   kind: "storage",
   version: "1.0.0",

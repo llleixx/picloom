@@ -131,10 +131,12 @@ function runtime(
 }
 export const sharpProcessor: Definition<"processor"> = {
   id: "builtin.sharp",
-  name: "Sharp transform",
+  name: "Image Processing",
+  description: "Resize images and adjust format and quality.",
   translations: {
     "zh-CN": {
-      name: "Sharp 图片处理",
+      name: "图片处理",
+      description: "调整图片尺寸、格式和质量。",
     },
   },
   kind: "processor",

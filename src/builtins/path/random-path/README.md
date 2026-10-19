@@ -1,4 +1,4 @@
-# Random path
+# Random Path
 
 [English](https://github.com/llleixx/picloom/blob/main/src/builtins/path/random-path/README.md) | [简体中文](https://github.com/llleixx/picloom/blob/main/src/builtins/path/random-path/README.zh-CN.md)
 

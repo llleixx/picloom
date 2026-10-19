@@ -1,4 +1,4 @@
-# S3-compatible storage
+# S3-Compatible Storage
 
 [English](https://github.com/llleixx/picloom/blob/main/src/builtins/storage/s3/README.md) | [简体中文](https://github.com/llleixx/picloom/blob/main/src/builtins/storage/s3/README.zh-CN.md)
 

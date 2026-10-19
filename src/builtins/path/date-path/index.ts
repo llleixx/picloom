@@ -1,10 +1,12 @@
 import type { Definition } from "../../../../plugin-sdk";
 export const datePath: Definition<"path"> = {
   id: "builtin.date-path",
-  name: "Date path",
+  name: "Date Path",
+  description: "Organize image paths by UTC year, month and day.",
   translations: {
     "zh-CN": {
       name: "日期路径",
+      description: "按 UTC 年、月、日生成图片路径。",
     },
   },
   kind: "path",

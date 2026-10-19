@@ -1,4 +1,4 @@
-# NodeImage storage
+# NodeImage Storage
 
 [English](https://github.com/llleixx/picloom/blob/main/src/builtins/storage/nodeimage/README.md) | [简体中文](https://github.com/llleixx/picloom/blob/main/src/builtins/storage/nodeimage/README.zh-CN.md)
 

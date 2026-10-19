@@ -13,10 +13,12 @@ import { PluginError, type Definition, type Locator } from "../../../../plugin-s
 export const localStorage: Definition<"storage"> = {
   id: "builtin.local",
   localDirectory: { configPath: "/root" },
-  name: "Local storage",
+  name: "Local Storage",
+  description: "Store files in a local directory.",
   translations: {
     "zh-CN": {
       name: "本地存储",
+      description: "将文件保存到本地目录。",
       configSchema: {
         "/properties/root": {
           title: "根目录",

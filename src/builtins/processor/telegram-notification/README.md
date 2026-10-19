@@ -1,4 +1,4 @@
-# Telegram notification
+# Telegram Notification
 
 [English](https://github.com/llleixx/picloom/blob/main/src/builtins/processor/telegram-notification/README.md) | [简体中文](https://github.com/llleixx/picloom/blob/main/src/builtins/processor/telegram-notification/README.zh-CN.md)
 

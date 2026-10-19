@@ -44,7 +44,7 @@ Access processing can generate thumbnails without replacing the stored image. Se
 | --- | --- |
 | Storage | [Local](src/builtins/storage/local/README.md), [S3](src/builtins/storage/s3/README.md), [WebDAV](src/builtins/storage/webdav/README.md), [OpenList](src/builtins/storage/openlist/README.md), [NodeImage](src/builtins/storage/nodeimage/README.md), [Telegram](src/builtins/storage/telegram/README.md) |
 | Paths | [Random](src/builtins/path/random-path/README.md), [Date](src/builtins/path/date-path/README.md) |
-| Processing | [Sharp](src/builtins/processor/sharp/README.md), [Watermark](src/builtins/processor/watermark/README.md), [Tencent Cloud moderation](src/builtins/processor/tencent-moderation/README.md), [Telegram notification](src/builtins/processor/telegram-notification/README.md) |
+| Processing | [Image Processing](src/builtins/processor/sharp/README.md), [Watermark](src/builtins/processor/watermark/README.md), [Tencent Cloud Moderation](src/builtins/processor/tencent-moderation/README.md), [Telegram Notification](src/builtins/processor/telegram-notification/README.md) |
 
 Each plugin's README covers its configuration and limitations. Storage capabilities, including deletion and import, vary by backend.
 

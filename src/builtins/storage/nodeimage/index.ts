@@ -31,7 +31,7 @@ function imageUrl(value: unknown): string {
 }
 export const nodeImageStorage: Definition<"storage"> = {
   id: "builtin.nodeimage",
-  name: "NodeImage",
+  name: "NodeImage Storage",
   description:
     "Store images on NodeImage. Unsupported API deletion completes local cleanup; remote images may remain.",
   kind: "storage",
@@ -66,7 +66,7 @@ export const nodeImageStorage: Definition<"storage"> = {
   uiHints: { "/timeoutMs": { advanced: true } },
   translations: {
     "zh-CN": {
-      name: "NodeImage",
+      name: "NodeImage 存储",
       description:
         "使用 NodeImage 存储图片。API 不支持删除时仅完成本地清理，远端图片可能保留。",
       configSchema: {

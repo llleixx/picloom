@@ -1,4 +1,4 @@
-# Date path
+# Date Path
 
 [English](https://github.com/llleixx/picloom/blob/main/src/builtins/path/date-path/README.md) | [简体中文](https://github.com/llleixx/picloom/blob/main/src/builtins/path/date-path/README.zh-CN.md)
 

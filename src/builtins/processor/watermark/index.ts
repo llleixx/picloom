@@ -203,6 +203,9 @@ function stage(
             title: "不透明度（%）",
           },
         },
+        ...(access
+          ? { paramsSchema: { "/properties/watermark": { title: "水印" } } }
+          : {}),
       },
     },
     configSchemaVersion: 1,
@@ -401,7 +404,9 @@ function stage(
 export const watermark: Definition<"processor"> = {
   id: "builtin.watermark",
   name: "Watermark",
-  translations: { "zh-CN": { name: "水印" } },
+  translations: {
+    "zh-CN": { name: "水印", description: "为图片添加文字或图片水印。" },
+  },
   description: "Add a text or image watermark.",
   kind: "processor",
   version: "1.0.0",

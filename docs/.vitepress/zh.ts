@@ -83,7 +83,7 @@ const reference = [
           { text: "OpenList 存储", link: "/reference/plugins/openlist" },
           { text: "NodeImage 存储", link: "/reference/plugins/nodeimage" },
           { text: "Telegram 存储", link: "/reference/plugins/telegram" },
-          { text: "图片变换", link: "/reference/plugins/sharp" },
+          { text: "图片处理", link: "/reference/plugins/sharp" },
           { text: "水印", link: "/reference/plugins/watermark" },
           { text: "腾讯云图片审核", link: "/reference/plugins/tencent-moderation" },
           { text: "Telegram 通知", link: "/reference/plugins/telegram-notification" },

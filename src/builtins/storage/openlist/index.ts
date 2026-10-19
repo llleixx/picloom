@@ -47,7 +47,7 @@ function error(code: string, writing = false) {
 
 export const openListStorage: Definition<"storage"> = {
   id: "builtin.openlist",
-  name: "OpenList",
+  name: "OpenList Storage",
   description:
     "Store files through an OpenList mount with a configured API token.",
   kind: "storage",
@@ -94,7 +94,7 @@ export const openListStorage: Definition<"storage"> = {
   uiHints: { "/timeoutMs": { advanced: true } },
   translations: {
     "zh-CN": {
-      name: "OpenList",
+      name: "OpenList 存储",
       description: "使用 API 令牌将文件存储到 OpenList 挂载目录。",
       configSchema: {
         "/properties/endpoint": { title: "端点" },

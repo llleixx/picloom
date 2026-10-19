@@ -7,7 +7,13 @@ import {
 
 export const telegramNotification: Definition<"processor"> = {
   id: "builtin.telegram-notification",
-  name: "Telegram notification",
+  name: "Telegram Notification",
+  translations: {
+    "zh-CN": {
+      name: "Telegram 通知",
+      description: "按流水线当前累计状态发送文字通知。",
+    },
+  },
   description:
     "Send a text notification for selected accumulated pipeline statuses.",
   kind: "processor",
@@ -70,8 +76,6 @@ export const telegramNotification: Definition<"processor"> = {
       uiHints: { "/timeoutMs": { advanced: true } },
       translations: {
         "zh-CN": {
-          name: "Telegram 通知",
-          description: "按流水线当前累计状态发送文字通知。",
           configSchema: {
             "/properties/botToken": { title: "机器人令牌" },
             "/properties/chatId": {
