@@ -19,7 +19,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates
     && rm -rf /var/lib/apt/lists/* \
     && mkdir -p /var/lib/picloom/app
 COPY --from=production-dependencies /app/node_modules ./node_modules
-COPY package.json ./
+COPY package.json LICENSE ./
 COPY src ./src
 COPY shared ./shared
 COPY plugin-sdk ./plugin-sdk

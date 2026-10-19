@@ -2,6 +2,7 @@
 **
 !Dockerfile
 !package.json
+!LICENSE
 !bun.lock
 !src/
 !src/**
