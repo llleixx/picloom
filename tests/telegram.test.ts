@@ -1,6 +1,6 @@
 import sharp from "sharp";
 import { afterEach, expect, spyOn, test } from "bun:test";
-import { telegramStorage } from "../src/builtins/telegram";
+import { telegramStorage } from "../src/builtins/storage/telegram/index";
 import type { FileInput, InstanceServices } from "../src/plugins/api";
 
 const botToken = "123456:test-secret-token";
@@ -263,7 +263,7 @@ test("Telegram rejects legacy or malformed locators and unsafe getFile paths", a
   }
 });
 
-test("Telegram deletion retries accept only the exact missing-message response", async () => {
+test("Telegram deletion accepts explicit missing or non-deletable messages only", async () => {
   const plugin = await runtime();
   for (const description of [
     "Bad Request: message to delete not found",
@@ -281,7 +281,10 @@ test("Telegram deletion retries accept only the exact missing-message response",
       { operationId: "retry", storageKey: "a.png", locator },
       context,
     );
-    if (description === "Bad Request: message to delete not found")
+    if (
+      description === "Bad Request: message to delete not found" ||
+      description === "Bad Request: message can't be deleted"
+    )
       await action;
     else
       await expect(action).rejects.toMatchObject({

@@ -6,7 +6,7 @@ import { fixture } from "./helpers";
 import { externalBuiltin, bundledPackage } from "./package-fixtures";
 import { PluginError, isPluginError } from "../plugin-sdk";
 import { assertLocalDirectory } from "../src/plugins/local-directory";
-import { localStorage } from "../src/builtins/local";
+import { localStorage } from "../src/builtins/storage/local/index";
 
 async function install(f: Awaited<ReturnType<typeof fixture>>, bytes: Buffer) {
   const form = new FormData();
@@ -213,7 +213,7 @@ test("an independently bundled SDK error preserves retry and write outcome", asy
 test("SDK and builtins stay within the public dependency boundary; directory declarations are validated", async () => {
   for (const folder of ["plugin-sdk", "src/builtins"]) {
     const root = new URL("../" + folder + "/", import.meta.url);
-    for (const name of await readdir(root)) {
+    for (const name of await readdir(root, { recursive: true })) {
       if (!name.endsWith(".ts")) continue;
       const source = await readFile(new URL(name, root), "utf8");
       for (const match of source.matchAll(

@@ -1,5 +1,5 @@
 import { Readable } from "node:stream";
-import { retainStream, withAbortSignal } from "../../plugin-sdk/files";
+import { retainStream, withAbortSignal } from "../../../../plugin-sdk/files";
 import { readFile } from "node:fs/promises";
 import {
   PluginError,
@@ -11,7 +11,7 @@ import {
   type ProcessorInput,
   type AccessCheckInput,
   type AccessProcessorInput,
-} from "../../plugin-sdk";
+} from "../../../../plugin-sdk";
 const configSchema: Config = {
   type: "object",
   properties: {

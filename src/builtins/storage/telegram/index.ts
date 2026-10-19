@@ -1,5 +1,5 @@
-import { isPluginError } from "../../plugin-sdk/api";
-import { PluginError, type Definition, type Locator } from "../../plugin-sdk";
+import { isPluginError } from "../../../../plugin-sdk/api";
+import { PluginError, type Definition, type Locator } from "../../../../plugin-sdk";
 
 // Hosted Bot API permits larger uploads, but getFile only downloads up to 20 MB.
 const maxBytes = 20_000_000;
@@ -37,7 +37,7 @@ export const telegramStorage: Definition<"storage"> = {
   id: "builtin.telegram",
   name: "Telegram",
   description:
-    "Store original files as bot documents. Hosted API: 20 MB download limit; message deletion is limited to 48 hours.",
+    "Store originals as bot documents (20 MB limit). Non-deletable messages finish local cleanup but may remain on Telegram.",
   kind: "storage",
   version: "1.0.0",
   apiVersion: 1,
@@ -75,7 +75,7 @@ export const telegramStorage: Definition<"storage"> = {
     "zh-CN": {
       name: "Telegram",
       description:
-        "以机器人文档保存原文件。官方 API 下载上限为 20 MB；消息仅能在 48 小时内删除。",
+        "以机器人文档保存原文件（上限 20 MB）。消息无法删除时仅完成本地清理，Telegram 消息可能保留。",
       configSchema: {
         "/properties/botToken": { title: "机器人令牌" },
         "/properties/chatId": {
@@ -120,14 +120,15 @@ export const telegramStorage: Definition<"storage"> = {
           signal,
         });
         const data = await response.json().catch(() => null);
-        // A previous successful deletion may have lost its response or local commit.
-        // Only this exact Telegram response establishes the managed message is absent.
+        // Missing messages and explicit platform deletion restrictions finish local cleanup.
+        // A non-deletable message may still exist remotely (e.g. beyond 48 hours).
         if (
           method === "deleteMessage" &&
           response.status === 400 &&
           data?.ok === false &&
           data.error_code === 400 &&
-          data.description === "Bad Request: message to delete not found"
+          (data.description === "Bad Request: message to delete not found" ||
+            data.description === "Bad Request: message can't be deleted")
         )
           return true;
         if (data?.ok === false && Number.isInteger(data.error_code)) {

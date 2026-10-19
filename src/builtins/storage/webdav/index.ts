@@ -1,5 +1,5 @@
-import { logicalKey as storageKey, retainStream } from "../../plugin-sdk";
-import { PluginError, type Definition, type Locator } from "../../plugin-sdk";
+import { logicalKey as storageKey, retainStream } from "../../../../plugin-sdk";
+import { PluginError, type Definition, type Locator } from "../../../../plugin-sdk";
 
 function endpoint(value: string) {
   const url = new URL(value);

@@ -101,7 +101,10 @@ export function externalBuiltin(
   id: string,
   kind: string,
 ) {
-  const path = new URL(`../src/builtins/${name}.ts`, import.meta.url).pathname;
+  const path = new URL(
+    `../src/builtins/${kind}/${name}/index.ts`,
+    import.meta.url,
+  ).pathname;
   return bundledPackage(
     id,
     kind,

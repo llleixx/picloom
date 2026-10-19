@@ -1,6 +1,6 @@
 import sharp from "sharp";
 import { expect, test } from "bun:test";
-import { randomPath } from "../src/builtins/random-path";
+import { randomPath } from "../src/builtins/path/random-path/index";
 import {
   PluginError,
   type InstanceServices,

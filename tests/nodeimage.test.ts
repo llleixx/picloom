@@ -1,12 +1,13 @@
 import { test, expect, spyOn } from "bun:test";
 import { fixture } from "./helpers";
 
-test("NodeImage storage: upload, redirect, processing stream, uncertain writes and honest deletion", async () => {
+test("NodeImage storage: upload, redirect, processing stream, uncertain writes and unsupported deletion cleanup", async () => {
   const f = await fixture();
   let uploads = 0,
     downloads = 0,
     exists = true,
-    lostResponse = false;
+    lostResponse = false,
+    deleteStatus = 404;
   const remoteId = "nodeimage-test-id";
   const url = "https://cdn.nodeimage.com/i/test.png";
   const fetcher = spyOn(globalThis, "fetch").mockImplementation((async (
@@ -41,7 +42,7 @@ test("NodeImage storage: upload, redirect, processing stream, uncertain writes a
     }
     expect(address).toBe("https://api.nodeimage.com/api/image/" + remoteId);
     if (init?.method === "DELETE")
-      return new Response("Cannot DELETE /api/image", { status: 404 });
+      return new Response("Delete response", { status: deleteStatus });
     return exists
       ? Response.json({
           image_id: remoteId,
@@ -144,25 +145,27 @@ test("NodeImage storage: upload, redirect, processing stream, uncertain writes a
     );
     await f.app.files.sweep();
     const tasks = await f.app.db.read((r) => r.tasks(file.id));
-    expect(
-      tasks.some(
-        (t) =>
-          t.status === "failed" &&
-          t.last_error?.includes("UNSUPPORTED"),
-      ),
-    ).toBe(true);
-    // An HTML 404 from the absent DELETE route must not be interpreted as a deleted image.
+    expect(tasks.some((t) => t.kind === "delete" && t.status === "success")).toBe(true);
+    expect((await f.app.db.read((r) => r.file(file.id)))?.status).toBe("deleted");
+    expect(exists).toBe(true); // Unsupported API deletion leaves the remote image intact.
     exists = false;
     const cleanup = f.app.plugins.acquire(source.id, "storage");
     try {
-      await cleanup.runtime.delete(
-        {
-          operationId: "cleanup",
-          storageKey: "a.png",
-          locator: { imageId: remoteId, url },
-        },
-        ctx,
-      );
+      for (const status of [404, 405, 501, 401, 403, 503]) {
+        deleteStatus = status;
+        const action = cleanup.runtime.delete(
+          {
+            operationId: "cleanup",
+            storageKey: "a.png",
+            locator: { imageId: remoteId, url },
+          },
+          ctx,
+        );
+        if ([404, 405, 501].includes(status)) await action;
+        else await expect(action).rejects.toMatchObject({
+          code: status === 503 ? "SERVICE" : "ACCESS_DENIED",
+        });
+      }
     } finally {
       await cleanup.release();
     }

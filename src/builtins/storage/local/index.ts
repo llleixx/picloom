@@ -1,5 +1,5 @@
-import { retainStream } from "../../plugin-sdk/files";
-import { scanScope, decodeCursor, encodeCursor } from "./enumeration";
+import { retainStream } from "../../../../plugin-sdk/files";
+import { scanScope, decodeCursor, encodeCursor } from "../shared/enumeration";
 import { mkdir, open, readFile, link, readdir, lstat } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { createHash } from "node:crypto";
@@ -8,8 +8,8 @@ import {
   remove,
   writeStream,
   logicalKey as validateKey,
-} from "../../plugin-sdk";
-import { PluginError, type Definition, type Locator } from "../../plugin-sdk";
+} from "../../../../plugin-sdk";
+import { PluginError, type Definition, type Locator } from "../../../../plugin-sdk";
 export const localStorage: Definition<"storage"> = {
   id: "builtin.local",
   localDirectory: { configPath: "/root" },

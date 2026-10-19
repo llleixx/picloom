@@ -1,6 +1,6 @@
-import { isPluginError } from "../../plugin-sdk/api";
-import { PluginError, type Definition, type Locator } from "../../plugin-sdk";
-import { logicalKey as validateLogicalKey } from "../../plugin-sdk";
+import { isPluginError } from "../../../../plugin-sdk/api";
+import { PluginError, type Definition, type Locator } from "../../../../plugin-sdk";
+import { logicalKey as validateLogicalKey } from "../../../../plugin-sdk";
 
 function validRoot(value: string) {
   return (

@@ -1,5 +1,5 @@
-import { isPluginError } from "../../plugin-sdk/api";
-import { PluginError, type Definition, type Locator } from "../../plugin-sdk";
+import { isPluginError } from "../../../../plugin-sdk/api";
+import { PluginError, type Definition, type Locator } from "../../../../plugin-sdk";
 
 const apiOrigin = "https://api.nodeimage.com";
 function locatorId(storageKey: string, locator: Locator): string {
@@ -33,7 +33,7 @@ export const nodeImageStorage: Definition<"storage"> = {
   id: "builtin.nodeimage",
   name: "NodeImage",
   description:
-    "Store images on NodeImage. Its documented API deletion is currently unavailable.",
+    "Store images on NodeImage. Unsupported API deletion completes local cleanup; remote images may remain.",
   kind: "storage",
   version: "1.0.0",
   apiVersion: 1,
@@ -68,7 +68,7 @@ export const nodeImageStorage: Definition<"storage"> = {
     "zh-CN": {
       name: "NodeImage",
       description:
-        "使用 NodeImage 存储图片。目前官方文档的 API 删除接口不可用。",
+        "使用 NodeImage 存储图片。API 不支持删除时仅完成本地清理，远端图片可能保留。",
       configSchema: {
         "/properties/apiKey": { title: "API 密钥" },
         "/properties/redirect": { title: "302 重定向" },
@@ -248,16 +248,10 @@ export const nodeImageStorage: Definition<"storage"> = {
           { method: "DELETE" },
           signal,
         );
-        if (response.status === 404) {
+        // The provider may not expose deletion. Finish local cleanup even if the image remains.
+        if ([404, 405, 501].includes(response.status)) {
           await response.body?.cancel();
-          // A missing API route is also HTTP 404. Confirm object absence before reporting success.
-          if ((await info(id, signal)) === null) return;
-          throw new PluginError(
-            "UNSUPPORTED",
-            "NodeImage API deletion is unavailable; remove the image on NodeImage and retry",
-            false,
-            "notApplied",
-          );
+          return;
         }
         if (!response.ok) {
           await response.body?.cancel();

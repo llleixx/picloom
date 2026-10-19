@@ -1,5 +1,5 @@
 import { Readable } from "node:stream";
-import { retainStream, withAbortSignal } from "../../plugin-sdk/files";
+import { retainStream, withAbortSignal } from "../../../../plugin-sdk/files";
 import {
   PluginError,
   type Definition,
@@ -10,7 +10,7 @@ import {
   type ProcessorInput,
   type AccessCheckInput,
   type AccessProcessorInput,
-} from "../../plugin-sdk";
+} from "../../../../plugin-sdk";
 const transformProperties: Config = {
   w: { type: "integer", title: "Width", minimum: 1 },
   h: { type: "integer", title: "Height", minimum: 1 },

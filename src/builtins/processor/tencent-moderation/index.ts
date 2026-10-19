@@ -1,11 +1,11 @@
-import { isPluginError } from "../../plugin-sdk/api";
+import { isPluginError } from "../../../../plugin-sdk/api";
 import { createHash, createHmac } from "node:crypto";
 import {
   PluginError,
   type Config,
   type Definition,
   type FileInput,
-} from "../../plugin-sdk";
+} from "../../../../plugin-sdk";
 
 const endpoint = "https://ims.tencentcloudapi.com";
 const sha256 = (value: string) =>

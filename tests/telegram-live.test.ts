@@ -1,6 +1,6 @@
 import sharp from "sharp";
 import { expect, test } from "bun:test";
-import { telegramStorage } from "../src/builtins/telegram";
+import { telegramStorage } from "../src/builtins/storage/telegram/index";
 import type { InstanceServices, Locator } from "../src/plugins/api";
 
 // Explicit opt-in. No tokens or token-bearing upstream URLs are printed.

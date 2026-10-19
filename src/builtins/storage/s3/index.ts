@@ -1,6 +1,6 @@
-import { multipartWrite } from "./s3-multipart";
-import { isPluginError, retainStream } from "../../plugin-sdk";
-import { scanScope, decodeCursor, encodeCursor } from "./enumeration";
+import { multipartWrite } from "./multipart";
+import { isPluginError, retainStream } from "../../../../plugin-sdk";
+import { scanScope, decodeCursor, encodeCursor } from "../shared/enumeration";
 import {
   S3Client,
   ListObjectsV2Command,
@@ -11,8 +11,8 @@ import {
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { Readable } from "node:stream";
-import { PluginError, type Definition, type Locator } from "../../plugin-sdk";
-import { logicalKey as storageKey } from "../../plugin-sdk";
+import { PluginError, type Definition, type Locator } from "../../../../plugin-sdk";
+import { logicalKey as storageKey } from "../../../../plugin-sdk";
 function failureCode(error: unknown) {
   const status = (error as { $metadata?: { httpStatusCode?: number } })
     ?.$metadata?.httpStatusCode;

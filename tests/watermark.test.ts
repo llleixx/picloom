@@ -2,7 +2,7 @@ import { test, expect } from "bun:test";
 import sharp from "sharp";
 import { join } from "node:path";
 import { fixture } from "./helpers";
-import { watermark } from "../src/builtins/watermark";
+import { watermark } from "../src/builtins/processor/watermark/index";
 import type { InstanceServices } from "../src/plugins/api";
 
 test("plugins share core Sharp and watermark works in upload and access pipelines", async () => {

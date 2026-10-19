@@ -1,4 +1,4 @@
-import type { Definition } from "../../plugin-sdk";
+import type { Definition } from "../../../../plugin-sdk";
 export const datePath: Definition<"path"> = {
   id: "builtin.date-path",
   name: "Date path",

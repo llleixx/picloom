@@ -2,7 +2,7 @@ import sharp from "sharp";
 import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
 import { test, expect } from "bun:test";
-import { webdavStorage } from "../src/builtins/webdav";
+import { webdavStorage } from "../src/builtins/storage/webdav/index";
 import {
   PluginError,
   type Config,

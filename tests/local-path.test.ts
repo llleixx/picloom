@@ -2,7 +2,7 @@ import { test, expect } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { localStorage } from "../src/builtins/local";
+import { localStorage } from "../src/builtins/storage/local/index";
 import type { InstanceServices } from "../src/plugins/api";
 
 test("local storage uses storageKey, recovers its own write and preserves conflicting objects", async () => {

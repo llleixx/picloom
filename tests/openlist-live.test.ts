@@ -1,7 +1,7 @@
 import sharp from "sharp";
 import { test, expect } from "bun:test";
 import { randomUUID } from "node:crypto";
-import { openListStorage } from "../src/builtins/openlist";
+import { openListStorage } from "../src/builtins/storage/openlist/index";
 import type { Locator } from "../src/plugins/api";
 
 test.skipIf(process.env.OPENLIST_LIVE !== "1")(
