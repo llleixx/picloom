@@ -134,6 +134,24 @@ PUBLISH_ADDRESS=127.0.0.1
     );
     await compose("up", "-d", "--no-build", "--wait", "--wait-timeout", "180");
     await login();
+    // Fresh production defaults have no access processing; configure it explicitly.
+    const access = (await (await request("/api/pipelines")).json()).find(
+      (pipeline: { kind: string }) => pipeline.kind === "access",
+    );
+    const configured = await request(`/api/pipelines/${access.id}`, "PUT", {
+      ...access,
+      expectedVersion: access.configVersion,
+      steps: [
+        {
+          pluginId: "builtin.sharp",
+          version: "1.0.0",
+          config: {},
+          onNotApplicable: "abort",
+          enabledParams: ["w", "h", "fit", "q", "format"],
+        },
+      ],
+    });
+    assert.equal(configured.status, 200, await configured.clone().text());
     const profile = (await (await request("/api/upload-profiles")).json())[0];
     assert.ok(profile?.id);
     const png = await sharp({
