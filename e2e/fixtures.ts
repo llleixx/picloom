@@ -1,8 +1,8 @@
 import { test as base, expect, type Page } from "@playwright/test";
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
-import { mkdtemp, rm, readdir } from "node:fs/promises";
+import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join, resolve, dirname, basename } from "node:path";
+import { join, resolve } from "node:path";
 import { existsSync } from "node:fs";
 export interface Service {
   root: string;
@@ -13,7 +13,9 @@ export interface Service {
 export const test = base.extend<{ service: Service; scenario: string }>({
   scenario: ["default", { option: true }],
   service: async ({ scenario }, use) => {
-    const root = await mkdtemp(join(tmpdir(), "picloom-e2e-"));
+    const workspace = await mkdtemp(join(tmpdir(), "picloom-e2e-"));
+    // Backups and restore staging live beside the application data directory.
+    const root = scenario === "backup" ? join(workspace, "app") : workspace;
     const bun =
       process.env.BUN_BIN ??
       (existsSync(resolve("work/toolchain/bun-windows-x64/bun.exe"))
@@ -91,14 +93,7 @@ export const test = base.extend<{ service: Service; scenario: string }>({
       });
     } finally {
       await stop();
-      await rm(root, { recursive: true, force: true });
-      if (scenario === "backup")
-        for (const name of await readdir(dirname(root)))
-          if (name.startsWith(basename(root) + "."))
-            await rm(join(dirname(root), name), {
-              recursive: true,
-              force: true,
-            });
+      await rm(workspace, { recursive: true, force: true });
     }
   },
 });

@@ -13,7 +13,10 @@ const app = await bootstrap(
     encryptionKey: "cd".repeat(32),
     origin: "http://127.0.0.1",
     secureCookie: false,
-    ...(scenario === "queue" ? { maxUploadBytes: 1024 } : {}),
+    ...(scenario === "queue"
+      ? { maxUploadBytes: 1024, uploadConcurrency: 2 }
+      : {}),
+    ...(scenario === "delete-failure" ? { retryLimit: 1 } : {}),
   },
   scenario === "delete-failure"
     ? {
@@ -30,6 +33,52 @@ const app = await bootstrap(
       : {},
 );
 await app.auth.initialize("admin", "test-password-123");
+// Exercise post-save forms and execution without depending on an external service.
+if (scenario === "configuration")
+  app.plugins.register({
+    id: "test.webhook",
+    name: "Test webhook",
+    kind: "processor",
+    version: "1.0.0",
+    apiVersion: 1,
+    stages: {
+      post_save: {
+        configSchemaVersion: 1,
+        configSchema: {
+          type: "object",
+          properties: {
+            url: { type: "string", title: "Target URL", format: "uri" },
+            token: {
+              type: "string",
+              title: "Bearer Token",
+              "x-sensitive": true,
+            },
+          },
+          required: ["url"],
+          additionalProperties: false,
+        },
+        async createInstance({ config, services }) {
+          const secrets = (await services.readSecrets()).value;
+          return {
+            async execute(input, context) {
+              const response = await fetch(String(config.url), {
+                method: "POST",
+                signal: context.signal,
+                headers: {
+                  "content-type": "application/json",
+                  authorization: "Bearer " + secrets.token,
+                },
+                body: JSON.stringify({ url: input.url }),
+              });
+              await response.body?.cancel();
+              if (!response.ok) throw new Error("Test webhook failed");
+              return { status: "pass" };
+            },
+          };
+        },
+      },
+    },
+  });
 if (scenario === "configuration")
   app.plugins.register({
     id: "test.form",

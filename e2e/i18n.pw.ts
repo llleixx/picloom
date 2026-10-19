@@ -42,7 +42,7 @@ test("Chinese default, persisted switch, and live plugin fields preserve drafts"
   );
   await expect(
     page.getByLabel("Plugin", { exact: true }).locator("option:checked"),
-  ).toContainText("Local storage");
+  ).toContainText("Local Storage");
   await other.reload();
   await expect(other.locator("html")).toHaveAttribute("lang", "en-US");
   await expect(

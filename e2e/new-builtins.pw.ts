@@ -68,7 +68,9 @@ test("new built-ins use the shared source and upload profile forms", async ({
   await page
     .getByLabel("Path plugin", { exact: true })
     .selectOption("builtin.random-path@1.0.0");
-  await page.getByLabel("Directory depth", { exact: true }).selectOption("2");
+  await page
+    .getByLabel("Directory shard depth", { exact: true })
+    .selectOption("2");
   await page.getByRole("button", { name: "Save", exact: true }).click();
   await expect(page.getByRole("dialog")).toHaveCount(0);
   const profiles = await (

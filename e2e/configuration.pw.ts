@@ -75,9 +75,7 @@ test("manage instances, groups, profiles and chains, then upload redundant files
     .getByRole("button", { name: "Add step", exact: true })
     .last()
     .click();
-  await page
-    .getByLabel("Processor plugin")
-    .selectOption("builtin.webhook@1.0.0");
+  await page.getByLabel("Processor plugin").selectOption("test.webhook@1.0.0");
   await page
     .getByLabel("Target URL", { exact: false })
     .fill(service.url + "/test-hook");
@@ -347,7 +345,7 @@ test("processor forms use stage settings and persist request parameter permissio
   await page.getByRole("button", { name: "Add step", exact: true }).click();
   const selector = page.getByLabel("Processor plugin", { exact: true });
   await expect(
-    selector.locator('option[value="builtin.webhook@1.0.0"]'),
+    selector.locator('option[value="test.webhook@1.0.0"]'),
   ).toHaveCount(0);
   await selector.selectOption("builtin.sharp@1.0.0");
   await page.getByLabel("Width", { exact: true }).fill("1280");
@@ -414,14 +412,10 @@ test("pipeline errors identify the step and submissions keep the drawer open", a
   await page.getByLabel("Pipeline name").fill("Validation feedback");
   await page.getByLabel("Pipeline type").selectOption("post_save");
   await page.getByRole("button", { name: "Add step", exact: true }).click();
-  await page
-    .getByLabel("Processor plugin")
-    .selectOption("builtin.webhook@1.0.0");
+  await page.getByLabel("Processor plugin").selectOption("test.webhook@1.0.0");
   await page.getByLabel("Target URL", { exact: true }).fill("invalid-url");
   await page.getByRole("button", { name: "Add step", exact: true }).click();
-  await page
-    .getByLabel("Processor plugin")
-    .selectOption("builtin.webhook@1.0.0");
+  await page.getByLabel("Processor plugin").selectOption("test.webhook@1.0.0");
   await page
     .getByLabel("Target URL", { exact: true })
     .fill("https://example.com/notify");
@@ -484,6 +478,7 @@ test("storage source uses the shared editor and preserves hidden credentials on 
   await page
     .getByLabel("Endpoint", { exact: true })
     .fill("https://s3.example.com");
+  await page.getByLabel("Region", { exact: true }).fill("us-east-1");
   await page.getByLabel("Bucket", { exact: true }).fill("test-bucket");
   for (const label of ["Access Key ID", "Secret Access Key"]) {
     await page.getByLabel(label, { exact: true }).fill("test-credential");

@@ -16,10 +16,10 @@ test("web settings change chunking and browser concurrency, with advanced option
   const uploadSection = page.locator("section").filter({
     has: page.getByRole("heading", { name: "Upload", exact: true }),
   });
-  await expect(page.getByLabel("Temporary space limit (MiB)")).toBeVisible();
+  await expect(page.getByLabel("Temporary cache limit (MiB)")).toBeVisible();
   await expect(
     page.getByText(
-      "Shared by uploads and image processing, including reserved space. Retry later when full.",
+      "Covers upload staging, chunks and processing files, including background task usage and reservations. New reservations or writes are rejected when full.",
     ),
   ).toBeVisible();
   const toggle = uploadSection.getByRole("button", {
