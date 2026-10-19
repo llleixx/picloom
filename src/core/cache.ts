@@ -66,10 +66,14 @@ export interface CachedImage {
 }
 export class ImageCache {
   private mutex = new Mutex();
+  private maintenance = new Mutex();
+  private initialized = false;
+  private revision = 0;
   private lastClean = 0;
   private bytes = 0;
   private entries = new Map<string, { size: number; time: number }>();
   configure(maxBytes: number, ttl: number) {
+    this.revision++;
     this.maxBytes = maxBytes;
     this.ttl = ttl;
     this.lastClean = 0;
@@ -80,6 +84,8 @@ export class ImageCache {
       await mkdir(this.root, { recursive: true });
       this.entries.clear();
       this.bytes = 0;
+      this.initialized = true;
+      this.revision++;
       this.lastClean = Date.now();
     });
   }
@@ -131,7 +137,9 @@ export class ImageCache {
     try {
       await this.mutex.run(async () => {
         if (result.bytes.byteLength > this.maxBytes) return;
-        await this.cleanLocked(false, result.bytes.byteLength);
+        // Account existing disk entries before admitting the first write.
+        if (!this.initialized) await this.scan((work) => work());
+        await this.evictLocked(result.bytes.byteLength);
         if (this.bytes + result.bytes.byteLength > this.maxBytes) return;
         const parent = join(this.root, fileId);
         await mkdir(parent, { recursive: true });
@@ -177,67 +185,95 @@ export class ImageCache {
     this.entries.delete(path);
   }
   async clean(force = true) {
-    await this.mutex.run(() => this.cleanLocked(force));
+    await this.maintenance.run(async () => {
+      const scan = await this.mutex.run(async () => {
+        if (!this.initialized) {
+          await this.scan((work) => work());
+          return false;
+        }
+        return force || Date.now() - this.lastClean >= 300_000;
+      });
+      if (scan) await this.scan((work) => this.mutex.run(work));
+      await this.mutex.run(() => this.evictLocked());
+    });
   }
-  private async cleanLocked(force: boolean, incoming = 0) {
-    if (force || Date.now() - this.lastClean >= 300_000) {
-      await mkdir(this.root, { recursive: true });
-      this.lastClean = 0;
-      this.entries.clear();
-      this.bytes = 0;
-      for (const f of await readdir(this.root, { withFileTypes: true })) {
-        if (!f.isDirectory() || f.isSymbolicLink()) continue;
-        const parent = join(this.root, f.name);
+  private async scan(lock: (work: () => Promise<void>) => Promise<void>) {
+    const revision = this.revision;
+    // Reconcile in place so concurrent puts/removes keep their accounting.
+    const unseen = new Set(this.entries.keys());
+    const inspect = async (path: string, temporary = false) => {
+      try {
+        if (temporary) {
+          await rm(path, { recursive: true, force: true });
+          this.forget(path);
+          return;
+        }
+        const image = await stat(join(path, "image"));
+        this.bytes += image.size - (this.entries.get(path)?.size ?? 0);
+        this.entries.set(path, { size: image.size, time: image.mtimeMs });
+        const meta = JSON.parse(
+          await readFile(join(path, "meta.json"), "utf8"),
+        );
+        if (
+          !meta ||
+          !Number.isFinite(meta.created) ||
+          !meta.metadata ||
+          typeof meta.metadata.mimeType !== "string" ||
+          meta.metadata.byteSize !== image.size ||
+          Math.min(image.mtimeMs, meta.created) + this.ttl < Date.now()
+        ) {
+          await rm(path, { recursive: true, force: true });
+          this.forget(path);
+        }
+      } catch (error) {
         try {
-          for (const k of await readdir(parent, { withFileTypes: true })) {
-            if (!k.isDirectory() || k.isSymbolicLink()) continue;
-            const path = join(parent, k.name);
-            try {
-              if (k.name.startsWith(".tmp-")) {
-                await rm(path, { recursive: true, force: true });
-                continue;
-              }
-              const image = await stat(join(path, "image"));
-              this.entries.set(path, { size: image.size, time: image.mtimeMs });
-              this.bytes += image.size;
-              const meta = JSON.parse(
-                await readFile(join(path, "meta.json"), "utf8"),
-              );
-              if (
-                !meta ||
-                !Number.isFinite(meta.created) ||
-                !meta.metadata ||
-                typeof meta.metadata.mimeType !== "string" ||
-                meta.metadata.byteSize !== image.size ||
-                Math.min(image.mtimeMs, meta.created) + this.ttl < Date.now()
-              ) {
-                await rm(path, { recursive: true, force: true });
-                this.forget(path);
-              }
-            } catch (error) {
-              try {
-                if (
-                  error instanceof SyntaxError ||
-                  (error as NodeJS.ErrnoException).code === "ENOENT"
-                ) {
-                  await rm(path, { recursive: true, force: true });
-                  this.forget(path);
-                } else throw error;
-              } catch {
-                console.warn(JSON.stringify({ event: "cache_cleanup_failed" }));
-              }
-            }
-          }
-          await rmdir(parent).catch((error: NodeJS.ErrnoException) => {
-            if (!["ENOTEMPTY", "ENOENT"].includes(error.code ?? ""))
-              throw error;
-          });
+          if (
+            error instanceof SyntaxError ||
+            (error as NodeJS.ErrnoException).code === "ENOENT"
+          ) {
+            await rm(path, { recursive: true, force: true });
+            this.forget(path);
+          } else throw error;
         } catch {
           console.warn(JSON.stringify({ event: "cache_cleanup_failed" }));
         }
       }
-      this.lastClean = Date.now();
+    };
+    await mkdir(this.root, { recursive: true });
+    const directories = await readdir(this.root, { withFileTypes: true }).catch(
+      (error: NodeJS.ErrnoException) => {
+        if (error.code === "ENOENT") return [];
+        throw error;
+      },
+    );
+    for (const f of directories) {
+      if (!f.isDirectory() || f.isSymbolicLink()) continue;
+      const parent = join(this.root, f.name);
+      try {
+        for (const k of await readdir(parent, { withFileTypes: true })) {
+          if (!k.isDirectory() || k.isSymbolicLink()) continue;
+          const path = join(parent, k.name);
+          unseen.delete(path);
+          // Re-read metadata under the short lock: a snapshot may predate clear/put.
+          await lock(() => inspect(path, k.name.startsWith(".tmp-")));
+        }
+        await lock(async () => {
+          await rmdir(parent).catch((error: NodeJS.ErrnoException) => {
+            if (!["ENOTEMPTY", "ENOENT"].includes(error.code ?? ""))
+              throw error;
+          });
+        });
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== "ENOENT")
+          console.warn(JSON.stringify({ event: "cache_cleanup_failed" }));
+      }
     }
+    // A directory removed since the last scan must not retain a phantom budget.
+    for (const path of unseen) await lock(() => inspect(path));
+    this.initialized = true;
+    if (revision === this.revision) this.lastClean = Date.now();
+  }
+  private async evictLocked(incoming = 0) {
     if (this.bytes + incoming <= this.maxBytes) return;
     for (const [path, item] of [...this.entries].sort(
       (a, b) => a[1].time - b[1].time,

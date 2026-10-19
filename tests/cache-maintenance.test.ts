@@ -188,3 +188,87 @@ test("failed eviction skips new cache writes and recovers after deletion succeed
     await rm(root, { recursive: true, force: true });
   }
 });
+
+test("maintenance releases the lock between entries and reconciles stale listings after clear and replacement", async () => {
+  const root = await mkdtemp(join(tmpdir(), "picloom-cache-interleave-"));
+  const cache = new ImageCache(root, 10, 60000);
+  const original = fs.readdir;
+  let resume!: () => void;
+  const paused = new Promise<void>((resolve) => {
+    resume = resolve;
+  });
+  let entered!: () => void;
+  const scanning = new Promise<void>((resolve) => {
+    entered = resolve;
+  });
+  let listing: ReturnType<typeof spyOn> | undefined;
+  let cleaning: Promise<void> | undefined;
+  try {
+    await cache.put("file", "key", output(4));
+    await cache.put("other", "key", output(1));
+    let blocked = false;
+    listing = spyOn(fs, "readdir").mockImplementation((async (
+      ...args: Parameters<typeof fs.readdir>
+    ) => {
+      const entries = await original(...args);
+      if (!blocked && String(args[0]) === join(root, "file")) {
+        blocked = true;
+        entered();
+        await paused;
+      }
+      return entries;
+    }) as typeof fs.readdir);
+    cleaning = cache.clean();
+    await scanning;
+    // These operations must finish while the directory listing is paused.
+    const hit = await cache.get("other", "key");
+    expect(hit).not.toBeNull();
+    await hit!.stream.cancel();
+    await cache.remove("other");
+    await cache.clear();
+    await cache.put("file", "key", output(4));
+    cache.configure(5, 60000);
+    resume();
+    await cleaning;
+    await cache.put("new", "key", output(1));
+    for (const name of ["file", "new"]) {
+      const cached = await cache.get(name, "key");
+      expect(cached).not.toBeNull();
+      await cached!.stream.cancel();
+    }
+    // Counting the replacement twice would prematurely evict it above;
+    // missing it would allow this write to exceed the five-byte budget.
+    await cache.put("large", "key", output(5));
+    expect(await cache.get("file", "key")).toBeNull();
+    expect(await cache.get("new", "key")).toBeNull();
+    const large = await cache.get("large", "key");
+    expect(large?.size).toBe(5);
+    await large!.stream.cancel();
+  } finally {
+    resume();
+    await cleaning?.catch(() => {});
+    listing?.mockRestore();
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("first write accounts existing cache files and maintenance releases externally removed entries", async () => {
+  const root = await mkdtemp(join(tmpdir(), "picloom-cache-startup-"));
+  try {
+    await new ImageCache(root, 10, 60000).put("old", "key", output(8));
+    const cache = new ImageCache(root, 10, 60000);
+    await cache.put("new", "key", output(8));
+    expect(await cache.get("old", "key")).toBeNull();
+    await rm(join(root, "new"), { recursive: true });
+    await cache.clean();
+    await cache.put("small", "key", output(2));
+    await cache.put("large", "key", output(8));
+    for (const name of ["small", "large"]) {
+      const hit = await cache.get(name, "key");
+      expect(hit).not.toBeNull();
+      await hit!.stream.cancel();
+    }
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
