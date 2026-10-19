@@ -33,6 +33,8 @@
 
 ## 导入已有图片
 
+本地存储、S3、[OpenList](../reference/plugins/openlist.md) 和 [WebDAV](../reference/plugins/webdav.md) 支持导入已有图片，入口位于对应存储源页面。
+
 以迁移 EasyImage 2.0 的图片为例：原图片按 `i/年/月/日/文件名` 保存，如 `i/2026/10/18/photo.jpg`。将 `i` 目录接入 Picloom 后，即可导入，无须重新上传。
 
 1. 在 **配置 → 存储源** 中创建「本地存储」，名称可填 `EasyImage`，根目录指向原图床的 **`i` 目录**。使用 Docker 时，可将该目录挂载到容器的 `/mnt/easyimage`，根目录填 `/mnt/easyimage`；也可将整个 `i` 文件夹移动到 Picloom 的数据目录中。使用仓库提供的 Compose 时，移到宿主机 `./data/app/i`，根目录填 `./i`。具体见 [添加本地存储](./storage.md#添加本地存储)。

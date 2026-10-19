@@ -198,7 +198,7 @@ test("WebDAV HTTP protocol: conditional PUT, encoded directories, stream reads, 
         context(),
       ),
     ).rejects.toMatchObject({ code: "NOT_FOUND" });
-    expect(storage.listFiles).toBeUndefined();
+    expect(storage.listFiles).toBeFunction();
   } finally {
     await dav.server.stop(true);
   }
@@ -584,3 +584,210 @@ test("WebDAV operation deadline bounds stalled recovery and directory creation",
     await new Promise<void>((resolve) => server.close(() => resolve()));
   }
 }, 3000);
+
+const xmlEscape = (value: string) =>
+  value.replaceAll("&", "&amp;").replaceAll("<", "&lt;");
+function davEntry(href: string, directory = false, extra = "") {
+  return `<response><href>${xmlEscape(href)}</href><propstat><prop><resourcetype>${directory ? "<collection/>" : ""}</resourcetype>${directory ? "" : "<getcontentlength>11</getcontentlength><getcontenttype>image/png; charset=utf-8</getcontenttype>"}</prop><status>HTTP/1.1 200 OK</status></propstat>${extra}</response>`;
+}
+const listing = (entries: string) =>
+  `<multistatus xmlns="DAV:">${entries}</multistatus>`;
+
+test("WebDAV import enumeration resumes sorted nested listings and retains readable/deletable storage paths", async () => {
+  let lists = 0;
+  const operations: string[] = [];
+  const remote = Bun.serve({
+    port: 0,
+    async fetch(req) {
+      const path = new URL(req.url).pathname;
+      if (req.method === "PROPFIND") {
+        lists++;
+        expect(req.headers.get("depth")).toBe("1");
+        expect(req.headers.get("authorization")).toStartWith("Basic ");
+        expect(await req.text()).toContain("<resourcetype/>");
+        let entries = davEntry(path, true);
+        if (path === "/dav/prefix/album/") {
+          // Deliberately reorder on every request; missing optional properties are allowed.
+          const children = [
+            davEntry(
+              path + "z.png",
+              false,
+              "<propstat><prop><displayname/></prop><status>HTTP/1.1 404 Not Found</status></propstat>",
+            ),
+            davEntry(path + "%E5%AD%90%20%25/", true),
+            davEntry(path + "a%26b.png"),
+          ];
+          entries += (lists % 2 ? children : children.reverse()).join("");
+        } else {
+          expect(path).toBe("/dav/prefix/album/%E5%AD%90%20%25/");
+          entries += davEntry(remote.url.origin + path + "photo.png");
+        }
+        return new Response(listing(entries), { status: 207 });
+      }
+      operations.push(req.method + " " + path);
+      if (req.method === "GET")
+        return new Response("image bytes", {
+          headers: { "content-type": "image/png" },
+        });
+      expect(req.method).toBe("DELETE");
+      return new Response(null, { status: 204 });
+    },
+  });
+  try {
+    const storage = await runtime(remote.url.href + "dav/", {
+      keyPrefix: "prefix",
+    });
+    const keys: string[] = [];
+    let cursor: string | undefined;
+    do {
+      const page = await storage.listFiles!(
+        { scope: "album", limit: 1, cursor },
+        context(),
+      );
+      for (const item of page.items) {
+        expect(item.byteSize).toBe(11);
+        expect(item.mimeType).toBe("image/png");
+        keys.push(item.storageKey);
+      }
+      if (page.nextCursor) expect(page.nextCursor).not.toBe(cursor);
+      cursor = page.nextCursor ?? undefined;
+    } while (cursor);
+    expect(keys).toEqual([
+      "album/a&b.png",
+      "album/z.png",
+      "album/子 %/photo.png",
+    ]);
+    const key = keys[2]!;
+    const read = await storage.read(
+      { storageKey: key, locator: null, mode: "stream" },
+      context(),
+    );
+    expect(read.type).toBe("stream");
+    if (read.type === "stream")
+      expect(await new Response(read.stream).text()).toBe("image bytes");
+    await storage.delete(
+      { operationId: "delete-import", storageKey: key, locator: null },
+      context(),
+    );
+    expect(operations).toEqual([
+      "GET /dav/prefix/album/%E5%AD%90%20%25/photo.png",
+      "DELETE /dav/prefix/album/%E5%AD%90%20%25/photo.png",
+    ]);
+  } finally {
+    remote.stop(true);
+  }
+});
+
+test("WebDAV listing validates namespaces, paths, per-resource errors and response size", async () => {
+  const { readDirectory } =
+    await import("../src/builtins/storage/webdav/enumeration");
+  const directory = new URL("https://dav.example/dav/images/");
+  const read = (xml: string) =>
+    readDirectory(new Response(xml), directory, context().signal);
+  expect(
+    await read(
+      '<d:multistatus xmlns:d="DAV:"><d:response><d:href>/dav/images/a.png</d:href><d:propstat><d:prop><d:resourcetype/></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response></d:multistatus>',
+    ),
+  ).toEqual([
+    {
+      name: "a.png",
+      directory: false,
+      byteSize: undefined,
+      mimeType: undefined,
+    },
+  ]);
+  for (const href of [
+    "https://other.example/dav/images/a.png",
+    "/dav/other/a.png",
+    "/dav/images/../a.png",
+    "/dav/images/%2e%2e/a.png",
+    "/dav/images/a%2fb.png",
+    "/dav/images/a%5cb.png",
+    "/dav/images/deeper/a.png",
+    "/dav/images/a.png?token=secret",
+  ]) {
+    await expect(read(listing(davEntry(href)))).rejects.toBeInstanceOf(
+      PluginError,
+    );
+  }
+  for (const xml of [
+    "<broken",
+    '<multistatus xmlns="wrong"/>',
+    '<!DOCTYPE multistatus [<!ENTITY x "boom">]>' + listing(""),
+    listing(davEntry("/dav/images/a.png") + davEntry("/dav/images/a.png")),
+  ]) {
+    await expect(read(xml)).rejects.toMatchObject({ code: "INVALID_DATA" });
+  }
+  await expect(
+    read(
+      listing(
+        "<response><href>/dav/images/private/</href><status>HTTP/1.1 403 Forbidden</status></response>",
+      ),
+    ),
+  ).rejects.toMatchObject({ code: "ACCESS_DENIED" });
+  await expect(
+    read(
+      listing(
+        davEntry("/dav/images/private/").replace("200 OK", "403 Forbidden"),
+      ),
+    ),
+  ).rejects.toMatchObject({ code: "ACCESS_DENIED" });
+  await expect(
+    read(listing(" ".repeat(8 * 1024 * 1024))),
+  ).rejects.toMatchObject({ code: "RESOURCE_LIMIT" });
+});
+
+test("WebDAV empty-directory scanning is bounded and rejects cursor escapes before requests", async () => {
+  let calls = 0;
+  const remote = Bun.serve({
+    port: 0,
+    fetch(req) {
+      calls++;
+      const path = new URL(req.url).pathname;
+      const dirs =
+        path === "/dav/"
+          ? Array.from({ length: 12 }, (_, i) =>
+              davEntry(path + `dir${i}/`, true),
+            ).join("")
+          : "";
+      return new Response(listing(davEntry(path, true) + dirs), {
+        status: 207,
+      });
+    },
+  });
+  try {
+    const storage = await runtime(remote.url.href + "dav/");
+    const first = await storage.listFiles!({ limit: 200 }, context());
+    expect(first.items).toEqual([]);
+    expect(calls).toBe(8);
+    expect(first.nextCursor).not.toBeNull();
+    expect(
+      await storage.listFiles!(
+        { limit: 200, cursor: first.nextCursor! },
+        context(),
+      ),
+    ).toEqual({ items: [], nextCursor: null });
+    const before = calls;
+    for (const directory of [
+      "../outside",
+      "/outside",
+      "scope/../outside",
+      "other",
+    ]) {
+      const cursor = Buffer.from(
+        JSON.stringify({ scope: "scope", data: [{ directory, after: "" }] }),
+      ).toString("base64url");
+      await expect(
+        storage.listFiles!({ scope: "scope", cursor, limit: 200 }, context()),
+      ).rejects.toBeInstanceOf(PluginError);
+    }
+    const controller = new AbortController();
+    controller.abort();
+    await expect(
+      storage.listFiles!({ limit: 200 }, context(controller.signal)),
+    ).rejects.toBeDefined();
+    expect(calls).toBe(before);
+  } finally {
+    remote.stop(true);
+  }
+});

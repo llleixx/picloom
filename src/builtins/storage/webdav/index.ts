@@ -1,5 +1,11 @@
+import { scanScope, decodeCursor, encodeCursor } from "../shared/enumeration";
+import { readDirectory, type DirectoryEntry } from "./enumeration";
 import { logicalKey as storageKey, retainStream } from "../../../../plugin-sdk";
-import { PluginError, type Definition, type Locator } from "../../../../plugin-sdk";
+import {
+  PluginError,
+  type Definition,
+  type Locator,
+} from "../../../../plugin-sdk";
 
 function endpoint(value: string) {
   const url = new URL(value);
@@ -231,6 +237,108 @@ export const webdavStorage: Definition<"storage"> = {
       }
     };
     return {
+      async listFiles({ scope: inputScope, cursor, limit }, ctx) {
+        const scope = scanScope(inputScope);
+        type Frame = { directory: string; after: string };
+        const stack = decodeCursor<Frame[]>(cursor, scope) ?? [
+          { directory: scope, after: "" },
+        ];
+        if (
+          !Number.isSafeInteger(limit) ||
+          limit < 1 ||
+          limit > 1000 ||
+          !Array.isArray(stack) ||
+          !stack.length ||
+          stack.some(
+            (frame) =>
+              !frame ||
+              typeof frame.directory !== "string" ||
+              typeof frame.after !== "string" ||
+              frame.after.includes("/") ||
+              (scope &&
+                frame.directory !== scope &&
+                !frame.directory.startsWith(scope + "/")),
+          )
+        )
+          throw new PluginError(
+            "INVALID_INPUT",
+            "Invalid scan cursor or limit",
+          );
+        for (const frame of stack) {
+          if (frame.directory) validKey(frame.directory);
+          if (frame.after) validKey(frame.after);
+        }
+        const rootUrl = new URL(
+          prefix.split("/").map(encodeURIComponent).join("/"),
+          base,
+        );
+        const pages = new Map<Frame, DirectoryEntry[]>();
+        const items: Array<{
+          storageKey: string;
+          byteSize?: number;
+          mimeType?: string;
+        }> = [];
+        let requests = 0;
+        while (stack.length && items.length < limit) {
+          ctx.signal.throwIfAborted();
+          const frame = stack.at(-1)!;
+          let entries = pages.get(frame);
+          if (!entries) {
+            if (requests++ >= 8) break;
+            const url = frame.directory
+              ? objectUrl(frame.directory)
+              : new URL(rootUrl);
+            if (!url.pathname.endsWith("/")) url.pathname += "/";
+            const signal = signalFor(ctx.signal);
+            const body = new Blob([
+              '<propfind xmlns="DAV:"><prop><resourcetype/><getcontentlength/><getcontenttype/></prop></propfind>',
+            ]).stream();
+            const response = await request(
+              url,
+              "PROPFIND",
+              signal,
+              { Depth: "1", "Content-Type": "application/xml; charset=utf-8" },
+              body,
+            );
+            if (response.status !== 207) {
+              await discard(response);
+              throw failure("PROPFIND", response.status, "notApplied");
+            }
+            entries = await readDirectory(response, url, signal);
+            pages.set(frame, entries);
+          }
+          let descended = false;
+          for (const entry of entries) {
+            if (entry.name <= frame.after) continue;
+            frame.after = entry.name;
+            const path = validKey(
+              frame.directory ? frame.directory + "/" + entry.name : entry.name,
+            );
+            if (entry.directory) {
+              stack.push({ directory: path, after: "" });
+              descended = true;
+              break;
+            }
+            items.push({
+              storageKey: path,
+              byteSize: entry.byteSize,
+              mimeType: entry.mimeType,
+            });
+            if (items.length >= limit) break;
+          }
+          if (!descended && items.length < limit) {
+            stack.pop();
+            pages.delete(frame);
+          }
+        }
+        const nextCursor = stack.length ? encodeCursor(scope, stack) : null;
+        if (nextCursor && nextCursor.length > 32768)
+          throw new PluginError(
+            "INVALID_INPUT",
+            "Scan is too deep; choose a narrower scope",
+          );
+        return { items, nextCursor };
+      },
       async write({ storageKey: logical, file }, ctx) {
         ctx.signal.throwIfAborted();
         const signal = signalFor(ctx.signal);

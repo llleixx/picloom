@@ -34,6 +34,10 @@ Use an existing WebDAV root URL and account credentials. Add the source to a sto
 }
 ```
 
+Choose **Import** on the storage source page to register existing images. The scan scope is relative to `endpoint` plus `keyPrefix`; leave it empty to scan the whole root. With endpoint `https://dav.example.com/images/` and prefix `archive`, the remote file `archive/2026/photo.jpg` has storage key `2026/photo.jpg`. Stripping one public-path directory uses `photo.jpg` without moving the remote file.
+
 ## Behavior and limitations
 
-Uses Basic authentication with PUT, GET and DELETE, creating subdirectories when needed. Supply the final endpoint URL; redirects are refused. `keyPrefix` is a relative directory below that endpoint and must not be URL-encoded. Reads return streams; client redirects and enumeration are not provided. During recovery, HEAD 404 confirms absence; an existing object does not prove write ownership and yields an unknown result. Endpoint and prefix are immutable.
+Uses Basic authentication with PUT, GET and DELETE, creating subdirectories when needed. Supply the final endpoint URL; redirects are refused. `keyPrefix` is a relative directory below that endpoint and must not be URL-encoded. Reads return streams; client redirects are not provided. During recovery, HEAD 404 confirms absence; an existing object does not prove write ownership and yields an unknown result. Endpoint and prefix are immutable.
+
+Import requires server support for `PROPFIND` and directory access permission. It scans one level at a time without downloading images, reusing Picloom’s duplicate and path-conflict checks. WebDAV has no standard pagination: resuming a directory fetches its listing again. Avoid adding, removing or moving files during a scan. Each directory response is limited to 8 MiB; exceeding this fails the scan. Narrow the scope, or split the directory if that directory itself is too large. Directory read failures and invalid paths are reported rather than silently skipped.
