@@ -3,7 +3,7 @@ export const runtimeDefaults = {
   maxUploadBytes: 20 * 1024 ** 2,
   chunkThresholdBytes: 8 * 1024 ** 2,
   chunkPartBytes: 4 * 1024 ** 2,
-  uploadConcurrency: 2,
+  uploadConcurrency: 4,
   partConcurrency: 2,
   uploadTempBytes: 1024 ** 3,
   uploadSessionLimit: 100,
@@ -12,7 +12,7 @@ export const runtimeDefaults = {
   maxPixels: 40_000_000,
   processingConcurrency: 2,
   processingQueue: 16,
-  taskConcurrency: 2,
+  taskConcurrency: 4,
   retryLimit: 5,
 };
 export type RuntimeSettings = typeof runtimeDefaults;

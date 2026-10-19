@@ -29,7 +29,7 @@ test("frontend endpoints expose public safe limits and protected profile options
       siteDescription: "",
       siteLogoUrl: "",
       siteFaviconUrl: "",
-      uploadConcurrency: 2,
+      uploadConcurrency: 4,
       chunkedUpload: {
         thresholdBytes: 8 * 1024 ** 2,
         partBytes: 4 * 1024 ** 2,

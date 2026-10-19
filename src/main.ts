@@ -1,7 +1,8 @@
-import { isIP } from "node:net";
+import { createClientIpResolver } from "./trusted-proxies";
 import { maxUploadBodyBytes } from "../shared/runtime-settings";
 import { startRuntime } from "./runtime";
 const runtime = await startRuntime({ port: Number(process.env.PORT ?? 3000) });
+const clientIp = createClientIpResolver(runtime.app.config.trustedProxies);
 const server = Bun.serve({
   hostname: process.env.HOST ?? "127.0.0.1",
   port: runtime.app.config.port,
@@ -14,11 +15,7 @@ const server = Bun.serve({
     )
       server.timeout(req, 0);
     const peer = server.requestIP(req)?.address ?? "unknown";
-    // A trusted proxy must replace X-Real-IP, not append untrusted client input.
-    const forwarded = runtime.app.config.trustedProxies.includes(peer)
-      ? req.headers.get("x-real-ip")
-      : null;
-    return runtime.fetch(req, forwarded && isIP(forwarded) ? forwarded : peer);
+    return runtime.fetch(req, clientIp(peer, req.headers.get("x-real-ip")));
   },
 });
 console.info(JSON.stringify({ event: "listening", url: server.url.href }));

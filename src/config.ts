@@ -1,3 +1,4 @@
+import { createClientIpResolver } from "./trusted-proxies";
 import {
   runtimeDefaults,
   runtimeKeys,
@@ -101,6 +102,7 @@ export function settings(overrides: Partial<Settings> = {}): Settings {
     webRoot: resolve("dist/web"),
     ...overrides,
   };
+  createClientIpResolver(value.trustedProxies);
   if (
     value.databaseUrl &&
     !["postgres:", "postgresql:"].includes(new URL(value.databaseUrl).protocol)
