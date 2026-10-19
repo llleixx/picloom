@@ -2,7 +2,7 @@ import { mkdir, copyFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
 // Run from the repository root. ZIP files are build output, not source files.
-for (const name of ["path", "storage", "processor"]) {
+for (const name of ["path", "storage", "processor", "access", "post-save"]) {
   const directory = resolve("outputs/examples", name);
   await mkdir(directory, { recursive: true });
   const build = await Bun.build({

@@ -1,5 +1,9 @@
 import { Readable } from "node:stream";
-import { PluginError, type Definition } from "../../plugin-sdk";
+import {
+  PluginError,
+  withAbortSignal,
+  type Definition,
+} from "../../plugin-sdk";
 
 export default {
   id: "example.resize",
@@ -23,8 +27,14 @@ export default {
         required: ["width"],
         additionalProperties: false,
       },
+      paramsSchema: {
+        type: "object",
+        properties: {
+          width: { type: "integer", minimum: 1, maximum: 8192 },
+        },
+        additionalProperties: false,
+      },
       async createInstance({ config, services }) {
-        const width = Number(config.width);
         return {
           async check({ file }) {
             return !file.metadata.animated &&
@@ -37,7 +47,8 @@ export default {
                   reason: "Only static JPEG, PNG and WebP images are supported",
                 };
           },
-          async process({ file, limits, createOutput }, { signal }) {
+          async process({ file, params, limits, createOutput }, { signal }) {
+            const width = Number(params.width ?? config.width);
             if (width > limits.maxDimension)
               throw new PluginError(
                 "RESOURCE_LIMIT",
@@ -60,8 +71,10 @@ export default {
                     ? "webp"
                     : "png",
               );
-            await output.write(
-              Readable.toWeb(image) as unknown as ReadableStream<Uint8Array>,
+            await withAbortSignal(image, signal, () =>
+              output.write(
+                Readable.toWeb(image) as unknown as ReadableStream<Uint8Array>,
+              ),
             );
             signal.throwIfAborted();
             return { status: "replace", output };

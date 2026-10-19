@@ -5,6 +5,42 @@ import { fixture } from "./helpers";
 import { zip } from "./package-fixtures";
 import datePath from "../examples/path";
 
+async function installExamples(
+  f: Awaited<ReturnType<typeof fixture>>,
+  names: string[],
+) {
+  for (const name of names) {
+    const build = await Bun.build({
+      entrypoints: [`examples/${name}/index.ts`],
+      target: "bun",
+      format: "esm",
+    });
+    expect(build.success).toBe(true);
+    const form = new FormData();
+    form.set(
+      "file",
+      new File(
+        [
+          zip({
+            "plugin.json": await Bun.file(
+              `examples/${name}/plugin.json`,
+            ).text(),
+            "index.js": await build.outputs[0]!.text(),
+          }),
+        ],
+        `${name}.zip`,
+      ),
+    );
+    const inspected = await f.request("/api/plugins/inspect", "POST", form);
+    expect(inspected.status).toBe(200);
+    const installed = await f.request("/api/plugins/install", "POST", {
+      ticket: (await inspected.json()).ticket,
+      confirmTrusted: true,
+    });
+    expect(installed.status).toBe(201);
+  }
+}
+
 test("path example uses upload time and the current key result contract", async () => {
   const runtime = await datePath.createInstance();
   expect(
@@ -24,36 +60,7 @@ test("path example uses upload time and the current key result contract", async 
 test("three example packages install and upload, resize, read, restart and delete", async () => {
   const f = await fixture();
   try {
-    for (const name of ["path", "storage", "processor"]) {
-      const build = await Bun.build({
-        entrypoints: [`examples/${name}/index.ts`],
-        target: "bun",
-        format: "esm",
-      });
-      expect(build.success).toBe(true);
-      const form = new FormData();
-      form.set(
-        "file",
-        new File(
-          [
-            zip({
-              "plugin.json": await Bun.file(
-                `examples/${name}/plugin.json`,
-              ).text(),
-              "index.js": await build.outputs[0]!.text(),
-            }),
-          ],
-          `${name}.zip`,
-        ),
-      );
-      const inspected = await f.request("/api/plugins/inspect", "POST", form);
-      expect(inspected.status).toBe(200);
-      const installed = await f.request("/api/plugins/install", "POST", {
-        ticket: (await inspected.json()).ticket,
-        confirmTrusted: true,
-      });
-      expect(installed.status).toBe(201);
-    }
+    await installExamples(f, ["path", "storage", "processor"]);
     const storage = await f.app.plugins.save({
       pluginId: "example.local-storage",
       version: "1.0.0",
@@ -99,6 +106,30 @@ test("three example packages install and upload, resize, read, restart and delet
     expect(
       (await sharp(Buffer.from(await response.arrayBuffer())).metadata()).width,
     ).toBe(8);
+    // A request value only overrides fixed configuration after the step enables it.
+    for (const enabled of [false, true]) {
+      if (enabled)
+        await f.app.configuration.savePipeline(
+          {
+            ...pipeline,
+            expectedVersion: pipeline.configVersion,
+            steps: [{ ...pipeline.steps[0]!, enabledParams: ["width"] }],
+          },
+          pipeline.id,
+        );
+      const form = new FormData();
+      form.set("profileId", f.profileId);
+      form.set("file", new File([new Uint8Array(f.png)], "image.png"));
+      form.set("params", JSON.stringify({ width: 4 }));
+      const response = await f.request("/api/files", "POST", form);
+      expect(response.status).toBe(201);
+      const value = await response.json();
+      const image = await f.request(new URL(value.url).pathname);
+      expect(image.status).toBe(200);
+      expect(
+        (await sharp(Buffer.from(await image.arrayBuffer())).metadata()).width,
+      ).toBe(enabled ? 4 : 8);
+    }
     const disk = Bun.file(join(f.root, "example-storage", row.storage_key));
     expect(await disk.exists()).toBe(true);
     await f.restart();
@@ -110,6 +141,87 @@ test("three example packages install and upload, resize, read, restart and delet
     );
     await f.app.files.sweep();
     expect(await Bun.file(disk.name!).exists()).toBe(false);
+  } finally {
+    await f.close();
+  }
+}, 20000);
+
+test("access and post-save example packages preserve originals and apply review results", async () => {
+  const f = await fixture();
+  try {
+    await installExamples(f, ["access", "post-save"]);
+    const access = (await f.app.configuration.pipelines()).find(
+      (p) => p.kind === "access",
+    )!;
+    await f.app.configuration.savePipeline(
+      {
+        ...access,
+        expectedVersion: access.configVersion,
+        steps: [
+          {
+            pluginId: "example.thumbnail",
+            version: "1.0.0",
+            config: {},
+            enabledParams: ["width"],
+            onNotApplicable: "abort",
+          },
+        ],
+      },
+      access.id,
+    );
+    const response = await f.upload();
+    expect(response.status).toBe(201);
+    const image = await response.json();
+    const path = new URL(image.url).pathname;
+    for (const [query, width] of [
+      ["", 40],
+      ["?width=16", 16],
+      ["?width=16", 16],
+      ["", 40],
+    ] as const) {
+      const result = await f.request(path + query);
+      expect(result.status).toBe(200);
+      expect(
+        (await sharp(Buffer.from(await result.arrayBuffer())).metadata()).width,
+      ).toBe(width);
+    }
+    const chain = await f.app.configuration.savePipeline({
+      name: "Example review",
+      kind: "post_save",
+      steps: [
+        {
+          pluginId: "example.width-review",
+          version: "1.0.0",
+          config: { maxWidth: 20 },
+        },
+      ],
+    });
+    const profile = await f.app.configuration.profileEditor(f.profileId);
+    await f.app.configuration.saveProfileEditor(
+      {
+        ...profile,
+        expectedVersion: profile.configVersion,
+        postSavePipelineId: chain.id,
+      },
+      profile.id,
+    );
+    for (const width of [10, 40]) {
+      const png = await sharp(f.png).resize({ width }).png().toBuffer();
+      const upload = await f.upload(undefined, png);
+      expect(upload.status).toBe(201);
+      const result = await upload.json();
+      await f.app.files.sweep();
+      await f.app.files.tasks.drain();
+      const file = (await f.app.db.read((r) => r.file(result.id)))!;
+      expect(file.status).toBe(width > 20 ? "blocked" : "ready");
+      expect(file.processing_results_json?.[0]).toMatchObject({
+        status: width > 20 ? "block" : "pass",
+        details: { width, maxWidth: 20 },
+      });
+      const read = await f.request(new URL(result.url).pathname);
+      expect(read.status).toBe(width > 20 ? 404 : 200);
+      await read.arrayBuffer();
+    }
   } finally {
     await f.close();
   }

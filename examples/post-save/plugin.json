@@ -1,0 +1,8 @@
+{
+  "id": "example.width-review",
+  "name": "Example width review",
+  "version": "1.0.0",
+  "kind": "processor",
+  "apiVersion": 1,
+  "entry": "index.js"
+}
