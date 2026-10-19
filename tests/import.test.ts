@@ -476,3 +476,57 @@ test("import strips public directories without changing storage, and handles rac
     await f.close();
   }
 });
+
+test("WebDAV generic MIME falls back to the filename while explicit non-image MIME stays excluded", async () => {
+  const remote = Bun.serve({
+    hostname: "127.0.0.1",
+    port: 0,
+    fetch(req) {
+      expect(req.method).toBe("PROPFIND");
+      const entries = [
+        ["photo.png", "Application/Octet-Stream; charset=utf-8"],
+        ["notes.png", "text/plain"],
+      ]
+        .map(
+          ([name, mime]) =>
+            `<response><href>/dav/${name}</href><propstat><prop><resourcetype/><getcontenttype>${mime}</getcontenttype></prop><status>HTTP/1.1 200 OK</status></propstat></response>`,
+        )
+        .join("");
+      return new Response(
+        `<multistatus xmlns="DAV:">${entries}</multistatus>`,
+        { status: 207 },
+      );
+    },
+  });
+  const f = await fixture();
+  try {
+    const src = await f.app.plugins.save({
+      pluginId: "builtin.webdav",
+      version: "1.0.0",
+      name: "Legacy WebDAV",
+      config: { endpoint: remote.url.href + "dav/" },
+      secretEdits: {
+        "/username": { action: "replace", value: "test" },
+        "/password": { action: "replace", value: "test" },
+      },
+    });
+    expect(await scan(f, src.id)).toMatchObject({
+      imported: 1,
+      skipped: 1,
+      failed: 0,
+    });
+    expect(await scan(f, src.id, { publicPrefix: "/other/" })).toMatchObject({
+      imported: 0,
+      skipped: 2,
+    });
+    const files = await f.app.db.read((r) => r.files(10, 0));
+    expect(files).toHaveLength(1);
+    expect(files[0]).toMatchObject({
+      storage_key: "photo.png",
+      mime_type: null,
+    });
+  } finally {
+    await f.close();
+    remote.stop(true);
+  }
+});

@@ -128,7 +128,8 @@ export async function readDirectory(
         name,
         directory: isDirectory,
         byteSize: size === undefined ? undefined : Number(size),
-        mimeType,
+        mimeType:
+          mimeType === "application/octet-stream" ? undefined : mimeType,
       });
     }
     stack[0]!.children = [];
