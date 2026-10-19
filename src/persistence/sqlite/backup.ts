@@ -2,15 +2,13 @@ import { writePointer } from "../../../shared/config";
 import { Database } from "bun:sqlite";
 import { readFileSync } from "node:fs";
 import { createHash } from "node:crypto";
-import { join, relative, resolve, isAbsolute } from "node:path";
+import { logicalKey } from "../../../plugin-sdk/files";
 import { Secrets } from "../../infra/secrets";
 import { AppError } from "../../core/errors";
 
 // Offline adapter operation: validate before replacing any live data.
 export function prepareRestoredDatabase(
   path: string,
-  oldRoot: string,
-  newRoot: string,
   localRoots: Record<string, { root: string; configPath: string }>,
   oldKey: string,
   newKey: string,
@@ -72,16 +70,13 @@ export function prepareRestoredDatabase(
         );
       }
       const files = db
-        .query("SELECT id,temp_path FROM files WHERE temp_path IS NOT NULL")
-        .all() as Array<{ id: string; temp_path: string }>;
+        .query("SELECT temp_path FROM files WHERE temp_path IS NOT NULL")
+        .all() as Array<{ temp_path: string }>;
       for (const file of files) {
-        const key = relative(join(oldRoot, "temp"), file.temp_path);
-        if (!key || key.startsWith("..") || isAbsolute(key))
-          throw new Error("Invalid temporary file path");
-        db.query("UPDATE files SET temp_path=? WHERE id=?").run(
-          resolve(newRoot, "temp", key),
-          file.id,
-        );
+        // Uploads store a basename, resolved under the active root at runtime.
+        logicalKey(file.temp_path);
+        if (file.temp_path.includes("/"))
+          throw new AppError("BACKUP_INVALID", "Invalid temporary file path");
       }
       // Restored passwords and upload tokens remain valid; browser sessions must sign in again.
       db.exec("DELETE FROM sessions; COMMIT; PRAGMA wal_checkpoint(TRUNCATE)");

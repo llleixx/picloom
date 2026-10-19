@@ -300,8 +300,6 @@ export class Backups {
       }
       prepareRestoredDatabase(
         join(data, "database.sqlite"),
-        manifest.root,
-        this.root,
         roots,
         manifest.encryptionKey,
         key,

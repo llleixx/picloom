@@ -1,4 +1,6 @@
 import { test, expect, spyOn } from "bun:test";
+import { Database } from "bun:sqlite";
+import { prepareRestoredDatabase } from "../src/persistence/sqlite/backup";
 import {
   mkdtemp,
   rm,
@@ -293,6 +295,180 @@ test("backup restores images, external local roots, settings and encrypted crede
     await rm(parent, { recursive: true, force: true });
   }
 }, 20000);
+test("backup restores retained temporary files and resumes replication retries in a new root", async () => {
+  const parent = await mkdtemp(join(tmpdir(), "picloom-backup-retry-"));
+  const source = await setup(parent);
+  let target: Awaited<ReturnType<typeof setup>> | undefined;
+  try {
+    const app = source.runtime.app;
+    const profileId = await initializeDevelopment(app);
+    const extra = await app.plugins.save({
+      pluginId: "builtin.local",
+      version: "1.0.0",
+      name: "Replica",
+      config: { root: join(source.root, "replica") },
+    });
+    const profile = await app.configuration.profile(profileId);
+    const group = await app.configuration.group(profile.storageGroupId);
+    await app.configuration.saveGroup(
+      {
+        ...group,
+        expectedVersion: group.configVersion,
+        redundancyCount: 1,
+        members: [...group.members, { instanceId: extra.id, weight: 1 }],
+      },
+      group.id,
+    );
+    await app.files.tasks.pause();
+    const content =
+      '<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"></svg>';
+    const form = new FormData();
+    form.set("profileId", profileId);
+    form.set(
+      "file",
+      new File([content], "test.svg", { type: "image/svg+xml" }),
+    );
+    const uploaded = await source.request("/api/files", "POST", form);
+    expect(uploaded.status).toBe(201);
+    const id = uploaded.json().id;
+    const task = (await app.db.read((r) => r.tasks(id))).find(
+      (t) => t.kind === "write",
+    )!;
+    const replica = (await app.db.read((r) => r.replicas(id))).find(
+      (r) => r.id === task.replica_id,
+    )!;
+    const lease = app.plugins.acquire(replica.storage_instance_id, "storage");
+    const failure = spyOn(lease.runtime, "write").mockRejectedValue(
+      new Error("Temporary storage failure"),
+    );
+    try {
+      app.files.tasks.resume();
+      await app.files.tasks.drain();
+      await app.files.tasks.pause();
+    } finally {
+      failure.mockRestore();
+      await lease.release();
+    }
+    const retry = (await app.db.read((r) => r.task(task.id)))!;
+    expect(retry).toMatchObject({ status: "pending", attempts: 1 });
+    await app.db.transaction((r) =>
+      r.saveTask({ ...retry, next_run_at: Date.now() + 3600000 }),
+    );
+    const file = (await app.db.read((r) => r.file(id)))!;
+    expect(file.temp_status).toBe("available");
+    const tempName = file.temp_path!;
+    expect(await readFile(join(source.root, "temp", tempName), "utf8")).toBe(
+      content,
+    );
+    const backup = await source.request("/api/system/backups", "POST");
+    expect(backup.status).toBe(201);
+    const download = await source.request(
+      `/api/system/backups/${backup.json().id}`,
+    );
+    target = await setup(parent, "target", "cd".repeat(32));
+    const added = await target.request(
+      "/api/system/backups/upload",
+      "POST",
+      new Blob([download.bytes]),
+    );
+    expect(added.status).toBe(201);
+    const restored = await target.request(
+      `/api/system/backups/${added.json().id}/restore`,
+      "POST",
+      undefined,
+      { "x-confirm-restore": "restore" },
+    );
+    expect(restored.status).toBe(200);
+    const restoredApp = target.runtime.app;
+    expect((await restoredApp.db.read((r) => r.file(id)))!.temp_path).toBe(
+      tempName,
+    );
+    expect(await readFile(join(target.root, "temp", tempName), "utf8")).toBe(
+      content,
+    );
+    await restoredApp.db.transaction(async (r) => {
+      const pending = (await r.task(task.id))!;
+      expect(pending).toMatchObject({ status: "pending", attempts: 1 });
+      await r.saveTask({ ...pending, next_run_at: Date.now() });
+    });
+    await restoredApp.files.sweep();
+    expect((await restoredApp.db.read((r) => r.task(task.id)))!.status).toBe(
+      "success",
+    );
+    expect(
+      (await restoredApp.db.read((r) => r.replicas(id))).every(
+        (r) => r.status === "ready",
+      ),
+    ).toBe(true);
+    const storage = (await restoredApp.db.read((r) =>
+      r.instance(replica.storage_instance_id),
+    ))!;
+    expect(
+      await readFile(
+        join(String(storage.config_json.root), file.storage_key),
+        "utf8",
+      ),
+    ).toBe(content);
+    expect(
+      (await restoredApp.db.read((r) => r.file(id)))!.temp_path,
+    ).toBeNull();
+    expect(await Bun.file(join(target.root, "temp", tempName)).exists()).toBe(
+      false,
+    );
+  } finally {
+    await target?.runtime.close();
+    await source.runtime.close();
+    await rm(parent, { recursive: true, force: true });
+  }
+});
+
+test("restore rejects temporary paths outside the flat temporary directory", async () => {
+  const parent = await mkdtemp(join(tmpdir(), "picloom-backup-path-"));
+  const f = await setup(parent);
+  try {
+    const profileId = await initializeDevelopment(f.runtime.app);
+    const form = new FormData();
+    form.set("profileId", profileId);
+    form.set(
+      "file",
+      new File(
+        [
+          '<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"></svg>',
+        ],
+        "test.svg",
+        { type: "image/svg+xml" },
+      ),
+    );
+    const uploaded = await f.request("/api/files", "POST", form);
+    expect(uploaded.status).toBe(201);
+    await f.runtime.close();
+    const path = join(f.root, "database.sqlite");
+    for (const name of [
+      "",
+      ".",
+      "..",
+      "../outside",
+      "/tmp/outside",
+      "nested/file",
+      "..\\outside",
+      "C:\\outside",
+    ]) {
+      const db = new Database(path);
+      try {
+        db.query(
+          "UPDATE files SET temp_path=?,temp_status='available' WHERE id=?",
+        ).run(name, uploaded.json().id);
+      } finally {
+        db.close();
+      }
+      expect(() => prepareRestoredDatabase(path, {}, f.key, f.key)).toThrow();
+    }
+  } finally {
+    await f.runtime.close();
+    await rm(parent, { recursive: true, force: true });
+  }
+});
+
 test("backup endpoints enforce Owner, session, CSRF, confirmation and reject unsafe archives without changing data", async () => {
   const parent = await mkdtemp(join(tmpdir(), "star-backup-")),
     f = await setup(parent);
