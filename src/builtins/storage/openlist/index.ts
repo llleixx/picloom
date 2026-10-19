@@ -1,5 +1,10 @@
+import { scanScope, decodeCursor, encodeCursor } from "../shared/enumeration";
 import { isPluginError } from "../../../../plugin-sdk/api";
-import { PluginError, type Definition, type Locator } from "../../../../plugin-sdk";
+import {
+  PluginError,
+  type Definition,
+  type Locator,
+} from "../../../../plugin-sdk";
 import { logicalKey as validateLogicalKey } from "../../../../plugin-sdk";
 
 function validRoot(value: string) {
@@ -154,16 +159,43 @@ export const openListStorage: Definition<"storage"> = {
     ) {
       const writing = path === "put";
       const deleting = path === "remove";
+      let headers: Headers;
       try {
+        signal.throwIfAborted();
         const secret = (await services.readSecrets()).value;
-        const headers = new Headers(init.headers);
+        headers = new Headers(init.headers);
         headers.set("Authorization", String(secret.token));
-        const response = await fetch(endpoint + "/api/fs/" + path, {
+        signal.throwIfAborted();
+      } catch {
+        throw new PluginError(
+          "FAILED",
+          "Could not prepare OpenList request",
+          false,
+          "notApplied",
+        );
+      }
+      let response: Response;
+      try {
+        response = await fetch(endpoint + "/api/fs/" + path, {
           ...init,
           headers,
           signal,
           redirect: "error",
         });
+      } catch (cause) {
+        // Connection refusal means the request never reached the server.
+        const refused =
+          cause instanceof Error &&
+          "code" in cause &&
+          cause.code === "ECONNREFUSED";
+        throw new PluginError(
+          "NETWORK",
+          "OpenList request failed",
+          refused || !writing,
+          refused ? "notApplied" : "unknown",
+        );
+      }
+      try {
         // OpenList often returns HTTP 200 even when its JSON code reports failure.
         if (!response.ok) {
           await response.body?.cancel();
@@ -180,7 +212,20 @@ export const openListStorage: Definition<"storage"> = {
               : "notApplied",
           );
         }
-        const result = await response.json();
+        let result;
+        try {
+          result = await response.json();
+        } catch (cause) {
+          // A malformed response cannot confirm whether a write took effect.
+          if (cause instanceof SyntaxError)
+            throw new PluginError(
+              "INVALID_DATA",
+              "Invalid OpenList response",
+              !writing,
+              "unknown",
+            );
+          throw cause;
+        }
         if (result?.code !== 200) {
           const code = result?.code;
           throw new PluginError(
@@ -245,6 +290,126 @@ export const openListStorage: Definition<"storage"> = {
       }
     }
     return {
+      async listFiles({ scope: inputScope, cursor, limit }, ctx) {
+        const scope = scanScope(inputScope);
+        const pageSize = 200;
+        type Frame = { directory: string; page: number; index: number };
+        type Entry = { name: string; is_dir: boolean; size: number };
+        const stack = decodeCursor<Frame[]>(cursor, scope) ?? [
+          { directory: scope, page: 1, index: 0 },
+        ];
+        if (
+          !Number.isSafeInteger(limit) ||
+          limit < 1 ||
+          limit > 1000 ||
+          !Array.isArray(stack) ||
+          !stack.length ||
+          stack.some(
+            (frame) =>
+              !frame ||
+              typeof frame.directory !== "string" ||
+              (scope &&
+                frame.directory !== scope &&
+                !frame.directory.startsWith(scope + "/")) ||
+              !Number.isSafeInteger(frame.page) ||
+              frame.page < 1 ||
+              !Number.isSafeInteger(frame.index) ||
+              frame.index < 0 ||
+              frame.index > pageSize,
+          )
+        )
+          throw new PluginError(
+            "INVALID_INPUT",
+            "Invalid scan cursor or limit",
+          );
+        for (const frame of stack) {
+          if (frame.directory) validateLogicalKey(frame.directory);
+        }
+        // Cache active directory pages only for this call; cursors contain positions, not listings.
+        const pages = new Map<Frame, { content: Entry[]; total: number }>();
+        const items: Array<{ storageKey: string; byteSize: number }> = [];
+        let requests = 0;
+        while (stack.length && items.length < limit) {
+          ctx.signal.throwIfAborted();
+          const frame = stack.at(-1)!;
+          let data = pages.get(frame);
+          if (!data) {
+            // Bound work even when traversing directories containing no files.
+            if (requests++ >= 8) break;
+            const result = await request(
+              "list",
+              {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  path: frame.directory ? pathFor(frame.directory, null) : root,
+                  password: "",
+                  refresh: false,
+                  page: frame.page,
+                  per_page: pageSize,
+                }),
+              },
+              signalFor(ctx.signal),
+            );
+            if (
+              !result ||
+              !Number.isSafeInteger(result.total) ||
+              result.total < 0
+            )
+              throw error("RESPONSE");
+            // OpenList serializes an empty content slice as null.
+            const content =
+              result.content ?? (result.total === 0 ? [] : undefined);
+            if (
+              !Array.isArray(content) ||
+              content.length > pageSize ||
+              (!content.length && (frame.page - 1) * pageSize < result.total)
+            )
+              throw error("RESPONSE");
+            for (const entry of content) {
+              if (
+                !entry ||
+                typeof entry.name !== "string" ||
+                entry.name.includes("/") ||
+                typeof entry.is_dir !== "boolean" ||
+                !Number.isSafeInteger(entry.size) ||
+                entry.size < 0
+              )
+                throw error("RESPONSE");
+              try {
+                validateLogicalKey(entry.name);
+              } catch {
+                throw error("RESPONSE");
+              }
+            }
+            data = { content, total: result.total };
+            pages.set(frame, data);
+          }
+          if (frame.index >= data.content.length) {
+            pages.delete(frame);
+            if (frame.page * pageSize >= data.total) stack.pop();
+            else {
+              frame.page++;
+              frame.index = 0;
+            }
+            continue;
+          }
+          const entry = data.content[frame.index++]!;
+          const storageKey = frame.directory
+            ? frame.directory + "/" + entry.name
+            : entry.name;
+          if (entry.is_dir)
+            stack.push({ directory: storageKey, page: 1, index: 0 });
+          else items.push({ storageKey, byteSize: entry.size });
+        }
+        const nextCursor = stack.length ? encodeCursor(scope, stack) : null;
+        if (nextCursor && nextCursor.length > 32768)
+          throw new PluginError(
+            "INVALID_INPUT",
+            "Scan is too deep; choose a narrower scope",
+          );
+        return { items, nextCursor };
+      },
       async write({ storageKey, file }, ctx) {
         ctx.signal.throwIfAborted();
         const size = file.metadata.byteSize;

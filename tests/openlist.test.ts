@@ -249,7 +249,7 @@ test("OpenList HTTP protocol: PUT, fresh raw URL, credential-free download, remo
         ctx(),
       ),
     ).rejects.toMatchObject({ code: "INVALID_INPUT", outcome: "notApplied" });
-    expect(runtime.listFiles).toBeUndefined();
+    expect(runtime.listFiles).toBeFunction();
   } finally {
     remote.stop(true);
     cdn.stop(true);
@@ -322,6 +322,8 @@ test("OpenList rejects API redirects, auth errors, false success, async PUT, sec
         outcome: value.includes("denied") ? "notApplied" : "unknown",
         retryable: false,
       });
+      if (value === "malformed")
+        expect(caught).toMatchObject({ code: "INVALID_DATA" });
     }
     expect(redirected).toBe(0);
     const read = () =>
@@ -445,6 +447,240 @@ test("OpenList validates configuration and cancels/releases upload input on abor
     }
     expect(cancelled).toBe(true);
     expect(source.locked).toBe(false);
+  } finally {
+    remote.stop(true);
+  }
+});
+
+test("OpenList connection refusal is a retryable failure with no remote write", async () => {
+  const remote = Bun.serve({
+    hostname: "127.0.0.1",
+    port: 0,
+    fetch() {
+      return success();
+    },
+  });
+  const endpoint = remote.url.href;
+  await remote.stop(true);
+  const runtime = await instance(endpoint);
+  await expect(
+    runtime.write(
+      { operationId: "op", fileId: "id", storageKey: "a.svg", file: input() },
+      ctx(),
+    ),
+  ).rejects.toMatchObject({
+    code: "NETWORK",
+    outcome: "notApplied",
+    retryable: true,
+  });
+});
+
+test("OpenList request preparation failures do not become network or unknown writes", async () => {
+  let requests = 0;
+  const remote = Bun.serve({
+    hostname: "127.0.0.1",
+    port: 0,
+    fetch() {
+      requests++;
+      return success();
+    },
+  });
+  try {
+    const runtime = await openListStorage.createInstance({
+      id: "preparation-test",
+      config: { endpoint: remote.url.href, root: "/images" },
+      services: {
+        ...services(),
+        async readSecrets() {
+          throw new Error("secret failure " + token);
+        },
+      },
+    });
+    let caught: unknown;
+    try {
+      await runtime.write(
+        { operationId: "op", fileId: "id", storageKey: "a.svg", file: input() },
+        ctx(),
+      );
+    } catch (error) {
+      caught = error;
+    }
+    expect(caught).toMatchObject({
+      code: "FAILED",
+      outcome: "notApplied",
+      retryable: false,
+    });
+    expect(String(caught)).not.toContain(token);
+    expect(requests).toBe(0);
+  } finally {
+    await remote.stop(true);
+  }
+});
+
+test("OpenList lost response after receiving the upload remains an unknown write", async () => {
+  let received = false;
+  const remote = Bun.serve({
+    hostname: "127.0.0.1",
+    port: 0,
+    async fetch(req) {
+      expect(new Uint8Array(await req.arrayBuffer())).toEqual(bytes);
+      received = true;
+      void remote.stop(true);
+      return success();
+    },
+  });
+  try {
+    const runtime = await instance(remote.url.href);
+    await expect(
+      runtime.write(
+        { operationId: "op", fileId: "id", storageKey: "a.svg", file: input() },
+        ctx(),
+      ),
+    ).rejects.toMatchObject({
+      code: "NETWORK",
+      outcome: "unknown",
+      retryable: false,
+    });
+    expect(received).toBe(true);
+  } finally {
+    await remote.stop(true);
+  }
+});
+
+test("OpenList enumeration resumes nested and paginated directories without changing storage keys", async () => {
+  const entry = (name: string, is_dir = false) => ({
+    name,
+    is_dir,
+    size: is_dir ? 0 : 12,
+  });
+  const directories: Record<string, ReturnType<typeof entry>[] | null> = {
+    "/挂载 a%#/album": [
+      entry("子目录 %", true),
+      ...Array.from({ length: 205 }, (_, i) => entry(`${i}.png`)),
+    ],
+    "/挂载 a%#/album/子目录 %": [entry("empty", true), entry("image %.png")],
+    "/挂载 a%#/album/子目录 %/empty": null,
+  };
+  let calls = 0;
+  const remote = Bun.serve({
+    hostname: "127.0.0.1",
+    port: 0,
+    async fetch(req) {
+      calls++;
+      expect(new URL(req.url).pathname).toBe("/base/api/fs/list");
+      expect(req.headers.get("Authorization")).toBe(token);
+      const { path, page, per_page, refresh, password } = await req.json();
+      expect(refresh).toBe(false);
+      expect(password).toBe("");
+      expect(per_page).toBe(200);
+      expect(path in directories).toBe(true);
+      const entries = directories[path];
+      return success({
+        content: entries?.slice((page - 1) * per_page, page * per_page) ?? null,
+        total: entries?.length ?? 0,
+      });
+    },
+  });
+  try {
+    const runtime = await instance(remote.url.href + "base");
+    const keys: string[] = [];
+    let cursor: string | undefined;
+    do {
+      const before = calls;
+      const result = await runtime.listFiles!(
+        { scope: "album/", cursor, limit: 37 },
+        ctx(),
+      );
+      expect(calls - before).toBeLessThanOrEqual(8);
+      expect(result.items.length).toBeLessThanOrEqual(37);
+      for (const item of result.items) {
+        expect(item.byteSize).toBe(12);
+        keys.push(item.storageKey);
+      }
+      if (result.nextCursor) expect(result.nextCursor).not.toBe(cursor);
+      cursor = result.nextCursor ?? undefined;
+    } while (cursor);
+    expect(keys).toEqual([
+      "album/子目录 %/image %.png",
+      ...Array.from({ length: 205 }, (_, i) => `album/${i}.png`),
+    ]);
+  } finally {
+    remote.stop(true);
+  }
+});
+
+test("OpenList enumeration bounds empty-directory work and rejects unsafe cursors, entries and upstream errors", async () => {
+  let mode = "empty-tree",
+    calls = 0;
+  const remote = Bun.serve({
+    hostname: "127.0.0.1",
+    port: 0,
+    async fetch(req) {
+      calls++;
+      const { path } = await req.json();
+      if (mode === "denied") return Response.json({ code: 403 });
+      if (mode === "empty-tree")
+        return success({
+          content:
+            path === "/"
+              ? Array.from({ length: 12 }, (_, i) => ({
+                  name: `dir${i}`,
+                  is_dir: true,
+                  size: 0,
+                }))
+              : null,
+          total: path === "/" ? 12 : 0,
+        });
+      return success({
+        content: [{ name: mode, is_dir: false, size: 1 }],
+        total: 1,
+      });
+    },
+  });
+  try {
+    const runtime = await instance(remote.url.href, { root: "/" });
+    const first = await runtime.listFiles!({ limit: 200 }, ctx());
+    expect(first.items).toEqual([]);
+    expect(first.nextCursor).not.toBeNull();
+    expect(calls).toBe(8);
+    const second = await runtime.listFiles!(
+      { limit: 200, cursor: first.nextCursor! },
+      ctx(),
+    );
+    expect(second).toEqual({ items: [], nextCursor: null });
+    const before = calls;
+    for (const directory of [
+      "../outside",
+      "/outside",
+      "album/../../outside",
+      "other",
+    ]) {
+      const cursor = Buffer.from(
+        JSON.stringify({
+          scope: "album",
+          data: [{ directory, page: 1, index: 0 }],
+        }),
+      ).toString("base64url");
+      await expect(
+        runtime.listFiles!({ scope: "album", cursor, limit: 200 }, ctx()),
+      ).rejects.toBeInstanceOf(Error);
+    }
+    await expect(
+      runtime.listFiles!(
+        { scope: "album", cursor: first.nextCursor!, limit: 200 },
+        ctx(),
+      ),
+    ).rejects.toBeInstanceOf(Error);
+    expect(calls).toBe(before);
+    for (mode of ["../escape.png", "a/b.png", "a\\b.png", ".", ""]) {
+      await expect(
+        runtime.listFiles!({ limit: 200 }, ctx()),
+      ).rejects.toMatchObject({ code: "INVALID_DATA" });
+    }
+    mode = "denied";
+    await expect(
+      runtime.listFiles!({ limit: 200 }, ctx()),
+    ).rejects.toMatchObject({ code: "ACCESS_DENIED" });
   } finally {
     remote.stop(true);
   }
