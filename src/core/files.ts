@@ -376,6 +376,7 @@ export class Files {
   async uploadProfiles(
     identity: Identity | null,
   ): Promise<UploadProfileView[]> {
+    const admin = identity?.kind === "session" && isSiteAdmin(identity.user.role);
     const profiles = await this.auth.allowedProfiles(identity);
     const limits = await this.auth.uploadLimits(identity);
     return Promise.all(
@@ -400,12 +401,12 @@ export class Files {
           maxUploadBytes: Math.min(p.max_upload_bytes, limits.maxBytes),
           allowedMimeTypes: p.allowed_mime_types,
           available: reason === null,
-          reason: isSiteAdmin(identity?.user.role)
+          reason: admin
             ? reason
             : reason === null
               ? null
               : "Upload profile unavailable",
-          reasonCode: isSiteAdmin(identity?.user.role)
+          reasonCode: admin
             ? reasonCode
             : reason === null
               ? null

@@ -1,5 +1,6 @@
 import { test, expect } from "bun:test";
 import { fixture } from "./helpers";
+import { entity } from "../src/persistence/port";
 import { handler } from "../src/http/app";
 
 async function member(
@@ -516,6 +517,128 @@ test("members cannot filter by storage source or delete individual replicas", as
     expect(
       (await user.request(`/api/files/${image.id}`, "DELETE")).status,
     ).toBe(202);
+  } finally {
+    await f.close();
+  }
+});
+
+test("upload profile discovery intersects token scope with current grants without granting management access", async () => {
+  const f = await fixture();
+  try {
+    const publicPath = await f.app.plugins.save({
+      pluginId: "builtin.random-path",
+      version: "1.0.0",
+      name: "Public path",
+      config: {},
+    });
+    const privatePath = await f.app.plugins.save({
+      pluginId: "builtin.random-path",
+      version: "1.0.0",
+      name: "Private path",
+      config: {},
+    });
+    const extra = await f.app.db.transaction(async (r) => {
+      const base = (await r.profile(f.profileId))!;
+      const publicProfile = {
+        ...base,
+        ...entity(),
+        public_prefix: "/public/",
+        path_instance_id: publicPath.id,
+        allow_guest_upload: true,
+      };
+      const privateProfile = {
+        ...base,
+        ...entity(),
+        public_prefix: "/private/",
+        path_instance_id: privatePath.id,
+      };
+      await r.insertProfile(publicProfile);
+      await r.insertProfile(privateProfile);
+      return { publicProfile, privateProfile };
+    });
+    const user = await member(f, "discovery", [
+      f.profileId,
+      extra.privateProfile.id,
+    ]);
+    const scoped = await (
+      await user.request("/api/tokens", "POST", {
+        name: "scoped",
+        profileIds: [f.profileId],
+      })
+    ).json();
+    const all = await (
+      await user.request("/api/tokens", "POST", { name: "all" })
+    ).json();
+    const owner = await (
+      await f.request("/api/tokens", "POST", {
+        name: "owner scoped",
+        profileIds: [f.profileId],
+      })
+    ).json();
+    const list = async (token: string) => {
+      const response = await f.request(
+        "/api/upload-profiles",
+        "GET",
+        undefined,
+        token,
+      );
+      expect(response.status).toBe(200);
+      return await response.json();
+    };
+    expect((await list(scoped.token)).map((p: { id: string }) => p.id)).toEqual(
+      [f.profileId],
+    );
+    expect((await list(owner.token)).map((p: { id: string }) => p.id)).toEqual([
+      f.profileId,
+    ]);
+    expect(
+      (await list(all.token)).map((p: { id: string }) => p.id).sort(),
+    ).toEqual(
+      [f.profileId, extra.publicProfile.id, extra.privateProfile.id].sort(),
+    );
+    expect((await f.upload(scoped.token)).status).toBe(201);
+    for (const path of [
+      "/api/storage-sources",
+      "/api/upload-profiles/" + f.profileId,
+    ])
+      expect(
+        (await f.request(path, "GET", undefined, owner.token)).status,
+      ).toBe(403);
+    expect(
+      (await f.request("/api/upload-profiles", "POST", {}, owner.token)).status,
+    ).toBe(403);
+
+    await f.request(`/api/users/${user.id}`, "PUT", {
+      role: "member",
+      status: "active",
+      profileIds: [],
+    });
+    expect(await list(scoped.token)).toEqual([]);
+    expect((await list(all.token)).map((p: { id: string }) => p.id)).toEqual([
+      extra.publicProfile.id,
+    ]);
+    const anonymous = await handler(f.app)(
+      new Request("http://localhost/api/upload-profiles"),
+    );
+    expect((await anonymous.json()).map((p: { id: string }) => p.id)).toEqual([
+      extra.publicProfile.id,
+    ]);
+
+    await user.request(`/api/tokens/${scoped.id}`, "DELETE");
+    expect(
+      (await f.request("/api/upload-profiles", "GET", undefined, scoped.token))
+        .status,
+    ).toBe(401);
+    expect(
+      (
+        await f.request(
+          "/api/upload-profiles",
+          "GET",
+          undefined,
+          "invalid-token",
+        )
+      ).status,
+    ).toBe(401);
   } finally {
     await f.close();
   }

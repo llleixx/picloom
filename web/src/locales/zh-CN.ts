@@ -258,6 +258,7 @@ export const zhCN = {
   "ui.deletingNow": "正在删除…",
   "ui.revoking": "正在撤销…",
   "ui.signingOut": "正在退出…",
+  "ui.copyId": "复制 ID",
   "ui.copy": "复制",
   "ui.uninstalling": "正在卸载…",
   "configuration.create.sources": "创建存储源",

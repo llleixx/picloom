@@ -186,9 +186,12 @@ export class Auth {
       const grants = identity ? await r.userProfiles(identity.user.id) : [];
       return profiles.filter(
         (p) =>
-          isSiteAdmin(identity?.user.role) ||
-          p.allow_guest_upload ||
-          grants.includes(p.id),
+          (isSiteAdmin(identity?.user.role) ||
+            p.allow_guest_upload ||
+            grants.includes(p.id)) &&
+          (identity?.kind !== "token" ||
+            identity.credential.allowed_profile_ids == null ||
+            identity.credential.allowed_profile_ids.includes(p.id)),
       );
     });
   }

@@ -3,7 +3,7 @@ import { t, locale } from "@/lib/i18n";
 import { localizePlugin } from "../../../shared/plugin-localization";
 import { computed, ref } from "vue";
 import { useQuery } from "@tanstack/vue-query";
-import { Plus } from "lucide-vue-next";
+import { Copy, Plus } from "lucide-vue-next";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/dialog";
 import {
   api,
+  copy,
   ApiError,
   errorMessage,
   errorText,
@@ -93,7 +94,11 @@ async function edit(id?: string) {
           id: "",
           name: "",
           publicPrefix: "/i/",
-          path: { pluginId: "builtin.random-path", version: "1.0.0", config: {} },
+          path: {
+            pluginId: "builtin.random-path",
+            version: "1.0.0",
+            config: {},
+          },
           storageGroupId: "",
           enabled: true,
           allowGuestUpload: false,
@@ -195,6 +200,9 @@ async function remove() {
           </p>
         </div>
         <div class="flex shrink-0 flex-wrap gap-2 sm:max-w-72 sm:justify-end">
+          <Button size="sm" variant="ghost" @click="copy(item.id)">
+            <Copy />{{ t("ui.copyId") }}
+          </Button>
           <Button size="sm" variant="outline" @click="edit(item.id)">{{
             t("ui.edit")
           }}</Button

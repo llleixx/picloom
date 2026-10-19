@@ -294,6 +294,7 @@ export const en = {
   "ui.deletingNow": "Deleting…",
   "ui.revoking": "Revoking…",
   "ui.signingOut": "Signing out…",
+  "ui.copyId": "Copy ID",
   "ui.copy": "Copy",
   "ui.uninstalling": "Uninstalling…",
   "configuration.create.sources": "Create storage source",

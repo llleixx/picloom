@@ -287,7 +287,7 @@ export function handler(app: Application) {
         }
         if (path === "/api/upload-profiles" && method === "GET")
           return json(
-            await app.files.uploadProfiles(await app.auth.optional(req, true)),
+            await app.files.uploadProfiles(await app.auth.optional(req)),
           );
         if (path === "/api/client-settings" && method === "GET") {
           const site = app.delivery.get();
