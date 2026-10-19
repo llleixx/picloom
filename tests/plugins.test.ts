@@ -344,6 +344,7 @@ test("cacheable false executes every request; normal processor result is cached"
 test("302 shares configured cache lifetime; transforms force stream", async () => {
   const f = await fixture();
   try {
+    f.app.config.imageCacheMaxAge = 5;
     const modes: string[] = [];
     const def: Definition<"storage"> = {
       id: "test.redirect",
@@ -393,7 +394,7 @@ test("302 shares configured cache lifetime; transforms force stream", async () =
     const raw = await f.request(path);
     expect(raw.status).toBe(302);
     expect(raw.headers.get("cache-control")).toBe(
-      "public, max-age=0, must-revalidate",
+      "public, max-age=5, must-revalidate",
     );
     const delivery = await (await f.request("/api/settings")).json();
     expect(
@@ -408,9 +409,12 @@ test("302 shares configured cache lifetime; transforms force stream", async () =
     const head = await f.request(path, "HEAD");
     expect(head.status).toBe(302);
     expect(head.body).toBeNull();
-    expect(head.headers.get("cache-control")).toBe(
-      "public, max-age=600, must-revalidate",
-    );
+    const cacheControl = head.headers.get("cache-control")!;
+    expect(cacheControl).toMatch(/^public, max-age=\d+, must-revalidate$/);
+    const maxAge = Number(cacheControl.match(/max-age=(\d+)/)![1]);
+    // The configured 600 seconds must still respect the signed URL's ten-second lifetime.
+    expect(maxAge).toBeGreaterThanOrEqual(0);
+    expect(maxAge).toBeLessThanOrEqual(10);
     expect(head.headers.get("vary")).toBeNull();
     const transformed = await f.request(path + "?w=8");
     expect(transformed.status).toBe(200);

@@ -50,12 +50,22 @@ test("frontend endpoints expose public safe limits and protected profile options
       ).status,
     ).toBe(200);
     const token = await (
-      await f.request("/api/tokens", "POST", { name: "test" })
+      await f.request("/api/tokens", "POST", {
+        name: "test",
+        profileIds: [f.profileId],
+      })
     ).json();
-    for (const path of ["/api/upload-profiles", "/api/files"])
-      expect(
-        (await f.request(path, "GET", undefined, token.token)).status,
-      ).toBe(403);
+    const scopedProfiles = await f.request(
+      "/api/upload-profiles",
+      "GET",
+      undefined,
+      token.token,
+    );
+    expect(scopedProfiles.status).toBe(200);
+    expect(await scopedProfiles.json()).toEqual([p]);
+    expect(
+      (await f.request("/api/files", "GET", undefined, token.token)).status,
+    ).toBe(403);
     const original = await f.app.db.read((r) => r.profile(f.profileId));
     const disabledPath = await f.app.plugins.save({
       pluginId: "builtin.date-path",
@@ -79,6 +89,18 @@ test("frontend endpoints expose public safe limits and protected profile options
       }),
     );
     const profiles = await (await f.request("/api/upload-profiles")).json();
+    const scopedAfterCreation = await f.request(
+      "/api/upload-profiles",
+      "GET",
+      undefined,
+      token.token,
+    );
+    expect(scopedAfterCreation.status).toBe(200);
+    expect(
+      (await scopedAfterCreation.json()).map(
+        (profile: { id: string }) => profile.id,
+      ),
+    ).toEqual([f.profileId]);
     expect(profiles.find((p: any) => p.name === "Disabled").available).toBe(
       false,
     );
@@ -234,12 +256,14 @@ test("web assets, public home and workspace fallback are bounded to UI routes", 
       "/app/unknown",
       "/assets/..%2f..%2fsecret",
       "/missing-image",
-      "/admin/",
       "/admin/login",
       "/admin/files",
       "/login/unknown",
     ])
       expect((await f.request(path)).status).toBe(404);
+    const invalidPath = await f.request("/admin/");
+    expect(invalidPath.status).toBe(400);
+    expect((await invalidPath.json()).error.code).toBe("INVALID_INPUT");
     expect((await f.request("/api/unknown")).status).toBe(404);
     expect(() => prefix("/app/")).toThrow();
     expect(() => prefix("/assets/")).toThrow();
@@ -281,7 +305,7 @@ test("reserved prefixes disable UI without rewriting old image links, including 
   }
 });
 
-test("deletion failure is visible in file detail without leaking storage errors", async () => {
+test("deletion failure is visible in operations without leaking storage errors", async () => {
   const f = await fixture({
     beforeDelete: async () => {
       throw new Error("secret root");
@@ -293,7 +317,14 @@ test("deletion failure is visible in file detail without leaking storage errors"
     await f.app.files.sweep();
     const detail = await (await f.request("/api/files/" + uploaded.id)).json();
     expect(detail.status).toBe("deleting");
-    expect(detail.error).toBe("DELETE_FAILED");
+    expect(detail.error).toBeNull();
+    const response = await f.request(`/api/files/${uploaded.id}/operations`);
+    expect(response.status).toBe(200);
+    const operations = await response.json();
+    expect(operations.tasks).toContainEqual(
+      expect.objectContaining({ kind: "delete", error: "DELETE_FAILED" }),
+    );
+    expect(JSON.stringify(operations)).not.toContain("secret root");
     expect(JSON.stringify(detail)).not.toContain("secret root");
   } finally {
     await f.close();

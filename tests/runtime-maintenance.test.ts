@@ -38,7 +38,11 @@ test("a blocked recovery sweep and failing cache maintenance do not block other 
   const packages = spyOn(runtime.app.packages, "cleanup").mockResolvedValue();
   try {
     const deadline = Date.now() + 4800;
-    while (uploads.mock.calls.length < 2 && Date.now() < deadline) {
+    const independentJobs = [dispatch, cache, temporary, uploads, packages];
+    while (
+      independentJobs.some((job) => job.mock.calls.length < 2) &&
+      Date.now() < deadline
+    ) {
       await Bun.sleep(20);
     }
     expect(sweep).toHaveBeenCalledTimes(1);
