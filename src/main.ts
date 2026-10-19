@@ -7,6 +7,8 @@ const server = Bun.serve({
   hostname: process.env.HOST ?? "127.0.0.1",
   port: runtime.app.config.port,
   maxRequestBodySize: maxUploadBodyBytes,
+  // Allow the 120-second image processing budget to finish before HTTP times out.
+  idleTimeout: 150,
   fetch(req, server) {
     // Backups are bounded by archive size but may take longer than the default idle timeout.
     if (
