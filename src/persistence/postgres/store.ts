@@ -41,6 +41,7 @@ export async function openPostgres(
         [1, "./001_initial.sql"],
         [2, "../002_manual_retry.sql"],
         [3, "../003_public_path.sql"],
+        [4, "../004_storage_key.sql"],
       ] as const) {
         const migration = readFileSync(new URL(name, import.meta.url), "utf8");
         const checksum = createHash("sha256").update(migration).digest("hex");

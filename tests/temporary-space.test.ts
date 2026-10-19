@@ -236,6 +236,7 @@ test("automatic retries retain sources only until exhausted; pending sessions su
 test("upload admission rejects full capacity before consuming multipart and releases admission slots", async () => {
   const f = await fixture();
   try {
+    f.app.config.uploadConcurrency = 2;
     f.app.config.uploadTempBytes = 1;
     let pulls = 0;
     const body = new ReadableStream<Uint8Array>(

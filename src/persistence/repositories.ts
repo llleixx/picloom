@@ -824,27 +824,35 @@ export class SqlRepositories implements Repositories {
     storageKey: string,
     locator: Locator,
   ) {
-    let q = this.db
-      .selectFrom("file_replicas as r")
-      .innerJoin("files as f", "f.id", "r.file_id")
-      .select(["r.locator_json", "f.storage_key"])
-      .where("r.storage_instance_id", "=", instanceId)
-      .where("r.status", "!=", "deleted");
-    q =
-      locator === null
-        ? q
-            .where("r.locator_json", "is", null)
-            .where("f.storage_key", "=", storageKey)
-        : q.where("r.locator_json", "is not", null);
-    const candidates = await this.rows<{
-      locator_json: Locator;
-      storage_key: string;
-    }>(q);
-    return candidates.some((c) =>
-      locator === null
-        ? c.locator_json === null && c.storage_key === storageKey
-        : isDeepStrictEqual(c.locator_json, locator),
+    if (locator === null) {
+      const found = await this.db
+        .selectFrom("files as f")
+        .select("f.id")
+        .where("f.storage_key", "=", storageKey)
+        .where((eb) =>
+          eb.exists(
+            eb
+              .selectFrom("file_replicas as r")
+              .select("r.id")
+              .whereRef("r.file_id", "=", "f.id")
+              .where("r.storage_instance_id", "=", instanceId)
+              .where("r.status", "!=", "deleted")
+              .where("r.locator_json", "is", null),
+          ),
+        )
+        .limit(1)
+        .executeTakeFirst();
+      return !!found;
+    }
+    const candidates = await this.rows<{ locator_json: Locator }>(
+      this.db
+        .selectFrom("file_replicas as r")
+        .select("r.locator_json")
+        .where("r.storage_instance_id", "=", instanceId)
+        .where("r.status", "!=", "deleted")
+        .where("r.locator_json", "is not", null),
     );
+    return candidates.some((c) => isDeepStrictEqual(c.locator_json, locator));
   }
   async fileByPath(path: string) {
     return this.first<FileRecord>(
