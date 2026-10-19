@@ -1,44 +1,71 @@
+<p align="center">
+  <img src="docs/public/picloom.svg" width="96" height="96" alt="Picloom">
+</p>
+
 # Picloom
 
-自托管图片管理服务。将图片保存到本地或对象存储，按需添加水印、生成缩略图，通过链接分享。
+A self-hosted image hosting service with multiple storage backends and configurable image processing.
 
-- 多存储源、主副本与冗余副本。
-- 上传与分片上传，图片管理、用户和上传令牌。
-- 图片变换、水印、保存后审核与通知。
-- 内置和外部插件共用 SDK。
+**English** · [简体中文](README.zh-CN.md)
 
-## 开始使用
+[Documentation (中文)](https://llleixx.github.io/picloom/) · [Quick start (中文)](https://llleixx.github.io/picloom/guide/quick-start.html) · [MIT License](LICENSE)
 
-从 [快速开始](docs/guide/quick-start.md) 完成 Docker 部署、存储配置和第一张图片上传。
+## Features
 
-- [理解配置关系](docs/guide/concepts.md)
-- [Docker 部署](docs/operations/deploy.md) · [备份与升级](docs/operations/data.md)
-- [插件开发](docs/development/plugin-start.md) · [核心开发](docs/development/contributing.md)
+- **Multiple storage backends and replicas.** Connect local directories, S3-compatible storage, WebDAV, OpenList and more. Use storage groups to select primary storage and keep redundant copies.
+- **Separate public and storage paths.** Organize files in sharded directories while keeping public URLs flat. Replicas share one public path.
+- **Processing at three stages.** Resize or watermark images before saving, generate variants on access, and run moderation or notifications after saving. Combine steps into reusable pipelines.
+- **Import existing images in place.** Scan local, S3, OpenList or WebDAV storage without uploading again. Preserve existing links by matching the domain and public paths.
+- **Reusable upload profiles.** Choose storage, path rules and processing once, then select a profile when uploading through the web interface or API. Upload tokens can be restricted to specific profiles.
+- **Web management.** Manage images, replicas and background tasks; use chunked uploads and built-in SQLite backups. Add capabilities with path, storage and processing plugins.
 
-当前版本为 `0.1.0` 开发版本。升级前核对数据兼容性并保留备份。
+## How it works
 
-## 本地运行
+An **upload profile** combines path rules, a storage group and processing pipelines. A **storage source** connects to a directory or remote service; a **storage group** decides where primary and redundant copies are stored.
 
-```sh
-bun install --frozen-lockfile
-cp .env.example .env
+```mermaid
+flowchart TD
+    profile["Select an upload profile"] --> upload["Upload processing · optional"]
+    upload --> path["Generate public and storage paths"]
+    path --> primary["Write primary copy and publish"]
+    primary --> link["Return public link"]
+    primary --> background["Background: redundant copies and post-save processing"]
+    request["Open public link"] --> access["Global access pipeline"]
+    access --> response["Original, processed image or storage redirect"]
 ```
 
-设置 `.env` 中的 `ENCRYPTION_KEY`（32 字节随机密钥的 64 位十六进制表示）及初始 Owner 密码，然后执行：
+A successful upload means the primary copy is saved and the image is published. Redundant copies and post-save processing may still be pending. Post-save moderation can subsequently block or delete the image; it does not gate initial publication.
 
-```sh
-bun run init-dev
-bun run build:web
-bun run dev
-```
+Access processing can generate thumbnails without replacing the stored image. See [concepts (中文)](https://llleixx.github.io/picloom/guide/concepts.html) for configuration examples.
 
-完整说明见 [本地开发](docs/development/contributing.md)。
+## Built-in plugins
 
-## 文档站
+| Type | Plugins |
+| --- | --- |
+| Storage | [Local](src/builtins/storage/local/README.md), [S3](src/builtins/storage/s3/README.md), [WebDAV](src/builtins/storage/webdav/README.md), [OpenList](src/builtins/storage/openlist/README.md), [NodeImage](src/builtins/storage/nodeimage/README.md), [Telegram](src/builtins/storage/telegram/README.md) |
+| Paths | [Random](src/builtins/path/random-path/README.md), [Date](src/builtins/path/date-path/README.md) |
+| Processing | [Sharp](src/builtins/processor/sharp/README.md), [Watermark](src/builtins/processor/watermark/README.md), [Tencent Cloud moderation](src/builtins/processor/tencent-moderation/README.md), [Telegram notification](src/builtins/processor/telegram-notification/README.md) |
 
-```sh
-bun install --cwd docs --frozen-lockfile
-bun run docs:dev
-```
+Each plugin's README covers its configuration and limitations. Storage capabilities, including deletion and import, vary by backend.
 
-使用 VitePress 构建，中文优先，预留多语言入口。GitHub Actions 发布到 GitHub Pages，首次启用方法见 [文档站维护](docs/development/docs.md)。
+## Getting started
+
+Picloom is currently a `0.1.0` development version. Docker image publication is pending; to run it now, follow [local development (中文)](https://llleixx.github.io/picloom/development/contributing.html).
+
+The [Docker quick start (中文)](https://llleixx.github.io/picloom/guide/quick-start.html) covers deployment configuration and the first upload. A fresh deployment creates a local storage source, storage group and upload profile named `Default`, ready for uploads after login.
+
+- [Common recipes (中文)](https://llleixx.github.io/picloom/guide/recipes.html) — watermarks, thumbnails, replicas and moderation notifications.
+- [Image management (中文)](https://llleixx.github.io/picloom/guide/files.html) — manage images and import existing libraries.
+- [Data, backups and upgrades (中文)](https://llleixx.github.io/picloom/operations/data.html) — preserve data and check compatibility before upgrading.
+- [HTTP API (中文)](https://llleixx.github.io/picloom/reference/http-api.html) — integrate uploads into other tools.
+
+## Development
+
+Built with Bun, TypeScript and Vue; supports SQLite and PostgreSQL.
+
+- [Core development (中文)](https://llleixx.github.io/picloom/development/contributing.html)
+- [Plugin development (中文)](https://llleixx.github.io/picloom/development/plugin-start.html)
+
+## License
+
+[MIT](LICENSE)
