@@ -224,6 +224,18 @@ export class Files {
               checking,
             )
           : await (item.runtime as ProcessorPlugin).check(checkInput, checking);
+        if (
+          !check ||
+          typeof check !== "object" ||
+          Array.isArray(check) ||
+          !["applicable", "noop", "unsupported"].includes(check.status) ||
+          (check.reason !== undefined && typeof check.reason !== "string")
+        )
+          throw new AppError(
+            "PROCESSING_RESULT_INVALID",
+            "Processor check returned an invalid result",
+            500,
+          );
         if (check.status === "noop") continue;
         if (check.status === "unsupported") {
           if (item.step.on_not_applicable === "skip") continue;
@@ -239,6 +251,23 @@ export class Files {
               execution,
             )
           : await (item.runtime as ProcessorPlugin).process(input, execution);
+        if (
+          !result ||
+          typeof result !== "object" ||
+          Array.isArray(result) ||
+          !["pass", "replace", "reject"].includes(result.status) ||
+          (result.status === "reject" && typeof result.reason !== "string") ||
+          (result.status === "replace" &&
+            (!result.output ||
+              typeof result.output !== "object" ||
+              Array.isArray(result.output) ||
+              typeof result.output.handle !== "string"))
+        )
+          throw new AppError(
+            "PROCESSING_RESULT_INVALID",
+            "Processor process returned an invalid result",
+            500,
+          );
         if (result.status === "reject")
           throw new AppError("REJECTED", result.reason, 422);
         if (result.status === "replace") {
