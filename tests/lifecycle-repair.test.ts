@@ -314,3 +314,57 @@ test("a failed verification never turns an earlier unknown write into an absent 
     await f.close();
   }
 });
+
+test("restart makes exhausted tasks recoverable even before their replica operation starts", async () => {
+  const { f } = await redundant();
+  try {
+    const image = await (await f.upload()).json();
+    const [write] = await f.app.db.read((r) => r.tasks(image.id));
+    await f.app.db.transaction(async (r) => {
+      await r.saveTask({
+        ...write!,
+        status: "running",
+        attempts: f.app.config.retryLimit,
+      });
+    });
+    await f.restart();
+    expect(
+      await f.app.db.read((r) => r.replica(write!.replica_id!)),
+    ).toMatchObject({ status: "write_failed" });
+    expect(
+      (await f.request(`/api/tasks/${write!.id}/retry`, "POST")).status,
+    ).toBe(200);
+    await f.app.files.sweep();
+    expect(
+      await f.app.db.read((r) => r.replica(write!.replica_id!)),
+    ).toMatchObject({ status: "ready" });
+
+    await f.app.files.delete(image.id);
+    await f.app.files.tasks.cleanupPending();
+    const deletes = (await f.app.db.read((r) => r.tasks(image.id))).filter(
+      (t) => t.kind === "delete",
+    );
+    await f.app.db.transaction(async (r) => {
+      for (const task of deletes)
+        await r.saveTask({ ...task, status: "running", manual_retry: true });
+    });
+    await f.restart();
+    expect((await f.app.db.read((r) => r.file(image.id)))?.status).toBe(
+      "delete_failed",
+    );
+    for (const task of deletes) {
+      expect(
+        await f.app.db.read((r) => r.replica(task.replica_id!)),
+      ).toMatchObject({ status: "delete_failed" });
+      expect(
+        (await f.request(`/api/tasks/${task.id}/retry`, "POST")).status,
+      ).toBe(200);
+    }
+    await f.app.files.sweep();
+    expect((await f.app.db.read((r) => r.file(image.id)))?.status).toBe(
+      "deleted",
+    );
+  } finally {
+    await f.close();
+  }
+});

@@ -1260,6 +1260,27 @@ export class SqlRepositories implements Repositories {
         eb.or([eb("manual_retry", "=", 1), eb("attempts", ">=", retryLimit)]),
       )
       .execute();
+    // A task can be claimed before its replica operation starts. If recovery
+    // exhausts that task, its waiting replica must also become actionable.
+    for (const [kind, waiting, failed] of [
+      ["write", "pending", "write_failed"],
+      ["delete", "delete_pending", "delete_failed"],
+    ] as const) {
+      await this.db
+        .updateTable("file_replicas")
+        .set({ status: failed })
+        .where("status", "=", waiting)
+        .where(
+          "id",
+          "in",
+          this.db
+            .selectFrom("tasks")
+            .select("replica_id")
+            .where("kind", "=", kind)
+            .where("status", "=", "failed"),
+        )
+        .execute();
+    }
     await this.db
       .updateTable("tasks")
       .set({ status: "pending", next_run_at: Date.now() })
