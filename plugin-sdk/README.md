@@ -19,6 +19,27 @@ Use ESM with TypeScript `moduleResolution: "Bundler"` and Bun types. The SDK
 contains types for `path`, `storage`, and `processor` plugins, configuration,
 host services, errors, and file/stream helpers. It does not start Picloom.
 
+Display text uses `defaultLocale` and `content`, for example:
+
+```ts
+const labels = {
+  defaultLocale: "en-US",
+  content: {
+    "en-US": { name: "My plugin" },
+    "zh-CN": { name: "我的插件" },
+  },
+} satisfies import("@picloom/plugin-sdk").PluginLocalization;
+```
+
+Put these fields on the plugin definition; its default language needs a nonblank
+name. Processor stages also declare their own `defaultLocale` and `content`
+(e.g. `{ "en-US": {} }` when no field labels are needed). Names do not belong in
+`plugin.json`; schema titles, descriptions and enum labels belong in `content`.
+One language is sufficient. The host resolves each field through the current
+locale, its base language, and the resource's default locale, skipping blank text.
+See [localized content](https://llleixx.github.io/picloom/development/plugin-config.html#界面提示与翻译)
+for schema pointers and the full format.
+
 `sharp` is an optional peer because the public `services.images.sharp` type
 references its declarations. Install it as a development dependency for complete
 type checking, even for the initial path template. At runtime use
@@ -39,6 +60,12 @@ Interfaces may change before 1.0; pin the SDK version and review release notes.
 
 本包独立提供插件类型与辅助函数，不包含 Picloom 服务。当前仅准备本地发布产物，
 尚未发布 npm。宿主兼容范围见上表，不保证任意旧版开发构建均兼容。
+
+展示文案统一使用上面的 `defaultLocale` 与 `content`；默认语言必须有非空插件名称。
+只提供一种语言即可。处理插件的每个阶段也要声明自己的默认语言和内容，无字段文案时
+保留默认语言的空条目，例如 `{ "en-US": {} }`。名称不放在清单中，Schema 的标题、
+说明和枚举标签也统一放入 `content`。宿主逐字段按当前语言、基础语言、内容默认语言
+回退，空白文案继续回退；完整结构见上方多语言文案链接。
 
 Sharp 为可选 peer dependency，但完整类型检查仍需安装它的声明，因此模板将
 Sharp 放在开发依赖中。运行时使用宿主的 `services.images.sharp`，不打包另一套原生库。

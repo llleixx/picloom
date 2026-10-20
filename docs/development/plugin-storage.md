@@ -43,6 +43,7 @@ Picloom 管理账户、公开路径、副本和任务；插件只对接存储。
 
 | 位置 | 成员 | 必需 | 作用 |
 | --- | --- | --- | --- |
+| 定义 | `defaultLocale`、`content` | 是 | 默认语言与展示文案，默认语言必须有非空名称；见 [多语言文案](./plugin-config.md#界面提示与翻译) |
 | 定义 | `configSchemaVersion`、`configSchema`、`createInstance` | 是 | 创建 `StoragePlugin` 运行对象，见 [共用协议](./plugin-config.md#配置描述字段) |
 | 定义 | `validateConfig`、`migrateConfig`、`uiHints` | 否 | 校验、升级和表单展示 |
 | 定义 | `localDirectory` | 否 | 声明本地存储目录 |
@@ -212,7 +213,7 @@ listFiles(input: {
 ## 接入并验证
 
 在独立项目中运行 `bun run build`，使用生成的 `dist/<插件ID>-<版本>.zip`。
-下面的 **Example …** 是示例名，实际应选择清单中设置的名称：
+下面的 **Example …** 是示例名，实际应选择入口 `content` 中设置、按当前界面语言显示的名称：
 
 1. 安装 生成的 ZIP，创建 **Example local storage** 存储源，根目录填 `./example-images`。
 2. 创建存储组并加入该存储源，创建上传配置并关联此组。

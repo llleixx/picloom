@@ -40,7 +40,7 @@ flowchart LR
 
 | 位置 | 成员 | 必需 | 作用 |
 | --- | --- | --- | --- |
-| 阶段描述 | `configSchemaVersion`、`configSchema`、`createInstance` | 是 | 创建 `PostSavePlugin`，见 [共用协议](../plugin-config.md#配置描述字段) |
+| 阶段描述 | `defaultLocale`、`content`、`configSchemaVersion`、`configSchema`、`createInstance` | 是 | 创建 `PostSavePlugin`，见 [共用协议](../plugin-config.md#配置描述字段) |
 | 阶段描述 | `validateConfig`、`migrateConfig`、`uiHints` | 否 | 配置校验、升级和展示 |
 | 运行对象 | `execute` | 是 | 执行操作并返回处理意见 |
 | 运行对象 | `dispose` | 否 | [释放实例资源](../plugin-errors.md#dispose-释放实例) |
@@ -106,7 +106,7 @@ execute(input: {
 ## 接入并验证
 
 在独立项目中运行 `bun run build`，使用生成的 `dist/<插件ID>-<版本>.zip`。
-下面的 **Example …** 是示例名，实际应选择清单中设置的名称：
+下面的 **Example …** 是示例名，实际应选择入口 `content` 中设置、按当前界面语言显示的名称：
 
 1. 安装 生成的 ZIP，创建保存后流水线，添加 **Example width review**，将 `maxWidth` 设为 `1280`。
 2. 关联到上传配置。测试时不要启用上传缩放，否则审核的是缩放后的图片。

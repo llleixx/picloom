@@ -88,6 +88,7 @@ import { PluginError, type Definition } from "@picloom/plugin-sdk";
 ├── 身份字段                   ├── 身份字段
 ├── configSchemaVersion        └── stages（至少一个阶段）
 ├── configSchema                   └── upload / access / post_save
+                                       ├── defaultLocale、content
 └── createInstance                     ├── configSchemaVersion
     └── 返回运行方法                   ├── configSchema
                                        └── createInstance

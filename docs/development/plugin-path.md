@@ -33,6 +33,7 @@ flowchart LR
 
 | 位置 | 成员 | 必需 | 作用 |
 | --- | --- | --- | --- |
+| 定义 | `defaultLocale`、`content` | 是 | 默认语言与展示文案，默认语言必须有非空名称；见 [多语言文案](./plugin-config.md#界面提示与翻译) |
 | 定义 | `configSchemaVersion`、`configSchema` | 是 | 配置结构版本和表单 |
 | 定义 | `createInstance` | 是 | 返回 `PathPlugin` 运行对象 |
 | 定义 | `validateConfig`、`migrateConfig`、`uiHints` | 否 | [共用配置能力](./plugin-config.md#配置描述字段) |
@@ -84,7 +85,7 @@ generate(input: {
 ## 接入并验证
 
 在独立项目中运行 `bun run build`，使用生成的 `dist/<插件ID>-<版本>.zip`。
-下面的 **Example …** 是示例名，实际应选择清单中设置的名称：
+下面的 **Example …** 是示例名，实际应选择入口 `content` 中设置、按当前界面语言显示的名称：
 
 1. 以 Owner 登录，在插件页面上传 生成的 ZIP，确认信任并安装。
 2. 新建上传配置，选择 **Example date path**，关联已有存储组，公开前缀设为 `/photos/`。

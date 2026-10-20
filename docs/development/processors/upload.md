@@ -33,7 +33,7 @@ flowchart LR
 
 | 位置 | 成员 | 必需 | 作用 |
 | --- | --- | --- | --- |
-| 阶段描述 | `configSchemaVersion`、`configSchema`、`createInstance` | 是 | 创建 `ProcessorPlugin`，见 [共用协议](../plugin-config.md#配置描述字段) |
+| 阶段描述 | `defaultLocale`、`content`、`configSchemaVersion`、`configSchema`、`createInstance` | 是 | 创建 `ProcessorPlugin`，见 [共用协议](../plugin-config.md#配置描述字段) |
 | 阶段描述 | `paramsSchema` | 否 | 声明可接受的本次请求参数；还需管理员逐项启用 |
 | 阶段描述 | `validateConfig`、`migrateConfig`、`uiHints` | 否 | 配置校验、升级和展示 |
 | 运行对象 | `check`、`process` | 是 | 检查适用性，执行处理 |
@@ -123,7 +123,7 @@ process(input: {
 ## 接入并验证
 
 在独立项目中运行 `bun run build`，使用生成的 `dist/<插件ID>-<版本>.zip`。
-下面的 **Example …** 是示例名，实际应选择清单中设置的名称：
+下面的 **Example …** 是示例名，实际应选择入口 `content` 中设置、按当前界面语言显示的名称：
 
 1. 安装 生成的 ZIP，创建上传流水线，添加 **Example resize**。
 2. 将固定宽度设为 `1280`，关联到一个上传配置，先不启用请求参数。

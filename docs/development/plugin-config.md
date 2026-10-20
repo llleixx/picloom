@@ -26,7 +26,7 @@
 | `migrateConfig` | 异步函数 | 否 | [升级时转换旧配置](./plugin-release.md#migrateconfig-转换旧配置) |
 | `uiHints` | `UIHints` | 否 | 表单显示提示 |
 | `defaultLocale` | `string` | 是 | 当前描述的内容默认语言 |
-| `content` | `Record<string, PluginContent>` | 是 | 按语言保存展示文案；至少提供默认语言条目，无字段文案时可为 `{}` |
+| `content` | `Record<string, PluginContent>` | 是 | 按语言保存展示文案；必须包含默认语言条目；阶段无字段文案时写作 `{ "en-US": {} }`（对应 `defaultLocale: "en-US"`） |
 | `paramsSchema` | `Config` | 否 | 仅上传和访问阶段支持，声明可接受的请求参数 |
 
 本文中的 `Config` 是 `Record<string, Json>`。`Json` 可以是字符串、数值、布尔值、`null`、数组或 JSON 对象，不包含函数、流或类实例。
