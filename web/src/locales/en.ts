@@ -1,5 +1,16 @@
 // UI copy lives here. Keep keys stable when editing English wording.
 export const en = {
+  "linkBuilder.title": "Access link",
+  "linkBuilder.hint":
+    "Add parameters exposed by the access pipeline. Unset parameters use the pipeline’s behavior.",
+  "linkBuilder.remove": "Remove parameter",
+  "linkBuilder.search": "Search parameters",
+  "linkBuilder.close": "Close parameter picker",
+  "linkBuilder.conflict": "Conflicting definitions",
+  "linkBuilder.empty": "No available parameters",
+  "linkBuilder.add": "Add parameter",
+  "linkBuilder.open": "Open link",
+
   "errors.plugin_invalid_config": "Plugin configuration is missing or invalid",
   "errors.plugin_invalid_input": "Plugin input or parameters are invalid",
   "errors.plugin_access_denied":

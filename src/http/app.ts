@@ -313,6 +313,8 @@ export function handler(app: Application) {
           return json(limits);
         }
         const auth = await app.auth.authenticate(req, true);
+        if (path === "/api/access-parameters" && method === "GET")
+          return json(await app.configuration.accessParameters());
         const workspaceRoute =
           path.startsWith("/api/auth/") ||
           path === "/api/tokens" ||

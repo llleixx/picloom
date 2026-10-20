@@ -1,6 +1,17 @@
 import type { en } from "./en";
 
 export const zhCN = {
+  "linkBuilder.title": "访问链接",
+  "linkBuilder.hint":
+    "按需添加访问流水线开放的参数。未填写的参数沿用流水线自身的行为。",
+  "linkBuilder.remove": "移除参数",
+  "linkBuilder.search": "搜索参数",
+  "linkBuilder.close": "关闭参数选择",
+  "linkBuilder.conflict": "参数定义冲突",
+  "linkBuilder.empty": "没有可添加的参数",
+  "linkBuilder.add": "添加参数",
+  "linkBuilder.open": "打开链接",
+
   "errors.plugin_invalid_config": "插件配置缺失或无效",
   "errors.plugin_invalid_input": "插件输入或参数无效",
   "errors.plugin_access_denied": "插件认证失败或权限不足",

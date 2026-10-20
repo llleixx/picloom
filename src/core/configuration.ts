@@ -8,6 +8,8 @@ import type { Files } from "./files";
 import { AppError, Conflict, requireValue } from "./errors";
 import { prefix } from "../infra/files";
 import type {
+  AccessParameterGroup,
+  Config,
   GroupView,
   ProfileView,
   PipelineStep,
@@ -31,6 +33,53 @@ export class Configuration {
     private plugins: PluginManager,
     private files: Files,
   ) {}
+  async accessParameters(): Promise<AccessParameterGroup[]> {
+    return this.db.read(async (r) => {
+      const pipeline = await r.accessPipeline();
+      if (!pipeline) return [];
+      const result: AccessParameterGroup[] = [];
+      for (const step of await r.steps(pipeline.id)) {
+        const instance = requireValue(
+          (await r.instances([step.plugin_instance_id]))[0],
+        );
+        const descriptor = this.plugins.descriptor(instance);
+        const properties = (descriptor.paramsSchema?.properties ??
+          {}) as Record<string, Config>;
+        const exposed = Object.fromEntries(
+          step.enabled_params
+            .filter((key) => properties[key])
+            .map((key) => [key, properties[key]!]),
+        );
+        if (!Object.keys(exposed).length) continue;
+        result.push({
+          id: instance.id,
+          name: descriptor.name,
+          paramsSchema: { type: "object", properties: exposed },
+          translations: Object.fromEntries(
+            Object.entries(descriptor.translations ?? {}).map(
+              ([locale, value]) => [
+                locale,
+                {
+                  ...(value.name ? { name: value.name } : {}),
+                  paramsSchema: Object.fromEntries(
+                    Object.entries(value.paramsSchema ?? {}).filter(([path]) =>
+                      Object.keys(exposed).some(
+                        (key) =>
+                          path ===
+                          "/properties/" +
+                            key.replaceAll("~", "~0").replaceAll("/", "~1"),
+                      ),
+                    ),
+                  ),
+                },
+              ],
+            ),
+          ),
+        });
+      }
+      return result;
+    });
+  }
   async pluginUsages(
     pluginId: string,
   ): Promise<import("../../shared/config").PluginUsage[]> {

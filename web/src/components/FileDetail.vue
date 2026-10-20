@@ -1,20 +1,13 @@
 <script setup lang="ts">
-import { imageMimeFromKey } from "../../../shared/import";
+import AccessLinkBuilder from "./AccessLinkBuilder.vue";
 import DeleteScope from "./DeleteScope.vue";
 import ProcessingResults from "./ProcessingResults.vue";
 import CopyResult from "./CopyResult.vue";
 import { t } from "@/lib/i18n";
-import { computed, onMounted, onUnmounted, reactive, ref, watch } from "vue";
+import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import { useQuery } from "@tanstack/vue-query";
-import {
-  Trash2,
-  WandSparkles,
-  LoaderCircle,
-  ChevronLeft,
-  ChevronRight,
-} from "lucide-vue-next";
+import { Trash2, ChevronLeft, ChevronRight } from "lucide-vue-next";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import {
   Sheet,
   SheetContent,
@@ -27,15 +20,8 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
-import type { FileView, ClientSettings } from "../../../shared/api";
-import {
-  api,
-  response,
-  errorMessage,
-  errorText,
-  queryClient,
-  isAdmin,
-} from "@/lib/api";
+import type { FileView } from "../../../shared/api";
+import { api, errorMessage, errorText, queryClient, isAdmin } from "@/lib/api";
 import { date, size, fileStatus } from "@/lib/utils";
 import ImagePreview from "./ImagePreview.vue";
 import type { OperationsView } from "../../../shared/config";
@@ -76,11 +62,6 @@ async function restoreAccess() {
     restoring.value = false;
   }
 }
-const settings = useQuery({
-  queryKey: ["client-settings"],
-  queryFn: ({ signal }) =>
-    api<ClientSettings>("/api/client-settings", { signal }),
-});
 const file = detail.data;
 const operations = useQuery({
   enabled: isAdmin,
@@ -167,29 +148,6 @@ async function forgetRecord() {
 const confirming = ref(false),
   deleting = ref(false),
   deleteError = ref("");
-const params = reactive({
-  w: "" as string | number,
-  h: "" as string | number,
-  q: "" as string | number,
-  fit: "inside",
-  format: "",
-});
-const result = ref(""),
-  resultUrl = ref(""),
-  processing = ref(false),
-  processError = ref("");
-let controller: AbortController | null = null,
-  generation = 0;
-function release() {
-  generation++;
-  controller?.abort();
-  controller = null;
-  if (result.value) URL.revokeObjectURL(result.value);
-  result.value = "";
-  resultUrl.value = "";
-  processing.value = false;
-}
-onUnmounted(release);
 function navigateKey(event: KeyboardEvent) {
   if (
     confirming.value ||
@@ -219,72 +177,10 @@ watch(
   () => file.value?.status,
   (status, old) => {
     if (isAdmin.value && status !== old) void operations.refetch();
-    if (status !== "ready") release();
     if (old !== undefined && status !== old)
       void queryClient.invalidateQueries({ queryKey: ["files"] });
   },
 );
-const supported = computed(() =>
-  ["image/jpeg", "image/png", "image/webp"].includes(
-    file.value?.mimeType ??
-      imageMimeFromKey(file.value?.logicalKey ?? "") ??
-      "",
-  ),
-);
-async function transform() {
-  release();
-  processError.value = "";
-  const current = file.value,
-    limits = settings.data.value;
-  if (!current || current.status !== "ready" || !limits) return;
-  const query = new URLSearchParams();
-  for (const key of ["w", "h", "q"] as const) {
-    if (params[key] === "") continue;
-    const n = Number(params[key]);
-    if (
-      !Number.isInteger(n) ||
-      n < 1 ||
-      n > (key === "q" ? 100 : limits.maxDimension)
-    ) {
-      processError.value = t("processing.integerRange", {
-        field: key,
-        max: key === "q" ? 100 : limits.maxDimension,
-      });
-      return;
-    }
-    query.set(key, String(n));
-  }
-  if (Number(params.w) * Number(params.h) > limits.maxPixels) {
-    processError.value = t("ui.outputExceedsThePixelLimit");
-    return;
-  }
-  if (params.w || params.h) query.set("fit", params.fit);
-  if (params.format) query.set("format", params.format);
-  if (!query.size) {
-    processError.value = t("ui.setAtLeastOneParameter");
-    return;
-  }
-  const url = current.url + "?" + query.toString();
-  const epoch = generation;
-  controller = new AbortController();
-  processing.value = true;
-  try {
-    const publicUrl = new URL(url);
-    const res = await response(publicUrl.pathname + publicUrl.search, {
-      signal: controller.signal,
-    });
-    const blob = await res.blob();
-    if (epoch !== generation) return;
-    if (!blob.type.startsWith("image/"))
-      throw new Error(t("ui.serverReturnedANonImageResponse"));
-    result.value = URL.createObjectURL(blob);
-    resultUrl.value = url;
-  } catch (e) {
-    if (epoch === generation) processError.value = errorText(e);
-  } finally {
-    if (epoch === generation) processing.value = false;
-  }
-}
 const deleteWhole = ref(false),
   includeLast = ref(false),
   replicaTarget = ref("");
@@ -337,7 +233,6 @@ async function remove() {
     }
     await operations.refetch();
     confirming.value = false;
-    release();
     await queryClient.invalidateQueries({ queryKey: ["files"] });
     await detail.refetch();
   } catch (e) {
@@ -476,86 +371,11 @@ async function remove() {
           :url="file.url"
           :label="t('ui.originalUrl')"
         />
-        <section v-if="file.status === 'ready'" class="my-6 border-t pt-5">
-          <h3 class="mb-2 flex items-center gap-2 font-medium">
-            <WandSparkles :size="17" />{{ t("ui.imageProcessing") }}
-          </h3>
-          <p class="mb-4 subtle">
-            {{ t("ui.createAProcessedUrlTheOriginalStays") }}
-          </p>
-          <p v-if="!supported" class="rounded-lg bg-muted p-3 text-sm">
-            {{ t("ui.processingSupportsStaticJpegPngAndWebp") }}
-          </p>
-          <form v-else class="space-y-4" @submit.prevent="transform">
-            <div class="grid grid-cols-2 gap-3">
-              <label class="field"
-                >{{ t("ui.width")
-                }}<Input
-                  v-model="params.w"
-                  type="number"
-                  min="1"
-                  :max="settings.data.value?.maxDimension"
-                  :placeholder="t('ui.auto')" /></label
-              ><label class="field"
-                >{{ t("ui.height")
-                }}<Input
-                  v-model="params.h"
-                  type="number"
-                  min="1"
-                  :max="settings.data.value?.maxDimension"
-                  :placeholder="t('ui.auto')"
-              /></label>
-              <label class="field"
-                >{{ t("ui.fit")
-                }}<select v-model="params.fit" class="native-select">
-                  <option value="inside">{{ t("ui.inside") }}</option>
-                  <option value="cover">{{ t("ui.coverCrop") }}</option>
-                  <option value="contain">{{ t("ui.contain") }}</option>
-                  <option value="fill">{{ t("ui.fillStretch") }}</option>
-                </select></label
-              ><label class="field"
-                >{{ t("ui.outputFormat")
-                }}<select v-model="params.format" class="native-select">
-                  <option value="">{{ t("ui.originalFormat") }}</option>
-                  <option value="jpeg">JPEG</option>
-                  <option value="png">PNG</option>
-                  <option value="webp">WebP</option>
-                </select></label
-              ><label class="field"
-                >{{ t("ui.quality")
-                }}<Input
-                  v-model="params.q"
-                  type="number"
-                  min="1"
-                  max="100"
-                  :placeholder="t('ui.default')"
-              /></label>
-            </div>
-            <p v-if="settings.error.value" class="error-box">
-              {{ errorText(settings.error.value)
-              }}<Button
-                type="button"
-                variant="ghost"
-                @click="settings.refetch()"
-                >{{ t("ui.retry") }}</Button
-              >
-            </p>
-            <Button type="submit" :disabled="processing || !settings.data.value"
-              ><LoaderCircle v-if="processing" class="animate-spin" />{{
-                processing ? t("ui.processing") : t("ui.generatePreview")
-              }}</Button
-            >
-          </form>
-          <p v-if="processError" role="alert" class="error-box mt-4">
-            {{ processError }}
-          </p>
-          <div v-if="result" class="mt-4 space-y-3">
-            <div class="h-52 overflow-hidden rounded-lg border">
-              <ImagePreview :src="result" :contain="true" />
-            </div>
-            <CopyResult :url="resultUrl" :label="t('ui.processedUrl')" />
-          </div>
-        </section>
+        <AccessLinkBuilder
+          v-if="file.status === 'ready'"
+          :key="file.id"
+          :url="file.url"
+        />
         <Button
           v-if="file.status !== 'deleted' && file.status !== 'deleting'"
           variant="destructive"

@@ -367,3 +367,10 @@ function assertSerializable(value: unknown): void {
     throw new Error("Description must be JSON data");
   for (const child of Object.values(value)) assertSerializable(child);
 }
+
+export interface AccessParameterGroup {
+  id: string;
+  name: string;
+  paramsSchema: Config;
+  translations?: import("./plugin-localization").PluginTranslations;
+}
