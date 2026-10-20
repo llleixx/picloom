@@ -19,6 +19,7 @@ export const zhCN = {
   "linkBuilder.title": "访问链接",
   "linkBuilder.hint":
     "按需添加访问流水线开放的参数。未填写的参数沿用流水线自身的行为。",
+  "linkBuilder.clear": "清除参数",
   "linkBuilder.remove": "移除参数",
   "linkBuilder.search": "搜索参数",
   "linkBuilder.close": "关闭参数选择",

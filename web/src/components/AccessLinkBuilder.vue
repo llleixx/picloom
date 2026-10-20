@@ -93,6 +93,13 @@ function remove(key: string) {
   selected.value = selected.value.filter((item) => item !== key);
   delete values[key];
 }
+function clearParameters() {
+  selected.value = [];
+  for (const key of Object.keys(values)) delete values[key];
+  picker.value = false;
+  search.value = "";
+  clearPreview();
+}
 const url = computed(() => {
   const result = new URL(props.url);
   for (const field of active.value) {
@@ -144,14 +151,22 @@ async function showPreview() {
 }
 </script>
 <template>
-  <section
-    v-if="query.isPending.value || query.error.value || fields.size"
-    class="my-6 space-y-4 border-t pt-5"
-  >
-    <h3 class="flex items-center gap-2 font-medium">
-      <Link :size="17" />{{ t("linkBuilder.title") }}
-    </h3>
-    <p class="subtle">{{ t("linkBuilder.hint") }}</p>
+  <section class="my-6 space-y-4 border-t pt-5">
+    <div class="flex items-center justify-between gap-2">
+      <h3 class="flex items-center gap-2 font-medium">
+        <Link :size="17" />{{ t("linkBuilder.title") }}
+      </h3>
+      <Button
+        v-if="selected.length"
+        type="button"
+        variant="ghost"
+        @click="clearParameters"
+      >
+        {{ t("linkBuilder.clear") }}
+      </Button>
+    </div>
+    <CopyResult :url="url" :label="t('linkBuilder.title')" />
+    <p v-if="fields.size" class="subtle">{{ t("linkBuilder.hint") }}</p>
     <p v-if="query.error.value" class="error-box">
       {{ errorText(query.error.value) }}
       <Button variant="ghost" @click="query.refetch()">{{
@@ -163,8 +178,7 @@ async function showPreview() {
       class="animate-spin"
       :size="16"
     />
-    <template v-else>
-      <CopyResult :url="url" :label="t('linkBuilder.title')" />
+    <template v-else-if="fields.size">
       <form class="space-y-4" @submit.prevent="showPreview">
         <div
           v-for="field in active"

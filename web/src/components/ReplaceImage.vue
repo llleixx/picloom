@@ -51,7 +51,7 @@ function submit() {
 <template>
   <Button
     variant="outline"
-    class="mt-4 mr-2"
+    class="w-36"
     :disabled="file.backgroundPending"
     @click="open = true"
     >{{ t("images.replace") }}</Button

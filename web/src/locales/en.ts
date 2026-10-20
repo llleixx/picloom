@@ -23,6 +23,7 @@ export const en = {
   "linkBuilder.title": "Access link",
   "linkBuilder.hint":
     "Add parameters exposed by the access pipeline. Unset parameters use the pipeline’s behavior.",
+  "linkBuilder.clear": "Clear parameters",
   "linkBuilder.remove": "Remove parameter",
   "linkBuilder.search": "Search parameters",
   "linkBuilder.close": "Close parameter picker",

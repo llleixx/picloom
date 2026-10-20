@@ -3,7 +3,6 @@ import ReplaceImage from "./ReplaceImage.vue";
 import AccessLinkBuilder from "./AccessLinkBuilder.vue";
 import DeleteScope from "./DeleteScope.vue";
 import ProcessingResults from "./ProcessingResults.vue";
-import CopyResult from "./CopyResult.vue";
 import { t } from "@/lib/i18n";
 import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import { useQuery } from "@tanstack/vue-query";
@@ -371,29 +370,28 @@ async function remove() {
           v-if="isAdmin && file.processingResults?.length"
           :results="file.processingResults"
         />
-        <CopyResult
-          v-if="file.status === 'ready'"
-          class="mt-6 border-t pt-5"
-          :url="file.url"
-          :label="t('ui.originalUrl')"
-        />
         <AccessLinkBuilder
           v-if="file.status === 'ready'"
           :key="file.id"
           :url="file.url"
         />
-        <ReplaceImage
-          v-if="file.status === 'ready'"
-          :file="file"
-          @replaced="(id) => emit('replaced', id)"
-        />
-        <Button
+        <div
           v-if="file.status !== 'deleted' && file.status !== 'deleting'"
-          variant="destructive"
-          class="mt-4"
-          @click="confirmRemoval()"
-          ><Trash2 />{{ t("ui.deleteImage") }}</Button
+          class="mt-4 flex flex-wrap items-center gap-2"
         >
+          <ReplaceImage
+            v-if="file.status === 'ready'"
+            :file="file"
+            @replaced="(id) => emit('replaced', id)"
+          />
+          <Button
+            variant="destructive"
+            class="w-36"
+            @click="confirmRemoval()"
+          >
+            <Trash2 />{{ t("ui.deleteImage") }}
+          </Button>
+        </div>
         <section v-if="isAdmin" class="mt-6 space-y-4 border-t pt-5">
           <h3 class="font-medium">{{ t("ui.replicas") }}</h3>
           <p v-if="operations.error.value" class="error-box">
