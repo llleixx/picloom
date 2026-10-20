@@ -11,8 +11,11 @@ test("path collision never overwrites existing image or tombstone", async () => 
   const f = await fixture();
   try {
     const def: Definition<"path"> = {
+      defaultLocale: "en-US",
+      content: { "en-US": { name: "fixed" } },
+
       id: "test.fixed",
-      name: "fixed",
+
       version: "1",
       apiVersion: 1,
       configSchemaVersion: 1,
@@ -37,6 +40,7 @@ test("path collision never overwrites existing image or tombstone", async () => 
     const p = {
       ...original,
       ...entity(),
+      is_default: false,
       public_prefix: "/fixed/",
       path_instance_id: inst.id,
     };
@@ -82,6 +86,7 @@ test("reserved prefixes, expiration and file size policy are enforced", async ()
     const small = {
       ...original,
       ...entity(),
+      is_default: false,
       name: "small",
       path_instance_id: (
         await f.app.plugins.save({

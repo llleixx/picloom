@@ -44,7 +44,7 @@ Picloom 管理账户、公开路径、副本和任务；插件只对接存储。
 | 位置 | 成员 | 必需 | 作用 |
 | --- | --- | --- | --- |
 | 定义 | `configSchemaVersion`、`configSchema`、`createInstance` | 是 | 创建 `StoragePlugin` 运行对象，见 [共用协议](./plugin-config.md#配置描述字段) |
-| 定义 | `validateConfig`、`migrateConfig`、`uiHints`、`translations` | 否 | 校验、升级和表单展示 |
+| 定义 | `validateConfig`、`migrateConfig`、`uiHints` | 否 | 校验、升级和表单展示 |
 | 定义 | `localDirectory` | 否 | 声明本地存储目录 |
 | 运行对象 | `write`、`read`、`delete` | 是 | 基本读写和删除 |
 | 运行对象 | `recoverWrite` | 否 | 核对不确定的写入结果 |

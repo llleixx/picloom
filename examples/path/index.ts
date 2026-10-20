@@ -1,8 +1,11 @@
 import { PluginError, type Definition } from "../../plugin-sdk";
 
 export default {
+  defaultLocale: "en-US",
+  content: { "en-US": { name: "Example date path" } },
+
   id: "example.date-path",
-  name: "Example date path",
+
   kind: "path",
   version: "1.0.0",
   apiVersion: 1,

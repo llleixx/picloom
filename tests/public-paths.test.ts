@@ -76,8 +76,11 @@ test("concurrent uploads through nested prefixes reserve one complete path witho
   const f = await fixture();
   try {
     f.app.plugins.register({
+      defaultLocale: "en-US",
+      content: { "en-US": { name: "Path" } },
+
       id: "test.path",
-      name: "Path",
+
       version: "1",
       apiVersion: 1,
       configSchemaVersion: 1,
@@ -113,6 +116,7 @@ test("concurrent uploads through nested prefixes reserve one complete path witho
       const profile = {
         ...original,
         ...entity(),
+        is_default: false,
         public_prefix: prefix!,
         path_instance_id: path.id,
       };

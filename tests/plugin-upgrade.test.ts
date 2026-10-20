@@ -13,8 +13,11 @@ test("storage upgrade previews credentials and required fields, preserves identi
   let disposed = 0,
     initialized = 0;
   const plugin = (version: string): Definition<"storage"> => ({
+    defaultLocale: "en-US",
+    content: { "en-US": { name: "Upgrade test" } },
+
     id: "example.upgrade",
-    name: "Upgrade test",
+
     kind: "storage",
     version,
     apiVersion: 1,
@@ -170,13 +173,19 @@ test("storage upgrade previews credentials and required fields, preserves identi
 test("owned stage upgrades validate parameters, keep IDs and retain saved configuration on initialization failure", async () => {
   const f = await fixture();
   const plugin = (version: string): Definition<"processor"> => ({
+    defaultLocale: "en-US",
+    content: { "en-US": { name: "Processor" } },
+
     id: "example.processor",
-    name: "Processor",
+
     kind: "processor",
     version,
     apiVersion: 1,
     stages: {
       upload: {
+        defaultLocale: "en-US",
+        content: { "en-US": {} },
+
         configSchemaVersion: version === "1" ? 1 : 2,
         configSchema: {
           type: "object",
@@ -237,6 +246,9 @@ test("owned stage upgrades validate parameters, keep IDs and retain saved config
         ...plugin("3"),
         stages: {
           post_save: {
+            defaultLocale: "en-US",
+            content: { "en-US": {} },
+
             configSchemaVersion: 1,
             configSchema: { type: "object", properties: {} },
             async createInstance() {
@@ -283,8 +295,11 @@ test("owned stage upgrades validate parameters, keep IDs and retain saved config
 test("upgrade refuses stale credentials and failed migrations without changing the instance", async () => {
   const f = await fixture();
   const definition = (version: string): Definition<"path"> => ({
+    defaultLocale: "en-US",
+    content: { "en-US": { name: "Path" } },
+
     id: "example.path-upgrade",
-    name: "Path",
+
     version,
     kind: "path",
     apiVersion: 1,

@@ -3,8 +3,10 @@ export * from "./files";
 export type {
   FieldHint,
   UIHints,
-  SchemaTranslation,
-  PluginTranslation,
-  PluginTranslations,
+  SchemaContent,
+  PluginContent,
+  PluginLocalization,
 } from "./config";
 export * from "./errors";
+
+export * from "./localization";

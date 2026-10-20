@@ -11,7 +11,11 @@ import {
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { Readable } from "node:stream";
-import { PluginError, type Definition, type Locator } from "../../../../plugin-sdk";
+import {
+  PluginError,
+  type Definition,
+  type Locator,
+} from "../../../../plugin-sdk";
 import { logicalKey as storageKey } from "../../../../plugin-sdk";
 function failureCode(error: unknown) {
   const status = (error as { $metadata?: { httpStatusCode?: number } })
@@ -23,10 +27,39 @@ function failureCode(error: unknown) {
   return status === undefined ? "NETWORK" : "SERVICE";
 }
 export const s3Storage: Definition<"storage"> = {
-  id: "builtin.s3",
-  name: "S3-Compatible Storage",
-  description: "Store files in an S3-compatible bucket.",
-  translations: {
+  defaultLocale: "en-US",
+  content: {
+    "en-US": {
+      name: "S3-Compatible Storage",
+      description: "Store files in an S3-compatible bucket.",
+      configSchema: {
+        "/properties/multipartThresholdMiB": {
+          title: "Multipart threshold (MiB)",
+        },
+        "/properties/partSizeMiB": { title: "Part size (MiB)" },
+        "/properties/partConcurrency": { title: "Part concurrency" },
+        "/properties/endpoint": { title: "Endpoint" },
+        "/properties/region": { title: "Region" },
+        "/properties/bucket": { title: "Bucket" },
+        "/properties/keyPrefix": {
+          title: "Object prefix",
+          description:
+            "Prefix all stored object keys; leave empty to add no prefix.",
+        },
+        "/properties/forcePathStyle": {
+          title: "Path-style addressing",
+          description:
+            "Use endpoint/bucket URLs; follow your storage provider’s requirements.",
+        },
+        "/properties/accessKeyId": { title: "Access Key ID" },
+        "/properties/secretAccessKey": { title: "Secret Access Key" },
+        "/properties/sessionToken": { title: "Session Token" },
+        "/properties/redirect": { title: "Redirect reads (302)" },
+        "/properties/signedUrlSeconds": {
+          title: "Signed URL lifetime (seconds)",
+        },
+      },
+    },
     "zh-CN": {
       name: "S3 兼容存储",
       description: "将文件保存到 S3 兼容存储桶。",
@@ -53,6 +86,9 @@ export const s3Storage: Definition<"storage"> = {
       },
     },
   },
+
+  id: "builtin.s3",
+
   kind: "storage",
   version: "1.0.0",
   apiVersion: 1,
@@ -62,82 +98,80 @@ export const s3Storage: Definition<"storage"> = {
     properties: {
       multipartThresholdMiB: {
         type: "integer",
-        title: "Multipart threshold (MiB)",
+
         minimum: 5,
         maximum: 5120,
         default: 64,
       },
       partSizeMiB: {
         type: "integer",
-        title: "Part size (MiB)",
+
         minimum: 5,
         maximum: 512,
         default: 16,
       },
       partConcurrency: {
         type: "integer",
-        title: "Part concurrency",
+
         minimum: 1,
         maximum: 8,
         default: 3,
       },
       endpoint: {
         type: "string",
-        title: "Endpoint",
+
         format: "uri",
         "x-immutable": true,
       },
       region: {
         type: "string",
-        title: "Region",
+
         minLength: 1,
         "x-immutable": true,
       },
       bucket: {
         type: "string",
-        title: "Bucket",
+
         minLength: 1,
         "x-immutable": true,
       },
       keyPrefix: {
         type: "string",
-        title: "Object prefix",
-        description: "Prefix all stored object keys; leave empty to add no prefix.",
+
         default: "",
         "x-immutable": true,
       },
       forcePathStyle: {
         type: "boolean",
-        title: "Path-style addressing",
-        description: "Use endpoint/bucket URLs; follow your storage provider’s requirements.",
+
         default: true,
         "x-immutable": true,
       },
       accessKeyId: {
         type: "string",
-        title: "Access Key ID",
+
         minLength: 1,
         "x-sensitive": true,
       },
       secretAccessKey: {
         type: "string",
-        title: "Secret Access Key",
+
         minLength: 1,
         "x-sensitive": true,
       },
       sessionToken: {
         type: "string",
-        title: "Session Token",
+
         "x-sensitive": true,
       },
       redirect: {
         type: "boolean",
-        title: "Redirect reads (302)",
+
         default: false,
       },
       signedUrlSeconds: {
         type: "integer",
-        title: "Signed URL lifetime (seconds)",
+
         minimum: 1,
         maximum: 604800,
         default: 300,

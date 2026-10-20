@@ -1,13 +1,19 @@
 import { PluginError, type Definition } from "../../plugin-sdk";
 
 export default {
+  defaultLocale: "en-US",
+  content: { "en-US": { name: "Example width review" } },
+
   id: "example.width-review",
-  name: "Example width review",
+
   kind: "processor",
   version: "1.0.0",
   apiVersion: 1,
   stages: {
     post_save: {
+      defaultLocale: "en-US",
+      content: { "en-US": {} },
+
       configSchemaVersion: 1,
       configSchema: {
         type: "object",

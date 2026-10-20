@@ -41,7 +41,7 @@ flowchart LR
 | 位置 | 成员 | 必需 | 作用 |
 | --- | --- | --- | --- |
 | 阶段描述 | `configSchemaVersion`、`configSchema`、`createInstance` | 是 | 创建 `PostSavePlugin`，见 [共用协议](../plugin-config.md#配置描述字段) |
-| 阶段描述 | `validateConfig`、`migrateConfig`、`uiHints`、`translations` | 否 | 配置校验、升级和展示 |
+| 阶段描述 | `validateConfig`、`migrateConfig`、`uiHints` | 否 | 配置校验、升级和展示 |
 | 运行对象 | `execute` | 是 | 执行操作并返回处理意见 |
 | 运行对象 | `dispose` | 否 | [释放实例资源](../plugin-errors.md#dispose-释放实例) |
 

@@ -9,8 +9,16 @@ import {
 } from "../../plugin-sdk";
 
 export default {
+  defaultLocale: "en-US",
+  content: {
+    "en-US": {
+      name: "Example local storage",
+      configSchema: { "/properties/root": { title: "Root directory" } },
+    },
+  },
+
   id: "example.local-storage",
-  name: "Example local storage",
+
   kind: "storage",
   version: "1.0.0",
   apiVersion: 1,
@@ -21,7 +29,7 @@ export default {
     properties: {
       root: {
         type: "string",
-        title: "Root directory",
+
         minLength: 1,
         "x-immutable": true,
       },

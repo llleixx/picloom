@@ -35,7 +35,7 @@ flowchart LR
 | --- | --- | --- | --- |
 | 阶段描述 | `configSchemaVersion`、`configSchema`、`createInstance` | 是 | 创建 `ProcessorPlugin`，见 [共用协议](../plugin-config.md#配置描述字段) |
 | 阶段描述 | `paramsSchema` | 否 | 声明可接受的本次请求参数；还需管理员逐项启用 |
-| 阶段描述 | `validateConfig`、`migrateConfig`、`uiHints`、`translations` | 否 | 配置校验、升级和展示 |
+| 阶段描述 | `validateConfig`、`migrateConfig`、`uiHints` | 否 | 配置校验、升级和展示 |
 | 运行对象 | `check`、`process` | 是 | 检查适用性，执行处理 |
 | 运行对象 | `dispose` | 否 | [释放实例资源](../plugin-errors.md#dispose-释放实例) |
 

@@ -21,13 +21,11 @@ test("external versions coexist; preview can be cancelled, completed and old ver
     const schema = {
       type: "object",
       properties:
-        version === "1.0.0"
-          ? {}
-          : { folder: { type: "string", title: "Folder", minLength: 1 } },
+        version === "1.0.0" ? {} : { folder: { type: "string", minLength: 1 } },
       required: version === "1.0.0" ? [] : ["folder"],
       additionalProperties: false,
     };
-    const code = `export default { ...${JSON.stringify(manifest)}, name:'Upgrade path', configSchemaVersion:${version === "1.0.0" ? 1 : 2}, configSchema:${JSON.stringify(schema)}, async createInstance({config}) { return { async generate({fileId}) { return {logicalKey:(config.folder ? config.folder+'/' : '')+fileId+'.png'} } } } }`;
+    const code = `export default { ...${JSON.stringify(manifest)}, defaultLocale:"en-US",content:{"en-US":{name:'Upgrade path', ...${version === "1.0.0" ? "{}" : JSON.stringify({ configSchema: { "/properties/folder": { title: "Folder" } } })}}}, configSchemaVersion:${version === "1.0.0" ? 1 : 2}, configSchema:${JSON.stringify(schema)}, async createInstance({config}) { return { async generate({fileId}) { return {logicalKey:(config.folder ? config.folder+'/' : '')+fileId+'.png'} } } } }`;
     const bytes = zip({
       "plugin.json": JSON.stringify(manifest),
       "index.js": code,

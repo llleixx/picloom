@@ -1,7 +1,7 @@
 import { assertLocalDirectory, directoryRoot } from "./local-directory";
 import sharp from "sharp";
 import { assertParamsSchema } from "../../shared/params-schema";
-import { assertTranslations } from "../../shared/plugin-localization";
+import { assertPluginContent } from "../../shared/plugin-localization";
 import Ajv2020 from "ajv/dist/2020";
 import addFormats from "ajv-formats";
 import { readFile } from "node:fs/promises";
@@ -160,8 +160,8 @@ export class PluginManager {
           ? Object.entries(def.stages ?? {})
           : [[null, def] as const];
       if (!descriptions.length) throw new Error("No stages");
-      if (def.kind === "processor" && def.translations)
-        assertTranslations(def.translations, { type: "object" }, {});
+      if (def.kind === "processor")
+        assertPluginContent(def, { type: "object" }, {}, undefined, true);
       for (const [stage, desc] of descriptions) {
         if (
           stage !== null &&
@@ -185,13 +185,13 @@ export class PluginManager {
           throw new Error("Invalid configuration root");
         assertSchema(desc.configSchema);
         if (desc.uiHints) assertUIHints(desc.uiHints);
-        if (desc.translations)
-          assertTranslations(
-            desc.translations,
-            desc.configSchema,
-            desc.uiHints ?? {},
-            "paramsSchema" in desc ? (desc.paramsSchema as Config) : undefined,
-          );
+        assertPluginContent(
+          desc,
+          desc.configSchema,
+          desc.uiHints ?? {},
+          "paramsSchema" in desc ? (desc.paramsSchema as Config) : undefined,
+          stage === null,
+        );
         this.ajv.compile(desc.configSchema);
         if ("paramsSchema" in desc && desc.paramsSchema !== undefined) {
           if (stage !== "access" && stage !== "upload")
@@ -274,14 +274,14 @@ export class PluginManager {
       throw new AppError("PLUGIN_BUILTIN", "内置插件不可卸载", 409);
     this.definitions.delete(id + "@" + version);
   }
-  private def(record: Pick<Instance, "plugin_id" | "plugin_version">) {
+  definition(record: Pick<Instance, "plugin_id" | "plugin_version">) {
     return requireValue(
       this.definitions.get(record.plugin_id + "@" + record.plugin_version),
       "Plugin is not loaded",
     );
   }
   descriptor(record: Pick<Instance, "plugin_id" | "plugin_version" | "stage">) {
-    const root = this.def(record);
+    const root = this.definition(record);
     if (root.kind !== "processor") {
       if (record.stage)
         throw new AppError("CONFIG_INVALID", "Unexpected stage");
@@ -303,7 +303,7 @@ export class PluginManager {
     record: Instance,
   ): { id: string; root: string; configPath: string } | null {
     if (record.kind !== "storage") return null;
-    const def = this.def(record);
+    const def = this.definition(record);
     if (def.kind !== "storage" || !def.localDirectory) return null;
     const configPath = def.localDirectory.configPath;
     return {
@@ -778,20 +778,21 @@ export class PluginManager {
       configSchemaVersion: d.configSchemaVersion,
       configSchema: structuredClone(d.configSchema),
       uiHints: structuredClone(d.uiHints ?? {}),
-      translations: structuredClone(d.translations),
+      defaultLocale: d.defaultLocale,
+      content: structuredClone(d.content),
       ...(d.paramsSchema
         ? { paramsSchema: structuredClone(d.paramsSchema) }
         : {}),
     });
     return [...this.definitions.values()].map((d) => ({
       id: d.id,
-      name: d.name,
-      description: d.description,
+
       version: d.version,
       ...(d.kind === "processor"
         ? {
             kind: d.kind,
-            translations: structuredClone(d.translations),
+            defaultLocale: d.defaultLocale,
+            content: structuredClone(d.content),
             supportedStages: Object.keys(d.stages) as Stage[],
             stages: Object.fromEntries(
               Object.entries(d.stages).map(([key, desc]) => [key, view(desc)]),

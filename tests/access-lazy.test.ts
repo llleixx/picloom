@@ -41,13 +41,19 @@ test("parameterless access executes; lazy reads share a source; untouched chains
     },
   };
   f.app.plugins.register({
+    defaultLocale: "en-US",
+    content: { "en-US": { name: "Lazy" } },
+
     id: "test.lazy",
-    name: "Lazy",
+
     kind: "processor",
     version: "1",
     apiVersion: 1,
     stages: {
       access: {
+        defaultLocale: "en-US",
+        content: { "en-US": {} },
+
         configSchemaVersion: 1,
         configSchema: { type: "object", properties: {} },
         async createInstance() {
@@ -112,13 +118,19 @@ test("later access steps see replacements; parameterless output is cached", asyn
   const path = new URL(uploaded.url).pathname;
   let checks = 0;
   f.app.plugins.register({
+    defaultLocale: "en-US",
+    content: { "en-US": { name: "Inspect" } },
+
     id: "test.inspect",
-    name: "Inspect",
+
     kind: "processor",
     version: "1",
     apiVersion: 1,
     stages: {
       access: {
+        defaultLocale: "en-US",
+        content: { "en-US": {} },
+
         configSchemaVersion: 1,
         configSchema: { type: "object", properties: {} },
         async createInstance({ services }) {
@@ -148,13 +160,19 @@ test("later access steps see replacements; parameterless output is cached", asyn
     },
   });
   f.app.plugins.register({
+    defaultLocale: "en-US",
+    content: { "en-US": { name: "Observe" } },
+
     id: "test.observe",
-    name: "Observe",
+
     kind: "processor",
     version: "1",
     apiVersion: 1,
     stages: {
       access: {
+        defaultLocale: "en-US",
+        content: { "en-US": {} },
+
         configSchemaVersion: 1,
         configSchema: { type: "object", properties: {} },
         async createInstance() {

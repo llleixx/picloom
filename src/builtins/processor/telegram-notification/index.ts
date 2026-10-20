@@ -6,75 +6,49 @@ import {
 } from "../../../../plugin-sdk";
 
 export const telegramNotification: Definition<"processor"> = {
-  id: "builtin.telegram-notification",
-  name: "Telegram Notification",
-  translations: {
+  defaultLocale: "en-US",
+  content: {
+    "en-US": {
+      name: "Telegram Notification",
+      description:
+        "Send a text notification for selected accumulated pipeline statuses.",
+    },
     "zh-CN": {
       name: "Telegram 通知",
       description: "按流水线当前累计状态发送文字通知。",
     },
   },
-  description:
-    "Send a text notification for selected accumulated pipeline statuses.",
+
+  id: "builtin.telegram-notification",
+
   kind: "processor",
   version: "1.0.0",
   apiVersion: 1,
   stages: {
     post_save: {
-      configSchemaVersion: 1,
-      configSchema: {
-        type: "object",
-        properties: {
-          botToken: {
-            type: "string",
-            title: "Bot token",
-            minLength: 1,
-            "x-sensitive": true,
-          },
-          chatId: {
-            type: "string",
-            title: "Chat ID",
-            pattern: "^-?[0-9]+$",
-            description:
-              "Numeric ID of a chat where the bot can send messages.",
-          },
-          statuses: {
-            type: "array",
-            title: "Notify on statuses",
-            uniqueItems: true,
-            minItems: 1,
-            maxItems: 3,
-            items: { type: "string", enum: ["pass", "block", "delete"] },
-            default: ["block", "delete"],
-            description:
-              "Matches the accumulated status when this step runs. Place this step last.",
-          },
-          includeDetails: {
-            type: "boolean",
-            title: "Include previous step details",
-            default: false,
-            description:
-              "Send previous plugins' details to this chat. Long messages are truncated.",
-          },
-          timeoutMs: {
-            type: "integer",
-            title: "Timeout (ms)",
-            minimum: 100,
-            maximum: 120000,
-            default: 10000,
+      defaultLocale: "en-US",
+      content: {
+        "en-US": {
+          configSchema: {
+            "/properties/botToken": { title: "Bot token" },
+            "/properties/chatId": {
+              title: "Chat ID",
+              description:
+                "Numeric ID of a chat where the bot can send messages.",
+            },
+            "/properties/statuses": {
+              title: "Notify on statuses",
+              description:
+                "Matches the accumulated status when this step runs. Place this step last.",
+            },
+            "/properties/includeDetails": {
+              title: "Include previous step details",
+              description:
+                "Send previous plugins' details to this chat. Long messages are truncated.",
+            },
+            "/properties/timeoutMs": { title: "Timeout (ms)" },
           },
         },
-        required: [
-          "botToken",
-          "chatId",
-          "statuses",
-          "includeDetails",
-          "timeoutMs",
-        ],
-        additionalProperties: false,
-      },
-      uiHints: { "/timeoutMs": { advanced: true } },
-      translations: {
         "zh-CN": {
           configSchema: {
             "/properties/botToken": { title: "机器人令牌" },
@@ -96,6 +70,55 @@ export const telegramNotification: Definition<"processor"> = {
           },
         },
       },
+
+      configSchemaVersion: 1,
+      configSchema: {
+        type: "object",
+        properties: {
+          botToken: {
+            type: "string",
+
+            minLength: 1,
+            "x-sensitive": true,
+          },
+          chatId: {
+            type: "string",
+
+            pattern: "^-?[0-9]+$",
+          },
+          statuses: {
+            type: "array",
+
+            uniqueItems: true,
+            minItems: 1,
+            maxItems: 3,
+            items: { type: "string", enum: ["pass", "block", "delete"] },
+            default: ["block", "delete"],
+          },
+          includeDetails: {
+            type: "boolean",
+
+            default: false,
+          },
+          timeoutMs: {
+            type: "integer",
+
+            minimum: 100,
+            maximum: 120000,
+            default: 10000,
+          },
+        },
+        required: [
+          "botToken",
+          "chatId",
+          "statuses",
+          "includeDetails",
+          "timeoutMs",
+        ],
+        additionalProperties: false,
+      },
+      uiHints: { "/timeoutMs": { advanced: true } },
+
       async createInstance({ config, services }) {
         return {
           async execute(input, ctx): Promise<PostSaveResult> {

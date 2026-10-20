@@ -146,7 +146,6 @@ export interface Manifest {
   kind: "path" | "storage" | "processor";
   apiVersion: 1;
   entry: string;
-  name?: string;
 }
 export function parseManifest(value: unknown): Manifest {
   if (!value || typeof value !== "object" || Array.isArray(value))
@@ -164,9 +163,7 @@ export function parseManifest(value: unknown): Manifest {
     !m.entry.endsWith(".js") ||
     m.entry.startsWith("/") ||
     /[\\:<>"|?*\x00-\x1f]/.test(m.entry) ||
-    m.entry.split("/").some(invalidSegment) ||
-    (m.name !== undefined &&
-      (typeof m.name !== "string" || !m.name.trim() || m.name.length > 100))
+    m.entry.split("/").some(invalidSegment)
   )
     throw invalid();
   return {
@@ -175,6 +172,5 @@ export function parseManifest(value: unknown): Manifest {
     kind: m.kind,
     apiVersion: 1,
     entry: m.entry,
-    ...(m.name ? { name: m.name } : {}),
   };
 }

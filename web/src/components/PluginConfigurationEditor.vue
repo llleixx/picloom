@@ -18,7 +18,7 @@ import {
 } from "../../../shared/config";
 const model = defineModel<ConfiguredStep>({ required: true });
 const props = defineProps<{
-  plugins: PluginSummary[];
+  plugins: (PluginSummary & { name: string })[];
   kind: "path" | "storage" | "processor";
   locked?: boolean;
   upgradeOnly?: boolean;
@@ -27,7 +27,7 @@ const props = defineProps<{
   errors?: Array<{ path: string; message: string }>;
 }>();
 const emit = defineEmits<{ ready: [value: boolean] }>();
-const rawDefinition = ref<StageView & { name: string }>();
+const rawDefinition = ref<StageView>();
 const definition = computed(() =>
   rawDefinition.value
     ? localizePlugin(rawDefinition.value, locale.value)
@@ -157,10 +157,7 @@ watch(
             : undefined
           : value;
       if (!description?.configSchema) throw new Error("Unsupported stage");
-      rawDefinition.value = {
-        name: value.name,
-        ...description,
-      } as StageView & { name: string };
+      rawDefinition.value = description;
       if (
         (props.stage === "access" || props.stage === "upload") &&
         model.value.enabledParams === undefined

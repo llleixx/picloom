@@ -130,8 +130,11 @@ test("frontend endpoints expose public safe limits and protected profile options
       unsupported.find((p: any) => p.name === "Unsupported group").reason,
     ).toContain("冗余数");
     f.app.plugins.register({
+      defaultLocale: "en-US",
+      content: { "en-US": { name: "failed" } },
+
       id: "test.failed-path",
-      name: "failed",
+
       kind: "path",
       version: "1",
       apiVersion: 1,

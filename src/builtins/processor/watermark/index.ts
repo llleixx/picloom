@@ -17,74 +17,68 @@ const configSchema: Config = {
   properties: {
     type: {
       type: "string",
-      title: "Watermark Type",
+
       enum: ["text", "image"],
       default: "text",
     },
-    text: { type: "string", title: "Text", maxLength: 500 },
-    font: { type: "string", title: "Font", default: "sans" },
+    text: { type: "string", maxLength: 500 },
+    font: { type: "string", default: "sans" },
     fontFile: {
       type: "string",
-      title: "Font File",
-      description:
-        "Optional server font file. Chinese text requires a font with Chinese glyphs.",
     },
     sizeMode: {
       type: "string",
-      title: "Size Mode",
+
       enum: ["relative", "fixed"],
       default: "relative",
-      description: "Relative uses percentages; Fixed uses pixels.",
     },
     fontSizePercent: {
       type: "number",
-      title: "Font Size (% of Short Side)",
+
       minimum: 0.1,
       maximum: 50,
       default: 3,
     },
     marginPercent: {
       type: "number",
-      title: "Margin (% of Short Side)",
+
       minimum: 0,
       maximum: 49,
       default: 2,
     },
     fontSize: {
       type: "integer",
-      title: "Font Size (px)",
+
       minimum: 1,
       maximum: 512,
       default: 32,
     },
     color: {
       type: "string",
-      title: "Color",
+
       pattern: "^#[0-9a-fA-F]{6}$",
       default: "#ffffff",
     },
     imagePath: {
       type: "string",
-      title: "Image Path",
-      description: "Server path to a static PNG, JPEG or WebP watermark.",
     },
     imageWidth: {
       type: "integer",
-      title: "Image Width (px)",
+
       minimum: 1,
       maximum: 16384,
       default: 128,
     },
     widthPercent: {
       type: "number",
-      title: "Image Width (%)",
+
       minimum: 1,
       maximum: 100,
       default: 10,
     },
     position: {
       type: "string",
-      title: "Position",
+
       enum: [
         "top-left",
         "top",
@@ -100,14 +94,14 @@ const configSchema: Config = {
     },
     margin: {
       type: "integer",
-      title: "Margin (px)",
+
       minimum: 0,
       maximum: 4096,
       default: 16,
     },
     opacity: {
       type: "number",
-      title: "Opacity (%)",
+
       minimum: 0,
       maximum: 100,
       default: 70,
@@ -137,8 +131,48 @@ function stage(
   >
 > {
   return {
-    translations: {
+    defaultLocale: "en-US",
+    content: {
+      "en-US": {
+        ...(access
+          ? {
+              paramsSchema: { "/properties/watermark": { title: "Watermark" } },
+            }
+          : {}),
+        configSchema: {
+          "/properties/type": { title: "Watermark Type" },
+          "/properties/text": { title: "Text" },
+          "/properties/font": { title: "Font" },
+          "/properties/fontFile": {
+            title: "Font File",
+            description:
+              "Optional server font file. Chinese text requires a font with Chinese glyphs.",
+          },
+          "/properties/sizeMode": {
+            title: "Size Mode",
+            description: "Relative uses percentages; Fixed uses pixels.",
+          },
+          "/properties/fontSizePercent": {
+            title: "Font Size (% of Short Side)",
+          },
+          "/properties/marginPercent": { title: "Margin (% of Short Side)" },
+          "/properties/fontSize": { title: "Font Size (px)" },
+          "/properties/color": { title: "Color" },
+          "/properties/imagePath": {
+            title: "Image Path",
+            description: "Server path to a static PNG, JPEG or WebP watermark.",
+          },
+          "/properties/imageWidth": { title: "Image Width (px)" },
+          "/properties/widthPercent": { title: "Image Width (%)" },
+          "/properties/position": { title: "Position" },
+          "/properties/margin": { title: "Margin (px)" },
+          "/properties/opacity": { title: "Opacity (%)" },
+        },
+      },
       "zh-CN": {
+        ...(access
+          ? { paramsSchema: { "/properties/watermark": { title: "水印" } } }
+          : {}),
         configSchema: {
           "/properties/type": {
             title: "水印类型",
@@ -208,6 +242,7 @@ function stage(
           : {}),
       },
     },
+
     configSchemaVersion: 1,
     configSchema,
     uiHints: Object.fromEntries([
@@ -402,12 +437,17 @@ function stage(
   };
 }
 export const watermark: Definition<"processor"> = {
-  id: "builtin.watermark",
-  name: "Watermark",
-  translations: {
+  defaultLocale: "en-US",
+  content: {
+    "en-US": {
+      name: "Watermark",
+      description: "Add a text or image watermark.",
+    },
     "zh-CN": { name: "水印", description: "为图片添加文字或图片水印。" },
   },
-  description: "Add a text or image watermark.",
+
+  id: "builtin.watermark",
+
   kind: "processor",
   version: "1.0.0",
   apiVersion: 1,
@@ -417,7 +457,7 @@ export const watermark: Definition<"processor"> = {
       ...stage(true),
       paramsSchema: {
         type: "object",
-        properties: { watermark: { type: "boolean", title: "Watermark" } },
+        properties: { watermark: { type: "boolean" } },
         additionalProperties: false,
       },
     },

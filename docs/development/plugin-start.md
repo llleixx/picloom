@@ -65,9 +65,8 @@ import { PluginError, type Definition } from "../../plugin-sdk";
 | `kind` | `"path" \| "storage" \| "processor"` | 是 | 插件类型 |
 | `apiVersion` | `1` | 是 | 当前支持的宿主接口版本 |
 | `entry` | `string` | 是 | 包内 JavaScript 相对路径，例如 `index.js`；不能越出包目录 |
-| `name` | `string` | 否 | 展示名称，非空且不超过 100 字符；入口定义仍须声明名称 |
 
-入口默认导出的 `id/version/kind/apiVersion` 必须与清单一致。清单用于找到代码，不能代替代码中的能力定义。
+入口默认导出的 `id/version/kind/apiVersion` 必须与清单一致。清单只用于定位和检查包，安装确认显示 ID 和版本；名称在入口的 `content` 中定义，加载成功后按界面语言显示。
 
 ## 代码默认导出什么
 
@@ -76,9 +75,8 @@ import { PluginError, type Definition } from "../../plugin-sdk";
 | 字段 | 类型 | 必填 | 用途 |
 | --- | --- | --- | --- |
 | `id`、`version`、`kind`、`apiVersion` | 同清单 | 是 | 与安装包对应 |
-| `name` | `string` | 是 | 插件名称 |
-| `description` | `string` | 否 | 简要说明 |
-| `translations` | `PluginTranslations` | 否 | 多语言显示文字，见 [配置与宿主服务](./plugin-config.md#界面提示与翻译) |
+| `defaultLocale` | `string` | 是 | 内容默认语言，使用规范语言代码，例如 `en-US` |
+| `content` | `Record<string, PluginContent>` | 是 | 按语言保存名称、说明等文案；默认语言必须提供非空 `name`，见 [配置与宿主服务](./plugin-config.md#界面提示与翻译) |
 
 身份之后，按类型组织实现：
 

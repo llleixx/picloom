@@ -1,3 +1,7 @@
+import {
+  localizedText,
+  type LocalizedContent,
+} from "../plugin-sdk/localization";
 export const languages = [
   {
     tag: "zh-CN",
@@ -53,10 +57,12 @@ export function selectLocale(
   }
   return available.includes(fallback) ? fallback : (available[0] ?? "en-US");
 }
-export interface SiteLocalization {
+export interface SiteLocalization extends LocalizedContent<{
+  name?: string;
+  description?: string;
+}> {
   enabledLocales: Locale[];
   defaultLocale: Locale;
-  content: Partial<Record<Locale, { name?: string; description?: string }>>;
 }
 export function defaultLocalization(): SiteLocalization {
   return {
@@ -70,9 +76,5 @@ export function siteText(
   locale: Locale,
   field: "name" | "description",
 ): string {
-  return (
-    site.content[locale]?.[field]?.trim() ||
-    site.content[site.defaultLocale]?.[field]?.trim() ||
-    ""
-  );
+  return localizedText(site, locale, (content) => content[field]);
 }

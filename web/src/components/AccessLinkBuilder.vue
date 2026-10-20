@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { api, response, errorText } from "@/lib/api";
 import { locale, t } from "@/lib/i18n";
 import { localizePlugin } from "../../../shared/plugin-localization";
+import { localizedText } from "../../../plugin-sdk/localization";
 import {
   pointer,
   type AccessParameterGroup,
@@ -23,7 +24,15 @@ const query = useQuery({
   staleTime: 0,
 });
 const groups = computed(() =>
-  (query.data.value ?? []).map((group) => localizePlugin(group, locale.value)),
+  (query.data.value ?? []).map((group) => ({
+    ...localizePlugin(group, locale.value),
+    name: localizedText(
+      group.plugin,
+      locale.value,
+      (c) => c.name,
+      group.plugin.id,
+    ),
+  })),
 );
 const fields = computed(() => {
   const result = new Map<

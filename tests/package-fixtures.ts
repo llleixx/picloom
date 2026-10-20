@@ -47,13 +47,13 @@ export function zip(
   end.writeUInt32LE(offset, 16);
   return Buffer.concat([...locals, directory, end]);
 }
-export const demoCode = `export default {id:'example.date',name:'Example path plugin',version:'1.0.0',kind:'path',apiVersion:1,configSchemaVersion:1,configSchema:{type:'object',properties:{},additionalProperties:false},async createInstance(){return {async generate({fileId}){return {logicalKey:'example/'+fileId+'.png'}}}}}`;
+export const demoCode = `export default {id:'example.date',defaultLocale:"en-US",content:{"en-US":{name:'Example path plugin'}},version:'1.0.0',kind:'path',apiVersion:1,configSchemaVersion:1,configSchema:{type:'object',properties:{},additionalProperties:false},async createInstance(){return {async generate({fileId}){return {logicalKey:'example/'+fileId+'.png'}}}}}`;
 export function demoPackage(code = demoCode) {
   return zip(
     {
       "plugin.json": JSON.stringify({
         id: "example.date",
-        name: "Example path plugin",
+
         version: "1.0.0",
         kind: "path",
         apiVersion: 1,
@@ -83,7 +83,7 @@ export async function bundledPackage(id: string, kind: string, source: string) {
     return zip({
       "plugin.json": JSON.stringify({
         id,
-        name: id,
+
         kind,
         version: "1.0.0",
         apiVersion: 1,
@@ -108,6 +108,6 @@ export function externalBuiltin(
   return bundledPackage(
     id,
     kind,
-    `import { ${symbol} } from ${JSON.stringify(path)}; export default { ...${symbol}, id: ${JSON.stringify(id)}, name: ${JSON.stringify(id)} };`,
+    `import { ${symbol} } from ${JSON.stringify(path)}; export default { ...${symbol}, id: ${JSON.stringify(id)}, defaultLocale: "en-US", content: { ...${symbol}.content, "en-US": { ...${symbol}.content["en-US"], name: ${JSON.stringify(id)} } } };`,
   );
 }

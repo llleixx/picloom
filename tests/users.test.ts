@@ -542,6 +542,7 @@ test("upload profile discovery intersects token scope with current grants withou
       const publicProfile = {
         ...base,
         ...entity(),
+        is_default: false,
         public_prefix: "/public/",
         path_instance_id: publicPath.id,
         allow_guest_upload: true,
@@ -549,6 +550,7 @@ test("upload profile discovery intersects token scope with current grants withou
       const privateProfile = {
         ...base,
         ...entity(),
+        is_default: false,
         public_prefix: "/private/",
         path_instance_id: privatePath.id,
       };

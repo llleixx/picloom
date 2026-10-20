@@ -1,6 +1,5 @@
 {
   "id": "example.date-path",
-  "name": "Example date path",
   "version": "1.0.0",
   "kind": "path",
   "apiVersion": 1,

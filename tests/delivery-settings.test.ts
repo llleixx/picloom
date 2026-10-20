@@ -325,7 +325,7 @@ test("site languages validate enabled/default locales and retain disabled transl
       { enabledLocales: ["zh-CN", "zh-CN"] },
       { enabledLocales: ["fr-FR"] },
       { enabledLocales: ["zh-CN"], defaultLocale: "en-US" },
-      { content: { "fr-FR": { name: "Name" } } },
+      { content: { fr_FR: { name: "Name" } } },
       { content: { "en-US": { unknown: "value" } } },
     ])
       expect(
@@ -339,12 +339,14 @@ test("site languages validate enabled/default locales and retain disabled transl
         defaultLocale: "zh-CN",
         content: {
           "zh-CN": { name: " 中文 " },
+          zh: { description: " 通用中文 " },
           "en-US": { description: " English " },
         },
       })
     ).json();
     expect(saved.content).toEqual({
       "zh-CN": { name: "中文" },
+      zh: { description: "通用中文" },
       "en-US": { description: "English" },
     });
     await f.restart();

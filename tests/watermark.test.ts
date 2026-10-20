@@ -11,8 +11,11 @@ test("plugins share core Sharp and watermark works in upload and access pipeline
     let received: unknown;
     f.app.plugins.register(
       {
+        defaultLocale: "en-US",
+        content: { "en-US": { name: "Sharp service" } },
+
         id: "example.sharp-service",
-        name: "Sharp service",
+
         kind: "path",
         version: "1",
         apiVersion: 1,

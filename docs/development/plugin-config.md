@@ -25,7 +25,8 @@
 | `validateConfig` | 异步函数 | 否 | 补充配置语义校验 |
 | `migrateConfig` | 异步函数 | 否 | [升级时转换旧配置](./plugin-release.md#migrateconfig-转换旧配置) |
 | `uiHints` | `UIHints` | 否 | 表单显示提示 |
-| `translations` | `PluginTranslations` | 否 | 名称及字段的翻译 |
+| `defaultLocale` | `string` | 是 | 当前描述的内容默认语言 |
+| `content` | `Record<string, PluginContent>` | 是 | 按语言保存展示文案；至少提供默认语言条目，无字段文案时可为 `{}` |
 | `paramsSchema` | `Config` | 否 | 仅上传和访问阶段支持，声明可接受的请求参数 |
 
 本文中的 `Config` 是 `Record<string, Json>`。`Json` 可以是字符串、数值、布尔值、`null`、数组或 JSON 对象，不包含函数、流或类实例。
@@ -122,17 +123,23 @@ curl --fail-with-body "$PICLOOM_URL/api/files" \
 | `x-sensitive: true` | 将字段按密钥保存，运行时通过密钥服务读取 |
 | `x-immutable: true` | 创建后不能直接修改该字段 |
 | `uiHints` | 分组、顺序、高级选项、输入样式、显示条件 |
-| `translations` | 插件名称、字段标题、说明和枚举标签的翻译 |
+| `content` | 按语言保存插件名称、字段标题、说明和枚举标签 |
 
 ## 界面提示与翻译
 
-以下是配置描述中的片段，假设 Schema 已声明 `width` 字段：
+站点与插件使用同一个 `LocalizedContent<T>` 结构和逐字段解析规则。宿主决定界面语言；插件不自行读取浏览器语言。每份内容声明自己的默认语言，不依赖站点的默认语言。
+
+下面是配置描述的片段，Schema 只定义数据规则，展示文案统一放入 `content`：
 
 ```ts
-uiHints: {
-  "/width": { group: "size", order: 1, advanced: true },
-},
-translations: {
+defaultLocale: "en-US",
+content: {
+  "en-US": {
+    configSchema: {
+      "/properties/width": { title: "Maximum width", description: "Do not enlarge smaller images" },
+    },
+    groups: { size: "Size" },
+  },
   "zh-CN": {
     configSchema: {
       "/properties/width": { title: "最大宽度", description: "不放大小图" },
@@ -140,11 +147,22 @@ translations: {
     groups: { size: "尺寸" },
   },
 },
+configSchema: {
+  type: "object",
+  properties: { width: { type: "integer", minimum: 1 } },
+},
+uiHints: { "/width": { group: "size", order: 1, advanced: true } },
 ```
 
-`uiHints` 使用配置值路径，Schema 翻译使用 Schema 内部路径。`widget` 支持 `textarea/password`，`visibleWhen` 可按另一个字段的值控制显示；隐藏不等于免除校验。
+逐字段按「当前语言精确匹配 → 基础语言（如 `zh`）→ 当前内容的 `defaultLocale` → 调用方默认值」解析。缺失、空字符串和纯空白均继续回退。枚举标签也逐项回退，最终使用原枚举值；字段标题未提供时由表单使用字段键。修改默认语言不移动或改写其他语言的内容。
 
-翻译只改变显示文字，不改变字段名或枚举值。处理插件的阶段字段翻译放在对应阶段的描述中。
+插件身份的 `content` 保存 `name`、`description`；默认语言必须有非空名称。处理插件各阶段的 `content` 保存该阶段的字段文案，拥有自己的 `defaultLocale`，可与身份文案的默认语言不同。路径和存储插件的身份与配置描述在同一层。
+
+`PluginContent` 支持 `name`、`description`、`configSchema`、`paramsSchema` 和 `groups`。Schema 文案通过 JSON Pointer 定位，支持 `title`、`description`、`enumLabels`；枚举标签数量必须与原枚举一致。语言代码必须是规范 BCP 47 形式（如 `zh-CN`），不限制为宿主当前支持的语言。
+
+`uiHints` 使用配置值路径，Schema 文案使用 Schema 内部路径。`group` 是稳定标识，显示名从 `content.groups` 解析。`widget` 支持 `textarea/password`，`visibleWhen` 控制显示；隐藏不等于免除校验。
+
+定义中的 Schema 不再放 `title`、`description`、`x-enumLabels`。宿主仅在显示副本中补充这些标签；不会修改原定义、配置键、枚举值或用户配置。
 
 ## 密钥与运行状态
 

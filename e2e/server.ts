@@ -36,21 +36,34 @@ await app.auth.initialize("admin", "test-password-123");
 // Exercise post-save forms and execution without depending on an external service.
 if (scenario === "configuration")
   app.plugins.register({
+    defaultLocale: "en-US",
+    content: { "en-US": { name: "Test webhook" } },
+
     id: "test.webhook",
-    name: "Test webhook",
+
     kind: "processor",
     version: "1.0.0",
     apiVersion: 1,
     stages: {
       post_save: {
+        defaultLocale: "en-US",
+        content: {
+          "en-US": {
+            configSchema: {
+              "/properties/url": { title: "Target URL" },
+              "/properties/token": { title: "Bearer Token" },
+            },
+          },
+        },
+
         configSchemaVersion: 1,
         configSchema: {
           type: "object",
           properties: {
-            url: { type: "string", title: "Target URL", format: "uri" },
+            url: { type: "string", format: "uri" },
             token: {
               type: "string",
-              title: "Bearer Token",
+
               "x-sensitive": true,
             },
           },
@@ -81,8 +94,24 @@ if (scenario === "configuration")
   });
 if (scenario === "configuration")
   app.plugins.register({
+    defaultLocale: "en-US",
+    content: {
+      "en-US": {
+        name: "Schema test",
+        configSchema: {
+          "/properties/enabled": { title: "Show details" },
+          "/properties/detail": { title: "Details" },
+          "/properties/nested": { title: "Nested settings" },
+          "/properties/nested/properties/label": { title: "Nested name" },
+          "/properties/items": { title: "Items" },
+          "/properties/items/items/properties/name": { title: "Item name" },
+          "/properties/secretItems": { title: "Secret items" },
+        },
+      },
+    },
+
     id: "test.form",
-    name: "Schema test",
+
     kind: "path",
     version: "1",
     apiVersion: 1,
@@ -90,27 +119,27 @@ if (scenario === "configuration")
     configSchema: {
       type: "object",
       properties: {
-        enabled: { type: "boolean", title: "Show details", default: false },
-        detail: { type: "string", title: "Details" },
+        enabled: { type: "boolean", default: false },
+        detail: { type: "string" },
         nested: {
           type: "object",
-          title: "Nested settings",
+
           properties: {
-            label: { type: "string", title: "Nested name", default: "default" },
+            label: { type: "string", default: "default" },
           },
         },
         items: {
           type: "array",
-          title: "Items",
+
           items: {
             type: "object",
-            properties: { name: { type: "string", title: "Item name" } },
+            properties: { name: { type: "string" } },
             required: ["name"],
           },
         },
         secretItems: {
           type: "array",
-          title: "Secret items",
+
           items: {
             type: "object",
             properties: { token: { type: "string", "x-sensitive": true } },
@@ -138,13 +167,19 @@ const profile =
   scenario === "no-profile" ? null : await initializeDevelopment(app);
 if (scenario === "moderation" && profile) {
   app.plugins.register({
+    defaultLocale: "en-US",
+    content: { "en-US": { name: "Review" } },
+
     id: "test.review",
-    name: "Review",
+
     version: "1",
     apiVersion: 1,
     kind: "processor",
     stages: {
       post_save: {
+        defaultLocale: "en-US",
+        content: { "en-US": {} },
+
         configSchemaVersion: 1,
         configSchema: { type: "object", properties: {} },
         async createInstance() {

@@ -9,13 +9,19 @@ import {
   writeStream,
   logicalKey as validateKey,
 } from "../../../../plugin-sdk";
-import { PluginError, type Definition, type Locator } from "../../../../plugin-sdk";
+import {
+  PluginError,
+  type Definition,
+  type Locator,
+} from "../../../../plugin-sdk";
 export const localStorage: Definition<"storage"> = {
-  id: "builtin.local",
-  localDirectory: { configPath: "/root" },
-  name: "Local Storage",
-  description: "Store files in a local directory.",
-  translations: {
+  defaultLocale: "en-US",
+  content: {
+    "en-US": {
+      name: "Local Storage",
+      description: "Store files in a local directory.",
+      configSchema: { "/properties/root": { title: "Root directory" } },
+    },
     "zh-CN": {
       name: "本地存储",
       description: "将文件保存到本地目录。",
@@ -26,6 +32,10 @@ export const localStorage: Definition<"storage"> = {
       },
     },
   },
+
+  id: "builtin.local",
+  localDirectory: { configPath: "/root" },
+
   kind: "storage",
   version: "1.0.0",
   apiVersion: 1,
@@ -35,7 +45,7 @@ export const localStorage: Definition<"storage"> = {
     properties: {
       root: {
         type: "string",
-        title: "Root directory",
+
         minLength: 1,
         "x-immutable": true,
       },

@@ -73,6 +73,9 @@ test("all stages share data within an attempt; failed actions release sources an
     }
   };
   const transform = (stage: string) => ({
+    defaultLocale: "en-US",
+    content: { "en-US": {} },
+
     configSchemaVersion: 1,
     configSchema: schema,
     paramsSchema: {
@@ -98,8 +101,11 @@ test("all stages share data within an attempt; failed actions release sources an
     },
   });
   const def: Definition<"processor"> = {
+    defaultLocale: "en-US",
+    content: { "en-US": { name: "Data" } },
+
     id: "test.data",
-    name: "Data",
+
     version: "1",
     apiVersion: 1,
     kind: "processor",
@@ -107,6 +113,9 @@ test("all stages share data within an attempt; failed actions release sources an
       upload: transform("upload"),
       access: transform("access"),
       post_save: {
+        defaultLocale: "en-US",
+        content: { "en-US": {} },
+
         configSchemaVersion: 1,
         configSchema: schema,
         async createInstance({ config }) {

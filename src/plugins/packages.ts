@@ -89,9 +89,8 @@ export class PluginPackages {
         : "external";
       views.set(this.key(def), {
         id: def.id,
-        name: def.name,
-        description: def.description,
-        translations: def.translations,
+        defaultLocale: def.defaultLocale,
+        content: def.content,
         supportedStages:
           def.kind === "processor" ? def.supportedStages : undefined,
         kind: def.kind,
@@ -111,7 +110,8 @@ export class PluginPackages {
           .map(({ id, name }) => ({ id, name }));
         views.set(this.key(m), {
           id: m.id,
-          name: m.name ?? m.id,
+          defaultLocale: "en-US",
+          content: {},
           kind: m.kind,
           version: m.version,
           source: "external",
@@ -196,7 +196,6 @@ export class PluginPackages {
       });
       return {
         id: manifest.id,
-        name: manifest.name ?? manifest.id,
         kind: manifest.kind,
         version: manifest.version,
         ticket,

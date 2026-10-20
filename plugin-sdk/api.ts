@@ -1,3 +1,4 @@
+import type { PluginLocalization } from "./config";
 import type { PluginErrorCode } from "./errors";
 export type { PluginErrorCode } from "./errors";
 import type { Config, Json } from "./config";
@@ -199,8 +200,7 @@ export interface InstanceServices {
   readState(): Promise<{ value: Config; version: number }>;
   updateState(value: Config, expectedVersion: number): Promise<void>;
 }
-export interface Descriptor<R extends Runtime> {
-  translations?: import("./config").PluginTranslations;
+export interface Descriptor<R extends Runtime> extends PluginLocalization {
   uiHints?: import("./config").UIHints;
   configSchemaVersion: number;
   configSchema: Config;
@@ -223,11 +223,9 @@ export type StageDefinitions = {
   access?: Descriptor<AccessPlugin> & { paramsSchema?: Config };
   post_save?: Descriptor<PostSavePlugin>;
 };
-interface Identity<K extends Kind> {
+interface Identity<K extends Kind> extends PluginLocalization {
   id: string;
-  name: string;
-  description?: string;
-  translations?: import("./config").PluginTranslations;
+
   kind: K;
   version: string;
   apiVersion: 1;
@@ -254,9 +252,7 @@ export class PluginError extends Error {
 }
 
 /** Structural error protocol: works when each package bundles its own SDK. */
-export function isPluginError(
-  error: unknown,
-): error is Error & {
+export function isPluginError(error: unknown): error is Error & {
   code: string;
   retryable: boolean;
   outcome: "notApplied" | "unknown";

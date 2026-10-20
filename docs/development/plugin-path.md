@@ -35,7 +35,7 @@ flowchart LR
 | --- | --- | --- | --- |
 | 定义 | `configSchemaVersion`、`configSchema` | 是 | 配置结构版本和表单 |
 | 定义 | `createInstance` | 是 | 返回 `PathPlugin` 运行对象 |
-| 定义 | `validateConfig`、`migrateConfig`、`uiHints`、`translations` | 否 | [共用配置能力](./plugin-config.md#配置描述字段) |
+| 定义 | `validateConfig`、`migrateConfig`、`uiHints` | 否 | [共用配置能力](./plugin-config.md#配置描述字段) |
 | 运行对象 | `generate` | 是 | 生成相对键 |
 | 运行对象 | `dispose` | 否 | [释放实例资源](./plugin-errors.md#dispose-释放实例) |
 

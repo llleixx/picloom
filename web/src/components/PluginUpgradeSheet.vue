@@ -31,7 +31,7 @@ const open = defineModel<boolean>({ required: true });
 const props = defineProps<{
   pluginId: string;
   name: string;
-  packages: PackageView[];
+  packages: (PackageView & { name: string })[];
 }>();
 const emit = defineEmits<{ saved: [] }>();
 const usages = ref<PluginUsage[]>([]);

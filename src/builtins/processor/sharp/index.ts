@@ -12,24 +12,24 @@ import {
   type AccessProcessorInput,
 } from "../../../../plugin-sdk";
 const transformProperties: Config = {
-  w: { type: "integer", title: "Width", minimum: 1 },
-  h: { type: "integer", title: "Height", minimum: 1 },
+  w: { type: "integer", minimum: 1 },
+  h: { type: "integer", minimum: 1 },
   fit: {
     type: "string",
-    title: "Fit",
+
     enum: ["inside", "cover", "contain", "fill"],
   },
-  q: { type: "integer", title: "Quality", minimum: 1, maximum: 100 },
+  q: { type: "integer", minimum: 1, maximum: 100 },
   format: {
     type: "string",
-    title: "Output format",
+
     enum: ["jpeg", "png", "webp"],
   },
 };
 const settings: Config = {
   allowEnlargement: {
     type: "boolean",
-    title: "Allow enlargement",
+
     default: false,
   },
 };
@@ -130,21 +130,44 @@ function runtime(
   };
 }
 export const sharpProcessor: Definition<"processor"> = {
-  id: "builtin.sharp",
-  name: "Image Processing",
-  description: "Resize images and adjust format and quality.",
-  translations: {
+  defaultLocale: "en-US",
+  content: {
+    "en-US": {
+      name: "Image Processing",
+      description: "Resize images and adjust format and quality.",
+    },
     "zh-CN": {
       name: "图片处理",
       description: "调整图片尺寸、格式和质量。",
     },
   },
+
+  id: "builtin.sharp",
+
   kind: "processor",
   version: "1.0.0",
   apiVersion: 1,
   stages: {
     upload: {
-      translations: {
+      defaultLocale: "en-US",
+      content: {
+        "en-US": {
+          configSchema: {
+            "/properties/w": { title: "Width" },
+            "/properties/h": { title: "Height" },
+            "/properties/fit": { title: "Fit" },
+            "/properties/q": { title: "Quality" },
+            "/properties/format": { title: "Output format" },
+            "/properties/allowEnlargement": { title: "Allow enlargement" },
+          },
+          paramsSchema: {
+            "/properties/w": { title: "Width" },
+            "/properties/h": { title: "Height" },
+            "/properties/fit": { title: "Fit" },
+            "/properties/q": { title: "Quality" },
+            "/properties/format": { title: "Output format" },
+          },
+        },
         "zh-CN": {
           configSchema: {
             "/properties/w": {
@@ -197,6 +220,7 @@ export const sharpProcessor: Definition<"processor"> = {
           },
         },
       },
+
       paramsSchema: {
         type: "object",
         properties: transformProperties,
@@ -221,7 +245,20 @@ export const sharpProcessor: Definition<"processor"> = {
       },
     },
     access: {
-      translations: {
+      defaultLocale: "en-US",
+      content: {
+        "en-US": {
+          configSchema: {
+            "/properties/allowEnlargement": { title: "Allow enlargement" },
+          },
+          paramsSchema: {
+            "/properties/w": { title: "Width" },
+            "/properties/h": { title: "Height" },
+            "/properties/fit": { title: "Fit" },
+            "/properties/q": { title: "Quality" },
+            "/properties/format": { title: "Output format" },
+          },
+        },
         "zh-CN": {
           configSchema: {
             "/properties/allowEnlargement": {
@@ -253,6 +290,7 @@ export const sharpProcessor: Definition<"processor"> = {
           },
         },
       },
+
       configSchemaVersion: 1,
       configSchema: {
         type: "object",

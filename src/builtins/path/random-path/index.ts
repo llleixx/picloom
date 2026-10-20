@@ -11,11 +11,20 @@ const extensions = new Map([
 ]);
 
 export const randomPath: Definition<"path"> = {
-  id: "builtin.random-path",
-  name: "Random Path",
-  description:
-    "A stable 32-character random filename derived from the upload ID, without dates or original filenames.",
-  translations: {
+  defaultLocale: "en-US",
+  content: {
+    "en-US": {
+      name: "Random Path",
+      description:
+        "A stable 32-character random filename derived from the upload ID, without dates or original filenames.",
+      configSchema: {
+        "/properties/directoryDepth": {
+          title: "Directory shard depth",
+          description:
+            "Use two filename characters per directory level. Only storage paths change; public URLs stay flat. 0 disables sharding.",
+        },
+      },
+    },
     "zh-CN": {
       name: "随机路径",
       configSchema: {
@@ -29,6 +38,9 @@ export const randomPath: Definition<"path"> = {
         "从随机上传 ID 稳定派生 32 位随机文件名，不包含日期或原始文件名。",
     },
   },
+
+  id: "builtin.random-path",
+
   kind: "path",
   version: "1.0.0",
   apiVersion: 1,
@@ -38,11 +50,9 @@ export const randomPath: Definition<"path"> = {
     properties: {
       directoryDepth: {
         type: "integer",
-        title: "Directory shard depth",
+
         enum: [0, 1, 2],
         default: 2,
-        description:
-          "Use two filename characters per directory level. Only storage paths change; public URLs stay flat. 0 disables sharding.",
       },
     },
     additionalProperties: false,

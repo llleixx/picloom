@@ -1,5 +1,9 @@
 import { isPluginError } from "../../../../plugin-sdk/api";
-import { PluginError, type Definition, type Locator } from "../../../../plugin-sdk";
+import {
+  PluginError,
+  type Definition,
+  type Locator,
+} from "../../../../plugin-sdk";
 
 // Hosted Bot API permits larger uploads, but getFile only downloads up to 20 MB.
 const maxBytes = 20_000_000;
@@ -34,44 +38,22 @@ function stored(locator: Locator): TelegramLocator {
   return locator as TelegramLocator;
 }
 export const telegramStorage: Definition<"storage"> = {
-  id: "builtin.telegram",
-  name: "Telegram Storage",
-  description:
-    "Store originals as bot documents (20 MB limit). Non-deletable messages finish local cleanup but may remain on Telegram.",
-  kind: "storage",
-  version: "1.0.0",
-  apiVersion: 1,
-  configSchemaVersion: 1,
-  configSchema: {
-    type: "object",
-    properties: {
-      botToken: {
-        type: "string",
-        title: "Bot token",
-        minLength: 1,
-        "x-sensitive": true,
-      },
-      chatId: {
-        type: "string",
-        title: "Chat ID",
-        description:
-          "Numeric chat ID. Files are limited to 20,000,000 bytes so the hosted API can download them. Deletion needs permissions and a message age below 48 hours.",
-        pattern: "^-?[0-9]+$",
-        "x-immutable": true,
-      },
-      timeoutMs: {
-        type: "integer",
-        title: "Timeout (ms)",
-        minimum: 100,
-        maximum: 120000,
-        default: 30000,
+  defaultLocale: "en-US",
+  content: {
+    "en-US": {
+      name: "Telegram Storage",
+      description:
+        "Store originals as bot documents (20 MB limit). Non-deletable messages finish local cleanup but may remain on Telegram.",
+      configSchema: {
+        "/properties/botToken": { title: "Bot token" },
+        "/properties/chatId": {
+          title: "Chat ID",
+          description:
+            "Numeric chat ID. Files are limited to 20,000,000 bytes so the hosted API can download them. Deletion needs permissions and a message age below 48 hours.",
+        },
+        "/properties/timeoutMs": { title: "Timeout (ms)" },
       },
     },
-    required: ["botToken", "chatId"],
-    additionalProperties: false,
-  },
-  uiHints: { "/timeoutMs": { advanced: true } },
-  translations: {
     "zh-CN": {
       name: "Telegram 存储",
       description:
@@ -87,6 +69,41 @@ export const telegramStorage: Definition<"storage"> = {
       },
     },
   },
+
+  id: "builtin.telegram",
+
+  kind: "storage",
+  version: "1.0.0",
+  apiVersion: 1,
+  configSchemaVersion: 1,
+  configSchema: {
+    type: "object",
+    properties: {
+      botToken: {
+        type: "string",
+
+        minLength: 1,
+        "x-sensitive": true,
+      },
+      chatId: {
+        type: "string",
+
+        pattern: "^-?[0-9]+$",
+        "x-immutable": true,
+      },
+      timeoutMs: {
+        type: "integer",
+
+        minimum: 100,
+        maximum: 120000,
+        default: 30000,
+      },
+    },
+    required: ["botToken", "chatId"],
+    additionalProperties: false,
+  },
+  uiHints: { "/timeoutMs": { advanced: true } },
+
   async createInstance({ config, services }) {
     const signalFor = (signal: AbortSignal) =>
       AbortSignal.any([

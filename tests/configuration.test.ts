@@ -474,8 +474,11 @@ test("unknown redundant writes recover with task ID without writing twice", asyn
     writes = 0;
   try {
     f.app.plugins.register({
+      defaultLocale: "en-US",
+      content: { "en-US": { name: "unknown" } },
+
       id: "test.unknown",
-      name: "unknown",
+
       kind: "storage",
       version: "1",
       apiVersion: 1,
@@ -621,13 +624,19 @@ test("deleting during an action stops the chain and cleans temporary data after 
   const running = new Promise<void>((r) => (entered = r));
   try {
     f.app.plugins.register({
+      defaultLocale: "en-US",
+      content: { "en-US": { name: "cancel" } },
+
       id: "test.cancel-action",
-      name: "cancel",
+
       kind: "processor",
       version: "1",
       apiVersion: 1,
       stages: {
         post_save: {
+          defaultLocale: "en-US",
+          content: { "en-US": {} },
+
           configSchemaVersion: 1,
           configSchema: { type: "object", properties: {} },
           async createInstance() {
@@ -738,13 +747,19 @@ test("background tasks refill a free slot after failure while another task remai
   try {
     f.app.config.taskConcurrency = 2;
     f.app.plugins.register({
+      defaultLocale: "en-US",
+      content: { "en-US": { name: "Refill" } },
+
       id: "test.refill",
-      name: "Refill",
+
       kind: "processor",
       version: "1",
       apiVersion: 1,
       stages: {
         post_save: {
+          defaultLocale: "en-US",
+          content: { "en-US": {} },
+
           configSchemaVersion: 1,
           configSchema: { type: "object", properties: {} },
           async createInstance() {
@@ -754,11 +769,7 @@ test("background tasks refill a free slot after failure while another task remai
                 peak = Math.max(peak, ++active);
                 try {
                   if (input.fileId === ids[1])
-                    throw new PluginError(
-                      "FAILED",
-                      "Expected failure",
-                      false,
-                    );
+                    throw new PluginError("FAILED", "Expected failure", false);
                   if (input.fileId === ids[2]) startedThird();
                   await gate;
                   return { status: "pass" as const };

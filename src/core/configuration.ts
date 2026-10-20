@@ -1,3 +1,4 @@
+import { pointer } from "../../shared/config";
 import {
   entity,
   type Persistence,
@@ -43,6 +44,7 @@ export class Configuration {
           (await r.instances([step.plugin_instance_id]))[0],
         );
         const descriptor = this.plugins.descriptor(instance);
+        const definition = this.plugins.definition(instance);
         const properties = (descriptor.paramsSchema?.properties ??
           {}) as Record<string, Config>;
         const exposed = Object.fromEntries(
@@ -53,27 +55,28 @@ export class Configuration {
         if (!Object.keys(exposed).length) continue;
         result.push({
           id: instance.id,
-          name: descriptor.name,
+          plugin: {
+            id: definition.id,
+            defaultLocale: definition.defaultLocale,
+            content: definition.content,
+          },
+          defaultLocale: descriptor.defaultLocale,
           paramsSchema: { type: "object", properties: exposed },
-          translations: Object.fromEntries(
-            Object.entries(descriptor.translations ?? {}).map(
-              ([locale, value]) => [
+          content: Object.fromEntries(
+            Object.entries(descriptor.content).map(([locale, value]) => {
+              return [
                 locale,
                 {
-                  ...(value.name ? { name: value.name } : {}),
                   paramsSchema: Object.fromEntries(
-                    Object.entries(value.paramsSchema ?? {}).filter(([path]) =>
+                    Object.entries(value?.paramsSchema ?? {}).filter(([path]) =>
                       Object.keys(exposed).some(
-                        (key) =>
-                          path ===
-                          "/properties/" +
-                            key.replaceAll("~", "~0").replaceAll("/", "~1"),
+                        (key) => path === "/properties/" + pointer(key),
                       ),
                     ),
                   ),
                 },
-              ],
-            ),
+              ];
+            }),
           ),
         });
       }

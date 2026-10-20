@@ -66,14 +66,27 @@ function failure(
 }
 
 export const webdavStorage: Definition<"storage"> = {
-  id: "builtin.webdav",
-  name: "WebDAV Storage",
-  description: "Authenticated WebDAV storage with streamed reads",
-  kind: "storage",
-  version: "1.0.0",
-  apiVersion: 1,
-  configSchemaVersion: 1,
-  translations: {
+  defaultLocale: "en-US",
+  content: {
+    "en-US": {
+      name: "WebDAV Storage",
+      description: "Authenticated WebDAV storage with streamed reads",
+      configSchema: {
+        "/properties/endpoint": {
+          title: "WebDAV endpoint",
+          description:
+            "Existing WebDAV root URL; use the final URL, redirects are refused",
+        },
+        "/properties/keyPrefix": {
+          title: "Directory Prefix",
+          description:
+            "Directory relative to the WebDAV endpoint. Leave empty to use the endpoint directory. Do not URL-encode.",
+        },
+        "/properties/timeoutMs": { title: "Timeout (ms)" },
+        "/properties/username": { title: "Username" },
+        "/properties/password": { title: "Password or app password" },
+      },
+    },
     "zh-CN": {
       name: "WebDAV 存储",
       description: "通过 WebDAV 认证存储并以流式方式读取文件",
@@ -94,42 +107,46 @@ export const webdavStorage: Definition<"storage"> = {
       },
     },
   },
+
+  id: "builtin.webdav",
+
+  kind: "storage",
+  version: "1.0.0",
+  apiVersion: 1,
+  configSchemaVersion: 1,
+
   configSchema: {
     type: "object",
     properties: {
       endpoint: {
         type: "string",
-        title: "WebDAV endpoint",
-        description:
-          "Existing WebDAV root URL; use the final URL, redirects are refused",
+
         format: "uri",
         "x-immutable": true,
       },
       keyPrefix: {
         type: "string",
-        title: "Directory Prefix",
-        description:
-          "Directory relative to the WebDAV endpoint. Leave empty to use the endpoint directory. Do not URL-encode.",
+
         default: "",
         "x-immutable": true,
       },
       timeoutMs: {
         type: "integer",
-        title: "Timeout (ms)",
+
         minimum: 100,
         maximum: 120000,
         default: 30000,
       },
       username: {
         type: "string",
-        title: "Username",
+
         minLength: 1,
         pattern: "^[^:\\u0000-\\u001f\\u007f]+$",
         "x-sensitive": true,
       },
       password: {
         type: "string",
-        title: "Password or app password",
+
         minLength: 1,
         pattern: "^[^\\u0000-\\u001f\\u007f]+$",
         "x-sensitive": true,

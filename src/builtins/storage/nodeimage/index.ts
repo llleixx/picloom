@@ -1,5 +1,9 @@
 import { isPluginError } from "../../../../plugin-sdk/api";
-import { PluginError, type Definition, type Locator } from "../../../../plugin-sdk";
+import {
+  PluginError,
+  type Definition,
+  type Locator,
+} from "../../../../plugin-sdk";
 
 const apiOrigin = "https://api.nodeimage.com";
 function locatorId(storageKey: string, locator: Locator): string {
@@ -30,41 +34,18 @@ function imageUrl(value: unknown): string {
   }
 }
 export const nodeImageStorage: Definition<"storage"> = {
-  id: "builtin.nodeimage",
-  name: "NodeImage Storage",
-  description:
-    "Store images on NodeImage. Unsupported API deletion completes local cleanup; remote images may remain.",
-  kind: "storage",
-  version: "1.0.0",
-  apiVersion: 1,
-  configSchemaVersion: 1,
-  configSchema: {
-    type: "object",
-    properties: {
-      apiKey: {
-        type: "string",
-        title: "API key",
-        minLength: 1,
-        "x-sensitive": true,
-      },
-      redirect: {
-        type: "boolean",
-        title: "Redirect reads (302)",
-        default: true,
-      },
-      timeoutMs: {
-        type: "integer",
-        title: "Timeout (ms)",
-        minimum: 100,
-        maximum: 120000,
-        default: 30000,
+  defaultLocale: "en-US",
+  content: {
+    "en-US": {
+      name: "NodeImage Storage",
+      description:
+        "Store images on NodeImage. Unsupported API deletion completes local cleanup; remote images may remain.",
+      configSchema: {
+        "/properties/apiKey": { title: "API key" },
+        "/properties/redirect": { title: "Redirect reads (302)" },
+        "/properties/timeoutMs": { title: "Timeout (ms)" },
       },
     },
-    required: ["apiKey"],
-    additionalProperties: false,
-  },
-  uiHints: { "/timeoutMs": { advanced: true } },
-  translations: {
     "zh-CN": {
       name: "NodeImage 存储",
       description:
@@ -76,6 +57,40 @@ export const nodeImageStorage: Definition<"storage"> = {
       },
     },
   },
+
+  id: "builtin.nodeimage",
+
+  kind: "storage",
+  version: "1.0.0",
+  apiVersion: 1,
+  configSchemaVersion: 1,
+  configSchema: {
+    type: "object",
+    properties: {
+      apiKey: {
+        type: "string",
+
+        minLength: 1,
+        "x-sensitive": true,
+      },
+      redirect: {
+        type: "boolean",
+
+        default: true,
+      },
+      timeoutMs: {
+        type: "integer",
+
+        minimum: 100,
+        maximum: 120000,
+        default: 30000,
+      },
+    },
+    required: ["apiKey"],
+    additionalProperties: false,
+  },
+  uiHints: { "/timeoutMs": { advanced: true } },
+
   async createInstance({ config, services }) {
     const signalFor = (signal: AbortSignal) =>
       AbortSignal.any([

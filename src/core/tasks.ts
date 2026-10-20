@@ -1,3 +1,4 @@
+import { localizedText } from "../../plugin-sdk/localization";
 import { pluginErrorCode } from "./errors";
 import type { TemporarySpace } from "../infra/temporary-space";
 import { isPluginError } from "../../plugin-sdk/api";
@@ -349,7 +350,8 @@ export class TaskExecutor {
             step.plugin_instance_id,
             "post_save",
           );
-          activeStep.name = this.plugins.descriptor(stage.record).name;
+          const definition = this.plugins.definition(stage.record);
+          activeStep.name = localizedText(definition, definition.defaultLocale, content => content.name, definition.id);
           try {
             const path = file.temp_path
               ? join(this.config.root, "temp", file.temp_path)

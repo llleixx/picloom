@@ -179,13 +179,19 @@ test("moderation followed by Telegram preserves block/delete even when delivery 
   }) as typeof fetch);
   try {
     f.app.plugins.register({
+      defaultLocale: "en-US",
+      content: { "en-US": { name: "Review" } },
+
       id: "test.review",
-      name: "Review",
+
       kind: "processor",
       apiVersion: 1,
       version: "1",
       stages: {
         post_save: {
+          defaultLocale: "en-US",
+          content: { "en-US": {} },
+
           configSchemaVersion: 1,
           configSchema: { type: "object" },
           async createInstance() {

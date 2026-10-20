@@ -6,13 +6,19 @@ import {
 } from "../../plugin-sdk";
 
 export default {
+  defaultLocale: "en-US",
+  content: { "en-US": { name: "Example thumbnail" } },
+
   id: "example.thumbnail",
-  name: "Example thumbnail",
+
   kind: "processor",
   version: "1.0.0",
   apiVersion: 1,
   stages: {
     access: {
+      defaultLocale: "en-US",
+      content: { "en-US": {} },
+
       configSchemaVersion: 1,
       configSchema: {
         type: "object",

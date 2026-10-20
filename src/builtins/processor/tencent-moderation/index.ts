@@ -110,117 +110,60 @@ function apiError(code: string): PluginError {
 }
 
 export const tencentModeration: Definition<"processor"> = {
-  id: "builtin.tencent-moderation",
-  name: "Tencent Cloud Moderation",
-  description: "Review images using a Tencent Cloud content safety policy.",
-  translations: {
+  defaultLocale: "en-US",
+  content: {
+    "en-US": {
+      name: "Tencent Cloud Moderation",
+      description: "Review images using a Tencent Cloud content safety policy.",
+    },
     "zh-CN": {
       name: "腾讯云内容审核",
       description: "使用腾讯云内容安全策略审核图片。",
     },
   },
+
+  id: "builtin.tencent-moderation",
+
   kind: "processor",
   version: "1.0.0",
   apiVersion: 1,
   stages: {
     post_save: {
-      configSchemaVersion: 1,
-      configSchema: {
-        type: "object",
-        properties: {
-          secretId: {
-            type: "string",
-            title: "Secret ID",
-            minLength: 1,
-            "x-sensitive": true,
-          },
-          secretKey: {
-            type: "string",
-            title: "Secret key",
-            minLength: 1,
-            "x-sensitive": true,
-          },
-          region: {
-            type: "string",
-            title: "Region",
-            minLength: 1,
-            default: "ap-guangzhou",
-          },
-          bizType: {
-            type: "string",
-            title: "BizType",
-            minLength: 1,
-            description: "Policy ID from the Tencent Cloud console.",
-          },
-          submissionMode: {
-            type: "string",
-            title: "Submission method",
-            enum: ["content", "url"],
-            default: "content",
-            description:
-              "URL mode uses the public image URL. It must be accessible to Tencent Cloud; hotlink protection or redirects may prevent access.",
-          },
-          maxContentMiB: {
-            type: "integer",
-            title: "Content size limit (MiB)",
-            minimum: 1,
-            maximum: 20,
-            default: 5,
-            description:
-              "File content mode only. Oversized files fail without retry; this does not change the provider's limits.",
-          },
-          blockAction: {
-            type: "string",
-            title: "On violation",
-            enum: ["block", "delete"],
-            default: "block",
-            description:
-              "Review results always block access for manual review.",
-          },
-          timeoutMs: {
-            type: "integer",
-            title: "Timeout (ms)",
-            minimum: 100,
-            maximum: 120000,
-            default: 30000,
-          },
-          interval: {
-            type: "integer",
-            title: "GIF frame interval",
-            minimum: 1,
-            maximum: 1000,
-            default: 5,
-          },
-          maxFrames: {
-            type: "integer",
-            title: "Maximum GIF frames",
-            minimum: 1,
-            maximum: 400,
-            default: 5,
-            description:
-              "Sampled frames only; additional frames may increase usage.",
+      defaultLocale: "en-US",
+      content: {
+        "en-US": {
+          configSchema: {
+            "/properties/secretId": { title: "Secret ID" },
+            "/properties/secretKey": { title: "Secret key" },
+            "/properties/region": { title: "Region" },
+            "/properties/bizType": {
+              title: "BizType",
+              description: "Policy ID from the Tencent Cloud console.",
+            },
+            "/properties/submissionMode": {
+              title: "Submission method",
+              description:
+                "URL mode uses the public image URL. It must be accessible to Tencent Cloud; hotlink protection or redirects may prevent access.",
+            },
+            "/properties/maxContentMiB": {
+              title: "Content size limit (MiB)",
+              description:
+                "File content mode only. Oversized files fail without retry; this does not change the provider's limits.",
+            },
+            "/properties/blockAction": {
+              title: "On violation",
+              description:
+                "Review results always block access for manual review.",
+            },
+            "/properties/timeoutMs": { title: "Timeout (ms)" },
+            "/properties/interval": { title: "GIF frame interval" },
+            "/properties/maxFrames": {
+              title: "Maximum GIF frames",
+              description:
+                "Sampled frames only; additional frames may increase usage.",
+            },
           },
         },
-        required: [
-          "secretId",
-          "secretKey",
-          "region",
-          "bizType",
-          "blockAction",
-          "submissionMode",
-          "timeoutMs",
-          "interval",
-          "maxFrames",
-        ],
-        additionalProperties: false,
-      },
-      uiHints: {
-        "/region": { advanced: true },
-        "/timeoutMs": { advanced: true },
-        "/interval": { advanced: true },
-        "/maxFrames": { advanced: true },
-      },
-      translations: {
         en: {
           configSchema: {
             "/properties/submissionMode": {
@@ -262,6 +205,95 @@ export const tencentModeration: Definition<"processor"> = {
           },
         },
       },
+
+      configSchemaVersion: 1,
+      configSchema: {
+        type: "object",
+        properties: {
+          secretId: {
+            type: "string",
+
+            minLength: 1,
+            "x-sensitive": true,
+          },
+          secretKey: {
+            type: "string",
+
+            minLength: 1,
+            "x-sensitive": true,
+          },
+          region: {
+            type: "string",
+
+            minLength: 1,
+            default: "ap-guangzhou",
+          },
+          bizType: {
+            type: "string",
+
+            minLength: 1,
+          },
+          submissionMode: {
+            type: "string",
+
+            enum: ["content", "url"],
+            default: "content",
+          },
+          maxContentMiB: {
+            type: "integer",
+
+            minimum: 1,
+            maximum: 20,
+            default: 5,
+          },
+          blockAction: {
+            type: "string",
+
+            enum: ["block", "delete"],
+            default: "block",
+          },
+          timeoutMs: {
+            type: "integer",
+
+            minimum: 100,
+            maximum: 120000,
+            default: 30000,
+          },
+          interval: {
+            type: "integer",
+
+            minimum: 1,
+            maximum: 1000,
+            default: 5,
+          },
+          maxFrames: {
+            type: "integer",
+
+            minimum: 1,
+            maximum: 400,
+            default: 5,
+          },
+        },
+        required: [
+          "secretId",
+          "secretKey",
+          "region",
+          "bizType",
+          "blockAction",
+          "submissionMode",
+          "timeoutMs",
+          "interval",
+          "maxFrames",
+        ],
+        additionalProperties: false,
+      },
+      uiHints: {
+        "/region": { advanced: true },
+        "/timeoutMs": { advanced: true },
+        "/interval": { advanced: true },
+        "/maxFrames": { advanced: true },
+      },
+
       async createInstance({ config, services }) {
         return {
           async execute(input, ctx) {

@@ -17,8 +17,11 @@ test("stream cancellation keeps retired instance alive until resource release", 
     cancelled = 0;
   try {
     const def: Definition<"storage"> = {
+      defaultLocale: "en-US",
+      content: { "en-US": { name: "stream" } },
+
       id: "test.stream",
-      name: "stream",
+
       kind: "storage",
       version: "1",
       apiVersion: 1,
@@ -84,13 +87,19 @@ test("initialization failure preserves new settings and retires old instance", a
   const f = await fixture();
   try {
     const def: Definition<"processor"> = {
+      defaultLocale: "en-US",
+      content: { "en-US": { name: "failure" } },
+
       id: "test.failure",
-      name: "failure",
+
       kind: "processor",
       version: "1",
       apiVersion: 1,
       stages: {
         access: {
+          defaultLocale: "en-US",
+          content: { "en-US": {} },
+
           configSchemaVersion: 1,
           configSchema: {
             type: "object",
@@ -142,13 +151,19 @@ test("credentials are encrypted, kept on edits and protected by versions", async
   try {
     let observed = "";
     const def: Definition<"processor"> = {
+      defaultLocale: "en-US",
+      content: { "en-US": { name: "secret" } },
+
       id: "test.secret",
-      name: "secret",
+
       kind: "processor",
       version: "1",
       apiVersion: 1,
       stages: {
         access: {
+          defaultLocale: "en-US",
+          content: { "en-US": {} },
+
           configSchemaVersion: 1,
           configSchema: {
             type: "object",
@@ -232,7 +247,7 @@ test("trusted ESM package can load while service is running", async () => {
     );
     await Bun.write(
       join(directory, "index.js"),
-      `export default {id:'external.path',name:'external',version:'1',kind:'path',apiVersion:1,configSchemaVersion:1,configSchema:{type:'object'},async createInstance(){return {async generate(){return {logicalKey:'external.png'}}}}}`,
+      `export default {id:'external.path',defaultLocale:"en-US",content:{"en-US":{name:'external'}},version:'1',kind:'path',apiVersion:1,configSchemaVersion:1,configSchema:{type:'object'},async createInstance(){return {async generate(){return {logicalKey:'external.png'}}}}}`,
     );
     await f.app.plugins.loadPackage(directory);
     const record = await f.app.plugins.save({
@@ -274,13 +289,19 @@ test("cacheable false executes every request; normal processor result is cached"
   try {
     let calls = 0;
     const def: Definition<"processor"> = {
+      defaultLocale: "en-US",
+      content: { "en-US": { name: "counter" } },
+
       id: "test.counter",
-      name: "counter",
+
       kind: "processor",
       version: "1",
       apiVersion: 1,
       stages: {
         access: {
+          defaultLocale: "en-US",
+          content: { "en-US": {} },
+
           configSchemaVersion: 1,
           configSchema: {
             type: "object",
@@ -347,8 +368,11 @@ test("302 shares configured cache lifetime; transforms force stream", async () =
     f.app.config.imageCacheMaxAge = 5;
     const modes: string[] = [];
     const def: Definition<"storage"> = {
+      defaultLocale: "en-US",
+      content: { "en-US": { name: "redirect" } },
+
       id: "test.redirect",
-      name: "redirect",
+
       kind: "storage",
       version: "1",
       apiVersion: 1,

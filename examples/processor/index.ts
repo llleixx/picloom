@@ -6,20 +6,30 @@ import {
 } from "../../plugin-sdk";
 
 export default {
+  defaultLocale: "en-US",
+  content: { "en-US": { name: "Example resize" } },
+
   id: "example.resize",
-  name: "Example resize",
+
   kind: "processor",
   version: "1.0.0",
   apiVersion: 1,
   stages: {
     upload: {
+      defaultLocale: "en-US",
+      content: {
+        "en-US": {
+          configSchema: { "/properties/width": { title: "Maximum width" } },
+        },
+      },
+
       configSchemaVersion: 1,
       configSchema: {
         type: "object",
         properties: {
           width: {
             type: "integer",
-            title: "Maximum width",
+
             minimum: 1,
             default: 1280,
           },

@@ -1,3 +1,4 @@
+import { isCanonicalLocale } from "../../plugin-sdk/localization";
 import { defaultLocalization, isLocale } from "../../shared/locales";
 import {
   runtimeKeys,
@@ -121,7 +122,7 @@ function validate(input: unknown): DeliverySettings {
   else
     for (const [language, entry] of Object.entries(v.content)) {
       if (
-        !isLocale(language) ||
+        !isCanonicalLocale(language) ||
         !entry ||
         typeof entry !== "object" ||
         Array.isArray(entry)

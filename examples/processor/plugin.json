@@ -1,6 +1,5 @@
 {
   "id": "example.resize",
-  "name": "Example resize",
   "version": "1.0.0",
   "kind": "processor",
   "apiVersion": 1,

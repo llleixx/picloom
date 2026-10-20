@@ -1,21 +1,18 @@
+import type { PluginLocalization } from "../plugin-sdk/config";
 import type { Json, Config, UIHints } from "../plugin-sdk/config";
 export type { Json, Config, FieldHint, UIHints } from "../plugin-sdk/config";
 export function cloneJson<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
 }
 export type PluginKind = "path" | "storage" | "processor";
-export interface StageView {
+export interface StageView extends PluginLocalization {
   configSchemaVersion: number;
   configSchema: Config;
   uiHints: UIHints;
   paramsSchema?: Config;
-  translations?: import("./plugin-localization").PluginTranslations;
 }
-interface PluginIdentity {
-  description?: string;
-  translations?: import("./plugin-localization").PluginTranslations;
+interface PluginIdentity extends PluginLocalization {
   id: string;
-  name: string;
   version: string;
 }
 export type PluginView = PluginIdentity &
@@ -53,7 +50,10 @@ export interface PluginUsage {
   stage?: PipelineKind;
   stepIndex?: number;
 }
-export interface PackageInspection extends PluginSummary {
+export interface PackageInspection {
+  id: string;
+  kind: PluginKind;
+  version: string;
   ticket: string;
   fileCount: number;
   expandedBytes: number;
@@ -367,9 +367,8 @@ function assertSerializable(value: unknown): void {
   for (const child of Object.values(value)) assertSerializable(child);
 }
 
-export interface AccessParameterGroup {
+export interface AccessParameterGroup extends PluginLocalization {
   id: string;
-  name: string;
+  plugin: PluginLocalization & { id: string };
   paramsSchema: Config;
-  translations?: import("./plugin-localization").PluginTranslations;
 }

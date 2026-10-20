@@ -8,7 +8,7 @@ export async function fixture(...args: Parameters<typeof baseFixture>) {
   const directory = join(f.root, "plugins", "test-action");
   const manifest = {
     id: "test.action",
-    name: "Test action",
+
     version: "1.0.0",
     kind: "processor",
     apiVersion: 1,
@@ -21,7 +21,9 @@ export async function fixture(...args: Parameters<typeof baseFixture>) {
       `
 export default {
   ...${JSON.stringify(manifest)},
+  defaultLocale: "en-US", content: { "en-US": { name: "Test action" } },
   stages: { post_save: {
+    defaultLocale: "en-US", content: { "en-US": {} },
     configSchemaVersion: 1,
     configSchema: {
       type: "object",

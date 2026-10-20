@@ -14,18 +14,19 @@ export interface FieldHint {
   visibleWhen?: { path: string; equals: Json };
 }
 export type UIHints = Record<string, FieldHint>;
-export interface SchemaTranslation {
+export interface SchemaContent {
   title?: string;
   description?: string;
   /** Labels correspond to enum values by position; values never change. */
   enumLabels?: string[];
 }
-export interface PluginTranslation {
+export interface PluginContent {
   name?: string;
   description?: string;
-  configSchema?: Record<string, SchemaTranslation>;
-  paramsSchema?: Record<string, SchemaTranslation>;
+  configSchema?: Record<string, SchemaContent>;
+  paramsSchema?: Record<string, SchemaContent>;
   /** Keys are existing UIHints group identifiers. */
   groups?: Record<string, string>;
 }
-export type PluginTranslations = Record<string, PluginTranslation>;
+export type PluginLocalization =
+  import("./localization").LocalizedContent<PluginContent>;

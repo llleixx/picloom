@@ -245,8 +245,11 @@ test("optional enumeration validates entries and never reads content; opaque loc
   try {
     let enumeration = true;
     f.app.plugins.register({
+      defaultLocale: "en-US",
+      content: { "en-US": { name: "Enumerate" } },
+
       id: "test.enumerate",
-      name: "Enumerate",
+
       version: "1.0.0",
       apiVersion: 1,
       configSchemaVersion: 1,

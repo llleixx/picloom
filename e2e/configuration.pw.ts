@@ -39,10 +39,12 @@ test("manage instances, groups, profiles and chains, then upload redundant files
     await page.getByLabel("Storage member").selectOption(id);
     await page.getByRole("button", { name: "Add member", exact: true }).click();
   }
+  await page
+    .getByLabel("Storage selection strategy", { exact: true })
+    .selectOption("weighted_random");
   await page.getByLabel("Member 1 weight", { exact: true }).fill("1");
   await page.getByLabel("Member 2 weight", { exact: true }).fill("3");
-  await page.getByLabel("Redundant copies", { exact: true }).fill("1");
-  await page.getByLabel("Redundancy strategy").selectOption("weighted_random");
+  await page.getByRole("spinbutton", { name: /^Additional copies/ }).fill("1");
   await page.getByRole("button", { name: "Save", exact: true }).click();
   await expect(page.getByRole("dialog")).toHaveCount(0);
   const group = (
@@ -152,7 +154,9 @@ test("manage instances, groups, profiles and chains, then upload redundant files
   await page.getByRole("button", { name: "Close", exact: true }).click();
   await expect(page.getByRole("dialog")).toHaveCount(0);
   await page.getByRole("button", { name: /^Open / }).click();
-  const url = await page.getByLabel("Original URL").inputValue();
+  const url = await page
+    .getByRole("textbox", { name: "Access link", exact: true })
+    .inputValue();
   expect(url).toContain("/managed/");
   await expect(
     page.getByText("Replication · Completed", { exact: true }),
@@ -228,7 +232,12 @@ test("schema form supports nested arrays, sensitive arrays and conditions, and k
     .locator("..")
     .locator("..");
   await row.getByRole("button", { name: "Edit", exact: true }).click();
-  await expect(page.getByLabel("Secret items", { exact: true })).toHaveCount(0);
+  await expect(page.getByLabel("Secret items", { exact: true })).toHaveValue(
+    "",
+  );
+  await expect(
+    page.getByText("Saved value kept unless edited.", { exact: true }),
+  ).toBeVisible();
   await page.getByLabel("Profile name").fill("my draft");
   const session = await (
     await page.request.get(service.url + "/api/auth/session")

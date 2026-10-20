@@ -11,6 +11,9 @@ for (const stage of ["upload", "access"] as const) {
     let followingCalls = 0;
     let replace = false;
     const descriptor = {
+      defaultLocale: "en-US",
+      content: { "en-US": {} },
+
       configSchemaVersion: 1,
       configSchema: {
         type: "object",
@@ -40,16 +43,22 @@ for (const stage of ["upload", "access"] as const) {
     try {
       const original = await (await f.upload()).json();
       f.app.plugins.register({
+        defaultLocale: "en-US",
+        content: { "en-US": { name: "Results" } },
+
         id: "test.results",
-        name: "Results",
+
         kind: "processor",
         version: "1",
         apiVersion: 1,
         stages: { [stage]: descriptor },
       });
       f.app.plugins.register({
+        defaultLocale: "en-US",
+        content: { "en-US": { name: "Following" } },
+
         id: "test.following",
-        name: "Following",
+
         kind: "processor",
         version: "1",
         apiVersion: 1,

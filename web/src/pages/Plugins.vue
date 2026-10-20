@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import { t, locale } from "@/lib/i18n";
-import { localizePlugin } from "../../../shared/plugin-localization";
+import {
+  localizePlugin,
+  type LocalizedPlugin,
+} from "../../../shared/plugin-localization";
 import { computed, ref } from "vue";
 import { useQuery } from "@tanstack/vue-query";
 import { comparePluginVersions } from "@/lib/plugin-versions";
@@ -26,13 +29,14 @@ const packages = useQuery({
       items.map((item) => localizePlugin(item, language));
   }),
 });
+type DisplayPackage = LocalizedPlugin<PackageView>;
 const packageInput = ref<HTMLInputElement>();
 const inspection = ref<PackageInspection | null>(null),
   trusted = ref(false),
   busy = ref(false),
   error = ref(""),
-  remove = ref<PackageView | null>(null),
-  detailsSelection = ref<PackageView | null>(null);
+  remove = ref<DisplayPackage | null>(null),
+  detailsSelection = ref<DisplayPackage | null>(null);
 const details = computed({
   get: () =>
     packages.data.value?.find(
@@ -40,7 +44,7 @@ const details = computed({
         p.id === detailsSelection.value?.id &&
         p.version === detailsSelection.value?.version,
     ) ?? null,
-  set: (value: PackageView | null) => {
+  set: (value: DisplayPackage | null) => {
     detailsSelection.value = value;
   },
 });
@@ -50,15 +54,15 @@ const kinds = computed(() => ({
   processor: t("ui.processorPlugin"),
 }));
 const upgradeOpen = ref(false);
-const upgradePlugin = ref<PackageView>();
-function upgrade(p: PackageView) {
+const upgradePlugin = ref<DisplayPackage>();
+function upgrade(p: DisplayPackage) {
   upgradePlugin.value = p;
   upgradeOpen.value = true;
 }
 const pluginFamilies = computed(() => {
   const map = new Map<
     string,
-    { plugin: PackageView; versions: PackageView[] }
+    { plugin: DisplayPackage; versions: DisplayPackage[] }
   >();
   for (const p of packages.data.value ?? []) {
     const family = map.get(p.id);
@@ -376,9 +380,7 @@ async function uninstall() {
           t("ui.packageStructureCheckedInstallingWillRunIts")
         }}</DialogDescription>
         <div v-if="inspection" class="space-y-3 text-sm">
-          <p>
-            {{ inspection.name }} · {{ inspection.id }}@{{ inspection.version }}
-          </p>
+          <p>{{ inspection.id }}@{{ inspection.version }}</p>
           <p>
             {{ kinds[inspection.kind] }} ·
             {{

@@ -1,6 +1,5 @@
 {
   "id": "example.thumbnail",
-  "name": "Example thumbnail",
   "version": "1.0.0",
   "kind": "processor",
   "apiVersion": 1,

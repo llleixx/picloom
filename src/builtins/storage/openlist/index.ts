@@ -46,53 +46,20 @@ function error(code: string, writing = false) {
 }
 
 export const openListStorage: Definition<"storage"> = {
-  id: "builtin.openlist",
-  name: "OpenList Storage",
-  description:
-    "Store files through an OpenList mount with a configured API token.",
-  kind: "storage",
-  version: "1.0.0",
-  apiVersion: 1,
-  configSchemaVersion: 1,
-  configSchema: {
-    type: "object",
-    properties: {
-      endpoint: {
-        type: "string",
-        title: "Endpoint",
-        format: "uri",
-        "x-immutable": true,
-      },
-      root: {
-        type: "string",
-        title: "Mount directory",
-        minLength: 1,
-        "x-immutable": true,
-      },
-      token: {
-        type: "string",
-        title: "API token",
-        minLength: 1,
-        "x-sensitive": true,
-      },
-      redirect: {
-        type: "boolean",
-        title: "Redirect reads (302)",
-        default: true,
-      },
-      timeoutMs: {
-        type: "integer",
-        title: "Timeout (ms)",
-        minimum: 100,
-        maximum: 120000,
-        default: 30000,
+  defaultLocale: "en-US",
+  content: {
+    "en-US": {
+      name: "OpenList Storage",
+      description:
+        "Store files through an OpenList mount with a configured API token.",
+      configSchema: {
+        "/properties/endpoint": { title: "Endpoint" },
+        "/properties/root": { title: "Mount directory" },
+        "/properties/token": { title: "API token" },
+        "/properties/redirect": { title: "Redirect reads (302)" },
+        "/properties/timeoutMs": { title: "Timeout (ms)" },
       },
     },
-    required: ["endpoint", "root", "token"],
-    additionalProperties: false,
-  },
-  uiHints: { "/timeoutMs": { advanced: true } },
-  translations: {
     "zh-CN": {
       name: "OpenList 存储",
       description: "使用 API 令牌将文件存储到 OpenList 挂载目录。",
@@ -105,6 +72,52 @@ export const openListStorage: Definition<"storage"> = {
       },
     },
   },
+
+  id: "builtin.openlist",
+
+  kind: "storage",
+  version: "1.0.0",
+  apiVersion: 1,
+  configSchemaVersion: 1,
+  configSchema: {
+    type: "object",
+    properties: {
+      endpoint: {
+        type: "string",
+
+        format: "uri",
+        "x-immutable": true,
+      },
+      root: {
+        type: "string",
+
+        minLength: 1,
+        "x-immutable": true,
+      },
+      token: {
+        type: "string",
+
+        minLength: 1,
+        "x-sensitive": true,
+      },
+      redirect: {
+        type: "boolean",
+
+        default: true,
+      },
+      timeoutMs: {
+        type: "integer",
+
+        minimum: 100,
+        maximum: 120000,
+        default: 30000,
+      },
+    },
+    required: ["endpoint", "root", "token"],
+    additionalProperties: false,
+  },
+  uiHints: { "/timeoutMs": { advanced: true } },
+
   async validateConfig(config) {
     const issues: Array<{ path: string; message: string }> = [];
     try {

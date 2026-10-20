@@ -124,3 +124,17 @@ test("localized site content falls back per field without relabeling content", (
   expect(siteText(site, "en-US", "name")).toBe("");
   expect(siteText(site, "zh-CN", "name")).toBe("拾光");
 });
+
+test("site content uses the same base-language and blank-field fallback as plugins", () => {
+  const site = {
+    enabledLocales: ["en-US"] as Array<"en-US">,
+    defaultLocale: "en-US" as const,
+    content: {
+      "en-US": { name: "Gallery", description: "Default" },
+      zh: { name: "图库" },
+      "zh-CN": { name: "  ", description: " " },
+    },
+  };
+  expect(siteText(site, "zh-CN", "name")).toBe("图库");
+  expect(siteText(site, "zh-CN", "description")).toBe("Default");
+});

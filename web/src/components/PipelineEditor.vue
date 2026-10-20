@@ -7,7 +7,7 @@ import PluginConfigurationEditor from "./PluginConfigurationEditor.vue";
 import type { ConfiguredStep, PluginSummary } from "../../../shared/config";
 const steps = defineModel<ConfiguredStep[]>({ required: true });
 const props = defineProps<{
-  plugins: PluginSummary[];
+  plugins: (PluginSummary & { name: string })[];
   stage: "upload" | "access" | "post_save";
   errors?: Array<{ path: string; message: string }>;
 }>();
