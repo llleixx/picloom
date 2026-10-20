@@ -116,3 +116,34 @@ test("cancelling a multipart upload removes staged data and refresh does not res
   await page.reload();
   await expect(page.getByTestId("upload-row")).toHaveCount(0);
 });
+
+test("uploads across batches work without crypto.randomUUID", async ({
+  page,
+  service,
+}) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(crypto, "randomUUID", { value: undefined });
+  });
+  await login(page, service.url);
+  await page.getByRole("link", { name: "Upload", exact: true }).click();
+  expect(await page.evaluate(() => typeof crypto.randomUUID)).toBe("undefined");
+  const buffer = await sharp({
+    create: { width: 24, height: 24, channels: 3, background: "green" },
+  })
+    .png()
+    .toBuffer();
+  for (let batch = 0; batch < 2; batch++) {
+    await page.getByTestId("upload-input").setInputFiles(
+      [0, 1].map((index) => ({
+        name: `http-${batch}-${index}.png`,
+        mimeType: "image/png",
+        buffer,
+      })),
+    );
+    await expect(page.getByText("Uploaded", { exact: true })).toHaveCount(
+      (batch + 1) * 2,
+    );
+  }
+  await page.getByRole("link", { name: "App" }).click();
+  await expect(page.getByTestId("file-card")).toHaveCount(4);
+});

@@ -45,6 +45,8 @@ interface Transfer {
 export const uploads = reactive<UploadItem[]>([]);
 const transfers = new Map<string, Transfer>();
 let active = 0;
+// Queue and batch IDs are local to this page; no secure-context API is needed.
+let nextId = 0;
 // Session changes do not invalidate uploads already controlled by an upload key.
 sessionCleanups.add(() => {
   for (const item of uploads) {
@@ -58,10 +60,10 @@ sessionCleanups.add(() => {
   }
 });
 export function enqueue(files: File[], profile: UploadProfileView) {
-  const batchId = crypto.randomUUID();
+  const batchId = String(++nextId);
   for (const file of files)
     uploads.push({
-      id: crypto.randomUUID(),
+      id: String(++nextId),
       batchId,
       file,
       profileId: profile.id,
@@ -77,10 +79,10 @@ export function enqueue(files: File[], profile: UploadProfileView) {
   pump();
 }
 export function enqueueUrls(urls: string[], profile: UploadProfileView) {
-  const batchId = crypto.randomUUID();
+  const batchId = String(++nextId);
   for (const url of urls)
     uploads.push({
-      id: crypto.randomUUID(),
+      id: String(++nextId),
       batchId,
       sourceUrl: url,
       file: new File(
