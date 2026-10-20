@@ -1,7 +1,19 @@
 // UI copy lives here. Keep keys stable when editing English wording.
 export const en = {
+  "images.replace": "Replace image",
+  "images.replaceHint":
+    "Keep the public link and replace the image. Use the same final format. Cached images may take time to refresh.",
+  "images.replaceFailure":
+    "Check Images before retrying; the new upload may already exist.",
+  "images.replacing": "Uploading and waiting for background operations…",
+  "images.replaceFormat":
+    "The replacement must have the same final image format.",
+  "images.replaceBusy":
+    "Image background operations must finish successfully first.",
+
   "profiles.defaultLabel": "Default upload profile",
-  "profiles.defaultHint": "Used when Profile ID is omitted. When unset, uses the site default.",
+  "profiles.defaultHint":
+    "Used when Profile ID is omitted. When unset, uses the site default.",
   "profiles.followSite": "Follow site default",
   "profiles.siteDefault": "Site default",
   "profiles.clearSite": "Clear site default",

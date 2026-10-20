@@ -3,6 +3,7 @@ import { t } from "./i18n";
 import { reactive } from "vue";
 import type {
   ClientSettings,
+  FileView,
   ChunkedUploadSession,
   UploadProfileView,
   UploadResult,
@@ -36,6 +37,7 @@ export interface UploadItem {
   resumable?: boolean;
   error?: string;
   result?: UploadResult;
+  replaceId?: string;
 }
 interface Transfer {
   session?: ChunkedUploadSession;
@@ -51,7 +53,7 @@ let nextId = 0;
 sessionCleanups.add(() => {
   for (const item of uploads) {
     if (
-      !transfers.get(item.id)?.session &&
+      (item.replaceId || !transfers.get(item.id)?.session) &&
       ["queued", "uploading", "processing"].includes(item.status)
     ) {
       item.status = "cancelled";
@@ -59,12 +61,17 @@ sessionCleanups.add(() => {
     }
   }
 });
-export function enqueue(files: File[], profile: UploadProfileView) {
+export function enqueue(
+  files: File[],
+  profile: UploadProfileView,
+  replaceId?: string,
+) {
   const batchId = String(++nextId);
   for (const file of files)
     uploads.push({
       id: String(++nextId),
       batchId,
+      replaceId,
       file,
       profileId: profile.id,
       profileName: profile.name,
@@ -77,6 +84,7 @@ export function enqueue(files: File[], profile: UploadProfileView) {
           : undefined,
     });
   pump();
+  return batchId;
 }
 export function enqueueUrls(urls: string[], profile: UploadProfileView) {
   const batchId = String(++nextId);
@@ -321,7 +329,35 @@ async function pump() {
       transfer.controller = new AbortController();
       transfers.set(item.id, transfer);
       void run(item, transfer, transfer.controller.signal, settings)
-        .then((result) => {
+        .then(async (result) => {
+          if (item.replaceId) {
+            const signal = transfer.controller!.signal;
+            signal.throwIfAborted();
+            item.status = "processing";
+            const deadline = Date.now() + 300_000;
+            for (;;) {
+              signal.throwIfAborted();
+              if (Date.now() > deadline)
+                throw new Error(t("images.replaceBusy"));
+              const candidate = await api<FileView>(`/api/files/${result.id}`, {
+                signal,
+              });
+              if (!candidate.backgroundPending) break;
+              await new Promise((resolve) => setTimeout(resolve, 1500));
+            }
+            result = await api<UploadResult>(
+              `/api/files/${item.replaceId}/replace`,
+              {
+                signal,
+                method: "POST",
+                body: JSON.stringify({
+                  replacementId: result.id,
+                  replacementPath: new URL(result.url, location.origin)
+                    .pathname,
+                }),
+              },
+            );
+          }
           if (item.status === "cancelled") return;
           item.status = "success";
           item.result = result;
@@ -335,7 +371,9 @@ async function pump() {
         })
         .finally(() => {
           active--;
-          if (copyPreferences.auto) {
+          if (item.replaceId)
+            void queryClient.invalidateQueries({ queryKey: ["files"] });
+          if (copyPreferences.auto && !item.replaceId) {
             const batch = uploads.filter(
               (upload) => upload.batchId === item.batchId,
             );

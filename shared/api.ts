@@ -16,6 +16,7 @@ export interface FileView {
   ownerName?: string | null;
   /** Detail response only; pending/running background operations. */
   backgroundPending?: boolean;
+  uploadProfileId?: string | null;
   /** Administrator detail response only. */
   processingResults?: ProcessingResult[] | null;
   status: FileStatus;

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import ReplaceImage from "./ReplaceImage.vue";
 import AccessLinkBuilder from "./AccessLinkBuilder.vue";
 import DeleteScope from "./DeleteScope.vue";
 import ProcessingResults from "./ProcessingResults.vue";
@@ -33,7 +34,12 @@ const props = defineProps<{
     navigating?: boolean;
     navigationError?: string;
   }>(),
-  emit = defineEmits<{ close: []; previous: []; next: [] }>();
+  emit = defineEmits<{
+    close: [];
+    previous: [];
+    next: [];
+    replaced: [id: string];
+  }>();
 const detail = useQuery({
   queryKey: ["file", props.id],
   queryFn: ({ signal }) =>
@@ -375,6 +381,11 @@ async function remove() {
           v-if="file.status === 'ready'"
           :key="file.id"
           :url="file.url"
+        />
+        <ReplaceImage
+          v-if="file.status === 'ready'"
+          :file="file"
+          @replaced="(id) => emit('replaced', id)"
         />
         <Button
           v-if="file.status !== 'deleted' && file.status !== 'deleting'"

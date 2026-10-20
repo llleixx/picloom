@@ -717,6 +717,7 @@ async function navigate(direction: -1 | 1) {
       :can-next="canNext"
       :navigating="navigating"
       :navigation-error="navigationError"
+      @replaced="(id) => update({ file: id })"
       @previous="navigate(-1)"
       @next="navigate(1)"
       @close="update({ file: undefined, page: String(page) })"

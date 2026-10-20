@@ -195,6 +195,7 @@ curl --fail-with-body "$PICLOOM_URL/api/files/$PICLOOM_FILE_ID" \
 | 请求 | 用途 |
 | --- | --- |
 | `GET /api/files/:id` | 文件详情 |
+| `POST /api/files/:id/replace` | 用已上传的新图替换，保留公开链接；仅会话认证 |
 | `GET /api/files/:id/operations` | 管理员查看副本和后台任务 |
 | `DELETE /api/files/:id/replicas/:replicaId` | 管理员删除单个副本 |
 | `POST /api/files/:id/unblock` | 管理员解除屏蔽 |
@@ -244,3 +245,9 @@ curl --fail-with-body "$PICLOOM_URL/api/files/$PICLOOM_FILE_ID" \
 - `PUT /api/site-upload-default`：管理员会话设置站点默认项，同上；传 `null` 清除。
 
 这些默认项不会扩大权限，也不会在文件大小超限、存储故障时替用户选择另一套上传规则。
+
+### 替换图片
+
+先按正常流程上传新图，再向 `POST /api/files/:id/replace` 发送 JSON：`{"replacementId":"新文件 ID","replacementPath":"新上传结果 URL 的 pathname"}`。上传时显式选择原上传配置或其他有权限的配置，不依赖默认配置回退。
+
+新旧图片必须可管理、处于 ready 状态、最终格式一致，且副本及后台任务已成功完成。成功返回新文件的 `id` 和保留的 `url`，旧文件随后异步清理；图片归属保持不变。切换失败不会删除原图，新上传的图片可能作为独立图片保留。公开链接不变，浏览器和 CDN 已有缓存需等到过期或主动刷新。

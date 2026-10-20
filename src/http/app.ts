@@ -348,7 +348,7 @@ export function handler(app: Application) {
           path.startsWith("/api/tokens/") ||
           path === "/api/files" ||
           path === "/api/files/batch-delete" ||
-          /^\/api\/files\/[^/]+(?:\/thumbnail)?$/.test(path);
+          /^\/api\/files\/[^/]+(?:\/(?:thumbnail|replace))?$/.test(path);
         if (!workspaceRoute) app.auth.requireAdmin(auth);
         // Installing or reloading a package executes code with server privileges.
         // Keep package management separate from using already installed plugins.
@@ -691,6 +691,28 @@ export function handler(app: Application) {
             return json({ ok: true });
           }
         }
+        const replacement = path.match(/^\/api\/files\/([^/]+)\/replace$/);
+        if (replacement && method === "POST") {
+          const input = await body(req);
+          if (
+            typeof input.replacementId !== "string" ||
+            typeof input.replacementPath !== "string"
+          )
+            throw new AppError(
+              "INVALID_INPUT",
+              "Replacement ID and path are required",
+            );
+          const result = await app.files.replace(
+            replacement[1]!,
+            input.replacementId,
+            input.replacementPath,
+            auth,
+          );
+          return json({
+            id: result.id,
+            url: (app.config.imageOrigin || requestOrigin) + result.path,
+          });
+        }
         const thumbnail = path.match(/^\/api\/files\/([^/]+)\/thumbnail$/);
         if (thumbnail && ["GET", "HEAD"].includes(method)) {
           app.auth.assertFile(
@@ -710,6 +732,7 @@ export function handler(app: Application) {
               app.auth.assertFile(auth, f);
               const result = view(f, app.config.imageOrigin || requestOrigin);
               const tasks = await r.tasks(id);
+              result.uploadProfileId = f.upload_profile_id;
               result.backgroundPending = tasks.some((task) =>
                 ["pending", "running"].includes(task.status),
               );

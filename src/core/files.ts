@@ -1200,6 +1200,65 @@ export class Files {
     });
     if (deletingFile) this.tasks.cancel(fileId);
   }
+  async replace(
+    id: string,
+    replacementId: string,
+    replacementPath: string,
+    identity: Identity,
+  ) {
+    return this.db.transaction(async (r) => {
+      const current = await this.auth.verify(r, identity.kind, identity.hash);
+      if (current.kind !== "session")
+        throw new AppError("FORBIDDEN", "Session required", 403);
+      const old = requireValue(await r.file(id));
+      const next = requireValue(await r.file(replacementId));
+      this.auth.assertFile(current, old);
+      this.auth.assertFile(current, next);
+      if (
+        old.id === next.id ||
+        old.status !== "ready" ||
+        next.status !== "ready" ||
+        publicPath(next.public_prefix, next.logical_key) !== replacementPath
+      )
+        throw new Conflict("Images changed or are not ready");
+      if (!next.upload_profile_id)
+        throw new Conflict("Upload profile unavailable");
+      await this.auth.authorizeUpload(current, next.upload_profile_id, r);
+      if (!(await r.profile(next.upload_profile_id))?.enabled)
+        throw new Conflict("Upload profile unavailable");
+      if (!old.mime_type || old.mime_type !== next.mime_type)
+        throw new AppError(
+          "REPLACEMENT_FORMAT",
+          "Replacement must have the same image format",
+        );
+      for (const file of [old, next]) {
+        const replicas = await r.replicas(file.id);
+        if (
+          !replicas.some((replica) => replica.status === "ready") ||
+          replicas.some(
+            (replica) => !["ready", "deleted"].includes(replica.status),
+          ) ||
+          (await r.tasks(file.id)).some((task) => task.status !== "success")
+        )
+          throw new AppError(
+            "REPLACEMENT_BUSY",
+            "Image background operations must finish successfully first",
+            409,
+          );
+      }
+      const path = publicPath(old.public_prefix, old.logical_key);
+      next.public_prefix = old.public_prefix;
+      next.logical_key = old.logical_key;
+      next.owner_id = old.owner_id;
+      next.guest_ip = old.guest_ip;
+      // Free the unique public path in the same transaction; storage keys stay intact.
+      old.logical_key = `.replaced/${crypto.randomUUID()}`;
+      old.status = "deleting";
+      await r.saveFile(old, "ready");
+      await r.saveFile(next, "ready");
+      return { id: next.id, path };
+    });
+  }
   async delete(id: string, identity?: Identity) {
     await this.db.transaction(async (r) => {
       const f = requireValue(await r.file(id));

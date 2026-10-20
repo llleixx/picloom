@@ -1,6 +1,14 @@
 import type { en } from "./en";
 
 export const zhCN = {
+  "images.replace": "替换图片",
+  "images.replaceHint":
+    "保留公开链接，替换图片内容。处理后的格式需一致，已有缓存可能延迟更新。",
+  "images.replaceFailure": "重试前请检查图片列表，新上传的图片可能已保留。",
+  "images.replacing": "正在上传并等待后台任务完成…",
+  "images.replaceFormat": "替换图片处理后的格式必须与原图一致。",
+  "images.replaceBusy": "请等待图片后台任务全部成功后再替换。",
+
   "profiles.defaultLabel": "默认上传配置",
   "profiles.defaultHint": "未指定 Profile ID 时使用；未设置则使用站点默认。",
   "profiles.followSite": "跟随站点",
