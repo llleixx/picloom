@@ -33,6 +33,19 @@ async function command(args: string[]) {
 }
 console.log("Building picloom:local");
 await command(["docker", "build", "-t", "picloom:local", "."]);
+// Verify the allocator is actually loaded and the per-image default is applied.
+await command([
+  "docker",
+  "run",
+  "--rm",
+  "--entrypoint",
+  "bun",
+  "picloom:local",
+  "-e",
+  `const assert = require("node:assert/strict");
+   assert.equal(require("sharp/lib/sharp")._isUsingJemalloc(), true);
+   assert.equal(require("sharp").concurrency(), 1);`,
+]);
 for (const backend of ["sqlite", "postgres"]) {
   const project = `picloom-smoke-${backend}-${crypto.randomUUID().slice(0, 8)}`;
   const temp = await mkdtemp(join(tmpdir(), "picloom-docker-"));
@@ -155,7 +168,7 @@ PUBLISH_ADDRESS=127.0.0.1
     const profile = (await (await request("/api/upload-profiles")).json())[0];
     assert.ok(profile?.id);
     const png = await sharp({
-      create: { width: 24, height: 16, channels: 3, background: "#42b883" },
+      create: { width: 320, height: 160, channels: 3, background: "#42b883" },
     })
       .png()
       .toBuffer();
@@ -177,6 +190,79 @@ PUBLISH_ADDRESS=127.0.0.1
         .width,
       8,
     );
+    const fontPath = await compose(
+      "exec",
+      "-T",
+      "picloom",
+      "fc-match",
+      "-f",
+      "%{file}",
+      "sans:lang=zh-cn",
+    );
+    assert.equal(fontPath, "/usr/local/share/fonts/NotoSansSC-Regular.otf");
+    const charset = (
+      await compose(
+        "exec",
+        "-T",
+        "picloom",
+        "fc-query",
+        "-f",
+        "%{charset}",
+        fontPath,
+      )
+    ).split(/\s+/);
+    const text = "中文水印 Picloom";
+    for (const character of text) {
+      const code = character.codePointAt(0)!;
+      assert.ok(
+        charset.some((range) => {
+          const [start, end = start] = range
+            .split("-")
+            .map((value) => parseInt(value, 16));
+          return code >= start! && code <= end!;
+        }),
+        `Missing watermark glyph: ${character}`,
+      );
+    }
+    const marked = await request(`/api/pipelines/${access.id}`, "PUT", {
+      ...access,
+      expectedVersion: (await configured.json()).configVersion,
+      steps: [
+        {
+          pluginId: "builtin.watermark",
+          version: "1.0.0",
+          config: {
+            type: "text",
+            text,
+            sizeMode: "fixed",
+            fontSize: 24,
+            position: "center",
+            opacity: 100,
+          },
+          onNotApplicable: "abort",
+        },
+      ],
+    });
+    assert.equal(marked.status, 200, await marked.clone().text());
+    const watermarked = await request(path);
+    assert.equal(watermarked.status, 200);
+    const pixels = await sharp(Buffer.from(await watermarked.arrayBuffer()))
+      .removeAlpha()
+      .raw()
+      .toBuffer();
+    const originalPixels = await sharp(png).removeAlpha().raw().toBuffer();
+    assert.equal(pixels.length, originalPixels.length);
+    assert.notDeepEqual(
+      pixels,
+      originalPixels,
+      "Chinese watermark must change image pixels",
+    );
+    const reset = await request(`/api/pipelines/${access.id}`, "PUT", {
+      ...access,
+      steps: [],
+      expectedVersion: (await marked.json()).configVersion,
+    });
+    assert.equal(reset.status, 200, await reset.clone().text());
     const settings = await (await request("/api/settings")).json();
     assert.equal(
       (
@@ -266,7 +352,7 @@ PUBLISH_ADDRESS=127.0.0.1
       "deleted",
     );
     console.log(
-      `${backend}: healthy startup, Owner login, upload, Sharp, recreated-container persistence, SIGKILL recovery, backups policy and deletion passed`,
+      `${backend}: healthy startup, Owner login, upload, Sharp, Chinese watermark, recreated-container persistence, SIGKILL recovery, backups policy and deletion passed`,
     );
   } finally {
     // Only this test's isolated project and temporary directories are disposable.
