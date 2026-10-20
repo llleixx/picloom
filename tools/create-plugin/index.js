@@ -40,7 +40,6 @@ if (args.length === 1 && ["--help", "-h"].includes(args[0])) {
     const manifestPath = resolve(target, "plugin.json");
     const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
     manifest.id = `example.${name}`;
-    manifest.name = name;
     await writeFile(manifestPath, JSON.stringify(manifest, null, 2) + "\n");
     const packagePath = resolve(target, "package.json");
     const pkg = JSON.parse(await readFile(packagePath, "utf8"));

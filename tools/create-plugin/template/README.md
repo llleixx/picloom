@@ -14,9 +14,9 @@ bun run build
 Commit the generated `bun.lock`. To check types without building, run
 `bun run typecheck`. Both commands run TypeScript under Bun.
 
-- `plugin.json`: plugin ID, name, version, kind and API version. Replace the
+- `plugin.json`: plugin ID, version, kind and API version. Replace the
   generated `example.*` ID with your own stable ID before sharing.
-- `src/index.ts`: configuration and implementation. It reads identity fields from
+- `src/index.ts`: localized display text (`defaultLocale` and `content`), configuration and implementation. It reads identity fields from
   the manifest and initially generates UTC date paths.
 - `package.json`: development dependencies and commands; its version is not the
   plugin version. The project is private to prevent accidental npm publication.
@@ -58,6 +58,7 @@ for retries, cancellation and instance lifecycle.
 关联可用存储组。上传 PNG，确认日期路径和公开链接。改代码后增加清单版本，重新
 构建安装，再选择新版本、预览并应用升级；安装新版不会自动切换已有配置。
 
+名称和简介在入口的 `content` 中按语言填写，`defaultLocale` 指定内容默认语言。
 入口从清单读取身份字段；`package.json` 的版本不是插件版本。构建会加载入口，
 不要在模块顶层执行远端操作。Sharp 的开发依赖提供类型，运行时使用宿主实例。
 其他类型和完整接口见上方文档链接。

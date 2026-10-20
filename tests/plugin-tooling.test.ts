@@ -193,7 +193,6 @@ toolingTest(
 
       // Validate SDK declarations and Sharp types using a second real stage implementation.
       manifest.id = "example.resize";
-      manifest.name = "Resize";
       manifest.kind = "processor";
       manifest.version = "1.0.0";
       await Bun.write(join(project, "plugin.json"), JSON.stringify(manifest));

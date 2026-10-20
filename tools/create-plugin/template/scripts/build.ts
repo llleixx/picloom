@@ -9,12 +9,10 @@ if (
   !/^[0-9][a-zA-Z0-9.+-]{0,63}$/.test(manifest.version) ||
   !["path", "storage", "processor"].includes(manifest.kind) ||
   manifest.apiVersion !== 1 ||
-  manifest.entry !== "index.js" ||
-  !manifest.name.trim() ||
-  manifest.name.length > 100
+  manifest.entry !== "index.js"
 )
   throw new Error(
-    "Invalid plugin.json: check id, name, version, kind, apiVersion and entry",
+    "Invalid plugin.json: check id, version, kind, apiVersion and entry",
   );
 
 const build = await Bun.build({

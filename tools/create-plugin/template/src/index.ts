@@ -8,7 +8,8 @@ if (kind !== "path" || apiVersion !== 1)
 
 export default {
   id: manifest.id,
-  name: manifest.name,
+  defaultLocale: "en-US",
+  content: { "en-US": { name: "My date path" } },
   version: manifest.version,
   kind,
   apiVersion,
