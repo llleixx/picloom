@@ -23,7 +23,7 @@ export const datePath: Definition<"path"> = {
           .replace("jpeg", "jpg");
         if (!ext) throw new Error("Missing image type");
         return {
-          logicalKey: `${new Date(uploadedAt).toISOString().slice(0, 10).replaceAll("-", "/")}/${fileId}.${ext}`,
+          logicalKey: `${new Date(uploadedAt).toISOString().slice(0, 10).replaceAll("-", "/")}/${fileId.replaceAll("-", "")}.${ext}`,
         };
       },
     };

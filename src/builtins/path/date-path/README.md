@@ -4,7 +4,7 @@
 
 ## Purpose
 
-Build paths from the UTC upload date and file ID.
+Build paths from the UTC upload date and the file ID with hyphens removed.
 
 `builtin.date-path` · `path`
 
@@ -16,7 +16,7 @@ No request parameters.
 
 ## Usage example
 
-Create a path instance and select it in an upload profile. A JPEG uploaded on 2026-10-18 produces `2026/10/18/<fileId>.jpg`; with public prefix `/i/`, its URL path is `/i/2026/10/18/<fileId>.jpg`.
+Create a path instance and select it in an upload profile. A JPEG uploaded on 2026-10-18 with file ID `12345678-1234-1234-1234-123456789abc` produces `2026/10/18/12345678123412341234123456789abc.jpg`; with public prefix `/i/`, its URL path is `/i/2026/10/18/12345678123412341234123456789abc.jpg`.
 
 ```json
 {}
