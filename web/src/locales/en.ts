@@ -1,5 +1,15 @@
 // UI copy lives here. Keep keys stable when editing English wording.
 export const en = {
+  "settings.enabledLocales": "Homepage languages",
+  "settings.defaultLocale": "Default language",
+  "settings.defaultBadge": "Default",
+  "settings.siteContent": "Site content",
+  "settings.editLocale": "Content language",
+  "settings.languageHint":
+    "The default language is used when no visitor or browser language matches.",
+  "settings.fallbackContent": "When blank",
+  "settings.builtinContent": "Built-in text",
+
   "images.replace": "Replace image",
   "images.replaceHint":
     "Keep the public link and replace the image. Use the same final format. Cached images may take time to refresh.",
@@ -94,8 +104,6 @@ export const en = {
   "settings.siteFaviconUrl": "Favicon URL",
   "settings.siteLogoHint": "Recommended: 128 × 128 px, transparent background.",
   "settings.siteFaviconHint": "Recommended: 32 × 32 or 48 × 48 px.",
-  "settings.siteBrandingHint":
-    "Shown on the home page, sign-in page and navigation. Leave blank for defaults.",
   "replicas.lastError":
     "Kept: no other available replica. Select whole-image deletion to remove it.",
   "replicas.source": "Storage Source",

@@ -1,6 +1,15 @@
 import type { en } from "./en";
 
 export const zhCN = {
+  "settings.enabledLocales": "首页启用语言",
+  "settings.defaultLocale": "默认语言",
+  "settings.defaultBadge": "默认",
+  "settings.siteContent": "站点文案",
+  "settings.editLocale": "正在编辑的内容语言",
+  "settings.languageHint": "访客选择和浏览器偏好均无法匹配时，使用默认语言。",
+  "settings.fallbackContent": "留空时显示",
+  "settings.builtinContent": "内置文案",
+
   "images.replace": "替换图片",
   "images.replaceHint":
     "保留公开链接，替换图片内容。处理后的格式需一致，已有缓存可能延迟更新。",
@@ -735,6 +744,5 @@ export const zhCN = {
   "settings.siteFaviconUrl": "浏览器图标链接",
   "settings.siteLogoHint": "建议 128 × 128 像素，透明背景。",
   "settings.siteFaviconHint": "建议 32 × 32 或 48 × 48 像素。",
-  "settings.siteBrandingHint": "用于首页、登录页和导航栏。留空则使用默认值。",
   "ui.language": "语言",
 } satisfies Record<keyof typeof en, string>;

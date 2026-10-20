@@ -1,7 +1,8 @@
 <script setup lang="ts">
+import { supportedLocales } from "../../shared/locales";
 import defaultFavicon from "@/assets/picloom.svg?no-inline";
 import { navigation, navigationGroups } from "./lib/navigation";
-import { t } from "@/lib/i18n";
+import { t, configureLanguages } from "@/lib/i18n";
 import { ref, watch, watchEffect, computed } from "vue";
 import { useRoute } from "vue-router";
 import { CloudUpload, Moon, Sun, Menu } from "lucide-vue-next";
@@ -16,7 +17,7 @@ import { notice, session, isAdmin } from "./lib/api";
 import SiteBrand from "@/components/SiteBrand.vue";
 import LanguageSwitcher from "@/components/LanguageSwitcher.vue";
 import { useSite } from "@/lib/site";
-const { name: siteName, faviconUrl } = useSite();
+const { name: siteName, faviconUrl, settings, pending } = useSite();
 watch(
   faviconUrl,
   (url) => {
@@ -37,6 +38,14 @@ watch(
   { immediate: true },
 );
 const route = useRoute();
+watchEffect(() => {
+  configureLanguages(
+    route.path === "/"
+      ? (settings.value?.enabledLocales ?? supportedLocales)
+      : supportedLocales,
+    settings.value?.defaultLocale ?? "en-US",
+  );
+});
 const menu = ref(false);
 const dark = ref(
   localStorage.getItem("theme") === "dark" ||
@@ -85,7 +94,8 @@ watchEffect(() => {
 });
 </script>
 <template>
-  <div v-if="route.path === '/login'"><RouterView /></div>
+  <div v-if="pending" class="min-h-screen" aria-busy="true"></div>
+  <div v-else-if="route.path === '/login'"><RouterView /></div>
   <div v-else-if="route.path === '/'" class="min-h-screen">
     <header
       class="mx-auto flex max-w-6xl items-center justify-between px-5 py-6"

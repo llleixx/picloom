@@ -1,3 +1,4 @@
+import { defaultLocalization, isLocale } from "../../shared/locales";
 import {
   runtimeKeys,
   runtimeMaximums,
@@ -22,8 +23,9 @@ function validate(input: unknown): DeliverySettings {
         ...runtimeKeys,
         "guestMaxUploadBytes",
         "guestDailyUploadLimit",
-        "siteName",
-        "siteDescription",
+        "enabledLocales",
+        "defaultLocale",
+        "content",
         "siteLogoUrl",
         "siteFaviconUrl",
         "cacheBytes",
@@ -96,9 +98,55 @@ function validate(input: unknown): DeliverySettings {
       fail("/" + key, "Use a valid whole number or leave blank.");
     guest[key] = n as number | null;
   }
+  const localization = defaultLocalization();
+  if (
+    !Array.isArray(v.enabledLocales) ||
+    !v.enabledLocales.length ||
+    !v.enabledLocales.every(isLocale) ||
+    new Set(v.enabledLocales).size !== v.enabledLocales.length
+  )
+    fail(
+      "/enabledLocales",
+      "Select one or more supported languages without duplicates.",
+    );
+  else localization.enabledLocales = v.enabledLocales;
+  if (
+    !isLocale(v.defaultLocale) ||
+    !localization.enabledLocales.includes(v.defaultLocale)
+  )
+    fail("/defaultLocale", "Default language must be enabled.");
+  else localization.defaultLocale = v.defaultLocale;
+  if (!v.content || typeof v.content !== "object" || Array.isArray(v.content))
+    fail("/content", "Expected localized content.");
+  else
+    for (const [language, entry] of Object.entries(v.content)) {
+      if (
+        !isLocale(language) ||
+        !entry ||
+        typeof entry !== "object" ||
+        Array.isArray(entry)
+      ) {
+        fail("/content/" + language, "Invalid content language or fields.");
+        continue;
+      }
+      const normalized: { name?: string; description?: string } = {};
+      for (const [field, value] of Object.entries(entry)) {
+        if (
+          (field !== "name" && field !== "description") ||
+          typeof value !== "string" ||
+          value.length > (field === "name" ? 100 : 300)
+        )
+          fail(
+            `/content/${language}/${field}`,
+            "Invalid content field or text length.",
+          );
+        else if (value.trim()) normalized[field] = value.trim();
+      }
+      if (Object.keys(normalized).length)
+        localization.content[language] = normalized;
+    }
   const branding = {
-    siteName: text("siteName", 100),
-    siteDescription: text("siteDescription", 300),
+    ...localization,
     siteLogoUrl: imageUrl("siteLogoUrl"),
     siteFaviconUrl: imageUrl("siteFaviconUrl"),
   };
@@ -190,8 +238,7 @@ export class DeliveryConfiguration {
       ) as RuntimeSettings),
       guestMaxUploadBytes: config.guestMaxUploadBytes,
       guestDailyUploadLimit: config.guestDailyUploadLimit,
-      siteName: "",
-      siteDescription: "",
+      ...defaultLocalization(),
       siteLogoUrl: "",
       siteFaviconUrl: "",
       cacheBytes: config.cacheBytes,

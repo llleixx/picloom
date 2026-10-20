@@ -30,8 +30,9 @@ Docker 使用 `docker/.env.example`，源码开发使用根目录的 `.env.examp
 
 | Web 字段 | 环境变量 / 默认 | 用途 |
 | --- | --- | --- |
-| `siteName` | 无环境变量，空 | 自定义站点名称；留空使用默认名称 |
-| `siteDescription` | 无环境变量，空 | 首页简介；留空使用默认文案 |
+| `enabledLocales` | 无环境变量，中英文 | 首页启用语言；仅一种时隐藏语言选择器 |
+| `defaultLocale` | 无环境变量，`en-US` | 浏览器语言无法匹配时的兜底，也用于站点内容回退；必须已启用 |
+| `content` | 无环境变量，`{}` | 按语言代码保存 `name`、`description`；当前语言未填写时使用默认语言，再使用内置文案 |
 | `siteLogoUrl` | 无环境变量，空 | 自定义 Logo 的 HTTP(S) 图片地址；留空使用默认图标 |
 | `siteFaviconUrl` | 无环境变量，空 | 浏览器标签页图标地址；留空使用默认图标 |
 | `publicOrigin` | `PUBLIC_ORIGIN`，空 | 网站来源，如 `https://pic.example.com`；用于来源检查和链接生成，留空时普通请求使用当前来源 |
@@ -90,3 +91,24 @@ Docker 使用 `docker/.env.example`，源码开发使用根目录的 `.env.examp
 | `maxPixels` | `MAX_PIXELS=40000000` | 图片总像素上限，限制解码和处理规模 |
 
 这些值作用在不同环节，不应全部同时调高。具体预算关系见 [容量与并发](../operations/resources.md)；变换参数见 [图片处理插件](./plugins/sharp.md)。
+
+## 站点语言与内容
+
+当前支持简体中文（`zh-CN`）和英文（`en-US`）。首页使用 `enabledLocales`，登录页和后台使用程序支持的全部语言。语言依次取用户显式选择、浏览器偏好列表中第一个匹配项、`defaultLocale`。未手动选择时自动匹配浏览器语言；语言选择器只列出可用语言。页面暂时不支持用户偏好时不会覆盖该偏好。
+
+站点名称和简介按语言保存，例如：
+
+```json
+{
+  "enabledLocales": ["zh-CN", "en-US"],
+  "defaultLocale": "zh-CN",
+  "content": {
+    "zh-CN": { "name": "拾光图床", "description": "收集和分享生活中的图片" },
+    "en-US": { "description": "Collect and share moments from your life." }
+  }
+}
+```
+
+字段逐个回退：当前语言、默认语言、内置文案。空白文本视为未填写。更换默认语言只改变回退来源；停用语言不会删除其内容。后台的内容语言选择仅决定编辑哪份内容，不改变界面语言。
+
+开发者新增语言时，在 `shared/locales.ts` 注册语言及匹配规则，并在 `web/src/lib/i18n.ts` 注册对应文案资源；业务页面通过 `t()` 获取文案，不添加语言分支。

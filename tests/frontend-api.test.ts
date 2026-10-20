@@ -19,14 +19,16 @@ test("frontend endpoints expose public safe limits and protected profile options
         "maxUploadBytes",
         "allowedMimeTypes",
         "available",
+        "enabled",
         "reason",
         "reasonCode",
       ].sort(),
     );
     const settings = await (await f.request("/api/client-settings")).json();
     expect(settings).toEqual({
-      siteName: "",
-      siteDescription: "",
+      enabledLocales: ["zh-CN", "en-US"],
+      defaultLocale: "en-US",
+      content: {},
       siteLogoUrl: "",
       siteFaviconUrl: "",
       uploadConcurrency: 4,
@@ -83,6 +85,7 @@ test("frontend endpoints expose public safe limits and protected profile options
       r.insertProfile({
         ...original!,
         ...entity(),
+        is_default: false,
         name: "Disabled",
         path_instance_id: disabledPath.id,
         enabled: false,
@@ -116,6 +119,7 @@ test("frontend endpoints expose public safe limits and protected profile options
       await r.insertProfile({
         ...original!,
         ...entity(),
+        is_default: false,
         name: "Unsupported group",
         path_instance_id: unsupportedPath.id,
         storage_group_id: unsupportedGroup.id,
@@ -147,6 +151,7 @@ test("frontend endpoints expose public safe limits and protected profile options
       r.insertProfile({
         ...original!,
         ...entity(),
+        is_default: false,
         name: "Broken",
         path_instance_id: broken.id,
       }),

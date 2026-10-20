@@ -225,7 +225,7 @@ test("backup restores images, external local roots, settings and encrypted crede
     });
     await source.runtime.app.delivery.save({
       ...source.runtime.app.delivery.get(),
-      siteName: "Restored site",
+      content: { "en-US": { name: "Restored site" } },
     });
     await mkdir(join(source.root, "cache"), { recursive: true });
     await writeFile(join(source.root, "cache", "not-backed-up"), "cache");
@@ -254,7 +254,9 @@ test("backup restores images, external local roots, settings and encrypted crede
     const original = await target.request(new URL(image.url).pathname);
     expect(original.status).toBe(200);
     expect(new TextDecoder().decode(original.bytes)).toContain("<svg");
-    expect(target.runtime.app.delivery.get().siteName).toBe("Restored site");
+    expect(target.runtime.app.delivery.get().content["en-US"]?.name).toBe(
+      "Restored site",
+    );
     const restoredLocal = (await target.runtime.app.db.read((r) =>
       r.instance(local.id),
     ))!;

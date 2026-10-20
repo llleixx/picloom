@@ -1,3 +1,4 @@
+import type { SiteLocalization } from "./locales";
 import type { Config } from "./config";
 import type { UserRole } from "./roles";
 import type { RuntimeSettings } from "./runtime-settings";
@@ -50,9 +51,7 @@ export interface ChunkedUploadSession {
   partSize: number;
   expiresAt: number;
 }
-export interface SiteSettings {
-  siteName: string;
-  siteDescription: string;
+export interface SiteSettings extends SiteLocalization {
   siteLogoUrl: string;
   siteFaviconUrl: string;
 }

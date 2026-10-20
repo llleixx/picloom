@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch } from "vue";
+import { ref, watch, computed } from "vue";
 import { useQuery } from "@tanstack/vue-query";
 import type { DeliverySettings } from "../../../shared/api";
 import { api, ApiError, errorText, notify, queryClient } from "@/lib/api";
@@ -11,6 +11,12 @@ import {
 } from "../../../shared/runtime-settings";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  languages,
+  defaultLocalization,
+  type Locale,
+} from "../../../shared/locales";
+const editingLocale = ref<Locale>("en-US");
 const query = useQuery({
   queryKey: ["delivery-settings"],
   queryFn: () => api<DeliverySettings>("/api/settings"),
@@ -20,8 +26,7 @@ const draft = ref<DeliverySettings>({
   ...runtimeDefaults,
   guestMaxUploadBytes: null,
   guestDailyUploadLimit: null,
-  siteName: "",
-  siteDescription: "",
+  ...defaultLocalization(),
   siteLogoUrl: "",
   siteFaviconUrl: "",
   imageOrigin: null,
@@ -33,6 +38,24 @@ const draft = ref<DeliverySettings>({
   hotlinkAllowedHosts: [],
   hotlinkAllowEmpty: true,
 });
+const editingLanguageName = computed(
+  () =>
+    languages.find((language) => language.tag === editingLocale.value)!.name,
+);
+const editingContent = computed(
+  () => draft.value.content[editingLocale.value] ?? {},
+);
+function updateContent(field: "name" | "description", value: string | number) {
+  const content = (draft.value.content[editingLocale.value] ??= {});
+  content[field] = String(value);
+}
+function enableLanguage(language: Locale, enabled: boolean) {
+  if (enabled) draft.value.enabledLocales.push(language);
+  else
+    draft.value.enabledLocales = draft.value.enabledLocales.filter(
+      (value) => value !== language,
+    );
+}
 type LimitField = {
   key: keyof RuntimeSettings;
   label: MessageKey;
@@ -123,10 +146,9 @@ watch(
   (value) => {
     if (value && !loaded.value) {
       loaded.value = true;
-      draft.value = {
-        ...value,
-        hotlinkAllowedHosts: [...value.hotlinkAllowedHosts],
-      };
+      editingLocale.value = value.defaultLocale;
+      // Query results are readonly; the editor owns its nested arrays and content.
+      draft.value = JSON.parse(JSON.stringify(value));
       domains.value = value.hotlinkAllowedHosts.join("\n");
     }
   },
@@ -149,7 +171,7 @@ async function save() {
           .filter(Boolean),
       }),
     });
-    draft.value = value;
+    draft.value = JSON.parse(JSON.stringify(value));
     siteLink.value =
       value.publicOrigin && value.publicOrigin !== window.location.origin
         ? value.publicOrigin + "/app/settings"
@@ -192,43 +214,145 @@ async function save() {
       <fieldset :disabled="busy" class="space-y-7">
         <section class="border-t pt-6 space-y-4">
           <h2 class="font-medium">{{ t("settings.website") }}</h2>
-          <p class="subtle">{{ t("settings.siteBrandingHint") }}</p>
+          <div class="space-y-3">
+            <p class="text-sm font-medium">
+              {{ t("settings.enabledLocales") }}
+            </p>
+            <label
+              v-for="language in languages"
+              :key="language.tag"
+              class="mr-4 inline-flex items-center gap-2 text-sm"
+            >
+              <input
+                type="checkbox"
+                :checked="draft.enabledLocales.includes(language.tag)"
+                :disabled="language.tag === draft.defaultLocale"
+                @change="
+                  enableLanguage(
+                    language.tag,
+                    ($event.target as HTMLInputElement).checked,
+                  )
+                "
+              />
+              {{ language.name }}
+            </label>
+            <p
+              v-if="fields['/enabledLocales']"
+              class="text-sm text-destructive"
+            >
+              {{ fields["/enabledLocales"] }}
+            </p>
+            <label class="field"
+              >{{ t("settings.defaultLocale") }}
+              <select
+                v-model="draft.defaultLocale"
+                class="native-select"
+                :aria-label="t('settings.defaultLocale')"
+              >
+                <option
+                  v-for="language in languages.filter((item) =>
+                    draft.enabledLocales.includes(item.tag),
+                  )"
+                  :key="language.tag"
+                  :value="language.tag"
+                >
+                  {{ language.name }}
+                </option>
+              </select>
+            </label>
+            <p v-if="fields['/defaultLocale']" class="text-sm text-destructive">
+              {{ fields["/defaultLocale"] }}
+            </p>
+            <p class="subtle">{{ t("settings.languageHint") }}</p>
+          </div>
+          <div class="space-y-4 pt-3 pb-2">
+            <div class="flex items-center justify-between gap-4">
+              <h3 class="text-sm font-medium">
+                {{ t("settings.siteContent") }}
+              </h3>
+              <select
+                v-model="editingLocale"
+                :aria-label="t('settings.editLocale')"
+                class="h-8 max-w-48 rounded-md border bg-background px-2 text-sm"
+              >
+                <option
+                  v-for="language in languages"
+                  :key="language.tag"
+                  :value="language.tag"
+                >
+                  {{ language.name
+                  }}{{
+                    language.tag === draft.defaultLocale
+                      ? " · " + t("settings.defaultBadge")
+                      : ""
+                  }}
+                </option>
+              </select>
+            </div>
+            <div v-for="field in ['name', 'description'] as const" :key="field">
+              <label class="field">
+                <span>
+                  {{
+                    t(
+                      field === "name"
+                        ? "settings.siteName"
+                        : "settings.siteDescription",
+                    )
+                  }}
+                  <span class="font-normal text-muted-foreground">
+                    · {{ editingLanguageName }}</span
+                  >
+                </span>
+                <Input
+                  :model-value="editingContent[field] ?? ''"
+                  @update:model-value="updateContent(field, $event)"
+                  :maxlength="field === 'name' ? 100 : 300"
+                  :aria-invalid="!!fields[`/content/${editingLocale}/${field}`]"
+                />
+              </label>
+              <p v-if="!editingContent[field]?.trim()" class="subtle mt-1">
+                {{ t("settings.fallbackContent") }}:
+                {{
+                  (editingLocale !== draft.defaultLocale &&
+                    draft.content[draft.defaultLocale]?.[field]?.trim()) ||
+                  t("settings.builtinContent")
+                }}
+              </p>
+              <p
+                v-if="fields[`/content/${editingLocale}/${field}`]"
+                class="text-sm text-destructive"
+              >
+                {{ fields[`/content/${editingLocale}/${field}`] }}
+              </p>
+            </div>
+            <p v-if="fields['/content']" class="text-sm text-destructive">
+              {{ fields["/content"] }}
+            </p>
+          </div>
+          <hr class="border-border" />
           <div
-            v-for="field in [
-              'siteName',
-              'siteDescription',
-              'siteLogoUrl',
-              'siteFaviconUrl',
-            ] as const"
+            v-for="field in ['siteLogoUrl', 'siteFaviconUrl'] as const"
             :key="field"
           >
             <label class="field"
               >{{ t(("settings." + field) as MessageKey) }}
               <Input
                 v-model="draft[field]"
-                :type="field.endsWith('Url') ? 'url' : 'text'"
-                :maxlength="
-                  field === 'siteName'
-                    ? 100
-                    : field === 'siteDescription'
-                      ? 300
-                      : 2048
-                "
+                type="url"
+                :maxlength="2048"
                 :aria-invalid="!!fields['/' + field]"
-                :aria-describedby="field + '-error'"
               />
             </label>
-            <p v-if="field === 'siteLogoUrl'" class="subtle mt-1">
-              {{ t("settings.siteLogoHint") }}
+            <p class="subtle mt-1">
+              {{
+                t(
+                  field === "siteLogoUrl"
+                    ? "settings.siteLogoHint"
+                    : "settings.siteFaviconHint",
+                )
+              }}
             </p>
-            <p v-if="field === 'siteFaviconUrl'" class="subtle mt-1">
-              {{ t("settings.siteFaviconHint") }}
-            </p>
-            <p
-              v-if="fields['/' + field]"
-              :id="field + '-error'"
-              class="mt-1 text-sm text-destructive"
-            >
+            <p v-if="fields['/' + field]" class="mt-1 text-sm text-destructive">
               {{ fields["/" + field] }}
             </p>
           </div>

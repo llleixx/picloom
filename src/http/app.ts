@@ -308,8 +308,9 @@ export function handler(app: Application) {
         if (path === "/api/client-settings" && method === "GET") {
           const site = app.delivery.get();
           const limits: ClientSettings = {
-            siteName: site.siteName,
-            siteDescription: site.siteDescription,
+            enabledLocales: site.enabledLocales,
+            defaultLocale: site.defaultLocale,
+            content: site.content,
             siteLogoUrl: site.siteLogoUrl,
             siteFaviconUrl: site.siteFaviconUrl,
             uploadConcurrency: app.config.uploadConcurrency,

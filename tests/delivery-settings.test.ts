@@ -1,4 +1,5 @@
 import { settings } from "../src/config";
+import { defaultLocalization } from "../shared/locales";
 import { runtimeDefaults } from "../shared/runtime-settings";
 import { test, expect } from "bun:test";
 import { fixture } from "./helpers";
@@ -24,6 +25,7 @@ test("delivery settings require admin/CSRF, validate, apply live and survive res
     ).toBe(403);
     const value = {
       ...runtimeDefaults,
+      ...defaultLocalization(),
       guestMaxUploadBytes: null,
       guestDailyUploadLimit: null,
       cacheBytes: 1048576,
@@ -183,16 +185,17 @@ test("site branding persists with settings and is public, normalized and validat
   const f = await fixture();
   try {
     const current = await (await f.request("/api/settings")).json();
-    expect(current.siteName).toBe("");
+    expect(current.content["en-US"]?.name).toBeUndefined();
     const branding = {
-      siteName: "  My Gallery  ",
-      siteDescription: "  Private images  ",
+      content: {
+        "en-US": { name: "  My Gallery  ", description: "  Private images  " },
+      },
       siteLogoUrl: "https://assets.example/logo.svg",
       siteFaviconUrl: "https://assets.example/favicon.ico",
     };
     for (const changes of [
-      { siteName: "a".repeat(101) },
-      { siteDescription: 123 },
+      { content: { "en-US": { name: "a".repeat(101) } } },
+      { content: { "en-US": { description: 123 } } },
       { siteLogoUrl: "javascript:alert(1)" },
       { siteFaviconUrl: "data:image/png;base64,AA" },
       { siteLogoUrl: "https://user:secret@example.com/logo.png" },
@@ -205,34 +208,33 @@ test("site branding persists with settings and is public, normalized and validat
     const saved = await (
       await f.request("/api/settings", "PUT", { ...current, ...branding })
     ).json();
-    expect(saved.siteName).toBe("My Gallery");
-    expect(saved.siteDescription).toBe("Private images");
+    expect(saved.content["en-US"].name).toBe("My Gallery");
+    expect(saved.content["en-US"].description).toBe("Private images");
     await f.restart();
     expect(await (await f.request("/api/settings")).json()).toEqual(saved);
     const publicSettings = await (
       await handler(f.app)(new Request("http://localhost/api/client-settings"))
     ).json();
     for (const key of Object.keys(branding))
-      expect(publicSettings[key]).toBe(saved[key]);
+      expect(publicSettings[key]).toEqual(saved[key]);
     const staleCookie = await handler(f.app)(
       new Request("http://localhost/api/client-settings", {
         headers: { cookie: "session=expired" },
       }),
     );
     expect(staleCookie.status).toBe(200);
-    expect((await staleCookie.json()).siteName).toBe("My Gallery");
+    expect((await staleCookie.json()).content["en-US"].name).toBe("My Gallery");
     expect(publicSettings.publicOrigin).toBeUndefined();
     expect(publicSettings.hotlinkAllowedHosts).toBeUndefined();
     const reset = await (
       await f.request("/api/settings", "PUT", {
         ...saved,
-        siteName: "  ",
-        siteDescription: "",
+        content: { "en-US": { name: "  ", description: "" } },
         siteLogoUrl: "",
         siteFaviconUrl: "",
       })
     ).json();
-    expect(reset.siteName).toBe("");
+    expect(reset.content).toEqual({});
     expect(reset.siteLogoUrl).toBe("");
     expect(reset.cacheBytes).toBe(current.cacheBytes);
   } finally {
@@ -312,4 +314,44 @@ test("empty origins are accepted at startup", () => {
   expect(config.origin).toBe("");
   expect(config.imageOrigin).toBe("");
   expect(config.secureCookie).toBe(false);
+});
+
+test("site languages validate enabled/default locales and retain disabled translations", async () => {
+  const f = await fixture();
+  try {
+    const current = await (await f.request("/api/settings")).json();
+    for (const changes of [
+      { enabledLocales: [] },
+      { enabledLocales: ["zh-CN", "zh-CN"] },
+      { enabledLocales: ["fr-FR"] },
+      { enabledLocales: ["zh-CN"], defaultLocale: "en-US" },
+      { content: { "fr-FR": { name: "Name" } } },
+      { content: { "en-US": { unknown: "value" } } },
+    ])
+      expect(
+        (await f.request("/api/settings", "PUT", { ...current, ...changes }))
+          .status,
+      ).toBe(400);
+    const saved = await (
+      await f.request("/api/settings", "PUT", {
+        ...current,
+        enabledLocales: ["zh-CN"],
+        defaultLocale: "zh-CN",
+        content: {
+          "zh-CN": { name: " 中文 " },
+          "en-US": { description: " English " },
+        },
+      })
+    ).json();
+    expect(saved.content).toEqual({
+      "zh-CN": { name: "中文" },
+      "en-US": { description: "English" },
+    });
+    await f.restart();
+    expect((await (await f.request("/api/settings")).json()).content).toEqual(
+      saved.content,
+    );
+  } finally {
+    await f.close();
+  }
 });

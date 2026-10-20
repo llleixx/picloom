@@ -1,30 +1,60 @@
-import { ref, readonly, watch } from "vue";
+import { ref, readonly, watch, computed } from "vue";
 import { en } from "../locales/en";
 import { zhCN } from "../locales/zh-CN";
 
-export type Locale = "en-US" | "zh-CN";
+import {
+  languages,
+  supportedLocales,
+  selectLocale,
+  isLocale,
+  type Locale,
+} from "../../../shared/locales";
+export type { Locale } from "../../../shared/locales";
 export type MessageKey = keyof typeof en;
 export const languageStorageKey = "language";
-export function resolveLocale(language: string | null | undefined): Locale {
-  return language?.toLowerCase().startsWith("zh") ? "zh-CN" : "en-US";
-}
-function initialLocale(): Locale {
+function savedPreference(): Locale | null {
   try {
-    const saved = localStorage.getItem(languageStorageKey);
-    if (saved) return resolveLocale(saved);
+    const value = localStorage.getItem(languageStorageKey);
+    return isLocale(value) ? value : null;
   } catch {
-    /* Storage may be blocked by the browser. */
+    return null;
   }
-  return resolveLocale(
-    typeof navigator === "undefined" ? undefined : navigator.language,
-  );
 }
-const currentLocale = ref<Locale>(initialLocale());
-export const locale = readonly(currentLocale);
+const preference = ref<Locale | null>(savedPreference());
+export const languagePreference = readonly(preference);
+const available = ref<Locale[]>([...supportedLocales]);
+export const availableLocales = readonly(available);
+const fallback = ref<Locale>("en-US");
+function browserLanguages(): string[] {
+  if (typeof navigator === "undefined") return [];
+  return [
+    ...(navigator.languages ??
+      (navigator.language ? [navigator.language] : [])),
+  ];
+}
+const browser = ref(browserLanguages());
+const currentLocale = computed(() =>
+  selectLocale(
+    preference.value,
+    browser.value,
+    available.value,
+    fallback.value,
+  ),
+);
+export const locale = currentLocale;
+export function configureLanguages(
+  locales: readonly Locale[],
+  defaultLocale: Locale,
+) {
+  available.value = [...locales];
+  fallback.value = defaultLocale;
+}
 export function setLocale(language: string): void {
-  currentLocale.value = resolveLocale(language);
+  preference.value = isLocale(language) ? language : null;
   try {
-    localStorage.setItem(languageStorageKey, currentLocale.value);
+    if (preference.value)
+      localStorage.setItem(languageStorageKey, preference.value);
+    else localStorage.removeItem(languageStorageKey);
   } catch {
     /* Keep the in-memory preference. */
   }
@@ -32,24 +62,34 @@ export function setLocale(language: string): void {
 watch(
   currentLocale,
   (value) => {
-    if (typeof document !== "undefined") document.documentElement.lang = value;
+    if (typeof document !== "undefined") {
+      document.documentElement.lang = value;
+      document.documentElement.dir = languages.find(
+        (language) => language.tag === value,
+      )!.direction;
+    }
   },
   { immediate: true },
 );
 if (typeof window !== "undefined") {
   window.addEventListener("storage", (event) => {
-    if (event.key === languageStorageKey)
-      currentLocale.value = event.newValue
-        ? resolveLocale(event.newValue)
-        : resolveLocale(navigator.language);
+    if (event.key === languageStorageKey || event.key === null)
+      preference.value = savedPreference();
+  });
+  window.addEventListener("languagechange", () => {
+    browser.value = browserLanguages();
   });
 }
+const catalogs: Record<Locale, Partial<Record<MessageKey, string>>> = {
+  "en-US": en,
+  "zh-CN": zhCN,
+};
 export function t(
   key: MessageKey,
   params: Record<string, string | number> = {},
 ): string {
   const catalog: Partial<Record<MessageKey, string>> =
-    currentLocale.value === "zh-CN" ? zhCN : en;
+    catalogs[currentLocale.value];
   return (catalog[key] ?? en[key]).replace(/\{(\w+)\}/g, (_, name: string) =>
     String(params[name] ?? `{${name}}`),
   );
