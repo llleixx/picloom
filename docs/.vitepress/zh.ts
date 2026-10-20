@@ -35,6 +35,7 @@ const development = [
   {
     text: "插件开发",
     items: [
+      { text: "快速开始", link: "/development/plugin-tooling" },
       { text: "插件基础", link: "/development/plugin-start" },
       { text: "路径插件", link: "/development/plugin-path" },
       { text: "存储插件", link: "/development/plugin-storage" },
@@ -50,13 +51,14 @@ const development = [
       },
       { text: "配置与宿主服务", link: "/development/plugin-config" },
       { text: "错误、取消与并发", link: "/development/plugin-errors" },
-      { text: "打包、发布与升级", link: "/development/plugin-release" },
+      { text: "打包与升级", link: "/development/plugin-release" },
     ],
   },
   {
     text: "核心开发",
     items: [
       { text: "本地开发", link: "/development/contributing" },
+      { text: "插件工具维护", link: "/development/plugin-tooling-maintenance" },
       { text: "架构与代码导航", link: "/development/architecture" },
       { text: "数据访问与迁移", link: "/development/persistence" },
       { text: "状态、任务与资源生命周期", link: "/development/states" },

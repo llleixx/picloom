@@ -1,5 +1,7 @@
 # 插件基础
 
+第一次开发请先完成[快速开始](./plugin-tooling.md)。本文解释插件模型和公共定义。
+
 假设你想把上传图片缩小、按日期命名、保存到自己的存储，再进行审核。Picloom 已有上传、文件记录和后台任务等能力；插件只实现其中一个环节，不需要另写一套图床服务。
 
 ## 跟着一张图片走
@@ -33,26 +35,27 @@ flowchart LR
 最小源码目录和构建后的安装包如下：
 
 ```text
-examples/path/                 path.zip（ZIP 根目录）
+my-plugin/                    插件 ZIP 根目录
 ├── plugin.json   ──────────→  ├── plugin.json
-└── index.ts      ── 构建 ──→  └── index.js
+└── src/index.ts  ── 构建 ──→  └── index.js
 ```
 
 | 文件 | 职责 |
 | --- | --- |
 | `plugin.json` | 清单，告诉 Picloom 包的身份、版本、类型和入口位置 |
-| `index.ts` | 插件源码，默认导出一个插件定义，描述配置及实现方法 |
+| `src/index.ts` | 插件源码，默认导出一个插件定义，描述配置及实现方法 |
 | `index.js` | 构建后的 JavaScript 入口，Picloom 实际加载它 |
 
 源码可以拆成多个文件，也可以引用依赖。示例构建会把需要的代码合并进入口；若保留其他运行文件，它们也必须包含在包中。Picloom 不会自动安装包内的 npm 依赖。
 
-示例通过 `../../plugin-sdk` 引用仓库 SDK，提供类型和辅助函数，例如：
+独立项目通过 `@picloom/plugin-sdk` 引用 SDK，提供类型和辅助函数，例如：
 
 ```ts
-import { PluginError, type Definition } from "../../plugin-sdk";
+import { PluginError, type Definition } from "@picloom/plugin-sdk";
 ```
 
-这是相对于 `examples/path/index.ts` 的路径，移动源码时需要调整。图片库使用宿主提供的 `services.images.sharp`，不单独打包 Sharp。
+独立模板从清单读取身份字段，配置和实现留在源码中。依赖打包规则见
+[构建依赖](./plugin-release.md#构建依赖)，宿主能力见[配置与宿主服务](./plugin-config.md)。
 
 ## 清单 plugin.json
 
@@ -114,27 +117,7 @@ flowchart LR
 
 插件运行在服务主进程，没有沙箱。安装需要 Owner 权限，只安装可信代码。
 
-## 准备并构建示例
 
-需要 Bun、`zip` 命令，以及一个可用的 Picloom 部署。在终端执行：
-
-```sh
-git clone https://github.com/llleixx/picloom.git
-cd picloom
-bun install --frozen-lockfile
-bun run build:examples
-```
-
-每个示例目录都有 `plugin.json`（清单）和 `index.ts`（实现）。脚本将 TypeScript 和 SDK 引用打包成 JavaScript，生成可安装的 ZIP：
-
-| 教程 | 源码目录 | `outputs/examples/` 下的产物 |
-| --- | --- | --- |
-| [路径插件](./plugin-path.md) | `examples/path` | `path.zip` |
-| [存储插件](./plugin-storage.md) | `examples/storage` | `storage.zip` |
-| [上传处理](./processors/upload.md) | `examples/processor` | `processor.zip` |
-| [访问处理](./processors/access.md) | `examples/access` | `access.zip` |
-| [保存后处理](./processors/post-save.md) | `examples/post-save` | `post-save.zip` |
-
-选择一个教程即可，不需要一次安装所有示例。各教程先解释职责和一次调用，再列出必需、可选接口及输入输出，最后给出完整实现和验证步骤。第一次开发建议从路径插件开始。
-
-修改已安装的示例后，需要同步增加清单和入口中的版本，再安装并应用升级；同 ID、同版本不能覆盖。详见 [打包、发布与升级](./plugin-release.md)。
+<span id="准备并构建示例"></span>
+<span id="仓库贡献者：准备并构建示例"></span>
+仓库贡献者需要构建原有示例时，参见[插件工具维护](./plugin-tooling-maintenance.md#仓库示例)。

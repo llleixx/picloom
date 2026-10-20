@@ -1,4 +1,7 @@
-# 打包、发布与升级
+# 打包与升级
+
+本文面向插件作者，解释可安装 ZIP 的构建与升级。首次开发从[快速开始](./plugin-tooling.md)进入；
+SDK 与创建工具的 npm 发布由[插件工具维护](./plugin-tooling-maintenance.md)说明。
 
 ## ZIP 结构
 
@@ -13,13 +16,18 @@ ZIP 上传大小上限为 20 MiB。不要把源码目录整体压缩后嵌套在
 
 ## 构建依赖
 
-仓库示例的实际构建脚本如下：
-
-<<< ../../examples/build.ts
+独立模板使用 `bun run build`：先类型检查，再打包并校验默认导出与清单的身份字段，
+最后生成 `dist/<插件ID>-<版本>.zip`。它使用 JavaScript ZIP 库，无需系统 `zip` 命令。
+构建会执行自己的模块顶层代码，不应在顶层执行网络请求等副作用。
 
 使用 Bun 目标和 ESM 输出，将需要的 JavaScript 依赖随入口打包。仅声明依赖不会让 Picloom 安装时自动执行包管理器；也不要假设宿主具有任意第三方包。
 
-图片处理使用 `services.images.sharp`，避免把另一套 Sharp 原生依赖打入包中。SDK 可随包打入，`PluginError` 使用结构协议识别，不依赖双方共享同一个类实例。
+图片处理使用 `services.images.sharp`，避免把另一套 Sharp 原生依赖打入包中。
+Sharp 仍作为开发依赖提供 SDK 所需类型。SDK 可随包打入，`PluginError` 使用结构协议识别，不依赖双方共享同一个类实例。
+
+模板仅打包单 JavaScript 入口。动态计算的导入、原生模块、运行时相对资源和额外产物
+需要自行明确打包方式；构建脚本会拒绝已识别的未打包导入与额外输出。
+`node:` 内置模块由 Bun 兼容层提供，不需要启动 Node.js。
 
 ## 三种版本各管什么
 
@@ -28,6 +36,8 @@ ZIP 上传大小上限为 20 MiB。不要把源码目录整体压缩后嵌套在
 | `apiVersion` | 插件与宿主的接口协议，当前为 `1` | 接入宿主支持的另一版协议时 |
 | `version` | 插件代码版本 | 发布代码变更时 |
 | `configSchemaVersion` | 配置结构版本；处理插件按阶段声明 | 配置结构变化时 |
+
+SDK 依赖版本另外记录在 `package.json`，不要把它与上述三个字段混淆。
 
 同 ID、同版本不能覆盖安装。只修改代码也应发布新的插件版本；不改变配置结构时不必增加 `configSchemaVersion`。
 
@@ -83,11 +93,7 @@ async migrateConfig({ from, config }) {
 
 先构建并安装实际 ZIP，再验证创建配置实例和目标操作，不只在源码里直接调用函数。升级包还应验证旧配置的预览和应用结果。
 
-仓库五个示例的验证命令：
-
-```sh
-bun run build:examples
-bun test tests/examples.test.ts
-```
+插件可以通过 Release 附件等方式分发 ZIP，无需把自己的插件发布到 npm。
+仓库示例的构建与验证命令见[插件工具维护](./plugin-tooling-maintenance.md#仓库示例)。
 
 接口类型以 [SDK](https://github.com/llleixx/picloom/blob/main/plugin-sdk/api.ts) 为准。插件说明应写清支持的阶段、配置项、请求参数及外部服务要求。

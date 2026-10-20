@@ -69,6 +69,10 @@ generate(input: {
 
 ## 最小实现
 
+先按[快速开始](./plugin-tooling.md)创建独立项目。下面展示仓库中的完整示例；
+复制到 `src/index.ts` 时，按[使用教程示例](./plugin-tooling.md#使用教程示例)调整 SDK 导入、清单身份和插件类型。
+
+
 清单告诉 Picloom 插件身份和构建后的入口：
 
 <<< ../../examples/path/plugin.json
@@ -79,9 +83,10 @@ generate(input: {
 
 ## 接入并验证
 
-按 [构建步骤](./plugin-start.md#准备并构建示例) 生成示例包后：
+在独立项目中运行 `bun run build`，使用生成的 `dist/<插件ID>-<版本>.zip`。
+下面的 **Example …** 是示例名，实际应选择清单中设置的名称：
 
-1. 以 Owner 登录，在插件页面上传 `path.zip`，确认信任并安装。
+1. 以 Owner 登录，在插件页面上传 生成的 ZIP，确认信任并安装。
 2. 新建上传配置，选择 **Example date path**，关联已有存储组，公开前缀设为 `/photos/`。
 3. 上传一张图片，确认返回路径包含当天的 UTC 日期和文件 ID。
 

@@ -25,7 +25,7 @@ features:
     linkText: 配置流水线
   - title: 插件扩展
     details: 使用内置插件，或通过 TypeScript SDK 扩展路径、存储与处理能力。
-    link: /development/plugin-start
+    link: /development/plugin-tooling
     linkText: 开发插件
 ---
 
@@ -40,6 +40,6 @@ Docker 部署后，默认配置即可上传图片并获取链接。需要不同�
 | 了解配置与使用流程 | [理解 Picloom](./guide/concepts.md) |
 | 配置多副本、缩略图、水印或审核 | [常见场景](./guide/recipes.md) |
 | 部署服务、配置域名和备份 | [部署运维](./operations/deploy.md) |
-| 编写自己的插件 | [插件开发](./development/plugin-start.md) |
+| 编写自己的插件 | [插件开发](./development/plugin-tooling.md) |
 | 修改 Picloom 核心代码 | [本地开发](./development/contributing.md) |
 | 查阅设置或接入 API | [设置与环境变量](./reference/settings.md) · [HTTP API](./reference/http-api.md) |

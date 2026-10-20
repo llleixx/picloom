@@ -110,6 +110,10 @@ process(input: {
 
 ## 最小实现
 
+先按[快速开始](../plugin-tooling.md)创建独立项目。下面展示仓库中的完整示例；
+复制到 `src/index.ts` 时，按[使用教程示例](../plugin-tooling.md#使用教程示例)调整 SDK 导入、清单身份和插件类型。
+
+
 `configSchema` 定义长期宽度配置；`createInstance` 返回 `check/process`。先看默认配置的处理过程，示例中的可选 `params.width` 在后面说明。
 
 <<< ../../../examples/processor/index.ts
@@ -118,9 +122,10 @@ process(input: {
 
 ## 接入并验证
 
-按 [构建步骤](../plugin-start.md#准备并构建示例) 生成示例包后：
+在独立项目中运行 `bun run build`，使用生成的 `dist/<插件ID>-<版本>.zip`。
+下面的 **Example …** 是示例名，实际应选择清单中设置的名称：
 
-1. 安装 `processor.zip`，创建上传流水线，添加 **Example resize**。
+1. 安装 生成的 ZIP，创建上传流水线，添加 **Example resize**。
 2. 将固定宽度设为 `1280`，关联到一个上传配置，先不启用请求参数。
 3. 上传宽于 1280 像素的静态 JPEG、PNG 或 WebP，打开不带处理参数的链接，确认宽度为 1280。
 

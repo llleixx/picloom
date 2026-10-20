@@ -199,6 +199,10 @@ listFiles(input: {
 
 ## 最小实现
 
+先按[快速开始](./plugin-tooling.md)创建独立项目。下面展示仓库中的完整示例；
+复制到 `src/index.ts` 时，按[使用教程示例](./plugin-tooling.md#使用教程示例)调整 SDK 导入、清单身份和插件类型。
+
+
 本例先根据配置创建根目录，再返回三个方法：写入临时文件并发布、读取文件流、删除目标。
 
 <<< ../../examples/storage/index.ts
@@ -207,9 +211,10 @@ listFiles(input: {
 
 ## 接入并验证
 
-按 [构建步骤](./plugin-start.md#准备并构建示例) 生成示例包后：
+在独立项目中运行 `bun run build`，使用生成的 `dist/<插件ID>-<版本>.zip`。
+下面的 **Example …** 是示例名，实际应选择清单中设置的名称：
 
-1. 安装 `storage.zip`，创建 **Example local storage** 存储源，根目录填 `./example-images`。
+1. 安装 生成的 ZIP，创建 **Example local storage** 存储源，根目录填 `./example-images`。
 2. 创建存储组并加入该存储源，创建上传配置并关联此组。
 3. 上传图片，打开公开链接，再删除图片，确认对应文件被清理。
 

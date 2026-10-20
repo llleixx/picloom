@@ -95,15 +95,20 @@ execute(input: {
 
 ## 最小实现
 
+先按[快速开始](../plugin-tooling.md)创建独立项目。下面展示仓库中的完整示例；
+复制到 `src/index.ts` 时，按[使用教程示例](../plugin-tooling.md#使用教程示例)调整 SDK 导入、清单身份和插件类型。
+
+
 实例保存宽度阈值，`execute` 只读取文件元数据，返回处理结果：
 
 <<< ../../../examples/post-save/index.ts
 
 ## 接入并验证
 
-按 [构建步骤](../plugin-start.md#准备并构建示例) 生成示例包后：
+在独立项目中运行 `bun run build`，使用生成的 `dist/<插件ID>-<版本>.zip`。
+下面的 **Example …** 是示例名，实际应选择清单中设置的名称：
 
-1. 安装 `post-save.zip`，创建保存后流水线，添加 **Example width review**，将 `maxWidth` 设为 `1280`。
+1. 安装 生成的 ZIP，创建保存后流水线，添加 **Example width review**，将 `maxWidth` 设为 `1280`。
 2. 关联到上传配置。测试时不要启用上传缩放，否则审核的是缩放后的图片。
 3. 分别上传宽度小于和大于 1280 的图片，等待后台操作完成。
 4. 在图片详情查看结果：前者可访问，后者被屏蔽，详情记录实际宽度和阈值。

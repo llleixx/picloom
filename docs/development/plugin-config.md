@@ -95,7 +95,7 @@ const width = Number(params.width ?? config.width);
 | `1280` | 是 | 未传 | `1280` |
 | `1280` | 是 | `width: 800` | `800` |
 
-安装 `processor.zip`、配置上传流水线并启用 `width` 后，可通过上传 API 验证。设置以下变量为实际部署地址、上传令牌和配置 ID：
+安装[上传处理示例](./processors/upload.md#接入并验证)构建的 ZIP、配置上传流水线并启用 `width` 后，可通过上传 API 验证。设置以下变量为实际部署地址、上传令牌和配置 ID：
 
 ```sh
 PICLOOM_URL=http://localhost:3000

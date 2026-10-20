@@ -64,7 +64,12 @@ The [Docker quick start (中文)](https://llleixx.github.io/picloom/guide/quick-
 Built with Bun, TypeScript and Vue; supports SQLite and PostgreSQL.
 
 - [Core development (中文)](https://llleixx.github.io/picloom/development/contributing.html)
-- [Plugin development (中文)](https://llleixx.github.io/picloom/development/plugin-start.html)
+- [Plugin development (中文)](https://llleixx.github.io/picloom/development/plugin-tooling.html)
+
+Standalone plugin tooling lives in this repository: [`@picloom/plugin-sdk`](plugin-sdk/README.md)
+and [`@picloom/create-plugin`](tools/create-plugin/README.md). Both npm packages are
+prepared but not yet published. See [local tarball instructions (中文)](docs/development/plugin-tooling.md)
+to create and build a plugin outside the main repository without publishing.
 
 ## License
 

@@ -120,6 +120,10 @@ process(input: {
 
 ## 最小实现
 
+先按[快速开始](../plugin-tooling.md)创建独立项目。下面展示仓库中的完整示例；
+复制到 `src/index.ts` 时，按[使用教程示例](../plugin-tooling.md#使用教程示例)调整 SDK 导入、清单身份和插件类型。
+
+
 本例没有固定配置，只有可选的 `width` 请求参数。先判断是否需要处理，再读取图片：
 
 <<< ../../../examples/access/index.ts
@@ -128,9 +132,10 @@ process(input: {
 
 ## 接入并验证
 
-按 [构建步骤](../plugin-start.md#准备并构建示例) 生成示例包后：
+在独立项目中运行 `bun run build`，使用生成的 `dist/<插件ID>-<版本>.zip`。
+下面的 **Example …** 是示例名，实际应选择清单中设置的名称：
 
-1. 安装 `access.zip`，在全局访问流水线中添加 **Example thumbnail**，启用参数 `width`。
+1. 安装 生成的 ZIP，在全局访问流水线中添加 **Example thumbnail**，启用参数 `width`。
 2. 测试时先只保留这个访问步骤，上传一张宽于 320 像素的静态 JPEG、PNG 或 WebP。
 3. 打开带 `?width=320` 的链接，确认宽度为 320；去掉参数，确认仍是原尺寸。
 
