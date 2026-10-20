@@ -128,8 +128,7 @@ export interface PipelineStep {
 export interface GroupView {
   id: string;
   name: string;
-  primaryStrategy: "priority" | "weighted_random";
-  redundancyStrategy: "priority" | "weighted_random";
+  selectionStrategy: "priority" | "weighted_random";
   redundancyCount: number;
   configVersion: number;
   members: Array<{ instanceId: string; weight: number }>;
@@ -143,7 +142,7 @@ export interface ProfileView {
   enabled: boolean;
   allowGuestUpload?: boolean;
   configVersion: number;
-  maxUploadBytes: number;
+  maxUploadBytes: number | null;
   allowedMimeTypes: string[];
   uploadPipelineId: string | null;
   postSavePipelineId: string | null;

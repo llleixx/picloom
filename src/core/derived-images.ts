@@ -17,10 +17,11 @@ export class DerivedImages {
     private temporary: TemporarySpace,
     private source: {
       ready(id: string): Promise<FileRecord>;
-      read(
+      download(
         file: FileRecord,
+        path: string,
         signal: AbortSignal,
-      ): Promise<ReadableStream<Uint8Array>>;
+      ): Promise<void>;
     },
   ) {}
   private metadataMissing(file: FileRecord) {
@@ -120,12 +121,7 @@ export class DerivedImages {
           let loading: Promise<string> | undefined;
           const getSource = () =>
             (loading ??= (async () => {
-              await this.temporary.write(
-                source,
-                await this.source.read(file, processingSignal),
-                file.byte_size ?? this.config.uploadTempBytes,
-                processingSignal,
-              );
+              await this.source.download(file, source, processingSignal);
               return source;
             })());
           let processed: ImageResult | null;

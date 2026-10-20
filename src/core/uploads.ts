@@ -90,24 +90,22 @@ export class Uploads {
     if (this.closing)
       throw new AppError("UNAVAILABLE", "Service stopping", 503);
     if (
-      typeof input.profileId !== "string" ||
       typeof input.size !== "number" ||
       (input.name !== undefined &&
         (typeof input.name !== "string" || input.name.length > 1024))
     )
       throw new AppError(
         "INVALID_INPUT",
-        "Expected profileId, size and optional name",
+        "Expected size and optional profileId and name",
       );
+    const profileId = await this.auth.resolveUploadProfile(
+      input.profileId,
+      identity,
+    );
     const params = parseUploadParams(
       input.params === undefined ? null : JSON.stringify(input.params),
     );
-    await this.files.validateUpload(
-      input.profileId,
-      input.size,
-      identity,
-      guestIp,
-    );
+    await this.files.validateUpload(profileId, input.size, identity, guestIp);
     const uploadKey = randomBytes(32).toString("base64url");
     const owner = this.auth.uploadOwner(identity);
     const session: UploadSession = {
@@ -116,7 +114,7 @@ export class Uploads {
       guest_ip: owner.ownerId ? null : guestIp,
       owner_id: owner.ownerId,
       source_token_id: owner.sourceTokenId,
-      profile_id: input.profileId,
+      profile_id: profileId,
       source_name: (input.name as string) ?? "image",
       params_json: params,
       byte_size: input.size,
@@ -129,7 +127,7 @@ export class Uploads {
     this.files.temporary.reserve(reservation, this.reservation(session));
     try {
       await this.db.transaction(async (r) => {
-        await this.auth.authorizeUpload(identity, input.profileId as string, r);
+        await this.auth.authorizeUpload(identity, profileId, r);
         const active = (await r.uploadSessions()).filter(
           (x) => x.status === "pending" || x.status === "completing",
         );

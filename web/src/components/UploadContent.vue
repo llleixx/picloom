@@ -6,7 +6,7 @@ import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import { useQuery } from "@tanstack/vue-query";
 import { CloudUpload, Check, LoaderCircle, Copy } from "lucide-vue-next";
 import { Button } from "@/components/ui/button";
-import type { UploadProfileView } from "../../../shared/api";
+import type { UploadProfileView, UploadDefaults } from "../../../shared/api";
 import { session, api, copy, errorMessage, errorText, notify } from "@/lib/api";
 import { size } from "@/lib/utils";
 import {
@@ -25,23 +25,63 @@ const props = withDefaults(defineProps<{ active?: boolean }>(), {
 });
 const open = computed(() => props.active);
 const profiles = useQuery({
-  queryKey: ["profiles"],
+  queryKey: computed(() => ["profiles", session.value?.user.id ?? "guest"]),
   queryFn: ({ signal }) =>
     api<UploadProfileView[]>("/api/upload-profiles", { signal }),
   enabled: open,
 });
-const selected = ref(localStorage.getItem("uploadProfile") ?? ""),
+const defaults = useQuery({
+  queryKey: computed(() => [
+    "upload-defaults",
+    session.value?.user.id ?? "guest",
+  ]),
+  queryFn: ({ signal }) =>
+    api<UploadDefaults>("/api/upload-defaults", { signal }),
+  enabled: open,
+});
+const preferenceKey = computed(
+  () => "uploadProfile:" + (session.value?.user.id ?? "guest"),
+);
+const remembered = ref(""),
+  selected = ref(""),
   input = ref<HTMLInputElement>(),
   dragging = ref(false);
 watch(
-  profiles.data,
-  (values) => {
-    if (!values?.some((p) => p.id === selected.value && p.available))
-      selected.value = values?.find((p) => p.available)?.id ?? "";
+  preferenceKey,
+  (key) => {
+    try {
+      remembered.value = localStorage.getItem(key) ?? "";
+    } catch {
+      remembered.value = "";
+    }
+    selected.value = "";
   },
   { immediate: true },
 );
-watch(selected, (value) => localStorage.setItem("uploadProfile", value));
+watch(
+  [profiles.data, defaults.data, remembered],
+  ([values, preferred]) => {
+    if (
+      values &&
+      !profiles.isError.value &&
+      remembered.value &&
+      !values.some((p) => p.id === remembered.value && p.enabled)
+    ) {
+      try {
+        localStorage.removeItem(preferenceKey.value);
+      } catch {}
+      remembered.value = "";
+    }
+    selected.value = remembered.value || preferred?.defaultProfileId || "";
+  },
+  { immediate: true },
+);
+function rememberSelection() {
+  remembered.value = selected.value;
+  try {
+    localStorage.setItem(preferenceKey.value, selected.value);
+  } catch {}
+}
 const profile = computed(() =>
   profiles.data.value?.find((p) => p.id === selected.value && p.available),
 );
@@ -156,6 +196,7 @@ onUnmounted(() => window.removeEventListener("paste", paste));
       >{{ t("ui.uploadProfile")
       }}<select
         v-model="selected"
+        @change="rememberSelection"
         class="native-select"
         :aria-label="t('ui.uploadProfile')"
       >
@@ -171,13 +212,21 @@ onUnmounted(() => window.removeEventListener("paste", paste));
         </option>
       </select></label
     >
-    <p v-if="!profiles.isPending.value && !profile" class="error-box">
+    <p v-if="defaults.error.value" class="error-box">
+      {{ errorText(defaults.error.value) }}
+    </p>
+    <p
+      v-if="!profiles.isPending.value && !defaults.isPending.value && !profile"
+      class="error-box"
+    >
       {{
-        !session
-          ? t("users.guestUnavailable")
-          : isSiteAdmin(session.user.role)
-            ? t("ui.noAvailableProfilesCheckProfileAndPlugin")
-            : t("users.noProfiles")
+        profiles.data.value?.some((p) => p.available)
+          ? t("profiles.required")
+          : !session
+            ? t("users.guestUnavailable")
+            : isSiteAdmin(session.user.role)
+              ? t("ui.noAvailableProfilesCheckProfileAndPlugin")
+              : t("users.noProfiles")
       }}
     </p>
     <div class="flex flex-wrap items-center gap-4 border-b pb-6">

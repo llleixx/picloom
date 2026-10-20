@@ -103,8 +103,7 @@ test("historical reads use current group weights, removed members default to one
     const other = await f.app.configuration.saveGroup({
       name: "Other",
       members: original.members.map((m) => ({ ...m, weight: 7 })),
-      primaryStrategy: "priority",
-      redundancyStrategy: "priority",
+      selectionStrategy: "priority",
       redundancyCount: 0,
     });
     expect(other.members[0]!.weight).toBe(7);
@@ -123,6 +122,7 @@ test("historical reads use current group weights, removed members default to one
     group = await f.app.configuration.saveGroup(
       {
         ...group,
+        selectionStrategy: "weighted_random",
         members: ordered.map((instanceId, n) => ({
           instanceId,
           weight: n === 0 ? 1 : 9,
@@ -192,8 +192,7 @@ test("configuration API enforces type, concurrency, references, prefixes and ato
       await f.request("/api/storage-groups", "POST", {
         name: "Mixed",
         members: [base, { instanceId: second.id, weight: 3 }],
-        primaryStrategy: "priority",
-        redundancyStrategy: "weighted_random",
+        selectionStrategy: "priority",
         redundancyCount: 1,
       }),
     );

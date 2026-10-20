@@ -6,6 +6,8 @@ export interface Entity {
   updated_at: number;
 }
 export interface User extends Entity {
+  // Preserve deleted IDs: an invalid personal default must not silently follow the site.
+  default_upload_profile_id: string | null;
   max_upload_bytes: number | null;
   daily_upload_limit: number | null;
   username: string;
@@ -41,8 +43,7 @@ export interface Instance extends Entity {
 }
 export interface Group extends Entity {
   name: string;
-  primary_strategy: "priority" | "weighted_random";
-  redundancy_strategy: "priority" | "weighted_random";
+  selection_strategy: "priority" | "weighted_random";
   redundancy_count: number;
   config_version: number;
 }
@@ -52,6 +53,7 @@ export interface Pipeline extends Entity {
   config_version: number;
 }
 export interface Profile extends Entity {
+  is_default: boolean;
   upload_pipeline_id: string | null;
   post_save_pipeline_id: string | null;
   name: string;
@@ -61,7 +63,7 @@ export interface Profile extends Entity {
   enabled: boolean;
   allow_guest_upload?: boolean;
   config_version: number;
-  max_upload_bytes: number;
+  max_upload_bytes: number | null;
   allowed_mime_types: string[];
 }
 export interface Step extends Entity {
@@ -190,7 +192,13 @@ export interface Repositories {
   profilesForUsers(ids: string[]): Promise<Map<string, string[]>>;
   replaceUserProfiles(id: string, profiles: string[]): Promise<void>;
   tokenById(id: string): Promise<Credential | null>;
-  insertUser(user: User): Promise<void>;
+  setUserDefaultProfile(id: string, profileId: string | null): Promise<void>;
+  setSiteDefaultProfile(profileId: string | null): Promise<void>;
+  insertUser(
+    user: Omit<User, "default_upload_profile_id"> & {
+      default_upload_profile_id?: string | null;
+    },
+  ): Promise<void>;
   changePassword(
     id: string,
     expectedVersion: number,
@@ -261,7 +269,9 @@ export interface Repositories {
   ): Promise<void>;
   profile(id: string): Promise<Profile | null>;
   profiles(): Promise<Profile[]>;
-  insertProfile(value: Profile): Promise<void>;
+  insertProfile(
+    value: Omit<Profile, "is_default"> & { is_default?: boolean },
+  ): Promise<void>;
   saveProfile(value: Profile, expectedVersion: number): Promise<void>;
   deleteProfile(id: string): Promise<void>;
   pipelines(): Promise<Pipeline[]>;

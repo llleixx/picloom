@@ -1,4 +1,3 @@
-import { publicPath, publicPathKey } from "../../infra/files";
 import { Database } from "bun:sqlite";
 import { readFileSync } from "node:fs";
 import { createHash } from "node:crypto";
@@ -13,58 +12,35 @@ export async function openSQLite(path: string): Promise<SqlStore> {
     db.exec(
       "PRAGMA foreign_keys=ON; PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000;",
     );
-    db.exec(
-      "CREATE TABLE IF NOT EXISTS schema_migrations(version INTEGER PRIMARY KEY,checksum TEXT NOT NULL,applied_at INTEGER NOT NULL)",
-    );
-    for (const [version, name] of [
-      [1, "./001_initial.sql"],
-      [2, "../002_manual_retry.sql"],
-      [3, "../003_public_path.sql"],
-      [4, "../004_storage_key.sql"],
-    ] as const) {
-      const sql = readFileSync(new URL(name, import.meta.url), "utf8");
+    db.exec("BEGIN IMMEDIATE");
+    try {
+      db.exec(
+        "CREATE TABLE IF NOT EXISTS schema_info(id INTEGER PRIMARY KEY CHECK(id=1),checksum TEXT NOT NULL)",
+      );
+      const sql = readFileSync(
+        new URL("./001_initial.sql", import.meta.url),
+        "utf8",
+      );
       const checksum = createHash("sha256").update(sql).digest("hex");
       const existing = db
-        .query("SELECT checksum FROM schema_migrations WHERE version=?")
-        .get(version) as { checksum: string } | null;
+        .query("SELECT checksum FROM schema_info WHERE id=1")
+        .get() as { checksum: string } | null;
       if (existing && existing.checksum !== checksum)
         throw new AppError(
-          "MIGRATION_MISMATCH",
-          "Migration checksum changed",
+          "SCHEMA_MISMATCH",
+          "Database schema does not match",
           500,
         );
       if (!existing) {
-        db.exec("BEGIN IMMEDIATE");
-        try {
-          db.exec(sql);
-          if (version === 3) {
-            const rows = db
-              .query("SELECT id, public_prefix, logical_key FROM files")
-              .all() as Array<{
-              id: string;
-              public_prefix: string;
-              logical_key: string;
-            }>;
-            const update = db.query(
-              "UPDATE files SET public_path=? WHERE id=?",
-            );
-            for (const row of rows)
-              update.run(
-                publicPathKey(publicPath(row.public_prefix, row.logical_key)),
-                row.id,
-              );
-          }
-          db.query("INSERT INTO schema_migrations VALUES(?,?,?)").run(
-            version,
-            checksum,
-            Date.now(),
-          );
-          db.exec("COMMIT");
-        } catch (error) {
-          db.exec("ROLLBACK");
-          throw error;
-        }
+        db.exec(sql);
+        db.query("INSERT INTO schema_info(id,checksum) VALUES(1,?)").run(
+          checksum,
+        );
       }
+      db.exec("COMMIT");
+    } catch (error) {
+      db.exec("ROLLBACK");
+      throw error;
     }
   } finally {
     db.close();

@@ -7,12 +7,12 @@ import { bootstrap, initializeDevelopment } from "./bootstrap";
 import { promptOwnerPassword } from "./cli-password";
 const command = process.argv[2];
 if (
-  !["migrate", "init-admin", "init-dev", "reset-owner-password"].includes(
+  !["init-db", "init-admin", "init-dev", "reset-owner-password"].includes(
     command ?? "",
   )
 )
   throw new Error(
-    "Usage: bun src/cli.ts migrate|init-admin|init-dev|reset-owner-password",
+    "Usage: bun src/cli.ts init-db|init-admin|init-dev|reset-owner-password",
   );
 if (command === "reset-owner-password") {
   console.info(
@@ -50,7 +50,7 @@ if (command === "reset-owner-password") {
       console.info(
         JSON.stringify({ profileId: await initializeDevelopment(app) }),
       );
-    if (command === "migrate") console.info("Database migrations applied");
+    if (command === "init-db") console.info("Database initialized");
   } finally {
     await app.close();
   }

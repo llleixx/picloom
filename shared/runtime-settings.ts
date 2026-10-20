@@ -1,6 +1,6 @@
 /** Runtime limits shared by settings forms and the backend. */
 export const runtimeDefaults = {
-  maxUploadBytes: 20 * 1024 ** 2,
+  maxUploadBytes: 50 * 1024 ** 2,
   chunkThresholdBytes: 8 * 1024 ** 2,
   chunkPartBytes: 4 * 1024 ** 2,
   uploadConcurrency: 4,

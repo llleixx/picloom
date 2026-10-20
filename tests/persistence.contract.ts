@@ -241,8 +241,7 @@ export function persistenceContract(
         const group = {
           ...entity(),
           name: "group",
-          primary_strategy: "priority" as const,
-          redundancy_strategy: "priority" as const,
+          selection_strategy: "priority" as const,
           redundancy_count: 0,
           config_version: 1,
         };
@@ -473,6 +472,73 @@ export function persistenceContract(
         await f.close();
       }
     });
+    test("cleanup candidates include failures once and retain destructive-cleanup priority", async () => {
+      const f = await open();
+      try {
+        const files: FileRecord[] = [];
+        for (const status of [
+          "preparing",
+          "ready",
+          "blocked",
+          "failed",
+          "deleting",
+          "deleted",
+        ] as const) {
+          for (const temp_status of [
+            "cleaned",
+            "available",
+            "missing",
+          ] as const) {
+            const key = `${status}-${temp_status}.png`;
+            files.push({
+              ...entity(),
+              owner_id: null,
+              guest_ip: null,
+              upload_profile_id: null,
+              storage_group_id: null,
+              public_prefix: "/i/",
+              logical_key: key,
+              storage_key: key,
+              mime_type: "image/png",
+              byte_size: 1,
+              width: 1,
+              height: 1,
+              status,
+              temp_status,
+              temp_path: temp_status === "cleaned" ? null : key,
+              last_error: null,
+              deleted_at: status === "deleted" ? Date.now() : null,
+              processing_results_json: null,
+            });
+          }
+        }
+        await f.db.transaction(async (r) => {
+          for (const file of files) await r.insertFile(file);
+        });
+        const candidates = await f.db.read((r) => r.filesNeedingCleanup());
+        const expected = files.filter(
+          (file) =>
+            ["failed", "deleting"].includes(file.status) ||
+            (["ready", "blocked"].includes(file.status) &&
+              file.temp_path !== null),
+        );
+        expect(candidates.map((file) => file.id).sort()).toEqual(
+          expected.map((file) => file.id).sort(),
+        );
+        expect(
+          candidates
+            .slice(0, 6)
+            .every((file) => ["failed", "deleting"].includes(file.status)),
+        ).toBe(true);
+        expect(
+          candidates
+            .slice(6)
+            .every((file) => ["ready", "blocked"].includes(file.status)),
+        ).toBe(true);
+      } finally {
+        await f.close();
+      }
+    });
     test("file filters and counts agree, preserve nulls and order ties by ID", async () => {
       const f = await open();
       try {
@@ -541,6 +607,16 @@ export function persistenceContract(
             [base.id, second.id].sort().reverse(),
           );
           expect((await r.files(1, 1, filter)).length).toBe(1);
+          const all = await r.files(30, 0);
+          expect(all.map((file) => file.id)).toEqual(
+            all
+              .map((file) => file.id)
+              .sort()
+              .reverse(),
+          );
+          expect((await r.files(1, 1)).map((file) => file.id)).toEqual([
+            all[1]!.id,
+          ]);
           expect(await r.countFiles({ q: "%" })).toBe(1);
           expect((await r.files(1, 0, { q: "%" }))[0]?.byte_size).toBeNull();
           expect(await r.countFiles({ status: "deleted" })).toBe(0);
@@ -648,8 +724,7 @@ export function persistenceContract(
         const group = {
           ...entity(),
           name: "group",
-          primary_strategy: "priority" as const,
-          redundancy_strategy: "priority" as const,
+          selection_strategy: "priority" as const,
           redundancy_count: 0,
           config_version: 1,
         };
@@ -721,6 +796,7 @@ export function persistenceContract(
 function user(): User {
   return {
     ...entity(),
+    default_upload_profile_id: null,
     username: "admin",
     password_hash: "test",
     role: "admin",

@@ -155,7 +155,7 @@ export async function configurationRequest(
       );
     if ((!id && method === "POST") || (id && method === "PUT")) {
       const b = await body();
-      strings(b, ["name", "primaryStrategy", "redundancyStrategy"]);
+      strings(b, ["name", "selectionStrategy"]);
       return json(
         await app.configuration.saveGroup(b as unknown as GroupView, id),
         id ? 200 : 201,

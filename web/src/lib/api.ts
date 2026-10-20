@@ -63,6 +63,7 @@ const messages: Record<string, MessageKey> = {
   NEW_INSTANCE_REQUIRED: "ui.storageLocationIsFixedCreateANew",
   INSTANCE_UNAVAILABLE:
     "ui.pluginUnavailableCheckSettingsOrRetryInitialization",
+  DEFAULT_PROFILE_REQUIRED: "profiles.required",
   PIPELINE_MISSING: "errors.pipeline_missing",
   BUSY: "errors.busy",
   CONFLICT: "errors.conflict",
@@ -113,7 +114,7 @@ const messages: Record<string, MessageKey> = {
   LOCATOR: "errors.locator",
   PLUGIN_OUTPUT: "errors.plugin_output",
   PLUGIN_RESULT: "errors.plugin_result",
-  MIGRATION_MISMATCH: "errors.migration_mismatch",
+  SCHEMA_MISMATCH: "errors.schema_mismatch",
 };
 export function errorMessage(code?: string | null): string {
   return t(messages[code ?? ""] ?? "errors.generic");

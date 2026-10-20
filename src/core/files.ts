@@ -46,6 +46,8 @@ import {
   publicPath,
   retainStream,
   prefetchStream,
+  sourceReadStream,
+  SourceReadError,
   scopedInput,
 } from "../infra/files";
 import { identify } from "../infra/images";
@@ -93,11 +95,7 @@ export class Files {
       this.temporary,
       {
         ready: (id) => this.ready(id),
-        read: async (file, signal) => {
-          const result = await this.read(file, "stream", this.context(signal));
-          if (result.type !== "stream") throw new Error("Expected stream");
-          return result.stream;
-        },
+        download: (file, path, signal) => this.download(file, path, signal),
       },
     );
     this.tasks = new TaskExecutor(
@@ -331,13 +329,13 @@ export class Files {
           "可用存储实例不足，无法满足冗余数",
           503,
         );
-      const first = selectStorage(eligible, g.primary_strategy, this.random);
+      const first = selectStorage(eligible, g.selection_strategy, this.random);
       const remaining = eligible.filter((m) => m.id !== first.id),
         targets: string[] = [];
       for (let n = 0; n < g.redundancy_count; n++) {
         const selected = selectStorage(
           remaining,
-          g.redundancy_strategy,
+          g.selection_strategy,
           this.random,
         );
         targets.push(selected.id);
@@ -376,7 +374,8 @@ export class Files {
   async uploadProfiles(
     identity: Identity | null,
   ): Promise<UploadProfileView[]> {
-    const admin = identity?.kind === "session" && isSiteAdmin(identity.user.role);
+    const admin =
+      identity?.kind === "session" && isSiteAdmin(identity.user.role);
     const profiles = await this.auth.allowedProfiles(identity);
     const limits = await this.auth.uploadLimits(identity);
     return Promise.all(
@@ -398,7 +397,11 @@ export class Files {
           id: p.id,
           name: p.name,
           publicPrefix: p.public_prefix,
-          maxUploadBytes: Math.min(p.max_upload_bytes, limits.maxBytes),
+          enabled: p.enabled,
+          maxUploadBytes: Math.min(
+            p.max_upload_bytes ?? Infinity,
+            limits.maxBytes,
+          ),
           allowedMimeTypes: p.allowed_mime_types,
           available: reason === null,
           reason: admin
@@ -430,7 +433,11 @@ export class Files {
     if (
       !Number.isSafeInteger(size) ||
       size <= 0 ||
-      size > Math.min(profile.max_upload_bytes, this.config.maxUploadBytes)
+      size >
+        Math.min(
+          profile.max_upload_bytes ?? Infinity,
+          this.config.maxUploadBytes,
+        )
     )
       throw new AppError("TOO_LARGE", "Invalid upload size", 413);
   }
@@ -486,7 +493,10 @@ export class Files {
     if (
       blob.size === 0 ||
       blob.size >
-        Math.min(plan.profile.max_upload_bytes, this.config.maxUploadBytes)
+        Math.min(
+          plan.profile.max_upload_bytes ?? Infinity,
+          this.config.maxUploadBytes,
+        )
     )
       throw new AppError("TOO_LARGE", "Invalid upload size", 413);
     const base = { ...entity(), ...(fileId ? { id: fileId } : {}) };
@@ -538,7 +548,10 @@ export class Files {
         await this.temporary.write(
           temp,
           blob.stream(),
-          plan.profile.max_upload_bytes,
+          Math.min(
+            plan.profile.max_upload_bytes ?? Infinity,
+            this.config.maxUploadBytes,
+          ),
           signal,
         );
       }
@@ -553,7 +566,7 @@ export class Files {
         throw new AppError("TOO_LARGE", "Processed upload exceeds limit", 413);
       if (
         !plan.profile.allowed_mime_types.includes(current.metadata.mimeType!) ||
-        current.metadata.byteSize! > plan.profile.max_upload_bytes
+        current.metadata.byteSize! > (plan.profile.max_upload_bytes ?? Infinity)
       )
         throw new AppError(
           "UNSUPPORTED",
@@ -751,29 +764,62 @@ export class Files {
       throw new AppError("NOT_FOUND", "Image not available", 404);
     return f;
   }
-  private async read(file: FileRecord, mode: "auto" | "stream", ctx: Context) {
-    const weights = await this.db.read(async (r) => {
-      const replicas = await r.replicas(file.id);
-      const ready = replicas.filter((r) => r.status === "ready");
+  private async download(file: FileRecord, path: string, signal: AbortSignal) {
+    await this.read(file, "stream", this.context(signal), async (stream) => {
+      const source = sourceReadStream(stream);
+      try {
+        const size = await this.temporary.write(
+          path,
+          source,
+          file.byte_size ?? this.config.uploadTempBytes,
+          signal,
+        );
+        if (file.byte_size !== null && size !== file.byte_size)
+          throw new SourceReadError();
+      } catch (error) {
+        await this.temporary.remove(path);
+        throw error;
+      } finally {
+        await source.cancel().catch(() => {});
+      }
+    });
+  }
+  private async read(
+    file: FileRecord,
+    mode: "auto" | "stream",
+    ctx: Context,
+    consume?: (stream: ReadableStream<Uint8Array>) => Promise<void>,
+  ) {
+    const { remaining, strategy } = await this.db.read(async (r) => {
+      const ready = (await r.replicas(file.id)).filter(
+        (r) => r.status === "ready",
+      );
       if (!ready.length)
         throw new AppError("UNAVAILABLE", "No ready replica", 503);
-      const members = file.storage_group_id
-        ? await r.members(file.storage_group_id)
-        : [];
+      const group = file.storage_group_id
+        ? await r.group(file.storage_group_id)
+        : null;
+      const members = group ? await r.members(group.id) : [];
       const byInstance = new Map(
-        members.map((m) => [m.storage_instance_id, m.weight]),
+        members.map((member) => [member.storage_instance_id, member]),
       );
-      return ready.map((replica) => ({
-        replica,
-        weight: byInstance.get(replica.storage_instance_id) ?? 1,
-      }));
+      return {
+        strategy: group?.selection_strategy ?? "weighted_random",
+        remaining: ready.map((replica) => ({
+          replica,
+          priority:
+            byInstance.get(replica.storage_instance_id)?.priority ??
+            Number.MAX_SAFE_INTEGER,
+          weight: byInstance.get(replica.storage_instance_id)?.weight ?? 1,
+        })),
+      };
     });
-    const remaining = weights.map((x) => ({ ...x, priority: 0 }));
     while (remaining.length) {
       ctx.signal.throwIfAborted();
-      const selected = selectStorage(remaining, "weighted_random", this.random);
+      const selected = selectStorage(remaining, strategy, this.random);
       remaining.splice(remaining.indexOf(selected), 1);
       let lease: ReturnType<PluginManager["acquire"]> | undefined;
+      let consuming = false;
       try {
         const storage = this.plugins.acquire(
           selected.replica.storage_instance_id,
@@ -790,10 +836,16 @@ export class Files {
         );
         if (result.type === "stream") {
           const stream = await prefetchStream(result.stream, ctx.signal);
-          return {
-            ...result,
-            stream: retainStream(stream, storage.release, ctx.signal),
-          };
+          const retained = retainStream(stream, storage.release, ctx.signal);
+          if (consume) {
+            consuming = true;
+            try {
+              await consume(retained);
+            } finally {
+              await retained.cancel().catch(() => {});
+            }
+          }
+          return { ...result, stream: retained };
         }
         ctx.signal.throwIfAborted();
         if (mode === "stream")
@@ -807,6 +859,7 @@ export class Files {
       } catch (error) {
         await lease?.release();
         ctx.signal.throwIfAborted();
+        if (consuming && !(error instanceof SourceReadError)) throw error;
         // Do not expose plugin error messages, which can contain URLs or credentials.
         console.warn(
           JSON.stringify({

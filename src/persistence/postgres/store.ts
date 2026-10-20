@@ -1,4 +1,3 @@
-import { publicPath, publicPathKey } from "../../infra/files";
 import { readFileSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { Pool, types } from "pg";
@@ -35,49 +34,28 @@ export async function openPostgres(
     try {
       await client.query("BEGIN");
       await client.query(
-        "CREATE TABLE IF NOT EXISTS schema_migrations(version BIGINT PRIMARY KEY,checksum TEXT NOT NULL,applied_at BIGINT NOT NULL)",
+        "CREATE TABLE IF NOT EXISTS schema_info(id BIGINT PRIMARY KEY CHECK(id=1),checksum TEXT NOT NULL)",
       );
-      for (const [version, name] of [
-        [1, "./001_initial.sql"],
-        [2, "../002_manual_retry.sql"],
-        [3, "../003_public_path.sql"],
-        [4, "../004_storage_key.sql"],
-      ] as const) {
-        const migration = readFileSync(new URL(name, import.meta.url), "utf8");
-        const checksum = createHash("sha256").update(migration).digest("hex");
-        const { rows } = await client.query<{ checksum: string }>(
-          "SELECT checksum FROM schema_migrations WHERE version=$1",
-          [version],
+      const sql = readFileSync(
+        new URL("./001_initial.sql", import.meta.url),
+        "utf8",
+      );
+      const checksum = createHash("sha256").update(sql).digest("hex");
+      const { rows } = await client.query<{ checksum: string }>(
+        "SELECT checksum FROM schema_info WHERE id=1",
+      );
+      if (rows[0] && rows[0].checksum !== checksum)
+        throw new AppError(
+          "SCHEMA_MISMATCH",
+          "Database schema does not match",
+          500,
         );
-        if (rows[0] && rows[0].checksum !== checksum)
-          throw new AppError(
-            "MIGRATION_MISMATCH",
-            "Migration checksum changed",
-            500,
-          );
-        if (!rows.length) {
-          await client.query(migration);
-          if (version === 3) {
-            const { rows } = await client.query<{
-              id: string;
-              public_prefix: string;
-              logical_key: string;
-            }>("SELECT id, public_prefix, logical_key FROM files");
-            for (const row of rows)
-              await client.query(
-                "UPDATE files SET public_path=$1 WHERE id=$2",
-                [
-                  publicPathKey(publicPath(row.public_prefix, row.logical_key)),
-                  row.id,
-                ],
-              );
-          }
-          await client.query("INSERT INTO schema_migrations VALUES($1,$2,$3)", [
-            version,
-            checksum,
-            Date.now(),
-          ]);
-        }
+      if (!rows.length) {
+        await client.query(sql);
+        await client.query(
+          "INSERT INTO schema_info(id,checksum) VALUES(1,$1)",
+          [checksum],
+        );
       }
       await client.query("COMMIT");
     } catch (error) {

@@ -41,7 +41,7 @@ curl --fail-with-body "$PICLOOM_URL/api/files" \
 
 | 字段 | 必填 | 内容 |
 | --- | --- | --- |
-| `profileId` | 是 | 上传配置 ID，不能使用显示名称代替 |
+| `profileId` | 否 | 上传配置 ID；省略时使用当前用户默认，否则使用站点默认。显式填写时不能使用显示名称代替 |
 | `file` | 是 | 图片文件 |
 | `params` | 否 | JSON 字符串，例如 `{"w":1600}`；对应参数必须已在上传流水线步骤中开放 |
 
@@ -81,7 +81,7 @@ jq -n --arg profile "$PICLOOM_PROFILE_ID" \
 
 | 步骤 | 请求 | 输入 / 成功响应 |
 | --- | --- | --- |
-| 创建 | `POST /api/uploads` | JSON：`profileId`、`size`，可选 `name`、`params`；返回 `201` |
+| 创建 | `POST /api/uploads` | JSON：`size`，可选 `profileId`、`name`、`params`；返回 `201` |
 | 写分片 | `PUT /api/uploads/:id/parts/:index` | 原始字节；返回 `200`、`{"ok":true}` |
 | 查进度 | `GET /api/uploads/:id` | 返回会话状态、`partSize`、`expiresAt`、已接收索引 `parts` |
 | 完成 | `POST /api/uploads/:id/complete` | 返回 `200` 和最终文件的 `id`、`url` |
@@ -234,3 +234,13 @@ curl --fail-with-body "$PICLOOM_URL/api/files/$PICLOOM_FILE_ID" \
 | `429` / `503` | 额度、并发或容量限制，按错误码确认原因；达到每日额度不能靠立即重试解决 |
 
 网络中断不等于写入未发生，勿无条件重放上传。插件相关错误语义见 [错误、取消与并发](../development/plugin-errors.md)。
+
+### 默认上传配置
+
+普通上传、URL 上传和分片会话创建均允许省略 `profileId`。服务端优先使用用户设置的默认项；仅未设置时使用站点默认。默认项被删除、禁用或超出当前用户或 Token 权限时直接报错，不再回退。未配置任何默认项时返回 `DEFAULT_PROFILE_REQUIRED`。显式传入无效 ID 不会回退，上传执行失败也不会切换 Profile。分片会话固定创建时解析出的 Profile。
+
+- `GET /api/upload-defaults`：返回 `defaultProfileId`、`userDefaultProfileId`、当前身份可见的 `siteDefaultProfileId`。
+- `PUT /api/auth/upload-default`：会话用户设置自己的默认项，JSON `{ "profileId": "..." }`；传 `null` 表示跟随站点。
+- `PUT /api/site-upload-default`：管理员会话设置站点默认项，同上；传 `null` 清除。
+
+这些默认项不会扩大权限，也不会在文件大小超限、存储故障时替用户选择另一套上传规则。

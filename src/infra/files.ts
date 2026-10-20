@@ -75,6 +75,40 @@ export function output(path: string, write: Output["write"]): Output {
     handle: crypto.randomUUID(),
   };
 }
+// Distinguish upstream read failures from local temporary-file failures.
+export class SourceReadError extends Error {
+  constructor() {
+    super("Source download failed");
+  }
+}
+export function sourceReadStream(stream: ReadableStream<Uint8Array>) {
+  const reader = stream.getReader();
+  return new ReadableStream<Uint8Array>(
+    {
+      async pull(controller) {
+        try {
+          const next = await reader.read();
+          if (next.done) {
+            reader.releaseLock();
+            controller.close();
+          } else controller.enqueue(next.value);
+        } catch {
+          await reader.cancel().catch(() => {});
+          reader.releaseLock();
+          controller.error(new SourceReadError());
+        }
+      },
+      async cancel(reason) {
+        try {
+          await reader.cancel(reason);
+        } finally {
+          reader.releaseLock();
+        }
+      },
+    },
+    { highWaterMark: 0 },
+  );
+}
 // Read one chunk before committing to a replica; never buffer the whole object.
 export async function prefetchStream(
   stream: ReadableStream<Uint8Array>,

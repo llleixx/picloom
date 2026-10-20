@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { t } from "@/lib/i18n";
-import { onUnmounted, ref } from "vue";
+import { computed, onUnmounted, ref, watch } from "vue";
 import { useQuery } from "@tanstack/vue-query";
 import { KeyRound, Plus, Copy } from "lucide-vue-next";
 import { Button } from "@/components/ui/button";
@@ -11,8 +11,12 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
-import type { TokenView, UploadProfileView } from "../../../shared/api";
-import { api, errorText, copy } from "@/lib/api";
+import type {
+  TokenView,
+  UploadProfileView,
+  UploadDefaults,
+} from "../../../shared/api";
+import { api, errorText, copy, queryClient } from "@/lib/api";
 import { date } from "@/lib/utils";
 const tokens = useQuery({
   queryKey: ["tokens"],
@@ -23,6 +27,49 @@ const profiles = useQuery({
   queryFn: ({ signal }) =>
     api<UploadProfileView[]>("/api/upload-profiles", { signal }),
 });
+const defaults = useQuery({
+  queryKey: ["upload-defaults"],
+  queryFn: ({ signal }) =>
+    api<UploadDefaults>("/api/upload-defaults", { signal }),
+});
+const defaultProfile = ref(""),
+  savingDefault = ref(false),
+  defaultError = ref(""),
+  defaultSaved = ref(false);
+watch(
+  defaults.data,
+  (value) => {
+    defaultProfile.value = value?.userDefaultProfileId ?? "";
+  },
+  { immediate: true },
+);
+watch(defaultProfile, () => {
+  defaultSaved.value = false;
+});
+const missingDefault = computed(
+  () =>
+    defaultProfile.value &&
+    profiles.data.value &&
+    !profiles.data.value.some((p) => p.id === defaultProfile.value),
+);
+async function saveDefault() {
+  savingDefault.value = true;
+  defaultError.value = "";
+  defaultSaved.value = false;
+  try {
+    const value = await api<UploadDefaults>("/api/auth/upload-default", {
+      method: "PUT",
+      body: JSON.stringify({ profileId: defaultProfile.value || null }),
+    });
+    queryClient.setQueryData(["upload-defaults"], value);
+    await queryClient.invalidateQueries({ queryKey: ["upload-defaults"] });
+    defaultSaved.value = true;
+  } catch (e) {
+    defaultError.value = errorText(e);
+  } finally {
+    savingDefault.value = false;
+  }
+}
 const duration = ref("90"),
   customExpiry = ref(""),
   scope = ref("all"),
@@ -93,6 +140,62 @@ async function revoke() {
     <p class="mt-2 mb-7 subtle">
       {{ t("ui.uploadOnlyAccessForScriptsAndApps") }}
     </p>
+    <form class="mb-6 space-y-2 border-b pb-6" @submit.prevent="saveDefault">
+      <div class="flex items-end gap-2">
+        <label class="field flex-1"
+          >{{ t("profiles.defaultLabel") }}
+          <select
+            v-model="defaultProfile"
+            class="native-select"
+            :disabled="
+              defaults.isPending.value ||
+              profiles.isPending.value ||
+              !!defaults.error.value ||
+              !!profiles.error.value ||
+              savingDefault
+            "
+          >
+            <option value="">{{ t("profiles.followSite") }}</option>
+            <option v-if="missingDefault" :value="defaultProfile" disabled>
+              {{ t("tokens.unavailableProfile") }}
+            </option>
+            <option
+              v-for="p in profiles.data.value"
+              :key="p.id"
+              :value="p.id"
+              :disabled="!p.enabled"
+            >
+              {{ p.name }}{{ p.enabled ? "" : " · " + t("users.disabled") }}
+            </option>
+          </select>
+        </label>
+        <Button
+          type="submit"
+          :disabled="
+            savingDefault ||
+            defaults.isPending.value ||
+            profiles.isPending.value ||
+            !!defaults.error.value ||
+            !!profiles.error.value
+          "
+          >{{ savingDefault ? t("ui.saving") : t("ui.save") }}</Button
+        >
+      </div>
+      <p class="subtle">{{ t("profiles.defaultHint") }}</p>
+      <p
+        v-if="defaultError || defaults.error.value || profiles.error.value"
+        role="alert"
+        class="error-box"
+      >
+        {{
+          defaultError ||
+          errorText(defaults.error.value || profiles.error.value)
+        }}
+      </p>
+      <p v-else-if="defaultSaved" role="status" class="subtle">
+        {{ t("ui.saved") }}
+      </p>
+    </form>
     <form class="mb-6 space-y-4 border-b pb-6" @submit.prevent="create">
       <div class="grid gap-4 sm:grid-cols-2">
         <label class="field min-w-0"

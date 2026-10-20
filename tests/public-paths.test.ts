@@ -1,6 +1,4 @@
 import { test, expect } from "bun:test";
-import { Database } from "bun:sqlite";
-import { Pool } from "pg";
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { fixture } from "./helpers";
@@ -140,41 +138,6 @@ test("concurrent uploads through nested prefixes reserve one complete path witho
     const legacy = await source(f, "legacy");
     await Bun.write(join(f.root, "legacy/shared.png"), f.png);
     expect((await scan(f, legacy.id, "/i/photos/")).conflicts).toBe(1);
-  } finally {
-    await f.close();
-  }
-});
-
-test("existing database paths are backfilled on upgrade without changing public links", async () => {
-  const f = await fixture();
-  try {
-    const src = await source(f, "legacy");
-    await Bun.write(join(f.root, "legacy/中文 %.png"), f.png);
-    await scan(f, src.id, "/old/");
-    await f.app.close();
-    const rollback =
-      "DROP INDEX files_public_path; ALTER TABLE files DROP COLUMN public_path; DELETE FROM schema_migrations WHERE version=3;";
-    if (f.overrides.databaseUrl) {
-      const pool = new Pool({ connectionString: f.overrides.databaseUrl });
-      try {
-        await pool.query(rollback);
-      } finally {
-        await pool.end();
-      }
-    } else {
-      const db = new Database(join(f.root, "database.sqlite"));
-      try {
-        db.exec(rollback);
-      } finally {
-        db.close();
-      }
-    }
-    await f.restart();
-    const response = await f.request(publicPath("/old/", "中文 %.png"));
-    expect(response.status).toBe(200);
-    expect(new Uint8Array(await response.arrayBuffer())).toEqual(
-      new Uint8Array(f.png),
-    );
   } finally {
     await f.close();
   }

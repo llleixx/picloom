@@ -14,7 +14,7 @@ const isolated = () => isolatedPostgres(connectionString!);
 if (process.env.REQUIRE_POSTGRES_TEST === "1" && !connectionString)
   throw new Error("TEST_POSTGRES_URL is required for test:postgres");
 if (connectionString) {
-  test("PostgreSQL immediate close and migration failure release their pools", async () => {
+  test("PostgreSQL immediate close and schema mismatch release their pools", async () => {
     const scope = await isolated();
     const monitor = new Pool({ connectionString });
     const url = new URL(scope.url);
@@ -30,12 +30,12 @@ if (connectionString) {
       expect(result.rows[0].n).toBe(0);
       const setup = new Pool({ connectionString: scope.url });
       try {
-        await setup.query("UPDATE schema_migrations SET checksum='invalid'");
+        await setup.query("UPDATE schema_info SET checksum='invalid'");
       } finally {
         await setup.end();
       }
       await expect(openPostgres(url.toString())).rejects.toThrow(
-        "Migration checksum changed",
+        "Database schema does not match",
       );
       const afterFailure = await monitor.query(
         "SELECT count(*)::int AS n FROM pg_stat_activity WHERE application_name=$1",

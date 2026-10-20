@@ -8,7 +8,7 @@ Picloom 的核心负责决定文件如何上传、访问和清理，插件负责
 flowchart TD
   main[main.ts：进程入口] --> runtime[runtime.ts：运行期协调]
   runtime --> bootstrap[bootstrap.ts：组装应用]
-  bootstrap --> db[打开数据库并执行迁移]
+  bootstrap --> db[打开数据库并初始化结构]
   db --> services[创建业务服务与插件管理器]
   services --> recovery[加载插件并恢复未完成工作]
   recovery --> ready[初始化默认配置与 Owner]
@@ -20,9 +20,9 @@ flowchart TD
 | `src/main.ts` | 启动 Bun HTTP 服务，解析可信代理地址，接收停机信号 |
 | `src/runtime.ts` | 调用应用组装、首次初始化，协调请求、维护循环、备份与停机 |
 | `src/bootstrap.ts` | 打开持久化层、连接业务服务、加载插件、恢复文件和上传会话，提供应用关闭方法 |
-| `src/cli.ts` | 执行初始化、迁移、密码恢复等命令；不启动 HTTP 服务 |
+| `src/cli.ts` | 执行初始化、密码恢复等命令；不启动 HTTP 服务 |
 
-数据目录锁防止多个应用实例同时使用同一目录。CLI 也需要这个锁，运行初始化或迁移前应停止使用该目录的服务。
+数据目录锁防止多个应用实例同时使用同一目录。CLI 也需要这个锁，运行初始化前应停止使用该目录的服务。
 
 ## 一次上传经过哪里
 
@@ -61,7 +61,7 @@ flowchart TD
 | --- | --- | --- |
 | `src/http` | 路由、认证、输入解析、响应转换 | 业务状态变化交给核心服务 |
 | `src/core` | 上传、访问、配置、账号、导入和任务等业务规则 | 当前 `files.ts` 仍承担多项文件编排，先沿调用链定位 |
-| `src/persistence` | 数据访问接口、查询与迁移 | 核心通过接口访问数据；两种数据库共用查询实现 |
+| `src/persistence` | 数据访问接口、查询与初始化 | 核心通过接口访问数据；两种数据库共用查询实现 |
 | `src/plugins` | 安装包、配置验证、实例创建与释放 | 插件调用期间持有实例租约 |
 | `src/builtins` | 内置插件实现 | 遵循与外部插件相同的公共协议 |
 | `plugin-sdk` | 插件类型、宿主服务协议和辅助函数 | 协议变更需同步示例与开发文档 |
@@ -80,4 +80,4 @@ flowchart TD
 | 设置及默认值 | `shared/runtime-settings.ts`、`src/config.ts`、`core/delivery-settings.ts` |
 | 备份与停机 | `src/runtime.ts`、`infra/backup.ts` |
 
-表中省略的服务端路径均以 `src/` 为根。涉及数据库修改继续阅读 [数据访问与迁移](./persistence.md)；涉及异步工作继续阅读 [状态、任务与资源生命周期](./states.md)。
+表中省略的服务端路径均以 `src/` 为根。涉及数据库修改继续阅读 [数据访问与初始化](./persistence.md)；涉及异步工作继续阅读 [状态、任务与资源生命周期](./states.md)。

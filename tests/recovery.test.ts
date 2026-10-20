@@ -10,7 +10,11 @@ test("actual process exit after storage commit recovers without publishing", asy
     const child = Bun.spawn(
       [process.execPath, join(import.meta.dir, "crash-worker.ts")],
       {
-        env: { ...process.env, TEST_ROOT: f.root },
+        env: {
+          ...process.env,
+          TEST_ROOT: f.root,
+          DATABASE_URL: f.overrides.databaseUrl,
+        },
         stdout: "pipe",
         stderr: "pipe",
       },

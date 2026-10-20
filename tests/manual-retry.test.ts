@@ -1,6 +1,4 @@
 import { test, expect } from "bun:test";
-import { Database } from "bun:sqlite";
-import { join } from "node:path";
 import { fixture } from "./helpers";
 import { PluginError } from "../plugin-sdk";
 
@@ -48,35 +46,6 @@ test("manual retry persists across restart, counts attempts cumulatively and nev
     expect(task.attempts).toBe(4);
     expect(task.status).toBe("failed");
     expect(task.last_error).toBe("INTERRUPTED_TASK");
-  } finally {
-    await f.close();
-  }
-});
-
-test("version-one SQLite data upgrades without changing attempts or the original migration", async () => {
-  const f = await fixture({
-    beforeDelete: async () => {
-      throw new PluginError("ACCESS_DENIED", "Failed", false, "notApplied");
-    },
-  });
-  try {
-    const image = await (await f.upload()).json();
-    await f.app.files.delete(image.id);
-    await f.app.files.sweep();
-    await f.app.close();
-    const db = new Database(join(f.root, "database.sqlite"));
-    try {
-      db.exec(
-        "ALTER TABLE tasks DROP COLUMN manual_retry; DELETE FROM schema_migrations WHERE version=2;",
-      );
-    } finally {
-      db.close();
-    }
-    await f.restart();
-    const [task] = await f.app.db.read((r) => r.tasks(image.id));
-    expect(task!.manual_retry).toBe(false);
-    expect(task!.attempts).toBe(1);
-    expect(task!.status).toBe("failed");
   } finally {
     await f.close();
   }

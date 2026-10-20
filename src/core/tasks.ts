@@ -697,11 +697,8 @@ export class TaskExecutor {
   async cleanupPending() {
     await this.cleanupMutex.run(async () => {
       if (this.stopping) return;
-      const candidates = await this.db.read(async (r) => [
-        ...(await r.filesInStates(["failed", "deleting"])),
-        ...(await r.filesNeedingCleanup()),
-      ]);
-      for (const file of new Map(candidates.map((f) => [f.id, f])).values()) {
+      const candidates = await this.db.read((r) => r.filesNeedingCleanup());
+      for (const file of candidates) {
         const admitted = await this.mutex.run(async () => {
           if (this.stopping || this.forgetting.has(file.id)) return false;
           if (

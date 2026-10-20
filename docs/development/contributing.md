@@ -70,7 +70,7 @@ BACKEND_URL=http://127.0.0.1:3001 bun run dev:web
 | --- | --- |
 | TypeScript 代码或接口 | `bun run typecheck`，再运行相关测试文件 |
 | 后台调度 | `bun test tests/task-scheduling.test.ts` |
-| 数据访问或迁移 | 按 [数据访问与迁移](./persistence.md) 验证两种数据库 |
+| 数据访问或表结构 | 按 [数据访问与初始化](./persistence.md) 验证两种数据库 |
 | 前端页面 | `bun run build:web`，打开对应页面检查操作 |
 | 插件示例 | `bun run build:examples` 与 `bun test tests/examples.test.ts` |
 | 文档 | 按 [文档站维护](./docs.md) 构建并预览 |

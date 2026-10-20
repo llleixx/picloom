@@ -4,6 +4,7 @@ CREATE TABLE users (
   updated_at BIGINT NOT NULL,
   max_upload_bytes BIGINT CHECK(max_upload_bytes>0),
   daily_upload_limit BIGINT CHECK(daily_upload_limit>=0),
+  default_upload_profile_id TEXT,
   username TEXT NOT NULL UNIQUE,
   password_hash TEXT NOT NULL,
   role TEXT NOT NULL CHECK(role IN ('owner','admin','member')),
@@ -58,8 +59,7 @@ CREATE TABLE storage_groups (
   created_at BIGINT NOT NULL,
   updated_at BIGINT NOT NULL,
   name TEXT NOT NULL,
-  primary_strategy TEXT NOT NULL CHECK(primary_strategy IN ('priority','weighted_random')),
-  redundancy_strategy TEXT NOT NULL CHECK(redundancy_strategy IN ('priority','weighted_random')),
+  selection_strategy TEXT NOT NULL CHECK(selection_strategy IN ('priority','weighted_random')),
   redundancy_count BIGINT NOT NULL CHECK(redundancy_count>=0),
   config_version BIGINT NOT NULL CHECK(config_version>0)
 );
@@ -91,11 +91,13 @@ CREATE TABLE upload_profiles (
   post_save_pipeline_id TEXT REFERENCES pipelines(id),
   storage_group_id TEXT NOT NULL REFERENCES storage_groups(id),
   allow_guest_upload BIGINT NOT NULL DEFAULT 0 CHECK(allow_guest_upload IN (0,1)),
+  is_default BIGINT NOT NULL DEFAULT 0 CHECK(is_default IN (0,1)),
   enabled BIGINT NOT NULL CHECK(enabled IN (0,1)),
   config_version BIGINT NOT NULL CHECK(config_version>0),
-  max_upload_bytes BIGINT NOT NULL CHECK(max_upload_bytes>0),
+  max_upload_bytes BIGINT CHECK(max_upload_bytes>0),
   allowed_mime_types TEXT NOT NULL CHECK(allowed_mime_types::json IS NOT NULL)
 );
+CREATE UNIQUE INDEX upload_profiles_single_default ON upload_profiles(is_default) WHERE is_default=1;
 CREATE TABLE pipeline_steps (
   id TEXT PRIMARY KEY NOT NULL,
   created_at BIGINT NOT NULL,
@@ -120,6 +122,7 @@ CREATE TABLE files (
   public_prefix TEXT NOT NULL,
   logical_key TEXT NOT NULL,
   storage_key TEXT NOT NULL,
+  public_path TEXT,
   mime_type TEXT,
   byte_size BIGINT CHECK(byte_size>=0),
   width BIGINT CHECK(width>0),
@@ -154,6 +157,7 @@ CREATE TABLE tasks (
   replica_id TEXT,
   pipeline_id TEXT REFERENCES pipelines(id) ON DELETE SET NULL,
   status TEXT NOT NULL CHECK(status IN ('pending','running','success','failed','cancelled')),
+  manual_retry BIGINT NOT NULL DEFAULT 0 CHECK(manual_retry IN (0,1)),
   attempts BIGINT NOT NULL CHECK(attempts>=0),
   next_run_at BIGINT,
   last_error TEXT,
@@ -164,6 +168,9 @@ CREATE TABLE tasks (
 CREATE UNIQUE INDEX primary_replica ON file_replicas(file_id) WHERE role='primary';
 CREATE UNIQUE INDEX active_replica_task ON tasks(replica_id) WHERE replica_id IS NOT NULL AND status IN ('pending','running','failed');
 CREATE UNIQUE INDEX file_action ON tasks(file_id) WHERE kind='action';
+CREATE UNIQUE INDEX files_public_path ON files(public_path);
+CREATE INDEX file_storage_key ON files(storage_key);
+CREATE INDEX file_created ON files(created_at,id);
 CREATE INDEX file_owner ON files(owner_id,status,created_at,id);
 CREATE INDEX file_status ON files(status,created_at,id);
 CREATE INDEX file_group ON files(storage_group_id) WHERE storage_group_id IS NOT NULL;

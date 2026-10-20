@@ -130,16 +130,18 @@ export function handler(app: Application) {
           const auth = await app.auth.optional(req);
           const guestIp = auth ? null : normalizeGuestIp(client);
           const input = await body(req);
-          if (
-            typeof input.url !== "string" ||
-            input.url.length > 8192 ||
-            typeof input.profileId !== "string"
-          )
-            throw new AppError("INVALID_INPUT", "Expected url and profileId");
-          await app.files.validateUpload(input.profileId, 1, auth, guestIp);
+          if (typeof input.url !== "string" || input.url.length > 8192)
+            throw new AppError("INVALID_INPUT", "Expected url");
+          const profileId = await app.auth.resolveUploadProfile(
+            input.profileId,
+            auth,
+          );
+          await app.files.validateUpload(profileId, 1, auth, guestIp);
           const profile = (await app.files.uploadProfiles(auth)).find(
-            (p) => p.id === input.profileId,
-          )!;
+            (p) => p.id === profileId,
+          );
+          if (!profile)
+            throw new AppError("FORBIDDEN", "Upload profile unavailable", 403);
           const leave = app.files.temporary.enterUpload();
           let inputPath: string | undefined;
           let handedOff = false;
@@ -164,7 +166,7 @@ export function handler(app: Application) {
             return json(
               await app.files.upload(
                 { size: blob.size, name, stream: () => blob.stream() },
-                input.profileId,
+                profileId,
                 auth,
                 req.signal,
                 {},
@@ -241,13 +243,13 @@ export function handler(app: Application) {
               const profile = form.get("profileId");
               if (
                 !(blob instanceof File) ||
-                typeof profile !== "string" ||
+                (profile !== null && typeof profile !== "string") ||
                 form.getAll("file").length !== 1 ||
-                form.getAll("profileId").length !== 1
+                form.getAll("profileId").length > 1
               )
                 throw new AppError(
                   "INVALID_INPUT",
-                  "Expected one file and profileId",
+                  "Expected one file and optional profileId",
                 );
               if (form.getAll("params").length > 1)
                 throw new AppError(
@@ -255,7 +257,16 @@ export function handler(app: Application) {
                   "Expected one params field",
                 );
               const params = parseUploadParams(form.get("params"));
-              await app.files.validateUpload(profile, blob.size, auth, guestIp);
+              const profileId = await app.auth.resolveUploadProfile(
+                profile ?? undefined,
+                auth,
+              );
+              await app.files.validateUpload(
+                profileId,
+                blob.size,
+                auth,
+                guestIp,
+              );
               await app.files.temporary.write(
                 inputPath,
                 blob.stream(),
@@ -266,7 +277,7 @@ export function handler(app: Application) {
               return json(
                 await app.files.upload(
                   blob,
-                  profile,
+                  profileId,
                   auth,
                   req.signal,
                   params,
@@ -286,6 +297,10 @@ export function handler(app: Application) {
             }
           }
         }
+        if (path === "/api/upload-defaults" && method === "GET")
+          return json(
+            await app.auth.uploadDefaults(await app.auth.optional(req)),
+          );
         if (path === "/api/upload-profiles" && method === "GET")
           return json(
             await app.files.uploadProfiles(await app.auth.optional(req)),
@@ -315,6 +330,18 @@ export function handler(app: Application) {
         const auth = await app.auth.authenticate(req, true);
         if (path === "/api/access-parameters" && method === "GET")
           return json(await app.configuration.accessParameters());
+        if (
+          (path === "/api/auth/upload-default" ||
+            path === "/api/site-upload-default") &&
+          method === "PUT"
+        ) {
+          await app.auth.setDefaultProfile(
+            auth,
+            (await body(req)).profileId,
+            path === "/api/site-upload-default",
+          );
+          return json(await app.auth.uploadDefaults(auth));
+        }
         const workspaceRoute =
           path.startsWith("/api/auth/") ||
           path === "/api/tokens" ||

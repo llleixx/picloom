@@ -60,6 +60,7 @@ export class Auth {
         status: "active",
         max_upload_bytes: null,
         daily_upload_limit: null,
+        default_upload_profile_id: null,
         auth_version: 1,
       });
       return true;
@@ -180,19 +181,81 @@ export class Auth {
     if (!isSiteAdmin(identity.user.role) && file.owner_id !== identity.user.id)
       throw new AppError("NOT_FOUND", "File not found", 404);
   }
+  private async permittedProfiles(r: Repositories, identity: Identity | null) {
+    const grants = identity ? await r.userProfiles(identity.user.id) : [];
+    return (await r.profiles()).filter(
+      (p) =>
+        (isSiteAdmin(identity?.user.role) ||
+          p.allow_guest_upload ||
+          grants.includes(p.id)) &&
+        (identity?.kind !== "token" ||
+          identity.credential.allowed_profile_ids == null ||
+          identity.credential.allowed_profile_ids.includes(p.id)),
+    );
+  }
   async allowedProfiles(identity: Identity | null) {
     return this.db.read(async (r) => {
-      const profiles = await r.profiles();
-      const grants = identity ? await r.userProfiles(identity.user.id) : [];
-      return profiles.filter(
-        (p) =>
-          (isSiteAdmin(identity?.user.role) ||
-            p.allow_guest_upload ||
-            grants.includes(p.id)) &&
-          (identity?.kind !== "token" ||
-            identity.credential.allowed_profile_ids == null ||
-            identity.credential.allowed_profile_ids.includes(p.id)),
+      const current = identity
+        ? await this.verify(r, identity.kind, identity.hash)
+        : null;
+      return this.permittedProfiles(r, current);
+    });
+  }
+  async uploadDefaults(
+    identity: Identity | null,
+  ): Promise<import("../../shared/api").UploadDefaults> {
+    return this.db.read(async (r) => {
+      const current = identity
+        ? await this.verify(r, identity.kind, identity.hash)
+        : null;
+      const visible = await this.permittedProfiles(r, current);
+      const site = (await r.profiles()).find((p) => p.is_default);
+      const userDefaultProfileId =
+        current?.user.default_upload_profile_id ?? null;
+      return {
+        userDefaultProfileId,
+        siteDefaultProfileId: visible.find((p) => p.is_default)?.id ?? null,
+        defaultProfileId: userDefaultProfileId ?? site?.id ?? null,
+      };
+    });
+  }
+  async resolveUploadProfile(
+    value: unknown,
+    identity: Identity | null,
+  ): Promise<string> {
+    if (value !== undefined) {
+      if (typeof value !== "string" || !value.trim())
+        throw new AppError("INVALID_INPUT", "Expected a non-empty profileId");
+      await this.authorizeUpload(identity, value);
+      return value;
+    }
+    const id = (await this.uploadDefaults(identity)).defaultProfileId;
+    if (!id)
+      throw new AppError(
+        "DEFAULT_PROFILE_REQUIRED",
+        "Select an upload profile",
+        400,
       );
+    await this.authorizeUpload(identity, id);
+    return id;
+  }
+  async setDefaultProfile(identity: Identity, value: unknown, site = false) {
+    if (value !== null && (typeof value !== "string" || !value.trim()))
+      throw new AppError("INVALID_INPUT", "Expected profileId or null");
+    await this.db.transaction(async (r) => {
+      const current = await this.verify(r, identity.kind, identity.hash);
+      if (current.kind !== "session")
+        throw new AppError("FORBIDDEN", "Session required", 403);
+      if (site) this.requireAdmin(current);
+      if (value !== null) {
+        const profile = await r.profile(value as string);
+        if (!profile?.enabled)
+          throw new AppError("INVALID_INPUT", "Upload profile unavailable");
+        await this.authorizeUpload(current, profile.id, r);
+      }
+      if (site) await r.setSiteDefaultProfile(value as string | null);
+      else
+        await r.setUserDefaultProfile(current.user.id, value as string | null);
     });
   }
   async authorizeUpload(
@@ -387,6 +450,7 @@ export class Auth {
         status: status as User["status"],
         max_upload_bytes: null,
         daily_upload_limit: null,
+        default_upload_profile_id: null,
         auth_version: 1,
       };
       if (previous)

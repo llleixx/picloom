@@ -18,11 +18,11 @@ export function prepareRestoredDatabase(
     const checksum = createHash("sha256")
       .update(readFileSync(new URL("./001_initial.sql", import.meta.url)))
       .digest("hex");
-    const migration = db
-      .query("SELECT checksum FROM schema_migrations WHERE version=1")
+    const schema = db
+      .query("SELECT checksum FROM schema_info WHERE id=1")
       .get() as { checksum: string } | null;
     if (
-      migration?.checksum !== checksum ||
+      schema?.checksum !== checksum ||
       JSON.stringify(db.query("PRAGMA integrity_check").values()) !==
         '[["ok"]]' ||
       db.query("PRAGMA foreign_key_check").all().length ||

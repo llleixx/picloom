@@ -58,8 +58,7 @@ async function edit(id?: string) {
       : {
           id: "",
           name: "",
-          primaryStrategy: "priority",
-          redundancyStrategy: "priority",
+          selectionStrategy: "priority",
           redundancyCount: 0,
           configVersion: 0,
           members: [],
@@ -196,27 +195,16 @@ async function remove() {
         </div>
         <form class="flex min-h-0 flex-1 flex-col" @submit.prevent="save">
           <div class="editor-body">
+            <p class="subtle">{{ t("groups.selectionHint") }}</p>
             <template v-if="group"
               ><label class="field"
                 >{{ t("ui.groupName")
                 }}<Input v-model="group.name" required maxlength="100" /></label
               ><label class="field"
-                >{{ t("ui.primaryStrategy")
+                >{{ t("ui.selectionStrategy")
                 }}<select
-                  :aria-label="t('ui.primaryStrategy')"
-                  v-model="group.primaryStrategy"
-                  class="native-select"
-                >
-                  <option value="priority">{{ t("ui.priority") }}</option>
-                  <option value="weighted_random">
-                    {{ t("ui.weightedRandom") }}
-                  </option>
-                </select></label
-              ><label class="field"
-                >{{ t("ui.redundancyStrategy")
-                }}<select
-                  :aria-label="t('ui.redundancyStrategy')"
-                  v-model="group.redundancyStrategy"
+                  :aria-label="t('ui.selectionStrategy')"
+                  v-model="group.selectionStrategy"
                   class="native-select"
                 >
                   <option value="priority">{{ t("ui.priority") }}</option>
@@ -234,7 +222,15 @@ async function remove() {
                   required
               /></label>
               <div class="space-y-3">
-                <h3 class="text-sm font-medium">{{ t("ui.memberOrder") }}</h3>
+                <h3 class="text-sm font-medium">
+                  {{
+                    t(
+                      group.selectionStrategy === "priority"
+                        ? "ui.memberOrder"
+                        : "groups.members",
+                    )
+                  }}
+                </h3>
                 <div
                   v-for="(entry, n) in group.members"
                   :key="entry.instanceId"
@@ -254,7 +250,9 @@ async function remove() {
                         : t("ui.unavailable2")
                     }}
                   </p>
-                  <label class="field mt-2"
+                  <label
+                    v-if="group.selectionStrategy === 'weighted_random'"
+                    class="field mt-2"
                     >{{ t("ui.readAndUploadWeight")
                     }}<Input
                       v-model.number="entry.weight"
@@ -269,6 +267,7 @@ async function remove() {
                       type="button"
                       size="sm"
                       variant="outline"
+                      v-if="group.selectionStrategy === 'priority'"
                       :disabled="n === 0"
                       @click="move(n, -1)"
                       >{{ t("ui.moveUp") }}</Button
@@ -276,6 +275,7 @@ async function remove() {
                       type="button"
                       size="sm"
                       variant="outline"
+                      v-if="group.selectionStrategy === 'priority'"
                       :disabled="n === group.members.length - 1"
                       @click="move(n, 1)"
                       >{{ t("ui.moveDown") }}</Button

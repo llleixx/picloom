@@ -244,8 +244,9 @@ export class Configuration {
         typeof input.enabled !== "boolean" ||
         (input.allowGuestUpload !== undefined &&
           typeof input.allowGuestUpload !== "boolean") ||
-        !Number.isSafeInteger(input.maxUploadBytes) ||
-        input.maxUploadBytes <= 0 ||
+        (input.maxUploadBytes !== null &&
+          (!Number.isSafeInteger(input.maxUploadBytes) ||
+            input.maxUploadBytes <= 0)) ||
         !Array.isArray(input.allowedMimeTypes) ||
         !input.allowedMimeTypes.length ||
         input.allowedMimeTypes.some(
@@ -507,8 +508,7 @@ export class Configuration {
     return groups.map((g) => ({
       id: g.id,
       name: g.name,
-      primaryStrategy: g.primary_strategy,
-      redundancyStrategy: g.redundancy_strategy,
+      selectionStrategy: g.selection_strategy,
       redundancyCount: g.redundancy_count,
       configVersion: g.config_version,
       members: (members.get(g.id) ?? []).map((m) => ({
@@ -536,8 +536,7 @@ export class Configuration {
         "成员不能为空或重复，权重须为有限正数",
       );
     if (
-      !["priority", "weighted_random"].includes(input.primaryStrategy) ||
-      !["priority", "weighted_random"].includes(input.redundancyStrategy) ||
+      !["priority", "weighted_random"].includes(input.selectionStrategy) ||
       !Number.isInteger(input.redundancyCount) ||
       input.redundancyCount < 0 ||
       input.redundancyCount >= input.members.length
@@ -559,8 +558,7 @@ export class Configuration {
       const g = {
         ...(old ?? entity()),
         name: name(input.name),
-        primary_strategy: input.primaryStrategy,
-        redundancy_strategy: input.redundancyStrategy,
+        selection_strategy: input.selectionStrategy,
         redundancy_count: input.redundancyCount,
         config_version: (old?.config_version ?? 0) + 1,
         updated_at: Date.now(),
@@ -604,8 +602,9 @@ export class Configuration {
       typeof input.enabled !== "boolean" ||
       (input.allowGuestUpload !== undefined &&
         typeof input.allowGuestUpload !== "boolean") ||
-      !Number.isSafeInteger(input.maxUploadBytes) ||
-      input.maxUploadBytes <= 0 ||
+      (input.maxUploadBytes !== null &&
+        (!Number.isSafeInteger(input.maxUploadBytes) ||
+          input.maxUploadBytes <= 0)) ||
       !Array.isArray(input.allowedMimeTypes) ||
       !input.allowedMimeTypes.length ||
       input.allowedMimeTypes.some(
@@ -653,6 +652,7 @@ export class Configuration {
     const p = {
       ...(old ?? entity()),
       name: name(input.name),
+      is_default: old?.is_default ?? false,
       public_prefix: input.publicPrefix,
       path_instance_id: input.pathInstanceId,
       storage_group_id: input.storageGroupId,

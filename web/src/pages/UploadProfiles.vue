@@ -34,7 +34,7 @@ import type {
   GroupView,
   ProfileEditor as ProfileView,
 } from "../../../shared/config";
-import type { UploadProfileView } from "../../../shared/api";
+import type { UploadProfileView, UploadDefaults } from "../../../shared/api";
 const formats = [
   "image/jpeg",
   "image/png",
@@ -49,6 +49,27 @@ const profiles = useQuery({
   queryFn: ({ signal }) =>
     api<UploadProfileView[]>("/api/upload-profiles", { signal }),
 });
+const defaults = useQuery({
+  queryKey: ["upload-defaults"],
+  queryFn: ({ signal }) =>
+    api<UploadDefaults>("/api/upload-defaults", { signal }),
+});
+const savingDefault = ref(false);
+async function setSiteDefault(profileId: string | null) {
+  savingDefault.value = true;
+  try {
+    await api("/api/site-upload-default", {
+      method: "PUT",
+      body: JSON.stringify({ profileId }),
+    });
+    await queryClient.invalidateQueries({ queryKey: ["upload-defaults"] });
+    await refresh();
+  } catch (e) {
+    notify(errorText(e));
+  } finally {
+    savingDefault.value = false;
+  }
+}
 const groups = useQuery({
   queryKey: ["groups"],
   queryFn: ({ signal }) => api<GroupView[]>("/api/storage-groups", { signal }),
@@ -70,9 +91,14 @@ const conflict = ref(false),
 const fieldErrors = ref<Array<{ path: string; message: string }>>([]);
 async function refresh() {
   await Promise.all(
-    ["sources", "groups", "profiles", "pipelines", "plugins"].map((key) =>
-      queryClient.invalidateQueries({ queryKey: [key] }),
-    ),
+    [
+      "sources",
+      "groups",
+      "profiles",
+      "pipelines",
+      "plugins",
+      "upload-defaults",
+    ].map((key) => queryClient.invalidateQueries({ queryKey: [key] })),
   );
 }
 const rows = computed(() => profiles.data.value);
@@ -81,6 +107,17 @@ const loadError = computed(
   () => profiles.error.value ?? groups.error.value ?? plugins.error.value,
 );
 const profile = ref<ProfileView>();
+const uploadLimitMiB = computed({
+  get: () =>
+    profile.value?.maxUploadBytes == null
+      ? ""
+      : profile.value.maxUploadBytes / 1024 ** 2,
+  set: (value: string | number) => {
+    if (profile.value)
+      profile.value.maxUploadBytes =
+        value === "" ? null : Math.round(Number(value) * 1024 ** 2);
+  },
+});
 async function edit(id?: string) {
   conflict.value = false;
   error.value = "";
@@ -103,7 +140,7 @@ async function edit(id?: string) {
           enabled: true,
           allowGuestUpload: false,
           configVersion: 0,
-          maxUploadBytes: 20 * 1024 * 1024,
+          maxUploadBytes: null,
           allowedMimeTypes: [...formats],
           uploadPipelineId: null,
           postSavePipelineId: null,
@@ -192,7 +229,14 @@ async function remove() {
         class="flex flex-col gap-2 py-3 sm:flex-row sm:items-start sm:justify-between sm:gap-8"
       >
         <div class="min-w-0 flex-1">
-          <h2 class="break-words font-medium">{{ item.name }}</h2>
+          <h2 class="break-words font-medium">
+            {{ item.name }}
+            <span
+              v-if="defaults.data.value?.siteDefaultProfileId === item.id"
+              class="text-xs text-muted-foreground"
+              >{{ t("profiles.siteDefault") }}</span
+            >
+          </h2>
 
           <p class="mt-1 break-words text-sm text-muted-foreground">
             {{ item.publicPrefix }} ·
@@ -200,6 +244,27 @@ async function remove() {
           </p>
         </div>
         <div class="flex shrink-0 flex-wrap gap-2 sm:max-w-72 sm:justify-end">
+          <Button
+            size="sm"
+            variant="ghost"
+            :disabled="
+              savingDefault ||
+              (!item.available &&
+                defaults.data.value?.siteDefaultProfileId !== item.id)
+            "
+            @click="
+              setSiteDefault(
+                defaults.data.value?.siteDefaultProfileId === item.id
+                  ? null
+                  : item.id,
+              )
+            "
+            >{{
+              defaults.data.value?.siteDefaultProfileId === item.id
+                ? t("profiles.clearSite")
+                : t("profiles.makeSite")
+            }}</Button
+          >
           <Button size="sm" variant="ghost" @click="copy(item.id)">
             <Copy />{{ t("ui.copyId") }}
           </Button>
@@ -277,13 +342,17 @@ async function remove() {
                   </option>
                 </select></label
               ><label class="field"
-                >{{ t("ui.uploadLimitBytes")
+                >{{ t("ui.uploadLimitMiB")
                 }}<Input
-                  v-model="profile.maxUploadBytes"
+                  v-model="uploadLimitMiB"
                   type="number"
-                  min="1"
-                  required
-              /></label>
+                  :min="1 / 1024 ** 2"
+                  step="any"
+                  :placeholder="t('ui.inheritGlobalLimit')"
+                /><span class="subtle">{{
+                  t("ui.uploadLimitHint")
+                }}</span></label
+              >
               <fieldset class="space-y-2">
                 <legend class="mb-2 text-sm">
                   {{ t("ui.allowedFormats") }}

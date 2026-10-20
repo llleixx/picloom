@@ -26,7 +26,7 @@ test("documented initialization commands are repeatable", async () => {
       if (code !== 0) throw new Error(stderr);
       return stdout;
     };
-    await run("migrate");
+    await run("init-db");
     expect(await run("init-admin")).toContain("created");
     expect(await run("init-admin")).toContain("unchanged");
     const first = JSON.parse(await run("init-dev"));

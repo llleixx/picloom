@@ -1,5 +1,13 @@
 // UI copy lives here. Keep keys stable when editing English wording.
 export const en = {
+  "profiles.defaultLabel": "Default upload profile",
+  "profiles.defaultHint": "Used when Profile ID is omitted. When unset, uses the site default.",
+  "profiles.followSite": "Follow site default",
+  "profiles.siteDefault": "Site default",
+  "profiles.clearSite": "Clear site default",
+  "profiles.makeSite": "Set as site default",
+  "profiles.required":
+    "No usable default upload profile. Please select a profile.",
   "linkBuilder.title": "Access link",
   "linkBuilder.hint":
     "Add parameters exposed by the access pipeline. Unset parameters use the pipeline’s behavior.",
@@ -105,8 +113,10 @@ export const en = {
   "images.blocked": "Blocked",
   "images.blockedHint": "Public access is blocked.",
   "images.forget": "Abandon cleanup and remove record",
-  "images.forgetHint": "Removes only the Picloom record and local cache. Remote files may remain and must be cleaned up manually. This cannot be undone.",
-  "images.forgetWaiting": "Waiting for active operations on this image to finish.",
+  "images.forgetHint":
+    "Removes only the Picloom record and local cache. Remote files may remain and must be cleaned up manually. This cannot be undone.",
+  "images.forgetWaiting":
+    "Waiting for active operations on this image to finish.",
   "images.forgetConfirm": "Remove record",
   "images.restoreAccess": "Restore access",
   "users.title": "Users",
@@ -142,7 +152,8 @@ export const en = {
   "import.description":
     "Register existing images without moving or downloading them.",
   "import.stripDirectories": "Public path strip depth",
-  "import.stripHint": "Remove leading directories from the full storage key, without moving files. For example, 2 maps ab/cd/image.png to image.png. Scan scope does not change the starting point.",
+  "import.stripHint":
+    "Remove leading directories from the full storage key, without moving files. For example, 2 maps ab/cd/image.png to image.png. Scan scope does not change the starting point.",
   "import.pathTooShallow": "Too few directories for the requested strip depth",
   "import.scope": "Scan scope (optional)",
   "import.scopeHint": "Leave blank to scan the entire storage source.",
@@ -455,11 +466,13 @@ export const en = {
   "ui.sourceName": "Source name",
   "ui.usedBy": "References",
   "ui.groupName": "Group name",
-  "ui.primaryStrategy": "Primary strategy",
+  "groups.members": "Storage members",
+  "groups.selectionHint":
+    "Uploads, reads and fallback use the same strategy. Priority follows member order; weighted random selects without repetition.",
+  "ui.selectionStrategy": "Storage selection strategy",
   "ui.priority": "Priority",
   "ui.weightedRandom": "Weighted random",
-  "ui.redundancyStrategy": "Redundancy strategy",
-  "ui.redundantCopies": "Redundant copies",
+  "ui.redundantCopies": "Additional copies",
   "ui.memberOrder": "Member order",
   "ui.unavailable2": " · Unavailable",
   "ui.readAndUploadWeight": "Read and upload weight",
@@ -474,7 +487,10 @@ export const en = {
   "ui.pathStrategy": "Path strategy",
   "ui.pathPlugin": "Path plugin",
   "ui.selectAStorageGroup": "Select a storage group",
-  "ui.uploadLimitBytes": "Upload limit (bytes)",
+  "ui.inheritGlobalLimit": "Inherit global limit",
+  "ui.uploadLimitHint":
+    "Leave blank to follow the global limit. The lowest of global, profile and user limits applies.",
+  "ui.uploadLimitMiB": "Upload limit (MiB)",
   "ui.allowedFormats": "Allowed formats",
   "ui.enableProfile": "Enable profile",
   "ui.uploadPipeline": "Upload Pipeline",
@@ -756,7 +772,7 @@ export const en = {
   "errors.locator": "Invalid storage locator.",
   "errors.plugin_output": "Invalid plugin output.",
   "errors.plugin_result": "Invalid plugin result.",
-  "errors.migration_mismatch": "Database schema mismatch.",
+  "errors.schema_mismatch": "Database schema mismatch.",
   "ui.uploadProfile": "Upload profile",
   "ui.storageGroup": "Storage group",
   "errors.generic": "Request failed. Try again.",

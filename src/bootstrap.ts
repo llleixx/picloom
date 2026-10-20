@@ -198,8 +198,7 @@ export async function initializeUploadDefaults(
     const group = {
       ...entity(),
       name: development ? "Local" : "Default",
-      primary_strategy: "priority" as const,
-      redundancy_strategy: "priority" as const,
+      selection_strategy: "priority" as const,
       redundancy_count: 0,
       config_version: 1,
     };
@@ -208,6 +207,7 @@ export async function initializeUploadDefaults(
     const profile = {
       ...entity(),
       name: "Default",
+      is_default: true,
       public_prefix: "/i/",
       path_instance_id: path.id,
       upload_pipeline_id: null,
@@ -215,7 +215,7 @@ export async function initializeUploadDefaults(
       storage_group_id: group.id,
       enabled: true,
       config_version: 1,
-      max_upload_bytes: app.config.maxUploadBytes,
+      max_upload_bytes: null,
       allowed_mime_types: [
         "image/jpeg",
         "image/png",

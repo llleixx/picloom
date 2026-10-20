@@ -3,6 +3,33 @@ import { fixture } from "./helpers";
 import { handler } from "../src/http/app";
 import { settings } from "../src/config";
 
+test("public lookup preserves path, query and unavailable-file error precedence", async () => {
+  const f = await fixture();
+  try {
+    const uploaded = await (await f.upload()).json();
+    const path = new URL(uploaded.url).pathname;
+    const query =
+      "?" + Array.from({ length: 65 }, (_, i) => `p${i}=1`).join("&");
+    const missing = await f.request("/i/missing.png" + query);
+    expect(missing.status).toBe(404);
+    expect((await missing.json()).error.code).toBe("NOT_FOUND");
+    const invalid = await f.request("/i/%zz.png" + query);
+    expect(invalid.status).toBe(400);
+    expect((await invalid.json()).error.code).toBe("INVALID_PATH");
+    expect((await f.request(path + query)).status).toBe(400);
+    await f.app.db.transaction(async (r) => {
+      const file = (await r.file(uploaded.id))!;
+      await r.saveFile({ ...file, status: "blocked" }, "ready");
+    });
+    const blockedQuery = await f.request(path + query);
+    expect(blockedQuery.status).toBe(400);
+    expect((await blockedQuery.json()).error.code).toBe("INVALID_PARAMS");
+    expect((await f.request(path)).status).toBe(404);
+  } finally {
+    await f.close();
+  }
+});
+
 test("separate image origin, HEAD and ETag preserve public paths and deletion", async () => {
   const f = await fixture();
   try {

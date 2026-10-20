@@ -1,4 +1,4 @@
-# 数据访问与迁移
+# 数据访问与初始化
 
 数据库保存配置、图片记录、副本位置和任务进度，不保存图片内容。一个文件可以有多个存储副本，也可以有多个待执行任务；这些记录共同描述工作进度，不能用文件状态替代副本或任务状态。
 
@@ -55,23 +55,20 @@ PostgreSQL 遇到序列化冲突或死锁时，持久化层最多重试事务两
 | `port.ts` | 业务数据类型与访问接口 |
 | `repositories.ts` | 基于 Kysely 的共用查询，必要处处理方言差异 |
 | `store.ts` | 事务作用域、冲突转换和 PostgreSQL 事务重试 |
-| `sqlite/store.ts`、`postgres/store.ts` | 建立连接、执行迁移、配置数据库行为 |
+| `sqlite/store.ts`、`postgres/store.ts` | 建立连接、初始化并校验表结构、配置数据库行为 |
 
 SQLite 启用外键、WAL 和忙等待；PostgreSQL 读取事务使用 `repeatable read`，写入事务使用 `serializable`。新增查询时需检查两种方言的返回值、类型转换与并发行为。
 
 ## 修改数据库结构
 
-1. 新增编号迁移文件，不修改已经应用的 SQL。两种数据库语法不同时分别提供文件。
-2. 在 SQLite 与 PostgreSQL 的 `store.ts` 迁移列表中登记；迁移文件不会被自动扫描。
-3. 同步修改 `port.ts`、查询层的数据结构及相关读写逻辑。
-4. 验证空库初始化、已有数据升级和相关业务行为；涉及备份格式时补充备份恢复验证。
+项目尚未发布，直接修改 SQLite 与 PostgreSQL 的 `001_initial.sql`，并同步 `port.ts`、查询层及相关业务逻辑。不新增开发期增量迁移或旧数据兼容代码。
 
-每条迁移的版本与 SHA-256 校验值保存在 `schema_migrations` 中。已应用文件的内容发生变化会使启动失败，不应通过跳过校验解决。
+启动时只执行首次建库，并通过 `schema_info` 中的 SHA-256 校验值核对当前结构。已有本地数据库需要先备份、再离线单独处理，保留业务数据；不要清空数据库或绕过结构校验。插件配置升级独立于数据库初始化，继续保留。
 
-应用启动自动执行迁移。也可以在服务停止后、仓库 `.env` 已配置时执行：
+应用启动自动初始化数据库。也可以在服务停止后、仓库 `.env` 已配置时执行：
 
 ```sh
-bun run migrate
+bun run init-db
 ```
 
 此命令通过 `bootstrap` 打开应用，也会加载插件并执行恢复流程，不是单独运行 SQL 文件的工具。
@@ -84,7 +81,7 @@ SQLite 持久化测试：
 bun test tests/persistence.test.ts
 ```
 
-修改共用查询或迁移时，再用专用 PostgreSQL 测试库验证。将下例连接地址替换为自己的测试库，账号需要创建 schema 的权限：
+修改共用查询或初始表结构时，再用专用 PostgreSQL 测试库验证。将下例连接地址替换为自己的测试库，账号需要创建 schema 的权限：
 
 ```sh
 TEST_POSTGRES_URL=postgresql://picloom:password@127.0.0.1:5432/picloom_test bun run test:postgres

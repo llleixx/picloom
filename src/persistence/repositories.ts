@@ -91,7 +91,7 @@ export interface Schema {
   tasks: Stored<Task>;
   upload_sessions: Stored<UploadSession>;
   user_upload_profiles: { user_id: string; upload_profile_id: string };
-  schema_migrations: { version: number; checksum: string; applied_at: number };
+  schema_info: { id: number; checksum: string };
 }
 const jsonFields = new Set<string>(jsonKeys);
 // JSON payload numbers retain their own semantics. Top-level numeric columns
@@ -122,6 +122,7 @@ function decode<T>(row: unknown): T {
     if (typeof result[key] === "number" && key !== "weight")
       result[key] = integer(result[key]);
     if (
+      key === "is_default" ||
       key === "enabled" ||
       key === "allow_guest_upload" ||
       key === "manual_retry"
@@ -171,11 +172,9 @@ export class SqlRepositories implements Repositories {
       .insertInto("daily_upload_usage")
       .values({ subject, day, upload_count: 1 })
       .onConflict((oc) => {
-        const update = oc
-          .columns(["subject", "day"])
-          .doUpdateSet({
-            upload_count: sql`daily_upload_usage.upload_count + 1`,
-          });
+        const update = oc.columns(["subject", "day"]).doUpdateSet({
+          upload_count: sql`daily_upload_usage.upload_count + 1`,
+        });
         return limit === null
           ? update
           : update.where("daily_upload_usage.upload_count", "<", limit);
@@ -390,8 +389,46 @@ export class SqlRepositories implements Repositories {
       this.db.selectFrom("api_tokens").selectAll().where("id", "=", id),
     );
   }
-  async insertUser(v: User) {
-    await this.db.insertInto("users").values(encode(v)).execute();
+  async setUserDefaultProfile(id: string, profileId: string | null) {
+    await this.db
+      .updateTable("users")
+      .set({ default_upload_profile_id: profileId, updated_at: Date.now() })
+      .where("id", "=", id)
+      .execute();
+  }
+  async setSiteDefaultProfile(profileId: string | null) {
+    await this.db
+      .updateTable("upload_profiles")
+      .set({
+        is_default: 0,
+        updated_at: Date.now(),
+      })
+      .where("is_default", "=", 1)
+      .execute();
+    if (profileId !== null)
+      await this.db
+        .updateTable("upload_profiles")
+        .set({
+          is_default: 1,
+          updated_at: Date.now(),
+        })
+        .where("id", "=", profileId)
+        .execute();
+  }
+  async insertUser(
+    v: Omit<User, "default_upload_profile_id"> & {
+      default_upload_profile_id?: string | null;
+    },
+  ) {
+    await this.db
+      .insertInto("users")
+      .values(
+        encode({
+          ...v,
+          default_upload_profile_id: v.default_upload_profile_id ?? null,
+        }),
+      )
+      .execute();
   }
   async changePassword(id: string, version: number, hash: string) {
     const r = await this.db
@@ -711,15 +748,22 @@ export class SqlRepositories implements Repositories {
       this.db.selectFrom("upload_profiles").selectAll(),
     );
   }
-  async insertProfile(v: Profile) {
+  async insertProfile(
+    v: Omit<Profile, "is_default"> & { is_default?: boolean },
+  ) {
     if ((await this.instance(v.path_instance_id))?.kind !== "path")
       throw new Conflict("Expected path instance");
-    await this.db.insertInto("upload_profiles").values(encode(v)).execute();
+    await this.db
+      .insertInto("upload_profiles")
+      .values(encode({ ...v, is_default: v.is_default ?? false }))
+      .execute();
   }
   async saveProfile(v: Profile, expected: number) {
+    // Defaults are independent of upload rules and may change during an edit.
+    const { is_default: _default, ...configuration } = v;
     const result = await this.db
       .updateTable("upload_profiles")
-      .set(encode(v))
+      .set(encode(configuration))
       .where("id", "=", v.id)
       .where("config_version", "=", expected)
       .executeTakeFirst();
@@ -808,9 +852,7 @@ export class SqlRepositories implements Repositories {
       await this.db
         .selectFrom("files")
         .select("public_prefix")
-        .union(
-          this.db.selectFrom("upload_profiles").select("public_prefix"),
-        )
+        .union(this.db.selectFrom("upload_profiles").select("public_prefix"))
         .execute()
     ).map((x) => x.public_prefix);
   }
@@ -856,10 +898,7 @@ export class SqlRepositories implements Repositories {
   }
   async fileByPath(path: string) {
     return this.first<FileRecord>(
-      this.db
-        .selectFrom("files")
-        .selectAll()
-        .where("public_path", "=", path),
+      this.db.selectFrom("files").selectAll().where("public_path", "=", path),
     );
   }
   private fileFilter(filter: FileFilter = {}) {
@@ -1001,12 +1040,16 @@ export class SqlRepositories implements Repositories {
         .selectAll()
         .where((eb) =>
           eb.or([
-            eb("status", "=", "deleting"),
+            eb("status", "in", ["failed", "deleting"]),
             eb.and([
               eb("status", "in", ["ready", "blocked"]),
               eb("temp_path", "is not", null),
             ]),
           ]),
+        )
+        // Preserve cleanup's existing priority over temporary-source removal.
+        .orderBy(
+          sql`case when status in ('failed', 'deleting') then 0 else 1 end`,
         ),
     );
   }

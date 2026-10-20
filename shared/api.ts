@@ -33,6 +33,7 @@ export interface FileView {
   url: string;
 }
 export interface UploadProfileView {
+  enabled: boolean;
   id: string;
   name: string;
   publicPrefix: string;
@@ -146,4 +147,10 @@ export interface UserView {
   status: "active" | "disabled";
   profileIds: string[];
   createdAt: number;
+}
+
+export interface UploadDefaults {
+  defaultProfileId: string | null;
+  userDefaultProfileId: string | null;
+  siteDefaultProfileId: string | null;
 }

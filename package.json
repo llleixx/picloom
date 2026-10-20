@@ -15,7 +15,7 @@
     "test:s3": "bun test tests/s3-live.test.ts",
     "typecheck": "tsc --noEmit && vue-tsc --noEmit -p web/tsconfig.json",
     "typecheck:web": "vue-tsc --noEmit -p web/tsconfig.json",
-    "migrate": "bun src/cli.ts migrate",
+    "init-db": "bun src/cli.ts init-db",
     "reset-owner-password": "bun src/cli.ts reset-owner-password",
     "init-admin": "bun src/cli.ts init-admin",
     "init-dev": "bun src/cli.ts init-dev",
