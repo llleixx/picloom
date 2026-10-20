@@ -1,11 +1,16 @@
 import { withMermaid } from "vitepress-plugin-mermaid";
 import { zh } from "./zh";
 
+const base = (process.env.DOCS_BASE || "/").replace(/\/?$/, "/");
+
 // Add a locale (e.g. en: { lang: 'en-US', link: '/en/', ... }) only when translated pages exist.
 export default withMermaid({
   title: "Picloom",
   description: "自托管图片管理服务，支持多存储、水印、图片处理和插件扩展。",
-  base: process.env.DOCS_BASE || "/",
+  base,
+  head: [
+    ["link", { rel: "icon", type: "image/svg+xml", href: `${base}picloom.svg` }],
+  ],
   lastUpdated: true,
   // Local development notes are not public documentation.
   srcExclude: ["dev/**"],
