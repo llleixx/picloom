@@ -210,13 +210,15 @@ test("all stages share data within an attempt; failed actions release sources an
     });
     expect(JSON.stringify(operations)).not.toContain("sensitive-error-detail");
     fail = false;
-    await expect(f.app.files.tasks.retry(tasks[0]!.id)).rejects.toThrow();
+    await f.app.files.tasks.retry(tasks[0]!.id);
     await f.app.files.sweep();
     expect(calls).toEqual([
       "upload:produce",
       "upload:consume",
       "access:produce",
       "access:consume",
+      "post_save:produce",
+      "post_save:consume",
       "post_save:produce",
       "post_save:consume",
     ]);

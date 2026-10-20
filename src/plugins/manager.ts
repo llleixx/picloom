@@ -550,6 +550,7 @@ export class PluginManager {
     version: string;
     name: string;
     config: Config;
+    maxStorageBytes?: number | null;
     expectedVersion?: number;
     secretEdits?: Record<string, SecretEdit>;
     upgrade?: UpgradeIntent;
@@ -669,8 +670,23 @@ export class PluginManager {
       check(def.configSchema, "");
       if (input.upgrade) check(this.descriptor(old).configSchema, "");
     }
+    const maxStorageBytes =
+      input.maxStorageBytes === undefined
+        ? (old?.max_storage_bytes ?? null)
+        : input.maxStorageBytes;
+    if (
+      maxStorageBytes !== null &&
+      (def.kind !== "storage" ||
+        !Number.isSafeInteger(maxStorageBytes) ||
+        maxStorageBytes <= 0)
+    )
+      throw new AppError(
+        "CONFIG_INVALID",
+        "Storage capacity must be a positive integer",
+      );
     const record: Instance = {
       ...(old ?? entity()),
+      max_storage_bytes: maxStorageBytes,
       plugin_id: def.id,
       plugin_version: def.version,
       kind: def.kind,
@@ -716,6 +732,7 @@ export class PluginManager {
     version: string;
     name: string;
     config: Config;
+    maxStorageBytes?: number | null;
     expectedVersion?: number;
     secretEdits?: Record<string, SecretEdit>;
     upgrade?: UpgradeIntent;
@@ -856,6 +873,7 @@ export class PluginManager {
     const ids = records.map((i) => i.id);
     const references = await r.referencesForInstances(ids);
     const counts = await r.replicaCounts(ids);
+    const usage = await r.storageUsage(ids);
     return records.map((record) => {
       const { key, ...configuration } = this.configurationView(record);
       return {
@@ -863,6 +881,9 @@ export class PluginManager {
         id: key,
         kind: record.kind,
         name: record.name,
+        maxStorageBytes: record.max_storage_bytes ?? null,
+        usedStorageBytes: usage.get(record.id)?.used ?? 0,
+        reservedStorageBytes: usage.get(record.id)?.reserved ?? 0,
         configVersion: record.config_version,
         canImport:
           record.kind === "storage" &&

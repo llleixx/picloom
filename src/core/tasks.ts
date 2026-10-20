@@ -1,4 +1,5 @@
 import { localizedText } from "../../plugin-sdk/localization";
+import { checkStorageCapacity } from "./storage-capacity";
 import { pluginErrorCode } from "./errors";
 import type { TemporarySpace } from "../infra/temporary-space";
 import { isPluginError } from "../../plugin-sdk/api";
@@ -7,6 +8,7 @@ import { assertJson, pipelineData } from "./pipeline-data";
 import { join } from "node:path";
 import type {
   Persistence,
+  Repositories,
   Task,
   FileRecord,
   Replica,
@@ -20,8 +22,7 @@ import { InFlight, Mutex } from "./concurrency";
 import { fileInput, scopedInput, publicPath } from "../infra/files";
 import type { ImageCache } from "./cache";
 const terminal = (t: Task) =>
-  ["success", "cancelled"].includes(t.status) ||
-  (t.kind === "action" && t.status === "failed");
+  ["success", "failed", "cancelled"].includes(t.status);
 const dispositionRank = { pass: 0, block: 1, delete: 2 } as const;
 export class TaskExecutor {
   private stopping = false;
@@ -47,6 +48,11 @@ export class TaskExecutor {
     private flight: InFlight,
     private cache: ImageCache,
     private temporary: TemporarySpace,
+    private download: (
+      file: FileRecord,
+      path: string,
+      signal: AbortSignal,
+    ) => Promise<void>,
     private beforeDelete?: () => Promise<void>,
   ) {}
   cancel(fileId: string) {
@@ -62,7 +68,7 @@ export class TaskExecutor {
         if (this.stopping || this.forgetting.has(fileId))
           throw new Conflict("File cleanup is already in progress");
         const file = requireValue(await this.db.read((r) => r.file(fileId)));
-        if (file.status !== "deleting")
+        if (!["deleting", "delete_failed"].includes(file.status))
           throw new Conflict("Only files pending deletion can be removed");
         this.forgetting.add(fileId);
       }),
@@ -84,7 +90,7 @@ export class TaskExecutor {
       await this.cache.remove(fileId);
       await this.db.transaction(async (r) => {
         const current = requireValue(await r.file(fileId));
-        if (current.status !== "deleting")
+        if (!["deleting", "delete_failed"].includes(current.status))
           throw new Conflict("File state changed");
         await r.removeFile(fileId);
       });
@@ -101,45 +107,115 @@ export class TaskExecutor {
         console.info(JSON.stringify({ event: event.slice(0, 120) })),
     };
   }
-  async retry(id: string) {
-    await this.db.transaction(async (r) => {
-      const task = requireValue(await r.task(id)),
-        file = requireValue(await r.file(task.file_id));
-      if (
-        task.status !== "failed" ||
-        task.kind !== "delete" ||
-        !["ready", "blocked", "deleting"].includes(file.status)
-      )
-        throw new Conflict("Task cannot be retried");
-      task.status = "pending";
-      task.manual_retry = true;
-      task.next_run_at = Date.now();
-      task.last_error = null;
-      await r.saveTask(task);
-    });
-  }
-  async recoverReplica(file: FileRecord, replica: Replica) {
-    const task = (await this.db.read((r) => r.tasks(file.id))).find(
-      (t) => t.kind === "write" && t.replica_id === replica.id,
+  async ignoreReplica(fileId: string, replicaId: string) {
+    await this.cleanupMutex.run(() =>
+      this.mutex.run(async () => {
+        if (this.forgetting.has(fileId))
+          throw new Conflict("File cleanup is in progress");
+        await this.db.transaction(async (r) => {
+          const replica = requireValue(await r.replica(replicaId));
+          if (replica.file_id !== fileId)
+            throw new AppError("NOT_FOUND", "Replica not found", 404);
+          if (
+            ![
+              "write_failed",
+              "write_unknown",
+              "delete_failed",
+              "delete_unknown",
+            ].includes(replica.status)
+          )
+            throw new Conflict("Only abnormal replicas can be ignored");
+          if (
+            (await r.tasks(fileId)).some(
+              (t) => t.replica_id === replicaId && t.status === "running",
+            )
+          )
+            throw new Conflict("Replica has a running task");
+          await r.removeReplica(replicaId);
+        });
+      }),
     );
-    const lease = this.plugins.acquire(replica.storage_instance_id, "storage");
-    try {
-      const signal = AbortSignal.timeout(120_000);
-      const result = (await lease.runtime.recoverWrite?.(
-        {
-          operationId: task?.id ?? `initial:${replica.id}`,
-          fileId: file.id,
-          storageKey: file.storage_key,
-          expectedSize: file.byte_size!,
-          locator: replica.locator_json,
-        },
-        this.context(signal),
-      )) ?? { status: "unknown" as const };
-      signal.throwIfAborted();
-      return result;
-    } finally {
-      await lease.release();
+    await this.cleanupPending();
+  }
+  async retryError(
+    r: Repositories,
+    task: Task,
+    file: FileRecord,
+  ): Promise<string | null> {
+    if (
+      task.status !== "failed" ||
+      (task.kind === "delete"
+        ? !["ready", "blocked", "failed", "deleting", "delete_failed"].includes(
+            file.status,
+          )
+        : task.kind === "write"
+          ? !["ready", "blocked"].includes(file.status)
+          : file.status !== "ready")
+    )
+      return "CONFLICT";
+    const replica = task.replica_id ? await r.replica(task.replica_id) : null;
+    if (
+      task.kind !== "action" &&
+      (!replica ||
+        ![
+          "write_failed",
+          "write_unknown",
+          "delete_failed",
+          "delete_unknown",
+        ].includes(replica.status))
+    )
+      return "CONFLICT";
+    if (
+      replica &&
+      !this.plugins.isReady(replica.storage_instance_id, "storage")
+    )
+      return "INSTANCE_UNAVAILABLE";
+    if (
+      task.kind === "action" &&
+      (!task.pipeline_id || !(await r.pipeline(task.pipeline_id)))
+    )
+      return "PIPELINE_MISSING";
+    if (task.kind !== "delete" && replica?.status !== "write_unknown") {
+      const hasTemp =
+        !!file.temp_path &&
+        (await Bun.file(
+          join(this.config.root, "temp", file.temp_path),
+        ).exists());
+      const hasReplica = (await r.replicas(file.id)).some(
+        (x) =>
+          x.status === "ready" &&
+          this.plugins.isReady(x.storage_instance_id, "storage"),
+      );
+      if (!hasTemp && !hasReplica) return "REPAIR_SOURCE_MISSING";
     }
+    return null;
+  }
+  async retry(id: string) {
+    await this.cleanupMutex.run(() =>
+      this.mutex.run(async () => {
+        await this.db.transaction(async (r) => {
+          const task = requireValue(await r.task(id));
+          const file = requireValue(await r.file(task.file_id));
+          const problem = await this.retryError(r, task, file);
+          if (this.forgetting.has(file.id) || problem)
+            throw new AppError(
+              problem ?? "CONFLICT",
+              "Task cannot be retried",
+              409,
+            );
+          task.status = "pending";
+          task.manual_retry = true;
+          task.next_run_at = Date.now();
+          task.last_error = null;
+          await r.saveTask(task, "failed");
+          if (task.kind === "delete" && file.status === "delete_failed") {
+            file.status = "deleting";
+            file.last_error = null;
+            await r.saveFile(file, "delete_failed");
+          }
+        });
+      }),
+    );
   }
   private async releaseTemporary(fileId: string) {
     const file = requireValue(await this.db.read((r) => r.file(fileId)));
@@ -161,85 +237,47 @@ export class TaskExecutor {
     });
   }
   private async cleanup(file: FileRecord) {
-    await this.releaseTemporary(file.id);
-    if (file.status === "failed" || file.status === "deleting") {
+    if (["failed", "deleting"].includes(file.status)) {
       this.cancel(file.id);
       await this.flight.wait(file.id);
-      for (const replica of await this.db.read((r) => r.replicas(file.id))) {
-        if (["writing", "write_unknown"].includes(replica.status)) {
-          const recovered = await this.recoverReplica(file, replica).catch(
-            () => {
-              console.error(
-                JSON.stringify({
-                  event: "replica_recovery_failed",
-                  fileId: file.id,
-                  replicaId: replica.id,
-                }),
-              );
-              return { status: "unknown" as const };
-            },
-          );
-          if (recovered.status === "unknown") continue;
-          replica.status = recovered.status === "stored" ? "ready" : "deleted";
-          if (recovered.status === "stored")
-            replica.locator_json = recovered.locator ?? null;
-          await this.db.transaction(async (r) => {
-            await r.saveReplica(replica);
-            for (const task of await r.tasks(file.id))
-              if (
-                task.kind === "write" &&
-                task.replica_id === replica.id &&
-                !terminal(task)
-              ) {
-                task.status =
-                  recovered.status === "stored" ? "success" : "cancelled";
-                task.last_error = null;
-                task.next_run_at = null;
-                await r.saveTask(task);
-              }
-          });
-        }
-      }
       await this.db.transaction(async (r) => {
-        const f = requireValue(await r.file(file.id)),
-          replicas = await r.replicas(f.id),
-          tasks = await r.tasks(f.id);
-        if (f.status === "failed") {
-          f.status = "deleting";
-          await r.saveFile(f, "failed");
-        }
-        for (const task of tasks)
-          if (task.kind === "action" && !terminal(task)) {
+        const current = requireValue(await r.file(file.id));
+        if (!["failed", "deleting"].includes(current.status)) return;
+        const replicas = await r.replicas(file.id),
+          tasks = await r.tasks(file.id);
+        for (const task of tasks) {
+          if (
+            task.kind !== "delete" &&
+            (!terminal(task) ||
+              (task.kind === "write" && task.status === "failed"))
+          ) {
             task.status = "cancelled";
             task.next_run_at = null;
-            task.last_error = null;
             await r.saveTask(task);
           }
+        }
         for (const replica of replicas) {
+          if (replica.status === "deleted") continue;
           if (["pending", "write_failed"].includes(replica.status)) {
             replica.status = "deleted";
             await r.saveReplica(replica);
-            for (const task of tasks)
-              if (
-                task.kind === "write" &&
-                task.replica_id === replica.id &&
-                !terminal(task)
-              ) {
-                task.status = "cancelled";
-                task.next_run_at = null;
-                await r.saveTask(task);
-              }
+            continue;
           }
-          if (["writing", "write_unknown", "deleted"].includes(replica.status))
+          // A terminal deletion task is a stop, not permission to start a new retry budget.
+          if (
+            tasks.some(
+              (t) => t.replica_id === replica.id && t.kind === "delete",
+            )
+          )
             continue;
-          if (tasks.some((t) => t.replica_id === replica.id && !terminal(t)))
-            continue;
-          replica.status = "delete_pending";
+          if (replica.status === "writing") replica.status = "write_unknown";
+          else if (replica.status !== "write_unknown")
+            replica.status = "delete_pending";
           await r.saveReplica(replica);
           await r.insertTask({
             ...entity(),
             kind: "delete",
-            file_id: f.id,
+            file_id: file.id,
             replica_id: replica.id,
             pipeline_id: null,
             status: "pending",
@@ -251,48 +289,35 @@ export class TaskExecutor {
       });
     }
     await this.releaseTemporary(file.id);
-    const current = requireValue(await this.db.read((r) => r.file(file.id)));
-    if (!["ready", "blocked", "deleting"].includes(current.status)) return;
-    const state = await this.db.read(async (r) => ({
-      tasks: await r.tasks(file.id),
-      replicas: await r.replicas(file.id),
-    }));
-    if (
-      state.tasks.some((t) => !terminal(t)) ||
-      state.replicas.some((r) =>
-        ["writing", "write_unknown"].includes(r.status),
-      )
-    )
-      return;
-    if (
-      current.status === "deleting" &&
-      state.replicas.some((r) => r.status !== "deleted")
-    )
-      return;
-    await this.flight.wait(file.id);
+    let deleted = false;
     await this.db.transaction(async (r) => {
-      const f = requireValue(await r.file(file.id));
-      if ((await r.tasks(file.id)).some((t) => !terminal(t))) return;
-      f.temp_path = null;
-      f.temp_status = "cleaned";
-      if (f.status === "deleting") {
-        f.status = "deleted";
-        f.deleted_at = Date.now();
-      }
-      await r.saveFile(f, current.status);
+      const current = requireValue(await r.file(file.id));
+      if (!["deleting", "delete_failed"].includes(current.status)) return;
+      const tasks = await r.tasks(file.id);
+      if (tasks.some((t) => !terminal(t))) return;
+      const unresolved = (await r.replicas(file.id)).some(
+        (x) => x.status !== "deleted",
+      );
+      const previous = current.status;
+      current.status = unresolved ? "delete_failed" : "deleted";
+      current.last_error = unresolved ? "DELETE_FAILED" : null;
+      if (!unresolved) current.deleted_at = Date.now();
+      await r.saveFile(current, previous);
+      deleted = !unresolved;
     });
-    if (current.status === "deleting") await this.cache.remove(file.id);
+    if (deleted) await this.cache.remove(file.id);
   }
   private async run(id: string) {
     if (this.stopping) return;
     const state = await this.db.transaction(async (r) => {
-      const task = requireValue(await r.task(id));
+      const task = await r.task(id);
+      if (!task) return null;
       if (task.status !== "pending" || task.next_run_at! > Date.now())
         return null;
       const file = requireValue(await r.file(task.file_id));
       if (
         task.kind === "delete"
-          ? !["ready", "blocked", "deleting"].includes(file.status)
+          ? !["ready", "blocked", "failed", "deleting"].includes(file.status)
           : task.kind === "write"
             ? !["ready", "blocked"].includes(file.status)
             : file.status !== "ready"
@@ -316,6 +341,26 @@ export class TaskExecutor {
       () => controller.abort(new Error("Task timed out")),
       120_000,
     );
+    let repairPath: string | undefined;
+    const sourcePath = async () => {
+      if (file.temp_path) {
+        const path = join(this.config.root, "temp", file.temp_path);
+        if (await Bun.file(path).exists()) return path;
+      }
+      if (repairPath) return repairPath;
+      const hasSource = await this.db.read(async (r) =>
+        (await r.replicas(file.id)).some((x) => x.status === "ready"),
+      );
+      if (!hasSource)
+        throw new AppError(
+          "REPAIR_SOURCE_MISSING",
+          "No source is available for repair",
+          409,
+        );
+      repairPath = this.temporary.create(file.byte_size ?? 0);
+      await this.download(file, repairPath, controller.signal);
+      return repairPath;
+    };
     let lease: ReturnType<PluginManager["acquire"]> | undefined;
     let activeStep: { id: string; name: string } | undefined;
     let decision: "pass" | "block" | "delete" = "pass";
@@ -351,13 +396,14 @@ export class TaskExecutor {
             "post_save",
           );
           const definition = this.plugins.definition(stage.record);
-          activeStep.name = localizedText(definition, definition.defaultLocale, content => content.name, definition.id);
+          activeStep.name = localizedText(
+            definition,
+            definition.defaultLocale,
+            (content) => content.name,
+            definition.id,
+          );
           try {
-            const path = file.temp_path
-              ? join(this.config.root, "temp", file.temp_path)
-              : null;
-            if (!path || !(await Bun.file(path).exists()))
-              throw new AppError("TEMP_MISSING", "Task source is missing");
+            const path = await sourcePath();
             const scope = scopedInput(
               fileInput(path, {
                 mimeType: file.mime_type,
@@ -466,13 +512,17 @@ export class TaskExecutor {
             if (result.status === "notStored") previousWriteUnknown = false;
           }
           if (!stored) {
-            const path = file.temp_path
-              ? join(this.config.root, "temp", file.temp_path)
-              : null;
-            if (!path || !(await Bun.file(path).exists()))
-              throw new AppError("TEMP_MISSING", "任务暂存文件缺失");
+            const path = await sourcePath();
             replica!.status = "writing";
-            await this.db.transaction((r) => r.saveReplica(replica!));
+            await this.db.transaction(async (r) => {
+              await checkStorageCapacity(
+                r,
+                replica!.storage_instance_id,
+                file.byte_size!,
+                replica!.id,
+              );
+              await r.saveReplica(replica!);
+            });
             const scope = scopedInput(
               fileInput(path, {
                 mimeType: file.mime_type,
@@ -501,17 +551,50 @@ export class TaskExecutor {
           }
           replica!.status = "ready";
         } else {
-          replica!.status = "deleting";
-          await this.db.transaction((r) => r.saveReplica(replica!));
-          await this.beforeDelete?.();
-          await storage.delete(
-            {
-              operationId: id,
-              storageKey: file.storage_key,
-              locator: replica!.locator_json,
-            },
-            ctx,
-          );
+          let absent = false;
+          if (["writing", "write_unknown"].includes(replica!.status)) {
+            const writeTask = (
+              await this.db.read((r) => r.tasks(file.id))
+            ).find((t) => t.kind === "write" && t.replica_id === replica!.id);
+            const recovered = await storage.recoverWrite?.(
+              {
+                operationId: writeTask?.id ?? `initial:${replica!.id}`,
+                fileId: file.id,
+                storageKey: file.storage_key,
+                expectedSize: file.byte_size!,
+                locator: replica!.locator_json,
+              },
+              ctx,
+            );
+            if (!recovered || recovered.status === "unknown")
+              throw new AppError(
+                "WRITE_UNKNOWN",
+                "Write outcome is still unknown",
+                502,
+              );
+            absent = recovered.status === "notStored";
+            if (recovered.status === "stored")
+              replica!.locator_json = recovered.locator ?? null;
+            previousWriteUnknown = false;
+          }
+          if (!absent) {
+            replica!.status = "deleting";
+            await this.db.transaction((r) => r.saveReplica(replica!));
+            await this.beforeDelete?.();
+            try {
+              await storage.delete(
+                {
+                  operationId: id,
+                  storageKey: file.storage_key,
+                  locator: replica!.locator_json,
+                },
+                ctx,
+              );
+            } catch (error) {
+              if (!isPluginError(error) || error.code !== "NOT_FOUND")
+                throw error;
+            }
+          }
           replica!.status = "deleted";
         }
       }
@@ -554,12 +637,15 @@ export class TaskExecutor {
             replica.status =
               !writeAttempted && !previousWriteUnknown
                 ? "write_failed"
-                : isPluginError(error) && error.outcome === "notApplied"
+                : !previousWriteUnknown &&
+                    isPluginError(error) &&
+                    error.outcome === "notApplied"
                   ? "write_failed"
                   : "write_unknown";
           else
-            replica.status =
-              isPluginError(error) && error.outcome === "notApplied"
+            replica.status = previousWriteUnknown
+              ? "write_unknown"
+              : isPluginError(error) && error.outcome === "notApplied"
                 ? "delete_failed"
                 : "delete_unknown";
           await r.saveReplica(replica);
@@ -570,6 +656,7 @@ export class TaskExecutor {
             error instanceof AppError &&
             [
               "TEMP_MISSING",
+              "REPAIR_SOURCE_MISSING",
               "PIPELINE_MISSING",
               "PROCESSING_RESULT_INVALID",
               "PLUGIN_RESULT",
@@ -618,8 +705,12 @@ export class TaskExecutor {
       try {
         await lease?.release();
       } finally {
-        this.controllers.delete(id);
-        end();
+        try {
+          if (repairPath) await this.temporary.remove(repairPath);
+        } finally {
+          this.controllers.delete(id);
+          end();
+        }
       }
     }
   }

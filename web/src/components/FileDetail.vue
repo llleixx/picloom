@@ -93,6 +93,14 @@ watch(
 );
 const operationError = ref("");
 const retrying = ref("");
+function replicaRetry(id: string) {
+  return operations.data.value?.tasks.find(
+    (task) =>
+      task.replicaId === id &&
+      task.status === "failed" &&
+      task.retryError !== "CONFLICT",
+  );
+}
 const operationKinds = computed<Record<string, string>>(() => ({
   write: t("ui.replication"),
   action: t("ui.postSaveAction"),
@@ -123,6 +131,7 @@ async function retryTask(id: string) {
     await operations.refetch();
     await detail.refetch();
     await queryClient.invalidateQueries({ queryKey: ["files"] });
+    await queryClient.invalidateQueries({ queryKey: ["sources"] });
   } catch (e) {
     operationError.value = errorText(e);
   } finally {
@@ -188,8 +197,10 @@ watch(
 );
 const deleteWhole = ref(false),
   includeLast = ref(false),
-  replicaTarget = ref("");
-function confirmRemoval(replicaId = "") {
+  replicaTarget = ref(""),
+  ignoringReplica = ref(false);
+function confirmRemoval(replicaId = "", ignore = false) {
+  ignoringReplica.value = ignore;
   replicaTarget.value = replicaId;
   deleteWhole.value = false;
   includeLast.value = false;
@@ -209,7 +220,16 @@ async function remove() {
   try {
     const sourceOnly =
       !replicaTarget.value && props.sourceId && !deleteWhole.value;
-    if (replicaTarget.value && !lastReplica.value) {
+    if (ignoringReplica.value && replicaTarget.value) {
+      await api(
+        `/api/files/${encodeURIComponent(props.id)}/replicas/${encodeURIComponent(replicaTarget.value)}/ignore`,
+        {
+          method: "POST",
+          body: JSON.stringify({ confirm: true }),
+        },
+      );
+      await queryClient.invalidateQueries({ queryKey: ["sources"] });
+    } else if (replicaTarget.value && !lastReplica.value) {
       await api(
         `/api/files/${encodeURIComponent(props.id)}/replicas/${encodeURIComponent(replicaTarget.value)}`,
         { method: "DELETE" },
@@ -313,7 +333,7 @@ async function remove() {
           </p>
         </div>
         <Button
-          v-if="isAdmin && file.status === 'deleting'"
+          v-if="isAdmin && ['deleting', 'delete_failed'].includes(file.status)"
           class="mt-4"
           variant="destructive"
           @click="confirmForget = true"
@@ -376,7 +396,7 @@ async function remove() {
           :url="file.url"
         />
         <div
-          v-if="file.status !== 'deleted' && file.status !== 'deleting'"
+          v-if="!['deleted', 'deleting', 'delete_failed'].includes(file.status)"
           class="mt-4 flex flex-wrap items-center gap-2"
         >
           <ReplaceImage
@@ -384,11 +404,7 @@ async function remove() {
             :file="file"
             @replaced="(id) => emit('replaced', id)"
           />
-          <Button
-            variant="destructive"
-            class="w-36"
-            @click="confirmRemoval()"
-          >
+          <Button variant="destructive" class="w-36" @click="confirmRemoval()">
             <Trash2 />{{ t("ui.deleteImage") }}
           </Button>
         </div>
@@ -422,6 +438,37 @@ async function remove() {
               @click="confirmRemoval(replica.id)"
               >{{ t("replicas.delete") }}</Button
             >
+            <Button
+              v-if="replicaRetry(replica.id)"
+              variant="outline"
+              size="sm"
+              class="ml-2"
+              :loading="retrying === replicaRetry(replica.id)?.id"
+              :disabled="!!retrying || !!replicaRetry(replica.id)?.retryError"
+              @click="retryTask(replicaRetry(replica.id)!.id)"
+              >{{ t("ui.retry") }}</Button
+            >
+            <Button
+              v-if="
+                [
+                  'write_failed',
+                  'write_unknown',
+                  'delete_failed',
+                  'delete_unknown',
+                ].includes(replica.status)
+              "
+              variant="ghost"
+              size="sm"
+              class="ml-2"
+              @click="confirmRemoval(replica.id, true)"
+              >{{ t("replicas.ignore") }}</Button
+            >
+            <p
+              v-if="replicaRetry(replica.id)?.retryError"
+              class="mt-1 text-xs text-muted-foreground"
+            >
+              {{ errorMessage(replicaRetry(replica.id)?.retryError) }}
+            </p>
           </div>
           <h3 class="font-medium">{{ t("ui.backgroundOperations") }}</h3>
           <p v-if="!operations.data.value?.tasks.length" class="subtle">
@@ -447,15 +494,25 @@ async function remove() {
               <Button
                 v-if="
                   task.status === 'failed' &&
-                  task.kind === 'delete' &&
-                  ['ready', 'blocked', 'deleting'].includes(file.status)
+                  task.kind === 'action' &&
+                  task.retryError !== 'CONFLICT'
                 "
                 variant="outline"
                 size="sm"
                 :loading="retrying === task.id"
-                :disabled="!!retrying"
+                :disabled="!!retrying || !!task.retryError"
                 @click="retryTask(task.id)"
                 >{{ t("ui.retryTask") }}</Button
+              >
+              <span
+                v-if="
+                  task.status === 'failed' &&
+                  task.kind === 'action' &&
+                  task.retryError &&
+                  task.retryError !== 'CONFLICT'
+                "
+                class="text-xs text-muted-foreground self-center"
+                >{{ errorMessage(task.retryError) }}</span
               >
             </div>
           </div>
@@ -492,15 +549,19 @@ async function remove() {
       </Dialog>
       <Dialog v-model:open="confirming"
         ><DialogContent :busy="deleting"
-          ><DialogTitle>{{ t("ui.deleteImage2") }}</DialogTitle
+          ><DialogTitle>{{
+            ignoringReplica ? t("replicas.ignore") : t("ui.deleteImage2")
+          }}</DialogTitle
           ><DialogDescription>{{
-            replicaTarget
-              ? lastReplica
-                ? t("replicas.last")
-                : t("replicas.confirm")
-              : props.sourceId && !deleteWhole
-                ? t("replicas.confirm")
-                : t("ui.thePublicUrlStopsWorkingImmediatelyThis")
+            ignoringReplica
+              ? t("replicas.ignoreConfirm")
+              : replicaTarget
+                ? lastReplica
+                  ? t("replicas.last")
+                  : t("replicas.confirm")
+                : props.sourceId && !deleteWhole
+                  ? t("replicas.confirm")
+                  : t("ui.thePublicUrlStopsWorkingImmediatelyThis")
           }}</DialogDescription>
           <DeleteScope
             v-if="props.sourceId && !replicaTarget"
@@ -521,7 +582,11 @@ async function remove() {
               :loading="deleting"
               @click="remove"
               >{{
-                deleting ? t("ui.deletingNow") : t("ui.confirmDelete")
+                deleting
+                  ? t("ui.deletingNow")
+                  : ignoringReplica
+                    ? t("replicas.ignore")
+                    : t("ui.confirmDelete")
               }}</Button
             >
           </div></DialogContent

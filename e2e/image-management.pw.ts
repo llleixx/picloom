@@ -49,7 +49,7 @@ test("dates, cross-page selection, copying, bulk deletion and detail navigation"
     page.getByRole("button", { name: "Next image", exact: true }),
   ).toBeDisabled();
   const detailUrl = page.url();
-  await page.getByLabel("Width", { exact: true }).focus();
+  await page.getByLabel("Access link", { exact: true }).focus();
   await page.keyboard.press("ArrowLeft");
   expect(page.url()).toBe(detailUrl);
   await page

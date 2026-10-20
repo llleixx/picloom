@@ -355,7 +355,11 @@ test.describe("deletion failure", () => {
       { name: "vector.svg", mimeType: "image/svg+xml", buffer: svg },
     ]);
     await page.getByRole("button", { name: /^Open / }).click();
-    const url = await page.getByLabel("Original URL").inputValue();
+    const url = (
+      await (
+        await page.request.get(service.url + "/api/files?status=ready")
+      ).json()
+    )[0].url;
     await page
       .getByRole("button", { name: "Delete image", exact: true })
       .click();
@@ -366,5 +370,47 @@ test.describe("deletion failure", () => {
       page.getByText(/^Cleanup failed\. Check storage/),
     ).toBeVisible();
     expect((await page.request.get(url)).status()).toBe(404);
+    await page.getByRole("button", { name: "Close", exact: true }).click();
+    await page
+      .getByLabel("File status", { exact: true })
+      .selectOption("delete_failed");
+    const source = (
+      await (
+        await page.request.get(service.url + "/api/storage-sources")
+      ).json()
+    )[0];
+    await page
+      .getByLabel("Storage Source", { exact: true })
+      .selectOption(source.id);
+    const card = page.getByTestId("file-card");
+    await expect(card).toHaveCount(1);
+    await expect(card).toContainText("Replica issues");
+    await expect(card.getByRole("checkbox")).toBeDisabled();
+    await page
+      .getByLabel("File status", { exact: true })
+      .selectOption("replica_error");
+    await expect(card).toHaveCount(1);
+    await card.getByRole("button", { name: /^Open / }).click();
+    const row = page
+      .locator("div.rounded-lg.border.p-3")
+      .filter({ hasText: source.name })
+      .first();
+    await row.getByRole("button", { name: "Retry", exact: true }).click();
+    await expect(
+      row.getByRole("button", { name: "Retry", exact: true }),
+    ).toBeEnabled();
+    await row.getByRole("button", { name: "Ignore", exact: true }).click();
+    const confirmation = page.getByRole("dialog", {
+      name: "Ignore",
+      exact: true,
+    });
+    await expect(confirmation).toContainText(
+      "Remote files and other replicas will not be changed",
+    );
+    await confirmation
+      .getByRole("button", { name: "Ignore", exact: true })
+      .click();
+    await page.getByRole("button", { name: "Close", exact: true }).click();
+    await expect(card).toHaveCount(0);
   });
 });

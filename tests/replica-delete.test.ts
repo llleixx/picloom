@@ -295,12 +295,93 @@ test("one failed replica recovery does not block deletion of healthy replicas", 
     );
     recovery.mockRestore();
     recovery = undefined;
+    await f.app.db.transaction(async (r) => {
+      const task = (await r.tasks(image.id)).find(
+        (t) => t.replica_id === uncertain.id && t.kind === "delete",
+      )!;
+      await r.saveTask({ ...task, next_run_at: Date.now() });
+    });
     await f.app.files.sweep();
     expect((await f.app.db.read((r) => r.file(image.id)))?.status).toBe(
       "deleted",
     );
   } finally {
     recovery?.mockRestore();
+    await f.close();
+  }
+});
+
+test("ignoring an abnormal replica removes only its local records and releases capacity", async () => {
+  const { f, source } = await setup();
+  try {
+    const image = await (await f.upload()).json();
+    await f.app.files.sweep();
+    const replicas = await f.app.db.read((r) => r.replicas(image.id));
+    const replica = replicas.find((r) => r.storage_instance_id === source.id)!;
+    const other = replicas.find((r) => r.id !== replica.id)!;
+    const lease = f.app.plugins.acquire(source.id, "storage");
+    const remove = spyOn(lease.runtime, "delete");
+    try {
+      const endpoint = `/api/files/${image.id}/replicas/${replica.id}/ignore`;
+      expect(
+        (await f.request(endpoint, "POST", { confirm: true })).status,
+      ).toBe(409);
+      await f.app.db.transaction((r) =>
+        r.saveReplica({ ...replica, status: "write_unknown" }),
+      );
+      expect((await f.request(endpoint, "POST", {})).status).toBe(400);
+      const token = await (
+        await f.request("/api/tokens", "POST", { name: "test" })
+      ).json();
+      expect(
+        (await f.request(endpoint, "POST", { confirm: true }, token.token))
+          .status,
+      ).toBe(403);
+      expect(
+        (
+          await f.request(
+            `/api/files/wrong/replicas/${replica.id}/ignore`,
+            "POST",
+            { confirm: true },
+          )
+        ).status,
+      ).toBe(404);
+      const tasks = await f.app.db.read((r) => r.tasks(image.id));
+      const task = tasks.find((t) => t.replica_id === replica.id)!;
+      await f.app.db.transaction((r) =>
+        r.saveTask({ ...task, status: "running" }),
+      );
+      expect(
+        (await f.request(endpoint, "POST", { confirm: true })).status,
+      ).toBe(409);
+      await f.app.db.transaction((r) =>
+        r.saveTask({ ...task, status: "pending", next_run_at: Date.now() }),
+      );
+      expect(await f.app.db.read((r) => r.storageUsedBytes(source.id))).toBe(
+        f.png.length,
+      );
+      expect(
+        (await f.request(endpoint, "POST", { confirm: true })).status,
+      ).toBe(200);
+      expect(await f.app.db.read((r) => r.replica(replica.id))).toBeNull();
+      expect(await f.app.db.read((r) => r.task(task.id))).toBeNull();
+      expect(await f.app.db.read((r) => r.replica(other.id))).toEqual(other);
+      expect(await f.app.db.read((r) => r.storageUsedBytes(source.id))).toBe(0);
+      expect(
+        (
+          await f.request(`/api/files?status=replica_error&source=${source.id}`)
+        ).headers.get("X-Total-Count"),
+      ).toBe("0");
+      await f.app.files.sweep();
+      expect(remove).not.toHaveBeenCalled();
+      const readable = await f.request(new URL(image.url).pathname);
+      expect(readable.status).toBe(200);
+      expect((await readable.arrayBuffer()).byteLength).toBe(f.png.length);
+    } finally {
+      remove.mockRestore();
+      await lease.release();
+    }
+  } finally {
     await f.close();
   }
 });

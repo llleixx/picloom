@@ -29,13 +29,16 @@ export const statuses = {
   get deleting() {
     return t("ui.deleting");
   },
+  get delete_failed() {
+    return t("ui.deleteFailed");
+  },
   get deleted() {
     return t("ui.deleted");
   },
 };
 
 export function fileStatus(file: import("../../../shared/api").FileView) {
-  return file.status === "deleting" && file.error === "DELETE_FAILED"
+  return file.status === "delete_failed"
     ? t("ui.deleteFailed")
     : statuses[file.status];
 }

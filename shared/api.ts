@@ -9,6 +9,7 @@ export type FileStatus =
   | "blocked"
   | "failed"
   | "deleting"
+  | "delete_failed"
   | "deleted";
 export type ProcessingResult = import("../plugin-sdk/api").PostSaveStepResult;
 export interface FileView {
@@ -17,6 +18,8 @@ export interface FileView {
   ownerName?: string | null;
   /** Detail response only; pending/running background operations. */
   backgroundPending?: boolean;
+  /** List response; scoped to the selected storage source, if any. */
+  replicaIssue?: boolean;
   uploadProfileId?: string | null;
   /** Administrator detail response only. */
   processingResults?: ProcessingResult[] | null;
@@ -30,7 +33,7 @@ export interface FileView {
   storageKey: string;
   createdAt: number;
   deletedAt: number | null;
-  /** DELETE_FAILED while deleting means cleanup is stalled, not actively retrying. */
+  /** Error code for the current file lifecycle state. */
   error: string | null;
   url: string;
 }

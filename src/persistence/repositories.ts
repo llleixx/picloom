@@ -605,6 +605,41 @@ export class SqlRepositories implements Repositories {
       this.db.selectFrom("plugin_instances").selectAll().where("id", "=", id),
     );
   }
+  async storageUsage(ids: string[]) {
+    const usage = new Map<string, { used: number; reserved: number }>();
+    if (!ids.length) return usage;
+    const rows = await this.db
+      .selectFrom("file_replicas as r")
+      .innerJoin("files as f", "f.id", "r.file_id")
+      .select(["r.storage_instance_id", "r.status"])
+      .select(sql<string | number>`coalesce(sum(f.byte_size),0)`.as("bytes"))
+      .where("r.storage_instance_id", "in", ids)
+      .where("r.status", "not in", ["deleted", "write_failed"])
+      .groupBy(["r.storage_instance_id", "r.status"])
+      .execute();
+    for (const row of rows) {
+      const value = usage.get(row.storage_instance_id) ?? {
+        used: 0,
+        reserved: 0,
+      };
+      const key = ["pending", "writing", "write_unknown"].includes(row.status)
+        ? "reserved"
+        : "used";
+      value[key] += integer(row.bytes);
+      usage.set(row.storage_instance_id, value);
+    }
+    return usage;
+  }
+  async storageUsedBytes(id: string, excludeReplicaId?: string) {
+    let query = this.db
+      .selectFrom("file_replicas as r")
+      .innerJoin("files as f", "f.id", "r.file_id")
+      .select(sql<string | number>`coalesce(sum(f.byte_size),0)`.as("bytes"))
+      .where("r.storage_instance_id", "=", id)
+      .where("r.status", "not in", ["deleted", "write_failed"]);
+    if (excludeReplicaId) query = query.where("r.id", "!=", excludeReplicaId);
+    return integer((await query.executeTakeFirstOrThrow()).bytes);
+  }
   async saveInstance(v: Instance, expected?: number) {
     if (expected === undefined)
       await this.db.insertInto("plugin_instances").values(encode(v)).execute();
@@ -903,17 +938,31 @@ export class SqlRepositories implements Repositories {
   }
   private fileFilter(filter: FileFilter = {}) {
     let q = this.db.selectFrom("files");
-    if (filter.storageInstanceId)
-      q = q.where((eb) =>
-        eb.exists(
-          eb
-            .selectFrom("file_replicas as r")
-            .select("r.id")
-            .whereRef("r.file_id", "=", "files.id")
-            .where("r.storage_instance_id", "=", filter.storageInstanceId!)
-            .where("r.status", "!=", "deleted"),
-        ),
-      );
+    if (filter.storageInstanceId || filter.status === "replica_error")
+      q = q.where((eb) => {
+        let replicas = eb
+          .selectFrom("file_replicas as r")
+          .select("r.id")
+          .whereRef("r.file_id", "=", "files.id");
+        if (filter.storageInstanceId)
+          replicas = replicas.where(
+            "r.storage_instance_id",
+            "=",
+            filter.storageInstanceId,
+          );
+        replicas =
+          filter.status === "replica_error"
+            ? replicas.where("r.status", "in", [
+                "write_failed",
+                "write_unknown",
+                "delete_failed",
+                "delete_unknown",
+              ])
+            : filter.status === "deleted"
+              ? replicas.where("r.status", "=", "deleted")
+              : replicas.where("r.status", "!=", "deleted");
+        return eb.exists(replicas);
+      });
     if (filter.ownerId !== undefined)
       q = q.where(
         "owner_id",
@@ -924,7 +973,8 @@ export class SqlRepositories implements Repositories {
       q = q.where("created_at", ">=", filter.createdFrom);
     if (filter.createdBefore !== undefined)
       q = q.where("created_at", "<", filter.createdBefore);
-    if (filter.status) q = q.where("status", "=", filter.status);
+    if (filter.status && filter.status !== "replica_error")
+      q = q.where("status", "=", filter.status);
     if (filter.mimeType) q = q.where("mime_type", "=", filter.mimeType);
     if (filter.q)
       q = q.where((eb) =>
@@ -945,6 +995,23 @@ export class SqlRepositories implements Repositories {
         .offset(offset),
     );
   }
+  async filesWithReplicaIssues(fileIds: string[], storageInstanceId?: string) {
+    if (!fileIds.length) return [];
+    let query = this.db
+      .selectFrom("file_replicas")
+      .select("file_id")
+      .distinct()
+      .where("file_id", "in", fileIds)
+      .where("status", "in", [
+        "write_failed",
+        "write_unknown",
+        "delete_failed",
+        "delete_unknown",
+      ]);
+    if (storageInstanceId)
+      query = query.where("storage_instance_id", "=", storageInstanceId);
+    return (await query.execute()).map((row) => row.file_id);
+  }
   async pendingFileDeletions(fileIds: string[]) {
     if (!fileIds.length) return [];
     const rows = await this.db
@@ -957,45 +1024,9 @@ export class SqlRepositories implements Repositories {
       .execute();
     return rows.map((row) => row.file_id);
   }
-  async failedFileDeletions(fileIds: string[]) {
-    if (!fileIds.length) return [];
-    const rows = await this.db
-      .selectFrom("files")
-      .select("id")
-      .where("id", "in", fileIds)
-      .where("status", "=", "deleting")
-      .where((eb) =>
-        eb.not(
-          eb.exists(
-            eb
-              .selectFrom("tasks")
-              .select("id")
-              .whereRef("tasks.file_id", "=", "files.id")
-              .where("status", "in", ["pending", "running"]),
-          ),
-        ),
-      )
-      .where((eb) =>
-        eb.or([
-          eb.exists(
-            eb
-              .selectFrom("tasks")
-              .select("id")
-              .whereRef("tasks.file_id", "=", "files.id")
-              .where("kind", "=", "delete")
-              .where("status", "=", "failed"),
-          ),
-          eb.exists(
-            eb
-              .selectFrom("file_replicas")
-              .select("id")
-              .whereRef("file_replicas.file_id", "=", "files.id")
-              .where("status", "=", "write_unknown"),
-          ),
-        ]),
-      )
-      .execute();
-    return rows.map((row) => row.id);
+  async removeReplica(id: string) {
+    await this.db.deleteFrom("tasks").where("replica_id", "=", id).execute();
+    await this.db.deleteFrom("file_replicas").where("id", "=", id).execute();
   }
   async removeFile(id: string) {
     // Called in a transaction after all work for this file has stopped.
@@ -1040,7 +1071,7 @@ export class SqlRepositories implements Repositories {
         .selectAll()
         .where((eb) =>
           eb.or([
-            eb("status", "in", ["failed", "deleting"]),
+            eb("status", "in", ["failed", "deleting", "delete_failed"]),
             eb.and([
               eb("status", "in", ["ready", "blocked"]),
               eb("temp_path", "is not", null),
@@ -1182,7 +1213,12 @@ export class SqlRepositories implements Repositories {
                 ]),
                 eb.and([
                   eb("tasks.kind", "=", "delete"),
-                  eb("files.status", "in", ["ready", "blocked", "deleting"]),
+                  eb("files.status", "in", [
+                    "ready",
+                    "blocked",
+                    "failed",
+                    "deleting",
+                  ]),
                 ]),
               ]),
             ),
@@ -1200,7 +1236,18 @@ export class SqlRepositories implements Repositories {
         .limit(options?.limit ?? 50),
     );
   }
-  async recoverTasks() {
+  async recoverTasks(retryLimit: number) {
+    // An interrupted call may have reached remote storage. Preserve that uncertainty.
+    await this.db
+      .updateTable("file_replicas")
+      .set({ status: "write_unknown" })
+      .where("status", "=", "writing")
+      .execute();
+    await this.db
+      .updateTable("file_replicas")
+      .set({ status: "delete_unknown" })
+      .where("status", "=", "deleting")
+      .execute();
     await this.db
       .updateTable("tasks")
       .set({
@@ -1209,7 +1256,9 @@ export class SqlRepositories implements Repositories {
         last_error: "INTERRUPTED_TASK",
       })
       .where("status", "=", "running")
-      .where("manual_retry", "=", 1)
+      .where((eb) =>
+        eb.or([eb("manual_retry", "=", 1), eb("attempts", ">=", retryLimit)]),
+      )
       .execute();
     await this.db
       .updateTable("tasks")

@@ -201,7 +201,12 @@ test("automatic retries retain sources only until exhausted; pending sessions su
     expect(f.app.files.temporary.bytes).toBe(0);
     expect(
       (await f.request("/api/tasks/" + task.id + "/retry", "POST")).status,
-    ).toBe(409);
+    ).toBe(200);
+    await f.app.files.sweep();
+    expect((await f.app.db.read((r) => r.task(task.id)))?.status).toBe(
+      "failed",
+    );
+    expect(f.app.files.temporary.bytes).toBe(0);
     const original = await f.request(new URL(upload.url).pathname);
     // The successfully stored replica remains available after the action fails.
     expect((await f.app.db.read((r) => r.file(uploaded.id)))!.status).toBe(

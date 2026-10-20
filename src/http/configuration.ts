@@ -132,6 +132,7 @@ export async function configurationRequest(
         name: b.name as string,
         config: b.config as Config,
         secretEdits: b.secretEdits as Record<string, SecretEdit> | undefined,
+        maxStorageBytes: b.maxStorageBytes as number | null | undefined,
         expectedVersion: b.expectedVersion as number | undefined,
         upgrade: b.upgrade as
           | import("../../shared/config").UpgradeIntent
@@ -219,7 +220,7 @@ export async function configurationRequest(
   if (operations && method === "GET") {
     const id = operations[1]!;
     const data: OperationsView = await app.db.read(async (r) => {
-      requireValue(await r.file(id));
+      const file = requireValue(await r.file(id));
       const replicas = await r.replicas(id),
         tasks = await r.tasks(id);
       return {
@@ -234,18 +235,25 @@ export async function configurationRequest(
             status: x.status,
           })),
         ),
-        tasks: tasks.map((t) => {
-          const failure = taskFailure(t.last_error);
-          return {
-            id: t.id,
-            kind: t.kind,
-            status: t.status,
-            attempts: t.attempts,
-            error: failure.code,
-            failedStep: failure.step,
-            pipelineId: t.pipeline_id,
-          };
-        }),
+        tasks: await Promise.all(
+          tasks.map(async (t) => {
+            const failure = taskFailure(t.last_error);
+            return {
+              id: t.id,
+              kind: t.kind,
+              status: t.status,
+              attempts: t.attempts,
+              replicaId: t.replica_id,
+              retryError:
+                t.status === "failed"
+                  ? await app.files.tasks.retryError(r, t, file)
+                  : null,
+              error: failure.code,
+              failedStep: failure.step,
+              pipelineId: t.pipeline_id,
+            };
+          }),
+        ),
       };
     });
     return json(data);

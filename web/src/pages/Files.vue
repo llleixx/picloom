@@ -180,7 +180,7 @@ const failures = ref<Array<{ id: string; name: string; error: string }>>([]),
 const selectable = computed(
   () =>
     files.data.value?.items.filter(
-      (f) => !["deleting", "deleted"].includes(f.status),
+      (f) => !["deleting", "delete_failed", "deleted"].includes(f.status),
     ) ?? [],
 );
 const allChecked = computed(
@@ -220,7 +220,7 @@ watch(
   (items) => {
     for (const item of items ?? [])
       if (checked.value.has(item.id)) {
-        if (["deleting", "deleted"].includes(item.status))
+        if (["deleting", "delete_failed", "deleted"].includes(item.status))
           checked.value.delete(item.id);
         else checked.value.set(item.id, item);
       }
@@ -373,9 +373,23 @@ async function navigate(direction: -1 | 1) {
         @change="update({ status: ($event.target as HTMLSelectElement).value })"
       >
         <option value="all">{{ t("ui.allStatuses") }}</option>
-        <option v-for="(label, key) in statuses" :key="key" :value="key">
-          {{ label }}
+        <option
+          v-for="key in [
+            'ready',
+            'blocked',
+            'preparing',
+            'failed',
+            'deleting',
+            'delete_failed',
+            'deleted',
+          ] as const"
+          :key="key"
+          :value="key"
+        >
+          {{ statuses[key] }}
         </option>
+        <option disabled>────────</option>
+        <option value="replica_error">{{ t("images.replicaError") }}</option>
       </select>
       <select
         :value="mime"
@@ -619,7 +633,10 @@ async function navigate(direction: -1 | 1) {
           :class="mode === 'grid' ? 'absolute left-3 top-3' : 'shrink-0'"
           :aria-label="t('images.selectImage', { name: file.logicalKey })"
           :checked="checked.has(file.id)"
-          :disabled="bulkBusy || ['deleting', 'deleted'].includes(file.status)"
+          :disabled="
+            bulkBusy ||
+            ['deleting', 'delete_failed', 'deleted'].includes(file.status)
+          "
           @change="toggle(file)"
         />
         <div
@@ -661,6 +678,16 @@ async function navigate(direction: -1 | 1) {
           </p>
           <p class="mt-1 truncate text-[11px] text-muted-foreground">
             {{ file.logicalKey }}
+          </p>
+          <p
+            class="mt-1 flex flex-wrap items-center gap-x-1 text-[11px] text-muted-foreground"
+          >
+            <span>{{ fileStatus(file) }}</span>
+            <span
+              v-if="file.replicaIssue"
+              class="text-amber-600 dark:text-amber-400"
+              >· {{ t("images.replicaError") }}</span
+            >
           </p>
           <div
             class="mt-3 flex flex-wrap items-center justify-between gap-1 text-xs text-muted-foreground"

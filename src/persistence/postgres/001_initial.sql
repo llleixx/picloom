@@ -36,6 +36,7 @@ CREATE TABLE api_tokens (
   allowed_profile_ids TEXT CHECK(allowed_profile_ids IS NULL OR (allowed_profile_ids::json IS NOT NULL AND json_typeof(allowed_profile_ids::json)='array'))
 );
 CREATE TABLE plugin_instances (
+  max_storage_bytes BIGINT CHECK(max_storage_bytes > 0 AND max_storage_bytes <= 9007199254740991),
   id TEXT PRIMARY KEY NOT NULL,
   created_at BIGINT NOT NULL,
   updated_at BIGINT NOT NULL,
@@ -127,7 +128,7 @@ CREATE TABLE files (
   byte_size BIGINT CHECK(byte_size>=0),
   width BIGINT CHECK(width>0),
   height BIGINT CHECK(height>0),
-  status TEXT NOT NULL CHECK(status IN ('preparing','ready','blocked','failed','deleting','deleted')),
+  status TEXT NOT NULL CHECK(status IN ('preparing','ready','blocked','failed','deleting','delete_failed','deleted')),
   temp_path TEXT,
   temp_status TEXT NOT NULL CHECK(temp_status IN ('available','missing','cleaned')),
   last_error TEXT,

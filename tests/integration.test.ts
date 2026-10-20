@@ -135,7 +135,7 @@ test("write completed but publication failed is cleaned after restart", async ()
     ).toBe("ready");
     await f.restart();
     expect((await f.app.db.read((r) => r.file(rows[0]!.id)))?.status).toBe(
-      "deleted",
+      "failed",
     );
   } finally {
     await f.close();

@@ -18,7 +18,7 @@ test("list and detail distinguish retrying deletion from failure, and retry only
     await f.app.files.sweep();
     const detail = await (await f.request(`/api/files/${image.id}`)).json();
     const list = await (await f.request("/api/files")).json();
-    expect(detail.status).toBe("deleting");
+    expect(detail.status).toBe("delete_failed");
     expect(detail.error).toBe("DELETE_FAILED");
     expect(list.find((x: { id: string }) => x.id === image.id).error).toBe(
       detail.error,

@@ -107,6 +107,9 @@ export interface Reference {
   name: string;
 }
 export interface InstanceView {
+  maxStorageBytes: number | null;
+  usedStorageBytes: number;
+  reservedStorageBytes: number;
   canImport: boolean;
   replicaCount: number;
   id: string;
@@ -166,6 +169,8 @@ export interface OperationsView {
     kind: string;
     status: string;
     attempts: number;
+    retryError?: string | null;
+    replicaId?: string | null;
     error: string | null;
     failedStep?: { id: string; name: string };
     pipelineId: string | null;

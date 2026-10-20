@@ -28,7 +28,7 @@ test("actual process exit after storage commit recovers without publishing", asy
     await f.restart();
     const rows = await f.app.db.read((r) => r.files(10, 0));
     expect(rows).toHaveLength(1);
-    expect(rows[0]!.status).toBe("deleted");
+    expect(rows[0]!.status).toBe("failed");
     const replicas = await f.app.db.read((r) => r.replicas(rows[0]!.id));
     expect(replicas[0]!.status).toBe("deleted");
   } finally {
@@ -45,7 +45,7 @@ test("failure before write creates no public object and can be cleaned", async (
     expect((await f.upload()).status).toBe(502);
     await f.app.files.sweep();
     const rows = await f.app.db.read((r) => r.files(10, 0));
-    expect(rows[0]!.status).toBe("deleted");
+    expect(rows[0]!.status).toBe("failed");
     expect(
       (await f.app.db.read((r) => r.replicas(rows[0]!.id)))[0]!.status,
     ).toBe("deleted");

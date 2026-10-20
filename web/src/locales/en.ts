@@ -1,5 +1,16 @@
 // UI copy lives here. Keep keys stable when editing English wording.
 export const en = {
+  "storage.usageLimited": "Used {used} / {limit} · {percent}%",
+  "storage.usageUnlimited": "Used {used} · Unlimited",
+  "storage.pending": "Pending {size}",
+  "storage.full": "Capacity full",
+  "images.replicaError": "Replica issues",
+  "storage.capacity": "Total capacity limit (GiB)",
+  "storage.unlimited": "Unlimited",
+  "storage.capacityHelp":
+    "Leave blank for no limit. Counts files managed by Picloom, including pending writes. New writes stop when capacity is insufficient.",
+  "errors.storage_capacity_exceeded": "Storage source capacity exceeded",
+
   "settings.enabledLocales": "Homepage languages",
   "settings.defaultLocale": "Default language",
   "settings.defaultBadge": "Default",
@@ -114,6 +125,9 @@ export const en = {
   "replicas.includeLast": "Also delete images with no other available replica",
   "replicas.keepLast":
     "Images with no other available replica are kept unless selected below.",
+  "replicas.ignore": "Ignore",
+  "replicas.ignoreConfirm":
+    "Remove this abnormal replica record and its tasks, releasing its capacity. Remote files and other replicas will not be changed.",
   "replicas.delete": "Delete Replica",
   "replicas.confirm":
     "The selected replica will be removed. Other replicas and the public URL are kept.",
@@ -778,6 +792,8 @@ export const en = {
   "errors.rejected": "Image rejected by the upload pipeline.",
   "errors.storage_unavailable":
     "Not enough storage sources for the requested redundancy.",
+  "errors.repairSourceMissing":
+    "Cannot retry: the temporary file is gone and no available replica can supply the file.",
   "errors.temp_missing": "Temporary file missing.",
   "errors.unavailable": "Service unavailable.",
   "errors.write_unknown": "Write outcome unknown. Verification required.",

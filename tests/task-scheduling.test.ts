@@ -136,7 +136,7 @@ test("dispatch fills idle slots beside a slow task, enforces capacity and drains
   }
 });
 
-test("slow recovery excludes its own file while unrelated tasks continue", async () => {
+test("recovery runs as a bounded task while unrelated tasks continue", async () => {
   const f = await fixture();
   const blocked = gate();
   let recovery: ReturnType<typeof spyOn> | undefined,
@@ -147,7 +147,7 @@ test("slow recovery excludes its own file while unrelated tasks continue", async
     | undefined;
   let cleaning: Promise<void> | undefined;
   try {
-    f.app.config.taskConcurrency = 1;
+    f.app.config.taskConcurrency = 2;
     const a = await upload(f),
       b = await upload(f);
     await queueDelete(f, a.file, a.replica);
@@ -185,22 +185,32 @@ test("slow recovery excludes its own file while unrelated tasks continue", async
         deleted.push(input.storageKey);
       },
     );
-    cleaning = f.app.files.tasks.cleanupPending();
-    await until(() => recovering);
-    await Promise.all([
-      f.app.files.tasks.dispatch(),
-      f.app.files.tasks.dispatch(),
-    ]);
-    await f.app.files.tasks.drain();
-    expect(deleted).toEqual([b.file.storage_key]);
-    expect((await f.app.db.read((r) => r.tasks(a.file.id)))[0]!.status).toBe(
-      "pending",
-    );
-    blocked.release();
-    await cleaning;
-    await f.app.files.tasks.dispatch();
-    await f.app.files.tasks.drain();
     await f.app.files.tasks.cleanupPending();
+    expect(recovering).toBe(false); // Cleanup only schedules; it never makes remote calls.
+    await f.app.db.transaction(async (r) => {
+      for (const task of await r.tasks(a.file.id))
+        await r.saveTask({
+          ...task,
+          next_run_at:
+            task.replica_id === uncertain.id ? 0 : Date.now() + 60_000,
+        });
+    });
+    await f.app.files.tasks.dispatch();
+    await until(() => recovering && deleted.includes(b.file.storage_key));
+    expect(
+      (await f.app.db.read((r) => r.tasks(a.file.id))).find(
+        (t) => t.replica_id === uncertain.id,
+      )?.status,
+    ).toBe("running");
+    blocked.release();
+    await f.app.files.tasks.drain();
+    await f.app.db.transaction(async (r) => {
+      const task = (await r.tasks(a.file.id)).find(
+        (t) => t.replica_id === a.replica.id,
+      )!;
+      await r.saveTask({ ...task, next_run_at: Date.now() });
+    });
+    await f.app.files.sweep();
     expect(deleted).toEqual([b.file.storage_key, a.file.storage_key]);
     expect((await f.app.db.read((r) => r.file(a.file.id)))!.status).toBe(
       "deleted",

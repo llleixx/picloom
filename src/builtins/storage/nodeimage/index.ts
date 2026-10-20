@@ -263,8 +263,16 @@ export const nodeImageStorage: Definition<"storage"> = {
           { method: "DELETE" },
           signal,
         );
-        // The provider may not expose deletion. Finish local cleanup even if the image remains.
-        if ([404, 405, 501].includes(response.status)) {
+        if ([405, 501].includes(response.status)) {
+          await response.body?.cancel();
+          throw new PluginError(
+            "UNSUPPORTED",
+            "NodeImage deletion is unsupported",
+            false,
+            "notApplied",
+          );
+        }
+        if (response.status === 404) {
           await response.body?.cancel();
           return;
         }

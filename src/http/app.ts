@@ -577,11 +577,13 @@ export function handler(app: Application) {
           if (status !== null) {
             if (
               ![
+                "replica_error",
                 "preparing",
                 "ready",
                 "blocked",
                 "failed",
                 "deleting",
+                "delete_failed",
                 "deleted",
               ].includes(status)
             )
@@ -600,9 +602,10 @@ export function handler(app: Application) {
           }
           const result = await app.db.read(async (r) => {
             const files = await r.files(limit, offset, filter);
-            const failedDeletions = new Set(
-              await r.failedFileDeletions(
-                files.filter((f) => f.status === "deleting").map((f) => f.id),
+            const issues = new Set(
+              await r.filesWithReplicaIssues(
+                files.map((f) => f.id),
+                filter.storageInstanceId,
               ),
             );
             const pending = filter.storageInstanceId
@@ -611,7 +614,7 @@ export function handler(app: Application) {
             return {
               items: files.map((f) => {
                 const item = view(f, app.config.imageOrigin || requestOrigin);
-                if (failedDeletions.has(f.id)) item.error = "DELETE_FAILED";
+                item.replicaIssue = issues.has(f.id);
                 if (pending) item.backgroundPending = pending.has(f.id);
                 return item;
               }),
@@ -668,6 +671,19 @@ export function handler(app: Application) {
               "Confirm removal of the record",
             );
           await app.files.tasks.forget(forget[1]!);
+          return json({ ok: true });
+        }
+        const replicaIgnore = path.match(
+          /^\/api\/files\/([^/]+)\/replicas\/([^/]+)\/ignore$/,
+        );
+        if (replicaIgnore && method === "POST") {
+          app.auth.requireAdmin(auth);
+          if ((await body(req)).confirm !== true)
+            throw new AppError(
+              "INVALID_INPUT",
+              "Confirm removal of the replica record",
+            );
+          await app.files.ignoreReplica(replicaIgnore[1]!, replicaIgnore[2]!);
           return json({ ok: true });
         }
         const replicaDelete = path.match(
@@ -743,11 +759,6 @@ export function handler(app: Application) {
                 result.ownerName = f.owner_id
                   ? ((await r.user(f.owner_id))?.username ?? null)
                   : null;
-              if (
-                f.status === "deleting" &&
-                (await r.failedFileDeletions([id])).length > 0
-              )
-                result.error = "DELETE_FAILED";
               return result;
             });
             return json(data);

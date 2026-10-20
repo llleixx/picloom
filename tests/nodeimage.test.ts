@@ -145,8 +145,12 @@ test("NodeImage storage: upload, redirect, processing stream, uncertain writes a
     );
     await f.app.files.sweep();
     const tasks = await f.app.db.read((r) => r.tasks(file.id));
-    expect(tasks.some((t) => t.kind === "delete" && t.status === "success")).toBe(true);
-    expect((await f.app.db.read((r) => r.file(file.id)))?.status).toBe("deleted");
+    expect(
+      tasks.some((t) => t.kind === "delete" && t.status === "success"),
+    ).toBe(true);
+    expect((await f.app.db.read((r) => r.file(file.id)))?.status).toBe(
+      "deleted",
+    );
     expect(exists).toBe(true); // Unsupported API deletion leaves the remote image intact.
     exists = false;
     const cleanup = f.app.plugins.acquire(source.id, "storage");
@@ -161,10 +165,15 @@ test("NodeImage storage: upload, redirect, processing stream, uncertain writes a
           },
           ctx,
         );
-        if ([404, 405, 501].includes(status)) await action;
-        else await expect(action).rejects.toMatchObject({
-          code: status === 503 ? "SERVICE" : "ACCESS_DENIED",
-        });
+        if (status === 404) await action;
+        else
+          await expect(action).rejects.toMatchObject({
+            code: [405, 501].includes(status)
+              ? "UNSUPPORTED"
+              : status === 503
+                ? "SERVICE"
+                : "ACCESS_DENIED",
+          });
       }
     } finally {
       await cleanup.release();

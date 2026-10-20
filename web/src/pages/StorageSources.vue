@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { t, locale } from "@/lib/i18n";
+import { t, locale, formatNumber } from "@/lib/i18n";
 import { localizePlugin } from "../../../shared/plugin-localization";
 import { computed, ref, watch } from "vue";
 import { useRoute } from "vue-router";
@@ -54,7 +54,55 @@ async function refresh() {
     ),
   );
 }
-const rows = computed(() => instances.data.value);
+function capacitySize(bytes: number) {
+  const units = ["B", "KiB", "MiB", "GiB", "TiB"];
+  const unit =
+    bytes > 0
+      ? Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1)
+      : 0;
+  return `${formatNumber(bytes / 1024 ** unit, { maximumFractionDigits: 1 })} ${units[unit]}`;
+}
+const rows = computed(() =>
+  instances.data.value?.map((item) => {
+    const total = item.usedStorageBytes + item.reservedStorageBytes;
+    const ratio =
+      item.maxStorageBytes == null ? 0 : total / item.maxStorageBytes;
+    const usedPercent =
+      item.maxStorageBytes == null
+        ? 0
+        : Math.min(100, (item.usedStorageBytes / item.maxStorageBytes) * 100);
+    const percent = Math.min(100, ratio * 100);
+    const text =
+      item.maxStorageBytes == null
+        ? t("storage.usageUnlimited", {
+            used: capacitySize(item.usedStorageBytes),
+          })
+        : t("storage.usageLimited", {
+            used: capacitySize(item.usedStorageBytes),
+            limit: capacitySize(item.maxStorageBytes),
+            percent: formatNumber(Math.floor(ratio * 100)),
+          });
+    const pendingText =
+      item.reservedStorageBytes > 0
+        ? t("storage.pending", {
+            size: capacitySize(item.reservedStorageBytes),
+          })
+        : "";
+    return {
+      ...item,
+      usedPercent,
+      reservedPercent: Math.max(0, percent - usedPercent),
+      percent,
+      full: ratio >= 1,
+      warning: ratio >= 0.8,
+      usageText: text,
+      pendingText,
+      accessibleUsage: [text, pendingText, ratio >= 1 ? t("storage.full") : ""]
+        .filter(Boolean)
+        .join(" · "),
+    };
+  }),
+);
 const loading = computed(() => instances.isPending.value);
 const loadError = computed(() => instances.error.value ?? plugins.error.value);
 const route = useRoute();
@@ -67,6 +115,7 @@ const storage = ref<PluginConfiguration>({
   config: {},
 });
 const editorReady = ref(false);
+const maxStorageGiB = ref<number | string>("");
 let openedQuery = "";
 watch(
   () => [route.query.plugin, route.query.instance, plugins.data.value],
@@ -98,6 +147,8 @@ watch(
 );
 function setInstance(value?: InstanceView) {
   instance.value = value;
+  maxStorageGiB.value =
+    value?.maxStorageBytes == null ? "" : value.maxStorageBytes / 1024 ** 3;
   instanceName.value = value?.name ?? "";
   storage.value = value
     ? {
@@ -142,6 +193,10 @@ async function save() {
           pluginId: storage.value.pluginId,
           version: storage.value.version,
           name: instanceName.value,
+          maxStorageBytes:
+            maxStorageGiB.value === ""
+              ? null
+              : Math.round(Number(maxStorageGiB.value) * 1024 ** 3),
           config: storage.value.config,
           secretEdits: storage.value.secretEdits,
           upgrade: storage.value.upgrade,
@@ -249,6 +304,44 @@ async function remove() {
               })
             }}
           </p>
+          <div class="mt-2 max-w-sm space-y-1.5">
+            <p
+              class="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground tabular-nums"
+            >
+              <span>{{ item.usageText }}</span>
+              <span v-if="item.pendingText">· {{ item.pendingText }}</span>
+              <span v-if="item.full" class="font-medium text-destructive">{{
+                t("storage.full")
+              }}</span>
+            </p>
+            <div
+              v-if="item.maxStorageBytes !== null"
+              role="progressbar"
+              :aria-label="item.name"
+              :aria-valuenow="item.percent"
+              :aria-valuemin="0"
+              :aria-valuemax="100"
+              :aria-valuetext="item.accessibleUsage"
+              :title="item.accessibleUsage"
+              class="flex h-1.5 overflow-hidden rounded-full bg-muted"
+              :class="
+                item.full
+                  ? 'text-destructive'
+                  : item.warning
+                    ? 'text-amber-500 dark:text-amber-400'
+                    : 'text-primary'
+              "
+            >
+              <div
+                class="h-full shrink-0 bg-current"
+                :style="{ width: item.usedPercent + '%' }"
+              />
+              <div
+                class="h-full shrink-0 bg-current opacity-35"
+                :style="{ width: item.reservedPercent + '%' }"
+              />
+            </div>
+          </div>
         </div>
         <div class="flex shrink-0 flex-wrap gap-2 sm:max-w-72 sm:justify-end">
           <Button
@@ -308,6 +401,19 @@ async function remove() {
                 >{{ t("ui.sourceName")
                 }}<Input v-model="instanceName" required maxlength="100"
               /></label>
+              <label class="field">
+                {{ t("storage.capacity") }}
+                <Input
+                  v-model="maxStorageGiB"
+                  type="number"
+                  min="0.000000001"
+                  step="any"
+                  :placeholder="t('storage.unlimited')"
+                />
+                <span class="text-xs text-muted-foreground">{{
+                  t("storage.capacityHelp")
+                }}</span>
+              </label>
               <PluginConfigurationEditor
                 v-model="storage"
                 :plugins="plugins.data.value ?? []"

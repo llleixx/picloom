@@ -1,6 +1,17 @@
 import type { en } from "./en";
 
 export const zhCN = {
+  "storage.usageLimited": "已用 {used} / {limit} · {percent}%",
+  "storage.usageUnlimited": "已用 {used} · 不限容量",
+  "storage.pending": "待写入 {size}",
+  "storage.full": "容量已满",
+  "images.replicaError": "副本异常",
+  "storage.capacity": "总容量上限（GiB）",
+  "storage.unlimited": "不限制",
+  "storage.capacityHelp":
+    "留空表示不限制。按 Picloom 管理的文件统计，包含待写入副本；剩余容量不足时停止新写入。",
+  "errors.storage_capacity_exceeded": "存储源容量不足",
+
   "settings.enabledLocales": "首页启用语言",
   "settings.defaultLocale": "默认语言",
   "settings.defaultBadge": "默认",
@@ -89,6 +100,9 @@ export const zhCN = {
   "replicas.wholeImage": "全部存储源（删除图片）",
   "replicas.includeLast": "同时删除没有其他可用副本的图片",
   "replicas.keepLast": "没有其他可用副本的图片将被保留，除非下方另行选择。",
+  "replicas.ignore": "忽略",
+  "replicas.ignoreConfirm":
+    "删除这条异常副本及其任务记录，释放占用容量。不清理远端文件，也不影响其他副本。",
   "replicas.delete": "删除副本",
   "replicas.confirm": "将移除所选副本，其他副本和公开链接保持可用。",
   "replicas.last":
@@ -713,6 +727,8 @@ export const zhCN = {
   "errors.profile_closing": "上传配置正在删除。",
   "errors.rejected": "图片被上传处理链拒绝。",
   "errors.storage_unavailable": "可用存储源不足，无法满足冗余要求。",
+  "errors.repairSourceMissing":
+    "无法重试：临时文件已清理，且没有可读取的正常副本。",
   "errors.temp_missing": "临时文件丢失。",
   "errors.unavailable": "服务不可用。",
   "errors.write_unknown": "写入结果未知，需要核实。",

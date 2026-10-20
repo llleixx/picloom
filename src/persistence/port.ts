@@ -27,6 +27,7 @@ export interface Credential extends Entity {
   allowed_profile_ids?: string[] | null;
 }
 export interface Instance extends Entity {
+  max_storage_bytes?: number | null;
   stage: import("../plugins/api").Stage | null;
   plugin_id: string;
   plugin_version: string;
@@ -86,7 +87,14 @@ export interface FileRecord extends Entity {
   byte_size: number | null;
   width: number | null;
   height: number | null;
-  status: "preparing" | "ready" | "blocked" | "failed" | "deleting" | "deleted";
+  status:
+    | "preparing"
+    | "ready"
+    | "blocked"
+    | "failed"
+    | "deleting"
+    | "delete_failed"
+    | "deleted";
   temp_path: string | null;
   temp_status: "available" | "missing" | "cleaned";
   last_error: string | null;
@@ -227,6 +235,10 @@ export interface Repositories {
   deleteInstance(id: string): Promise<void>;
   pruneTerminalReferences(id: string): Promise<void>;
   instance(id: string): Promise<Instance | null>;
+  storageUsage(
+    ids: string[],
+  ): Promise<Map<string, { used: number; reserved: number }>>;
+  storageUsedBytes(id: string, excludeReplicaId?: string): Promise<number>;
   saveInstance(value: Instance, expectedVersion?: number): Promise<void>;
   initError(id: string, error: string | null): Promise<void>;
   updateSecrets(
@@ -297,8 +309,12 @@ export interface Repositories {
     offset: number,
     filter?: FileFilter,
   ): Promise<FileRecord[]>;
+  filesWithReplicaIssues(
+    fileIds: string[],
+    storageInstanceId?: string,
+  ): Promise<string[]>;
   pendingFileDeletions(fileIds: string[]): Promise<string[]>;
-  failedFileDeletions(fileIds: string[]): Promise<string[]>;
+  removeReplica(id: string): Promise<void>;
   removeFile(id: string): Promise<void>;
   countFiles(filter?: FileFilter): Promise<number>;
   filesInStates(states: FileRecord["status"][]): Promise<FileRecord[]>;
@@ -329,14 +345,14 @@ export interface Repositories {
       excludedTasks: string[];
     },
   ): Promise<Task[]>;
-  recoverTasks(): Promise<void>;
+  recoverTasks(retryLimit: number): Promise<void>;
 }
 export interface FileFilter {
   storageInstanceId?: string;
   ownerId?: string | null;
   createdFrom?: number;
   createdBefore?: number;
-  status?: FileRecord["status"];
+  status?: FileRecord["status"] | "replica_error";
   mimeType?: string;
   q?: string;
 }

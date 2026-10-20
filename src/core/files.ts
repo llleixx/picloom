@@ -1,3 +1,4 @@
+import { checkStorageCapacity, storageHasCapacity } from "./storage-capacity";
 import { TemporarySpace } from "../infra/temporary-space";
 import { isPluginError } from "../../plugin-sdk/api";
 import { isSiteAdmin } from "../../shared/roles";
@@ -105,6 +106,7 @@ export class Files {
       this.inFlight,
       this.cache,
       this.temporary,
+      (file, path, signal) => this.download(file, path, signal),
       faults.beforeDelete,
     );
   }
@@ -301,7 +303,7 @@ export class Files {
     }
     return { path, metadata, loaded };
   }
-  private async uploadPlan(profileId: string) {
+  private async uploadPlan(profileId: string, bytes = 1) {
     if (this.profileClosing.has(profileId))
       throw new AppError("PROFILE_CLOSING", "上传配置正在删除", 409);
     const plan = await this.db.read(async (r) => {
@@ -316,7 +318,10 @@ export class Files {
       const eligible = [];
       for (const m of members) {
         const instance = requireValue(await r.instance(m.storage_instance_id));
-        if (this.plugins.isReady(instance.id, "storage"))
+        if (
+          this.plugins.isReady(instance.id, "storage") &&
+          (await storageHasCapacity(r, instance.id, bytes))
+        )
           eligible.push({
             id: instance.id,
             priority: m.priority,
@@ -489,7 +494,7 @@ export class Files {
   ) {
     await this.auth.authorizeUpload(identity, profileId);
     await this.auth.checkUploadQuota(identity, blob.size, guestIp);
-    const plan = await this.uploadPlan(profileId);
+    const plan = await this.uploadPlan(profileId, blob.size);
     if (
       blob.size === 0 ||
       blob.size >
@@ -615,6 +620,8 @@ export class Files {
       await this.db.transaction(async (r) => {
         await this.auth.authorizeUpload(identity, profileId, r);
         prefix(record!.public_prefix);
+        for (const id of [plan.storage, ...plan.targets])
+          await checkStorageCapacity(r, id, record!.byte_size!);
         await r.insertFile(record!);
         await r.insertReplica(replica!);
         for (const item of redundant) await r.insertReplica(item);
@@ -1127,6 +1134,10 @@ export class Files {
     }
     return { results };
   }
+  async ignoreReplica(fileId: string, replicaId: string) {
+    await this.tasks.ignoreReplica(fileId, replicaId);
+  }
+
   async deleteReplica(fileId: string, replicaId: string, includeLast = false) {
     let deletingFile = false;
     await this.db.transaction(async (r) => {
@@ -1264,8 +1275,13 @@ export class Files {
       const f = requireValue(await r.file(id));
       if (identity) this.auth.assertFile(identity, f);
       if (f.status === "deleted" || f.status === "deleting") return;
+      if (f.status === "delete_failed")
+        throw new Conflict(
+          "Retry the failed deletion task or remove the record",
+        );
       const previous = f.status;
       f.status = "deleting";
+      f.last_error = null;
       await r.saveFile(f, previous);
     });
     this.tasks.cancel(id);
@@ -1276,7 +1292,7 @@ export class Files {
   async recover() {
     await this.temporary.recover();
     await this.db.transaction(async (r) => {
-      await r.recoverTasks();
+      await r.recoverTasks(this.config.retryLimit);
       for (const f of await r.filesInStates(["preparing"])) {
         f.status = "failed";
         f.last_error = "INTERRUPTED_UPLOAD";
@@ -1293,6 +1309,7 @@ export class Files {
             "blocked",
             "failed",
             "deleting",
+            "delete_failed",
             "deleted",
           ]),
         )
