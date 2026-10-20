@@ -99,8 +99,9 @@ export function handler(app: Application) {
         return await webPage(req, app.config.webRoot);
       if (
         path.startsWith("/api/") &&
+        app.config.origin &&
         req.headers.has("origin") &&
-        req.headers.get("origin") !== (app.config.origin || requestOrigin)
+        req.headers.get("origin") !== app.config.origin
       )
         throw new AppError("ORIGIN", "Origin not allowed", 403);
       if (path === "/api/auth/login" && method === "POST") {

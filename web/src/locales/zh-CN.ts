@@ -221,7 +221,7 @@ export const zhCN = {
   "settings.website": "网站",
   "settings.siteOrigin": "站点地址",
   "settings.siteHint":
-    "留空使用请求地址。后台传递图片 URL 时需配置；经 HTTPS 代理访问时填写外部站点地址。",
+    "留空使用请求地址，不校验请求来源；填写后严格校验来源。后台传递图片 URL 或经 HTTPS 代理访问时需填写外部站点地址。",
   "settings.openSite": "打开更新后的站点",
   "settings.cacheAge": "浏览器与 CDN 缓存有效期（秒）",
   "settings.cacheHint":

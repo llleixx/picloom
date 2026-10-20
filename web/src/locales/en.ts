@@ -254,7 +254,7 @@ export const en = {
   "settings.website": "Website",
   "settings.siteOrigin": "Site origin",
   "settings.siteHint":
-    "Leave blank to use the request address. Set a public origin for background URL delivery; behind HTTPS proxies, set the external origin.",
+    "Leave blank to use the request address without origin checks; setting a value enables strict origin checks. Set the external origin for background URL delivery or HTTPS proxies.",
   "settings.openSite": "Open the updated site",
   "settings.cacheAge": "Browser & CDN cache lifetime (seconds)",
   "settings.cacheHint":

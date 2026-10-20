@@ -255,7 +255,7 @@ test("blank site origin uses each request without persisting it", async () => {
       new Request("https://photos.example/api/auth/login", {
         method: "POST",
         headers: {
-          origin: "https://photos.example",
+          origin: "https://other.example",
           "content-type": "application/json",
         },
         body: JSON.stringify({
@@ -274,7 +274,16 @@ test("blank site origin uses each request without persisting it", async () => {
           }),
         )
       ).status,
-    ).toBe(403);
+    ).toBe(401);
+    const deniedWrite = await handle(
+      new Request("https://photos.example/api/settings", {
+        method: "PUT",
+        headers: { origin: "https://other.example", cookie: f.cookie },
+        body: JSON.stringify(f.app.delivery.get()),
+      }),
+    );
+    expect(deniedWrite.status).toBe(403);
+    expect((await deniedWrite.json()).error.code).toBe("CSRF");
     const uploaded = await f.upload();
     expect(uploaded.status).toBe(201);
     const file = await uploaded.json();

@@ -615,7 +615,7 @@ test("maintenance drains streams and failed restore preserves existing data", as
   }
 }, 15000);
 
-test("backup Origin checks fall back to request origin only when site origin is unset", async () => {
+test("backup Origin checks apply only when site origin is configured", async () => {
   const parent = await mkdtemp(join(tmpdir(), "picloom-backup-origin-"));
   const f = await setup(parent);
   try {
@@ -635,7 +635,7 @@ test("backup Origin checks fall back to request origin only when site origin is 
             origin: "https://other.example",
           })
         ).status,
-      ).toBe(403);
+      ).toBe(origin ? 403 : 200);
       if (origin) {
         expect(
           (
