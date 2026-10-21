@@ -11,8 +11,13 @@ export const zhCN = {
   "themes.enableLanguage": "请先在站点设置启用一种主题支持的语言。",
   "themes.draftLanguageDifference": "已保存预览的默认语言与站点不同",
   "themes.appearanceConfig": "外观与行为",
-  "themes.localizedConfig": "文案与语言",
-  "themes.languageDisabled": "站点未启用",
+  "settings.translationHelp":
+    "确定后仅更新当前表单，仍需保存设置。留空的翻译保持为空。",
+  "ui.editTranslations": "编辑翻译",
+  "themes.translationHelp":
+    "确定后仅更新当前表单，仍需保存草稿或应用到站点。留空的翻译保持为空。",
+  "ui.confirm": "确定",
+  "ui.languageDisabled": "站点未启用",
 
   "themes.title": "主题",
   "themes.language": "语言",

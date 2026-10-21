@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch, computed } from "vue";
+import { ref, watch, computed, useId } from "vue";
 import { useQuery } from "@tanstack/vue-query";
 import type { DeliverySettings } from "../../../shared/api";
 import { api, ApiError, errorText, notify, queryClient } from "@/lib/api";
@@ -16,7 +16,9 @@ import {
   defaultLocalization,
   type Locale,
 } from "../../../shared/locales";
-const editingLocale = ref<Locale>("en-US");
+import TranslationDialog from "@/components/TranslationDialog.vue";
+type ContentField = "name" | "description";
+const contentId = useId();
 const query = useQuery({
   queryKey: ["delivery-settings"],
   queryFn: () => api<DeliverySettings>("/api/settings"),
@@ -40,14 +42,42 @@ const draft = ref<DeliverySettings>({
 });
 const editingLanguageName = computed(
   () =>
-    languages.find((language) => language.tag === editingLocale.value)!.name,
+    languages.find((language) => language.tag === draft.value.defaultLocale)!
+      .name,
 );
 const editingContent = computed(
-  () => draft.value.content[editingLocale.value] ?? {},
+  () => draft.value.content[draft.value.defaultLocale] ?? {},
 );
-function updateContent(field: "name" | "description", value: string | number) {
-  const content = (draft.value.content[editingLocale.value] ??= {});
+function updateContent(field: ContentField, value: string | number) {
+  const content = (draft.value.content[draft.value.defaultLocale] ??= {});
   content[field] = String(value);
+}
+const translationOpen = ref(false);
+const translationField = ref<ContentField>("name");
+const translations = ref<Record<string, string>>({});
+const translationTitle = computed(() =>
+  t(
+    translationField.value === "name"
+      ? "settings.siteName"
+      : "settings.siteDescription",
+  ),
+);
+function editTranslations(field: ContentField) {
+  translationField.value = field;
+  translations.value = Object.fromEntries(
+    languages.map((language) => [
+      language.tag,
+      draft.value.content[language.tag]?.[field] ?? "",
+    ]),
+  );
+  translationOpen.value = true;
+}
+function confirmTranslations() {
+  for (const language of languages) {
+    const content = (draft.value.content[language.tag] ??= {});
+    content[translationField.value] = translations.value[language.tag] ?? "";
+  }
+  translationOpen.value = false;
 }
 function enableLanguage(language: Locale, enabled: boolean) {
   if (enabled) draft.value.enabledLocales.push(language);
@@ -146,7 +176,6 @@ watch(
   (value) => {
     if (value && !loaded.value) {
       loaded.value = true;
-      editingLocale.value = value.defaultLocale;
       // Query results are readonly; the editor owns its nested arrays and content.
       draft.value = JSON.parse(JSON.stringify(value));
       domains.value = value.hotlinkAllowedHosts.join("\n");
@@ -210,6 +239,39 @@ async function save() {
         t("ui.retry")
       }}</Button>
     </div>
+    <TranslationDialog
+      v-model:open="translationOpen"
+      :title="translationTitle"
+      :help="t('settings.translationHelp')"
+      @confirm="confirmTranslations"
+    >
+      <div v-for="language in languages" :key="language.tag" class="space-y-2">
+        <label class="field">
+          <span
+            >{{ language.name
+            }}<span
+              v-if="!draft.enabledLocales.includes(language.tag)"
+              class="font-normal text-muted-foreground"
+            >
+              · {{ t("ui.languageDisabled") }}</span
+            ></span
+          >
+          <Input
+            v-model="translations[language.tag]"
+            :maxlength="translationField === 'name' ? 100 : 300"
+            :aria-invalid="
+              !!fields[`/content/${language.tag}/${translationField}`]
+            "
+          />
+        </label>
+        <p
+          v-if="fields[`/content/${language.tag}/${translationField}`]"
+          class="text-sm text-destructive"
+        >
+          {{ fields[`/content/${language.tag}/${translationField}`] }}
+        </p>
+      </div>
+    </TranslationDialog>
     <form v-if="loaded" class="mt-7" @submit.prevent="save">
       <fieldset :disabled="busy" class="space-y-7">
         <section class="border-t pt-6 space-y-4">
@@ -266,32 +328,17 @@ async function save() {
             <p class="subtle">{{ t("settings.languageHint") }}</p>
           </div>
           <div class="space-y-4 pt-3 pb-2">
-            <div class="flex items-center justify-between gap-4">
-              <h3 class="text-sm font-medium">
-                {{ t("settings.siteContent") }}
-              </h3>
-              <select
-                v-model="editingLocale"
-                :aria-label="t('settings.editLocale')"
-                class="h-8 max-w-48 rounded-md border bg-background px-2 text-sm"
-              >
-                <option
-                  v-for="language in languages"
-                  :key="language.tag"
-                  :value="language.tag"
+            <h3 class="text-sm font-medium">{{ t("settings.siteContent") }}</h3>
+            <div
+              v-for="field in ['name', 'description'] as const"
+              :key="field"
+              class="space-y-2"
+            >
+              <div class="flex flex-wrap items-center justify-between gap-2">
+                <label
+                  :for="contentId + '-' + field"
+                  class="relative pr-3 text-sm font-medium"
                 >
-                  {{ language.name
-                  }}{{
-                    language.tag === draft.defaultLocale
-                      ? " · " + t("settings.defaultBadge")
-                      : ""
-                  }}
-                </option>
-              </select>
-            </div>
-            <div v-for="field in ['name', 'description'] as const" :key="field">
-              <label class="field">
-                <span>
                   {{
                     t(
                       field === "name"
@@ -302,19 +349,47 @@ async function save() {
                   <span class="font-normal text-muted-foreground">
                     · {{ editingLanguageName }}</span
                   >
-                </span>
-                <Input
-                  :model-value="editingContent[field] ?? ''"
-                  @update:model-value="updateContent(field, $event)"
-                  :maxlength="field === 'name' ? 100 : 300"
-                  :aria-invalid="!!fields[`/content/${editingLocale}/${field}`]"
-                />
-              </label>
+                </label>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  :aria-label="
+                    t('ui.editTranslations') +
+                    ' · ' +
+                    t(
+                      field === 'name'
+                        ? 'settings.siteName'
+                        : 'settings.siteDescription',
+                    )
+                  "
+                  @click="editTranslations(field)"
+                  >{{ t("ui.editTranslations") }}</Button
+                >
+              </div>
+              <Input
+                :id="contentId + '-' + field"
+                :aria-label="
+                  t(
+                    field === 'name'
+                      ? 'settings.siteName'
+                      : 'settings.siteDescription',
+                  ) +
+                  ' · ' +
+                  editingLanguageName
+                "
+                :model-value="editingContent[field] ?? ''"
+                @update:model-value="updateContent(field, $event)"
+                :maxlength="field === 'name' ? 100 : 300"
+                :aria-invalid="
+                  !!fields[`/content/${draft.defaultLocale}/${field}`]
+                "
+              />
               <p
-                v-if="fields[`/content/${editingLocale}/${field}`]"
+                v-if="fields[`/content/${draft.defaultLocale}/${field}`]"
                 class="text-sm text-destructive"
               >
-                {{ fields[`/content/${editingLocale}/${field}`] }}
+                {{ fields[`/content/${draft.defaultLocale}/${field}`] }}
               </p>
             </div>
             <p v-if="fields['/content']" class="text-sm text-destructive">

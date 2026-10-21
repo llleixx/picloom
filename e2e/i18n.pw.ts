@@ -73,21 +73,35 @@ test("localized site settings preserve drafts and homepage restrictions preserve
   await page.getByRole("button", { name: "登录", exact: true }).click();
   await expect(page).toHaveURL(/\/app\/images/);
   await page.goto(service.url + "/app/settings");
-  await page
-    .getByLabel("正在编辑的内容语言", { exact: true })
-    .selectOption("zh-CN");
-  await page.getByRole("textbox", { name: /^站点名称 · / }).fill("拾光图床");
-  await page.getByRole("textbox", { name: /^站点简介 · / }).fill("中文介绍");
+  await expect(
+    page.getByLabel("正在编辑的内容语言", { exact: true }),
+  ).toHaveCount(0);
   await page.getByLabel("默认语言", { exact: true }).selectOption("zh-CN");
   await page
-    .getByLabel("正在编辑的内容语言", { exact: true })
-    .selectOption("en-US");
+    .getByRole("textbox", { name: "站点名称 · 简体中文", exact: true })
+    .fill("拾光图床");
   await page
-    .getByRole("textbox", { name: /^站点简介 · / })
+    .getByRole("textbox", { name: "站点简介 · 简体中文", exact: true })
+    .fill("中文介绍");
+  await page
+    .getByRole("button", { name: "编辑翻译 · 站点简介", exact: true })
+    .click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog.getByLabel("简体中文", { exact: true })).toHaveValue(
+    "中文介绍",
+  );
+  await dialog
+    .getByLabel("English", { exact: true })
     .fill("English introduction");
-  await page
-    .getByLabel("正在编辑的内容语言", { exact: true })
-    .selectOption("zh-CN");
+  await dialog.getByRole("button", { name: "确定", exact: true }).click();
+  await expect(
+    page.getByRole("textbox", { name: "站点简介 · 简体中文", exact: true }),
+  ).toHaveValue("中文介绍");
+  await page.getByLabel("默认语言", { exact: true }).selectOption("en-US");
+  await expect(
+    page.getByRole("textbox", { name: "站点简介 · English", exact: true }),
+  ).toHaveValue("English introduction");
+  await page.getByLabel("默认语言", { exact: true }).selectOption("zh-CN");
   await expect(page.getByRole("textbox", { name: /^站点名称 · / })).toHaveValue(
     "拾光图床",
   );
@@ -96,7 +110,7 @@ test("localized site settings preserve drafts and homepage restrictions preserve
   await page.goto(service.url);
   await page.getByLabel("语言", { exact: true }).selectOption("en-US");
   await expect(
-    page.getByRole("heading", { name: "拾光图床", exact: true }),
+    page.getByRole("heading", { name: "Picloom", exact: true }),
   ).toBeVisible();
   await expect(
     page.getByText("English introduction", { exact: true }),
@@ -115,11 +129,15 @@ test("localized site settings preserve drafts and homepage restrictions preserve
   await page.goto(service.url + "/app/settings");
   await expect(page.locator("html")).toHaveAttribute("lang", "en-US");
   await page
-    .getByLabel("Content language", { exact: true })
-    .selectOption("en-US");
+    .getByRole("button", {
+      name: "Edit translations · Short description",
+      exact: true,
+    })
+    .click();
   await expect(
-    page.getByRole("textbox", { name: /^Short description · / }),
+    dialog.getByLabel("English · Not enabled on site", { exact: true }),
   ).toHaveValue("English introduction");
+  await page.keyboard.press("Escape");
   await page.reload();
   await expect(
     page.getByRole("checkbox", { name: "English", exact: true }),

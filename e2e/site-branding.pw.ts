@@ -1,6 +1,6 @@
 import { test, expect, login } from "./fixtures";
 
-test("branding updates all pages and resets to defaults", async ({
+test("branding translations update all pages and can be cleared", async ({
   page,
   service,
 }) => {
@@ -12,6 +12,31 @@ test("branding updates all pages and resets to defaults", async ({
     .getByRole("textbox", { name: /^Short description · / })
     .fill("A custom image library");
   await page
+    .getByRole("button", { name: "Edit translations · Site name", exact: true })
+    .click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog.getByLabel("English", { exact: true })).toHaveValue(
+    "My Gallery",
+  );
+  await dialog.getByLabel("English", { exact: true }).fill("Discarded gallery");
+  await dialog.getByLabel("简体中文", { exact: true }).fill("取消的名称");
+  await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
+  await expect(
+    page.getByRole("textbox", { name: "Site name · English", exact: true }),
+  ).toHaveValue("My Gallery");
+  await page
+    .getByRole("button", { name: "Edit translations · Site name", exact: true })
+    .click();
+  await expect(dialog.getByLabel("简体中文", { exact: true })).not.toHaveValue(
+    "取消的名称",
+  );
+  await dialog.getByLabel("简体中文", { exact: true }).fill("我的图库");
+  await dialog.getByRole("button", { name: "Confirm", exact: true }).click();
+  const beforeSave = await (
+    await page.request.get(service.url + "/api/settings")
+  ).json();
+  expect(beforeSave.content["zh-CN"]?.name).not.toBe("我的图库");
+  await page
     .getByLabel("Logo URL", { exact: true })
     .fill(service.url + "/missing-logo.png");
   await page
@@ -22,10 +47,7 @@ test("branding updates all pages and resets to defaults", async ({
   await expect(
     page.locator("aside").getByText("My Gallery", { exact: true }),
   ).toBeVisible();
-  await expect(page.locator("aside img")).toHaveAttribute(
-    "src",
-    /picloom.*\.svg/,
-  );
+  await expect(page.locator("aside img")).toHaveCount(0);
   await page.goto(service.url);
   await expect(
     page.getByRole("heading", { name: "My Gallery", exact: true }),
@@ -50,19 +72,13 @@ test("branding updates all pages and resets to defaults", async ({
     await page
       .getByRole("textbox", { name: new RegExp("^" + name + "(?: · .+)?$") })
       .fill("");
+  await page
+    .getByRole("button", { name: "Edit translations · Site name", exact: true })
+    .click();
+  await dialog.getByLabel("简体中文", { exact: true }).fill("");
+  await dialog.getByRole("button", { name: "Confirm", exact: true }).click();
   await page.getByRole("button", { name: "Save", exact: true }).click();
-  await expect(page).toHaveTitle("Settings · Picloom");
-  await expect(page.locator("aside img")).toHaveAttribute(
-    "src",
-    /picloom.*\.svg/,
-  );
-  const icon = await page.locator('link[rel="icon"]').getAttribute("href");
-  const asset = await page.request.get(new URL(icon!, service.url).href);
-  expect(asset.ok()).toBe(true);
-  expect(asset.headers()["content-type"]).toContain("image/svg+xml");
-  expect(await asset.text()).toContain("<svg");
-  await expect(page.locator('link[rel="icon"]')).not.toHaveAttribute(
-    "href",
-    /missing-icon/,
-  );
+  await expect(page).toHaveTitle(/^Settings\s*·?\s*$/);
+  await expect(page.locator("aside img")).toHaveCount(0);
+  await expect(page.locator('link[rel="icon"]')).toHaveCount(0);
 });

@@ -202,17 +202,29 @@ test("language editor retains empty translations and preview default does not ch
     .check();
   await page.getByRole("button", { name: "Install", exact: true }).click();
   await page.getByRole("button", { name: "Configure", exact: true }).click();
-  // The language editor and site default are independent controls.
-  const editLanguage = page.getByRole("combobox", {
-    name: "Content language",
+  await expect(
+    page.getByRole("combobox", { name: "Content language", exact: true }),
+  ).toHaveCount(0);
+  const welcome = page.getByLabel("welcome · English", { exact: true });
+  await welcome.fill("");
+  const editTranslations = page.getByRole("button", {
+    name: "Edit translations · welcome",
     exact: true,
   });
-  await editLanguage.selectOption("en-US");
-  await page.getByLabel("welcome", { exact: true }).fill("");
-  await editLanguage.selectOption("zh-CN");
-  await page.getByLabel("welcome", { exact: true }).fill("新的欢迎");
-  await editLanguage.selectOption("en-US");
-  await expect(page.getByLabel("welcome", { exact: true })).toHaveValue("");
+  await editTranslations.click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByLabel("English", { exact: true }).fill("Discard this");
+  await dialog.getByLabel("简体中文", { exact: true }).fill("取消的翻译");
+  await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
+  await expect(welcome).toHaveValue("");
+  await editTranslations.click();
+  await expect(dialog.getByLabel("English", { exact: true })).toHaveValue("");
+  await expect(dialog.getByLabel("简体中文", { exact: true })).not.toHaveValue(
+    "取消的翻译",
+  );
+  await dialog.getByLabel("简体中文", { exact: true }).fill("新的欢迎");
+  await dialog.getByRole("button", { name: "Confirm", exact: true }).click();
+  await expect(welcome).toHaveValue("");
   await page
     .getByRole("combobox", { name: "Default language", exact: true })
     .selectOption("zh-CN");
@@ -246,8 +258,12 @@ test("language editor retains empty translations and preview default does not ch
   ).toBe("zh-CN");
   await page.reload();
   await page.getByRole("button", { name: "Configure", exact: true }).click();
-  await page.locator("fieldset.panel select").last().selectOption("en-US");
-  await expect(page.getByLabel("welcome", { exact: true })).toHaveValue("");
+  await page
+    .getByRole("button", { name: "Edit translations · welcome", exact: true })
+    .click();
+  await expect(
+    page.getByRole("dialog").getByLabel("English", { exact: true }),
+  ).toHaveValue("");
 });
 
 test("single-language page constrains SDK choices without overwriting visitor preference", async ({
@@ -409,6 +425,59 @@ test("Horizon updates language, upload results and copy preferences in place", a
   const installed = await (
     await page.request.get(service.url + "/api/themes")
   ).json();
+  await page.goto(service.url + "/app/themes");
+  await page.getByRole("button", { name: "Configure", exact: true }).click();
+  await expect(
+    page.getByLabel("Scene name · English", { exact: true }),
+  ).toHaveCount(4);
+  await page
+    .getByRole("button", {
+      name: "Edit translations · Scene name",
+      exact: true,
+    })
+    .nth(1)
+    .click();
+  const translations = page.getByRole("dialog");
+  await expect(translations.getByRole("heading")).toContainText(
+    "Background images · Item 2 · Scene name",
+  );
+  await translations
+    .getByLabel("简体中文", { exact: true })
+    .fill("列表中的星湖");
+  await translations
+    .getByRole("button", { name: "Confirm", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: "Move item up", exact: true })
+    .first()
+    .click();
+  await expect(
+    page.getByLabel("Scene name · English", { exact: true }).first(),
+  ).toHaveValue("A lake full of stars");
+  await page.getByRole("button", { name: "Save draft", exact: true }).click();
+  await expect(page.getByText("Draft saved", { exact: true })).toBeVisible();
+  const edited = (
+    await (await page.request.get(service.url + "/api/themes")).json()
+  )[0].config;
+  expect(edited.backgrounds[0].name["zh-CN"]).toBe("列表中的星湖");
+  expect(edited.backgrounds[0].url).toBe("assets/star-lake.png");
+  expect(
+    (
+      await page.request.put(
+        service.url + `/api/themes/${manifest.id}/${manifest.version}/config`,
+        {
+          headers,
+          data: {
+            config: installed[0].config,
+            language: {
+              defaultLocale: "en-US",
+              languageRevision: installed[0].languageRevision,
+            },
+          },
+        },
+      )
+    ).ok(),
+  ).toBeTruthy();
   expect(
     (
       await page.request.put(service.url + "/api/theme", {
@@ -422,6 +491,82 @@ test("Horizon updates language, upload results and copy preferences in place", a
       })
     ).ok(),
   ).toBeTruthy();
+  const defaults = installed[0].config;
+  const backgrounds = manifest.configSchema.properties.backgrounds.default;
+  async function applyBackgrounds(value: unknown[]) {
+    expect(
+      (
+        await page.request.put(
+          service.url + `/api/themes/${manifest.id}/${manifest.version}/config`,
+          {
+            headers,
+            data: {
+              config: { ...defaults, rotate: false, backgrounds: value },
+              language: {
+                defaultLocale: "en-US",
+                languageRevision: installed[0].languageRevision,
+              },
+            },
+          },
+        )
+      ).ok(),
+    ).toBeTruthy();
+    expect(
+      (
+        await page.request.put(service.url + "/api/theme", {
+          headers,
+          data: {
+            id: manifest.id,
+            version: manifest.version,
+            defaultLocale: "en-US",
+            languageRevision: installed[0].languageRevision,
+          },
+        })
+      ).ok(),
+    ).toBeTruthy();
+    await page.goto(service.url + "/");
+    await expect(page.locator(".horizon h1")).toBeVisible();
+  }
+  await applyBackgrounds([]);
+  await expect(page.locator(".hz-scenery img")).toHaveCount(0);
+  await expect(page.locator(".hz-scene-info, .hz-scene-controls")).toHaveCount(
+    0,
+  );
+  await applyBackgrounds([{ ...backgrounds[1], name: {} }]);
+  await expect(page.locator(".hz-scenery img.visible")).toHaveCount(1);
+  await expect(page.locator(".horizon")).toHaveClass(/hz-night/);
+  await expect(page.locator(".hz-scene-info strong")).toHaveText(
+    "Background 01",
+  );
+  await expect(page.locator(".hz-scene-controls")).toHaveCount(0);
+  // Duplicate URLs remain separate scenes, with their own names and palette.
+  await applyBackgrounds([
+    { ...backgrounds[1], name: { "en-US": "First", "zh-CN": "第一张" } },
+    {
+      ...backgrounds[1],
+      tone: "day",
+      name: { "en-US": "Second", "zh-CN": "第二张" },
+    },
+    { url: "assets/missing.png" },
+  ]);
+  await expect(page.locator(".hz-scene-dot")).toHaveCount(2);
+  await page.getByRole("button", { name: "First", exact: true }).click();
+  await expect(page.locator(".horizon")).toHaveClass(/hz-night/);
+  await page.getByRole("button", { name: "Next scene", exact: true }).click();
+  await expect(page.locator(".hz-scene-info strong")).toHaveText("Second");
+  await expect(page.locator(".horizon")).not.toHaveClass(/hz-night/);
+  await page.getByRole("button", { name: "Next scene", exact: true }).click();
+  await expect(page.locator(".hz-scene-info strong")).toHaveText("First");
+  await page.locator(".hz-nav select").selectOption("zh-CN");
+  await expect(page.locator(".hz-scene-info strong")).toHaveText("第一张");
+  await page.locator(".hz-nav select").selectOption("en-US");
+  await applyBackgrounds([{ url: "assets/missing.png" }]);
+  await expect(page.locator(".hz-scenery img.visible")).toHaveCount(0);
+  await expect(page.locator(".hz-scene-info, .hz-scene-controls")).toHaveCount(
+    0,
+  );
+  await applyBackgrounds(backgrounds);
+  await expect(page.locator(".hz-scene-dot")).toHaveCount(4);
   for (const path of ["/", "/login"]) {
     await page.goto(service.url + path);
     await page.locator(".hz-nav select").waitFor();
@@ -611,17 +756,23 @@ test("theme package default localizes one name and labels without filling config
     .getByRole("combobox", { name: "Language", exact: true })
     .selectOption("zh-CN");
   await expect(page.locator("fieldset.panel > h2")).toHaveText("远空 · 1");
-  await expect(page.getByLabel("Hero heading", { exact: true })).toBeVisible();
+  await expect(
+    page.getByLabel("Hero heading · English", { exact: true }),
+  ).toBeVisible();
   await page
     .getByRole("combobox", { name: "语言", exact: true })
     .selectOption("en-US");
   await expect(page.locator("fieldset.panel > h2")).toHaveText("Horizon · 1");
   await page
-    .getByRole("combobox", { name: "Content language", exact: true })
-    .selectOption("zh-CN");
-  await expect(page.getByLabel("Hero heading", { exact: true })).toHaveValue(
-    "",
-  );
+    .getByRole("button", {
+      name: "Edit translations · Hero heading",
+      exact: true,
+    })
+    .click();
+  await expect(
+    page.getByRole("dialog").getByLabel("简体中文", { exact: true }),
+  ).toHaveValue("");
+  await page.keyboard.press("Escape");
   await page
     .getByRole("combobox", { name: "Default language", exact: true })
     .selectOption("zh-CN");
@@ -701,12 +852,16 @@ test("theme fields preserve removals, empty text and other languages after savin
     .click();
   await page.getByLabel("heading", { exact: true }).fill("");
   await page
-    .getByLabel("Content language", { exact: true })
-    .selectOption("en-US");
-  await page
-    .getByLabel("welcome", { exact: true })
+    .getByRole("button", { name: "Edit translations · welcome", exact: true })
+    .click();
+  const translations = page.getByRole("dialog");
+  await translations
+    .getByLabel("English", { exact: true })
     .locator("..")
     .getByRole("button", { name: "Remove field", exact: true })
+    .click();
+  await translations
+    .getByRole("button", { name: "Confirm", exact: true })
     .click();
   await page
     .getByText("group", { exact: true })
@@ -725,9 +880,12 @@ test("theme fields preserve removals, empty text and other languages after savin
   await expect(page.getByLabel("count", { exact: true })).toHaveValue("");
   await expect(page.getByLabel("mode", { exact: true })).toHaveValue("__unset");
   await page
-    .getByLabel("Content language", { exact: true })
-    .selectOption("zh-CN");
-  await expect(page.getByLabel("welcome", { exact: true })).toHaveValue("欢迎");
+    .getByRole("button", { name: "Edit translations · welcome", exact: true })
+    .click();
+  await expect(
+    page.getByRole("dialog").getByLabel("简体中文", { exact: true }),
+  ).toHaveValue("欢迎");
+  await page.keyboard.press("Escape");
   const opened = context.waitForEvent("page");
   await page.getByRole("button", { name: "Preview home", exact: true }).click();
   const preview = await opened;
@@ -737,7 +895,7 @@ test("theme fields preserve removals, empty text and other languages after savin
   await preview.close();
 });
 
-test("theme configuration sessions reset pending array drafts and language switches preserve them", async ({
+test("theme configuration sessions reset pending array drafts and translation dialogs preserve them", async ({
   page,
   service,
 }) => {
@@ -773,18 +931,33 @@ test("theme configuration sessions reset pending array drafts and language switc
     }),
   );
   await page.goto(service.url + "/app/themes");
-  const configure = page.getByRole("button", { name: "Configure", exact: true });
+  const configure = page.getByRole("button", {
+    name: "Configure",
+    exact: true,
+  });
   const add = page.getByRole("button", { name: "Add item", exact: true });
-  const draft = page.getByRole("textbox", { name: "New item", exact: true });
-  const language = page.getByLabel("Content language", { exact: true });
+  const draft = page.getByRole("textbox", {
+    name: "New item · English",
+    exact: true,
+  });
   await configure.nth(0).click();
   await add.click();
   await draft.fill("English draft");
-  await language.selectOption("zh-CN");
-  await expect(draft).toHaveValue("");
-  await draft.fill("中文草稿");
-  await language.selectOption("en-US");
+  await page
+    .getByRole("button", { name: "Edit translations · New item", exact: true })
+    .click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog.getByLabel("简体中文", { exact: true })).toHaveValue("");
+  await dialog.getByLabel("简体中文", { exact: true }).fill("中文草稿");
+  await dialog.getByRole("button", { name: "Confirm", exact: true }).click();
   await expect(draft).toHaveValue("English draft");
+  await page
+    .getByRole("button", { name: "Edit translations · New item", exact: true })
+    .click();
+  await expect(dialog.getByLabel("简体中文", { exact: true })).toHaveValue(
+    "中文草稿",
+  );
+  await page.keyboard.press("Escape");
 
   await configure.nth(1).click();
   await expect(draft).toHaveCount(0);
@@ -861,16 +1034,26 @@ test("localized arrays have one structure and persist edits without language fal
     page.getByRole("button", { name: "Add item", exact: true }),
   ).toHaveCount(1);
   await page.getByRole("button", { name: "Add item", exact: true }).click();
-  await page.getByLabel("title", { exact: true }).fill("English");
+  await page.getByLabel("title · English", { exact: true }).fill("English");
   await page.getByLabel("url", { exact: true }).fill("/one");
   await page
-    .getByLabel("Content language", { exact: true })
-    .selectOption("zh-CN");
-  await expect(page.getByLabel("title", { exact: true })).toHaveValue("");
+    .getByRole("button", { name: "Edit translations · title", exact: true })
+    .click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog.getByLabel("简体中文", { exact: true })).toHaveValue("");
+  await dialog.getByLabel("简体中文", { exact: true }).fill("中文");
+  await dialog.getByRole("button", { name: "Confirm", exact: true }).click();
   await expect(page.getByLabel("url", { exact: true })).toHaveValue("/one");
-  await page.getByLabel("title", { exact: true }).fill("中文");
+  await expect(page.getByLabel("title · English", { exact: true })).toHaveValue(
+    "English",
+  );
   await page.getByRole("button", { name: "Add item", exact: true }).click();
-  await page.getByLabel("title", { exact: true }).nth(1).fill("第二项");
+  await page
+    .getByRole("button", { name: "Edit translations · title", exact: true })
+    .nth(1)
+    .click();
+  await dialog.getByLabel("简体中文", { exact: true }).fill("第二项");
+  await dialog.getByRole("button", { name: "Confirm", exact: true }).click();
   await page.getByRole("button", { name: "Move item up", exact: true }).click();
   await page.getByRole("button", { name: "Save draft", exact: true }).click();
   await expect(page.getByText("Draft saved", { exact: true })).toBeVisible();

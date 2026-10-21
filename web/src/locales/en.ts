@@ -15,8 +15,13 @@ export const en = {
   "themes.draftLanguageDifference":
     "The saved preview uses a different default language",
   "themes.appearanceConfig": "Appearance and behavior",
-  "themes.localizedConfig": "Content and languages",
-  "themes.languageDisabled": "Not enabled on site",
+  "settings.translationHelp":
+    "Confirming updates this form only. Save settings to persist changes. Blank translations stay empty.",
+  "ui.editTranslations": "Edit translations",
+  "themes.translationHelp":
+    "Changes update this form only. Save the draft or apply to the site to persist them. Blank translations stay empty.",
+  "ui.confirm": "Confirm",
+  "ui.languageDisabled": "Not enabled on site",
   "themes.title": "Themes",
   "themes.language": "Language",
   "themes.mode": "Appearance",

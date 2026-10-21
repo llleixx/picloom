@@ -19,7 +19,7 @@ Install `outputs/themes/horizon.zip` through **管理后台 → 主题**, edit i
 - **Heading and description / 宣传标题与说明**: separate Chinese and English text; blank values remain empty. These do not modify the site name or browser title. The panel also exposes the login heading and description.
 - **Rotation / 自动轮换**: enabled by default, every 6 seconds; configurable from 5–60 seconds. Includes manual scene selection and a pause button. Rotation pauses while the document is hidden; reduced-motion preference disables autoplay initially and removes transitions.
 - **Shade / 遮罩浓度**: controls the additional dark overlay for readability.
-- **Scenery image URLs / 四张背景图片地址**: package asset paths or replacement URLs; defaults point to bundled images, and clearing a field disables that image. Prefer landscape images with a quiet right side. External images depend on their origin's availability and access rules.
+- **Background images / 背景图片列表**: add, remove and reorder scenes. Each item has a required package asset path or HTTP(S) URL, an optional Chinese/English name and a day/night accent palette. The default list contains all four bundled illustrations. Blank names use a localized numbered label. Prefer landscape images with a quiet right side. External images depend on their origin's availability and access rules. Failed images are skipped; an empty list or all failed images shows the gradient background. Switching and playback controls appear only when at least two images have loaded. / 可增删、排序；每项包含必填图片地址、可选双语名称与浅色/夜色配色。空列表或全部加载失败时显示渐变背景，只有一张可用图片时隐藏轮播控件。
 
 Backgrounds are bundled locally; no image API is required. The upload panel uses real SDK operations, including file selection, drag/drop, paste, URL upload, profile selection, queue actions, and sharing preferences. Login uses the host's authentication and safe navigation.
 
@@ -50,3 +50,5 @@ Horizon declares its supported languages and the shared site default language. E
 Horizon uses a fixed visual style and does not read or change the host light/dark preference. Native form controls use a fixed dark color scheme. Scene-specific accent colors follow the background slideshow only.
 
 Version 1.3.0 uses `nameKey`, centralized `messages` and inline `x-ui` field hints. Install as a new version; no old declaration conversion is provided.
+
+Version 1.4.0 replaces `dayImage`, `nightImage`, `dawnImage` and `auroraImage` with the `backgrounds` list. When upgrading, copy your custom URLs into list items in the desired order; old fields are not converted automatically. Other settings remain the same. / 升级时请将旧版本的自定义图片地址按顺序填写到背景列表；旧字段不自动转换，其余设置不变。

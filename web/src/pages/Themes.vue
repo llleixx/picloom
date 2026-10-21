@@ -18,7 +18,6 @@ const inspected = shallowRef<{ ticket: string; manifest: Manifest } | null>(
   confirmed = ref(false),
   busy = ref(false),
   error = ref("");
-const editingLocale = ref("");
 const editSession = ref(0);
 const defaultLocale = ref("");
 const languageRevision = ref(0);
@@ -35,16 +34,6 @@ const defaultLanguages = computed(() =>
 const validDefault = computed(() =>
   defaultLanguages.value.some((lang) => lang.tag === defaultLocale.value),
 );
-function containsLocalized(
-  field: import("../../../theme-sdk").Field | undefined,
-): boolean {
-  return (
-    !!field &&
-    (!!field["x-localized"] ||
-      Object.values(field.properties ?? {}).some(containsLocalized) ||
-      containsLocalized(field.items))
-  );
-}
 
 async function load() {
   themes.value = await api<InstalledTheme[]>("/api/themes");
@@ -74,8 +63,6 @@ function edit(theme: InstalledTheme) {
   )
     ? theme.siteDefaultLocale!
     : "";
-  editingLocale.value =
-    defaultLocale.value || theme.manifest.supportedLocales[0] || "";
   languageRevision.value = theme.languageRevision ?? 0;
 }
 const path = () =>
@@ -260,38 +247,15 @@ onMounted(() => run(load));
         </p>
       </section>
       <section v-if="selected.manifest.configSchema" class="space-y-4">
-        <div
-          v-if="containsLocalized(selected.manifest.configSchema)"
-          class="flex items-center justify-between gap-4"
-        >
-          <h3 class="font-medium">{{ t("themes.localizedConfig") }}</h3>
-          <select
-            v-if="editLanguages.length > 1"
-            v-model="editingLocale"
-            class="native-select"
-            :aria-label="t('settings.editLocale')"
-          >
-            <option
-              v-for="lang in editLanguages"
-              :key="lang.tag"
-              :value="lang.tag"
-            >
-              {{ lang.name
-              }}{{
-                selected.enabledLocales?.includes(lang.tag)
-                  ? ""
-                  : " · " + t("themes.languageDisabled")
-              }}
-            </option>
-          </select>
-          <span v-else>{{ editLanguages[0]?.name }}</span>
-        </div>
         <ThemeField
           :key="editSession"
           :field="selected.manifest.configSchema"
           :localization="selected.manifest"
           :value="config"
-          :editing-locale="editingLocale"
+          :editing-locale="
+            defaultLocale || selected.manifest.supportedLocales[0]!
+          "
+          :enabled-locales="selected.enabledLocales"
           @change="config = $event as Config"
         />
       </section>

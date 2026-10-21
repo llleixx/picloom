@@ -23,6 +23,7 @@ const props = defineProps({
   value: { type: null as unknown as PropType<Json | undefined> },
   path: { type: String, default: "" },
   label: String,
+  inputId: String,
   required: Boolean,
   localization: { type: Object as PropType<MessageCatalog>, required: true },
   root: Object as PropType<Config>,
@@ -34,18 +35,21 @@ const props = defineProps({
   removable: Function as PropType<(schema: Schema, path: string) => boolean>,
 });
 const emit = defineEmits<{ change: [value: Json | undefined] }>();
+type FieldNode = {
+  schema: Schema;
+  path: string;
+  value: Json | undefined;
+  label: string;
+  required: boolean | undefined;
+  locked: boolean;
+  change: (value: Json | undefined) => void;
+};
 defineSlots<{
-  field(props: {
-    schema: Schema;
-    path: string;
-    value: Json | undefined;
-    label: string;
-    required: boolean | undefined;
-    locked: boolean;
-    change: (value: Json | undefined) => void;
-  }): any;
+  field(props: FieldNode & { id: string }): any;
+  header(props: FieldNode & { id: string }): any;
 }>();
-const id = useId();
+const generatedId = useId();
+const id = computed(() => props.inputId ?? generatedId);
 const hint = computed<FieldHint>(() => props.schema["x-ui"] ?? {});
 const text = computed(() =>
   fieldText(props.localization, locale.value, hint.value),
@@ -155,33 +159,47 @@ function move(index: number, delta: number) {
 </script>
 <template>
   <div v-if="visible" class="space-y-2">
-    <div v-if="path" class="flex items-center justify-between gap-2">
-      <label
-        :for="id"
-        class="relative pr-3 text-sm font-medium"
-        :class="{ 'required-label': required }"
-        >{{ label
-        }}<span v-if="hint.groupKey" class="ml-2 subtle">{{
-          messageText(localization, locale, hint.groupKey)
-        }}</span></label
-      >
-      <Button
-        v-if="
-          !required &&
-          !locked &&
-          value !== undefined &&
-          (removable?.(schema, path) ?? true)
-        "
-        type="button"
-        size="sm"
-        variant="ghost"
-        @click="set(undefined)"
-        >{{ t("ui.removeField") }}</Button
-      >
-    </div>
+    <slot
+      v-if="path"
+      name="header"
+      :schema="schema"
+      :path="path"
+      :value="value"
+      :label="label"
+      :required="required"
+      :locked="locked"
+      :change="set"
+      :id="id"
+    >
+      <div class="flex items-center justify-between gap-2">
+        <label
+          :for="id"
+          class="relative pr-3 text-sm font-medium"
+          :class="{ 'required-label': required }"
+          >{{ label
+          }}<span v-if="hint.groupKey" class="ml-2 subtle">{{
+            messageText(localization, locale, hint.groupKey)
+          }}</span></label
+        >
+        <Button
+          v-if="
+            !required &&
+            !locked &&
+            value !== undefined &&
+            (removable?.(schema, path) ?? true)
+          "
+          type="button"
+          size="sm"
+          variant="ghost"
+          @click="set(undefined)"
+          >{{ t("ui.removeField") }}</Button
+        >
+      </div>
+    </slot>
     <p v-if="text.description" class="subtle">{{ text.description }}</p>
     <slot
       name="field"
+      :id="id"
       :schema="schema"
       :path="path"
       :value="value"
@@ -249,6 +267,9 @@ function move(index: number, delta: number) {
               :removable="removable"
               @change="child(key, $event)"
             >
+              <template #header="header"
+                ><slot name="header" v-bind="header"
+              /></template>
               <template #field="field"
                 ><slot name="field" v-bind="field"
               /></template>
@@ -286,6 +307,9 @@ function move(index: number, delta: number) {
             :removable="removable"
             @change="child(String(index), $event)"
           >
+            <template #header="header"
+              ><slot name="header" v-bind="header"
+            /></template>
             <template #field="field"
               ><slot name="field" v-bind="field"
             /></template>
@@ -329,6 +353,9 @@ function move(index: number, delta: number) {
           :root="root"
           @change="pendingValue = $event"
         >
+          <template #header="header"
+            ><slot name="header" v-bind="header"
+          /></template>
           <template #field="field"
             ><slot name="field" v-bind="field"
           /></template>

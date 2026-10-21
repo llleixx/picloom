@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from "vue";
+import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import {
   ArrowUpRight,
   ArrowRight,
@@ -15,7 +15,7 @@ import {
   LoaderCircle,
   Link,
 } from "lucide-vue-next";
-import type { ThemeContext } from "../../../theme-sdk";
+import type { Config, ThemeContext } from "../../../theme-sdk";
 const { context: ctx } = defineProps<{ context: ThemeContext }>();
 const state = ref(ctx.getSnapshot());
 const stop = ctx.subscribe((value) => {
@@ -25,30 +25,39 @@ function background(value: unknown) {
   if (typeof value !== "string" || !value.trim()) return "";
   return /^https?:\/\//i.test(value) ? value : ctx.asset(value);
 }
-const scenes = [
-  {
-    url: background(ctx.config.dayImage),
-    name: "sea",
-    label: "01",
-  },
-  {
-    url: background(ctx.config.nightImage),
-    name: "lake",
-    label: "02",
-  },
-  {
-    url: background(ctx.config.dawnImage),
-    name: "dawn",
-    label: "03",
-  },
-  {
-    url: background(ctx.config.auroraImage),
-    name: "aurora",
-    label: "04",
-  },
-];
+const scenes = (
+  Array.isArray(ctx.config.backgrounds) ? ctx.config.backgrounds : []
+)
+  .filter(
+    (item): item is Config =>
+      !!item && typeof item === "object" && !Array.isArray(item),
+  )
+  .map((item) => ({
+    url: background(item.url),
+    name: item.name,
+    tone: item.tone,
+  }))
+  .filter((scene) => scene.url);
 const current = ref(0),
   ready = ref<boolean[]>(scenes.map(() => false));
+const availableScenes = computed(() =>
+  scenes.flatMap((scene, index) =>
+    ready.value[index] ? [{ ...scene, index }] : [],
+  ),
+);
+const currentScene = computed(() => scenes[current.value]);
+const sceneNumber = computed(() =>
+  String(
+    availableScenes.value.findIndex((scene) => scene.index === current.value) +
+      1,
+  ).padStart(2, "0"),
+);
+function sceneName(scene: (typeof scenes)[number], index: number) {
+  return (
+    ctx.localized(scene.name) ||
+    ctx.t("backgroundName", { number: String(index + 1).padStart(2, "0") })
+  );
+}
 const reduced = matchMedia("(prefers-reduced-motion: reduce)");
 const paused = ref(reduced.matches || ctx.config.rotate === false);
 const hidden = ref(document.hidden);
@@ -67,10 +76,12 @@ const interval = Number(ctx.config.interval) * 1000;
 let timer: ReturnType<typeof setInterval>;
 function resetTimer() {
   clearInterval(timer);
+  if (availableScenes.value.length <= 1) return;
   timer = setInterval(() => {
     if (!paused.value && !hidden.value) next();
   }, interval);
 }
+watch(() => availableScenes.value.length, resetTimer);
 function switchScene(index: number) {
   if (ready.value[index]) {
     current.value = index;
@@ -141,13 +152,13 @@ onUnmounted(() => {
 <template>
   <div
     class="horizon"
-    :class="{ 'hz-night': current === 1 || current === 3 }"
+    :class="{ 'hz-night': currentScene?.tone === 'night' }"
     :style="{ '--shade': String(ctx.config.shade) }"
   >
     <div class="hz-scenery" aria-hidden="true">
       <img
         v-for="(scene, index) in scenes"
-        :key="scene.url"
+        :key="index"
         :src="scene.url || undefined"
         alt=""
         :class="{ visible: current === index && ready[index] }"
@@ -523,17 +534,19 @@ onUnmounted(() => {
         </section>
       </main>
       <footer class="hz-footer">
-        <div class="hz-scene-info">
+        <div v-if="currentScene && ready[current]" class="hz-scene-info">
           <span class="hz-scene-index"
-            >{{ scenes[current].label
-            }}<span> / {{ String(scenes.length).padStart(2, "0") }}</span></span
+            >{{ sceneNumber
+            }}<span>
+              / {{ String(availableScenes.length).padStart(2, "0") }}</span
+            ></span
           >
           <div>
             <span class="hz-scene-kicker">{{ ctx.t("scenery") }}</span
-            ><strong>{{ ctx.t(scenes[current].name) }}</strong>
+            ><strong>{{ sceneName(currentScene, current) }}</strong>
           </div>
         </div>
-        <div class="hz-scene-controls">
+        <div v-if="availableScenes.length > 1" class="hz-scene-controls">
           <button
             class="hz-icon"
             :aria-label="ctx.t('previous')"
@@ -541,13 +554,13 @@ onUnmounted(() => {
           >
             <ChevronLeft :size="17" /></button
           ><button
-            v-for="(scene, index) in scenes"
-            :key="scene.name"
+            v-for="scene in availableScenes"
+            :key="scene.index"
             class="hz-scene-dot"
-            :class="{ active: current === index }"
-            :aria-label="ctx.t(scene.name)"
-            :aria-pressed="current === index"
-            @click="switchScene(index)"
+            :class="{ active: current === scene.index }"
+            :aria-label="sceneName(scene, scene.index)"
+            :aria-pressed="current === scene.index"
+            @click="switchScene(scene.index)"
           >
             <span></span></button
           ><button class="hz-icon" :aria-label="ctx.t('next')" @click="next()">

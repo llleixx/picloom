@@ -59,7 +59,11 @@ must be core-supported locale tags. Missing translations never use another
 language's value. Read administrator text through `ctx.localized(ctx.config.heading)`;
 use `ctx.t()` for author-owned messages.
 
-The editor uses one tree and one array structure across languages. Defaults
+The editor uses one tree and one array structure across languages. Inline localized
+fields show the selected site default language, labeled beside the field name.
+Each field opens a translation dialog showing all supported languages, including
+those disabled on the site. Confirming updates the form; saving the draft or
+applying persists changes. Canceling discards dialog edits. Defaults
 initialize installation drafts and explicitly added array items; saving, reading,
 previewing and applying never restore removed values. Values are not coerced;
 numbers must be finite and `integer` values must be safe integers. Strings without
