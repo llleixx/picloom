@@ -60,6 +60,12 @@ curl --fail-with-body "$PICLOOM_URL/api/files" \
 
 普通上传文件上限为 20 MiB，并同时受全局、用户和上传配置限制。提高全局上限不会解除普通上传上限，大文件需使用分片接口。
 
+### 请求参数的值
+
+请求参数由插件的 `paramsSchema` 声明，并由管理员在相应上传或访问步骤中逐项启用。未声明或未启用的参数不会传给插件；省略参数时服务端不补 Schema 默认值。
+
+上传 `params` 中使用实际 JSON 标量，例如 `{ "label": "", "enabled": false, "count": 0 }`；数值字段不能传成 `"0"`，布尔字段不能传成 `"false"`。访问处理参数放在图片 URL 的查询字符串中，例如 `?label=&enabled=false&count=0`；数值按声明类型解析，布尔值只接受 `true/false`，同一个已启用的标量参数不能重复传入。空字符串、`false` 和 `0` 都表示已传值，只有缺失才省略。
+
 ## 从 URL 上传
 
 `POST /api/files/from-url` 接收 JSON，成功返回同样的 `201`、`id` 和 `url`。本例还需要 jq，用于安全构造 JSON：
@@ -210,6 +216,14 @@ curl --fail-with-body "$PICLOOM_URL/api/files/$PICLOOM_FILE_ID" \
 配置修改使用接口要求的 `expectedVersion` 防止覆盖并发更新；遇到 `CONFLICT` 先重新读取。`PUT /api/settings` 接收完整设置对象，不是局部补丁，可先 GET 后修改对应字段再提交。
 
 管理配置的请求字段见 [`shared/config.ts`](https://github.com/llleixx/picloom/blob/main/shared/config.ts)，响应类型见 [`shared/api.ts`](https://github.com/llleixx/picloom/blob/main/shared/api.ts)。
+
+### 插件配置与敏感值
+
+存储源、上传配置中的路径插件和流水线步骤都提交完整的普通 `config`，服务端不补 Schema 默认值；未提交的普通字段保持缺失，并按 Schema 校验。新建接口也须提供全部必需字段。声明了本地目录的路径字段会在保存时解析为绝对路径。
+
+敏感字段使用 `secretEdits`，键为 JSON Pointer，例如 `/token` 或 `/credentials/token`。每项为 `{ "action": "preserve" }`、`{ "action": "replace", "value": "..." }` 或 `{ "action": "clear" }`。省略编辑与 `preserve` 等价；新实例没有旧值可保留。`replace` 的值必须符合字段类型，空字符串与 `clear` 不同。直接在 `config` 中填写敏感字段不会更新它。响应中的 `secretPresence` 仅表示是否已设置，不包含凭据。
+
+读取后修改普通配置时保留其他普通字段；清除凭据必须显式提交 `clear`。完整规则及三类 Schema 的能力范围见[配置与宿主服务](../development/plugin-config.md#三类-schema-的边界)。主题配置公开且不支持敏感字段，其草稿、预览和应用规则见[主题开发](../development/themes.md)。
 
 ## 错误响应
 

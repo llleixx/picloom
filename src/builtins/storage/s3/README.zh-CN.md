@@ -10,13 +10,13 @@
 
 ## 配置
 
-下表默认值由核心在保存实例时补齐；“必填”表示没有默认值时必须提供。创建后不可修改的字段标为“固定”。
+下表默认值仅用于生成初始草稿，保存时不补值；“必填”表示提交时必须存在，清空后须重新填写。创建后不可修改的字段标为“固定”。
 
 | 字段 | 含义 | 必填 | 默认值 | 约束 |
 | --- | --- | --- | --- | --- |
-| `multipartThresholdMiB` | 分片上传阈值，MiB | 否 | `64` | ≥ 5；≤ 5120 |
-| `partSizeMiB` | 分片大小，MiB | 否 | `16` | ≥ 5；≤ 512 |
-| `partConcurrency` | 分片并发数 | 否 | `3` | ≥ 1；≤ 8 |
+| `multipartThresholdMiB` | 分片上传阈值，MiB | 是 | `64` | ≥ 5；≤ 5120 |
+| `partSizeMiB` | 分片大小，MiB | 是 | `16` | ≥ 5；≤ 512 |
+| `partConcurrency` | 分片并发数 | 是 | `3` | ≥ 1；≤ 8 |
 | `endpoint` | 服务端点 | 否 | — | 固定 |
 | `region` | 区域 | 是 | — | 固定 |
 | `bucket` | 桶名 | 是 | — | 固定 |
@@ -26,7 +26,7 @@
 | `secretAccessKey` | 访问密钥 | 是 | — | 敏感 |
 | `sessionToken` | 临时会话令牌 | 否 | — | 敏感 |
 | `redirect` | 普通读取允许 302 跳转 | 否 | `false` | — |
-| `signedUrlSeconds` | 签名链接有效期，秒 | 否 | `300` | ≥ 1；≤ 604800 |
+| `signedUrlSeconds` | 签名链接有效期，秒 | 启用重定向时 | `300` | ≥ 1；≤ 604800 |
 
 无请求参数。
 
@@ -36,6 +36,13 @@
 
 ```json
 {
+  "multipartThresholdMiB": 64,
+  "partSizeMiB": 16,
+  "partConcurrency": 3,
+  "keyPrefix": "",
+  "forcePathStyle": true,
+  "redirect": false,
+  "signedUrlSeconds": 300,
   "endpoint": "https://s3.example.com",
   "region": "your-region",
   "bucket": "picloom",

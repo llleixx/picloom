@@ -10,7 +10,7 @@
 
 ## 配置
 
-下表默认值由核心在保存实例时补齐；“必填”表示没有默认值时必须提供。
+下表默认值仅用于生成初始草稿，保存时不补值；“必填”表示提交时必须存在，清空后须重新填写。
 
 ### `post_save`
 
@@ -18,14 +18,14 @@
 | --- | --- | --- | --- | --- |
 | `secretId` | 腾讯云密钥 ID | 是 | — | 敏感 |
 | `secretKey` | 腾讯云密钥 | 是 | — | 敏感 |
-| `region` | 区域 | 否 | `"ap-guangzhou"` | — |
+| `region` | 区域 | 是 | `"ap-guangzhou"` | — |
 | `bizType` | 审核策略 ID | 是 | — | — |
-| `submissionMode` | 提交内容或公开 URL | 否 | `"content"` | `content`, `url` |
-| `maxContentMiB` | 内容模式输入上限，MiB | 否 | `5` | ≥ 1；≤ 20 |
-| `blockAction` | 违规时屏蔽或删除 | 否 | `"block"` | `block`, `delete` |
-| `timeoutMs` | 请求超时，毫秒 | 否 | `30000` | ≥ 100；≤ 120000 |
-| `interval` | GIF 抽帧间隔 | 否 | `5` | ≥ 1；≤ 1000 |
-| `maxFrames` | GIF 最大抽帧数 | 否 | `5` | ≥ 1；≤ 400 |
+| `submissionMode` | 提交内容或公开 URL | 是 | `"content"` | `content`, `url` |
+| `maxContentMiB` | 内容模式输入上限，MiB | 是 | `5` | ≥ 1；≤ 20 |
+| `blockAction` | 违规时屏蔽或删除 | 是 | `"block"` | `block`, `delete` |
+| `timeoutMs` | 请求超时，毫秒 | 是 | `30000` | ≥ 100；≤ 120000 |
+| `interval` | GIF 抽帧间隔 | 是 | `5` | ≥ 1；≤ 1000 |
+| `maxFrames` | GIF 最大抽帧数 | 是 | `5` | ≥ 1；≤ 400 |
 
 无请求参数。
 
@@ -35,6 +35,13 @@
 
 ```json
 {
+  "region": "ap-guangzhou",
+  "submissionMode": "content",
+  "maxContentMiB": 5,
+  "blockAction": "block",
+  "timeoutMs": 30000,
+  "interval": 5,
+  "maxFrames": 5,
   "secretId": "YOUR_SECRET_ID",
   "secretKey": "YOUR_SECRET_KEY",
   "bizType": "YOUR_BIZ_TYPE"

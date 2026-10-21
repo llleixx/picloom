@@ -10,13 +10,13 @@ Store originals as Telegram bot documents without photo compression.
 
 ## Configuration
 
-The core fills defaults when saving an instance. “Required” means a value must be supplied because no default is available. Fields marked “immutable” cannot be changed after creation.
+Defaults initialize new drafts only; saving does not fill missing values. Required fields must be present in the submitted configuration. Fields marked “immutable” cannot be changed after creation.
 
 | Field | Meaning | Required | Default | Constraints |
 | --- | --- | --- | --- | --- |
 | `botToken` | Bot token | Yes | — | secret |
 | `chatId` | Chat ID | Yes | — | immutable |
-| `timeoutMs` | Timeout (ms) | No | `30000` | ≥ 100; ≤ 120000 |
+| `timeoutMs` | Timeout (ms) | Yes | `30000` | ≥ 100; ≤ 120000 |
 
 No request parameters.
 
@@ -26,6 +26,7 @@ Create a bot, add it to the target chat and allow document sending. Set its toke
 
 ```json
 {
+  "timeoutMs": 30000,
   "botToken": "123456:YOUR_BOT_TOKEN",
   "chatId": "-1001234567890"
 }

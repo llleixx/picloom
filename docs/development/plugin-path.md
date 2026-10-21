@@ -31,14 +31,15 @@ flowchart LR
 
 默认导出 `Definition<"path">`：身份字段中设置 `kind: "path"`，在顶层声明配置描述。结构见 [插件基础](./plugin-start.md#代码默认导出什么)。
 
-| 位置 | 成员 | 必需 | 作用 |
-| --- | --- | --- | --- |
-| 定义 | `defaultLocale`、`content` | 是 | 默认语言与展示文案，默认语言必须有非空名称；见 [多语言文案](./plugin-config.md#界面提示与翻译) |
-| 定义 | `configSchemaVersion`、`configSchema` | 是 | 配置结构版本和表单 |
-| 定义 | `createInstance` | 是 | 返回 `PathPlugin` 运行对象 |
-| 定义 | `validateConfig`、`migrateConfig`、`uiHints` | 否 | [共用配置能力](./plugin-config.md#配置描述字段) |
-| 运行对象 | `generate` | 是 | 生成相对键 |
-| 运行对象 | `dispose` | 否 | [释放实例资源](./plugin-errors.md#dispose-释放实例) |
+| 位置     | 成员                                   | 必需 | 作用                                                                                           |
+| -------- | -------------------------------------- | ---- | ---------------------------------------------------------------------------------------------- |
+| 定义     | `nameKey`、`defaultLocale`、`messages` | 是   | 默认语言与展示文案，默认语言必须有非空名称；见 [多语言文案](./plugin-config.md#界面提示与翻译) |
+| 定义     | `configSchemaVersion`                  | 是   | 配置结构版本                                                                                   |
+| 定义     | `configSchema`                         | 否   | 自定义配置表单；省略时只接受空配置 `{}`                                                        |
+| 定义     | `createInstance`                       | 是   | 返回 `PathPlugin` 运行对象                                                                     |
+| 定义     | `validateConfig`、`migrateConfig`      | 否   | [共用配置能力](./plugin-config.md#配置描述字段)                                                |
+| 运行对象 | `generate`                             | 是   | 生成相对键                                                                                     |
+| 运行对象 | `dispose`                              | 否   | [释放实例资源](./plugin-errors.md#dispose-释放实例)                                            |
 
 ## generate：生成路径
 
@@ -53,18 +54,18 @@ generate(input: {
 }, context: Context): Promise<{ logicalKey: string; storageKey?: string }>;
 ```
 
-| 参数 / 字段 | 类型 | 可选 | 含义 |
-| --- | --- | --- | --- |
-| `input.fileId` | `string` | 否 | 文件 ID，可用于避免重名 |
-| `input.uploadedAt` | `number` | 否 | 上传时间，Unix 毫秒时间戳 |
-| `input.metadata` | `Metadata` | 否 | 当前图片元数据；[具体字段](./plugin-config.md#文件与输出)可能为空 |
-| `input.originalName` | `string` | 是 | 原文件名，不能直接当作安全路径 |
-| `context` | `Context` | 否 | [取消信号与日志](./plugin-config.md#调用上下文) |
+| 参数 / 字段          | 类型       | 可选 | 含义                                                              |
+| -------------------- | ---------- | ---- | ----------------------------------------------------------------- |
+| `input.fileId`       | `string`   | 否   | 文件 ID，可用于避免重名                                           |
+| `input.uploadedAt`   | `number`   | 否   | 上传时间，Unix 毫秒时间戳                                         |
+| `input.metadata`     | `Metadata` | 否   | 当前图片元数据；[具体字段](./plugin-config.md#文件与输出)可能为空 |
+| `input.originalName` | `string`   | 是   | 原文件名，不能直接当作安全路径                                    |
+| `context`            | `Context`  | 否   | [取消信号与日志](./plugin-config.md#调用上下文)                   |
 
-| 返回字段 | 类型 | 必需 | 核心行为 |
-| --- | --- | --- | --- |
-| `logicalKey` | `string` | 是 | 与上传配置的公开前缀组成公开路径 |
-| `storageKey` | `string` | 否 | 交给存储插件使用；省略时使用 `logicalKey` |
+| 返回字段     | 类型     | 必需 | 核心行为                                  |
+| ------------ | -------- | ---- | ----------------------------------------- |
+| `logicalKey` | `string` | 是   | 与上传配置的公开前缀组成公开路径          |
+| `storageKey` | `string` | 否   | 交给存储插件使用；省略时使用 `logicalKey` |
 
 只返回命名结果，不创建文件。生成失败时抛出错误，本次上传不能继续。
 
@@ -72,7 +73,6 @@ generate(input: {
 
 先按[快速开始](./plugin-tooling.md)创建独立项目。下面展示仓库中的完整示例；
 复制到 `src/index.ts` 时，按[使用教程示例](./plugin-tooling.md#使用教程示例)调整 SDK 导入、清单身份和插件类型。
-
 
 清单告诉 Picloom 插件身份和构建后的入口：
 
@@ -85,7 +85,7 @@ generate(input: {
 ## 接入并验证
 
 在独立项目中运行 `bun run build`，使用生成的 `dist/<插件ID>-<版本>.zip`。
-下面的 **Example …** 是示例名，实际应选择入口 `content` 中设置、按当前界面语言显示的名称：
+下面的 **Example …** 是示例名，实际应选择入口 `messages` 中设置、按当前界面语言显示的名称：
 
 1. 以 Owner 登录，在插件页面上传 生成的 ZIP，确认信任并安装。
 2. 新建上传配置，选择 **Example date path**，关联已有存储组，公开前缀设为 `/photos/`。

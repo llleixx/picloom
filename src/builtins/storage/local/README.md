@@ -10,7 +10,7 @@ Store images in a local directory accessible to the application.
 
 ## Configuration
 
-The core fills defaults when saving an instance. “Required” means a value must be supplied because no default is available. Fields marked “immutable” cannot be changed after creation.
+Defaults initialize new drafts only; saving does not fill missing values. Required fields must be present in the submitted configuration. Fields marked “immutable” cannot be changed after creation.
 
 | Field | Meaning | Required | Default | Constraints |
 | --- | --- | --- | --- | --- |

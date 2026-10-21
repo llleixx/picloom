@@ -14,4 +14,53 @@ SDK snapshots and helpers are framework-independent. In Vue themes, assign each 
 
 Core errors and notifications in snapshots are translated at display time and update with the current language. Recognized error codes use core dictionaries; unknown errors preserve their original text. Themes continue to receive strings and do not need access to core translation keys. Language changes do not restart notification dismissal timers.
 
-Manifests declare names only in `content[locale].name`, with a required name in `defaultLocale`. The admin UI displays one name in its own locale, falling back to the package default locale. Schema labels and theme messages follow the same fallback. `defaultLocale` must belong to `supportedLocales`; it does not select the visitor locale or change the site default. Administrator configuration values never fall back. Name locales may be any core-supported language.
+Manifests require `nameKey`, referencing the unified `messages` catalog. Field
+`x-ui` supports labels, descriptions, enum labels, groups, order, advanced fields, textarea/password widgets and visibility conditions. Password widgets only mask input; theme configuration is public.
+The default catalog must contain all referenced and translated keys; supplied
+messages cannot be blank. Other supported languages may provide partial catalogs.
+Author copy resolves current locale, base language, then package `defaultLocale`;
+unknown keys display themselves. `defaultLocale` must belong to `supportedLocales`.
+It does not select the visitor locale or change the site default. Administrator
+configuration values never fall back. Old `content`, direct schema labels and
+`x-multiline` declarations are rejected; no conversion is performed.
+
+This SDK is independent of the plugin SDK and host shared modules. The host shares declaration checks, value validation, explicit initialization and ordinary field editing internally. Theme adapters handle language dictionaries and draft completeness. Themes use the injected `ctx.t()` API.
+
+## Configuration contract
+
+`Field` describes static fields and `Constraint` describes composition branches;
+branches reject defaults and field extensions. Formats use the supported
+`SchemaFormat` names. A manifest's configuration schema must have an object root.
+Types provide authoring feedback; the host remains responsible for declaration
+and value validation.
+
+`configSchema` is optional. When present its root must be an object; when absent,
+only `{}` is accepted. The host normalizes omission to a closed empty object
+schema, equivalent to declaring one explicitly; manifests returned by the host
+include that schema. Explicit `null` or `{}` is not a valid schema. A theme with
+no custom settings can omit the declaration and receives `ctx.config` as `{}`.
+Static `properties/items` support
+objects, homogeneous arrays, scalar types and null. Composition (`allOf`, `anyOf`,
+`oneOf`, `not`, `if/then/else`) only constrains declared fields; branches cannot
+declare defaults or extensions. References, open objects, tuples, sensitive and
+immutable extensions are unsupported. See the [shared subset and scenario comparison](https://llleixx.github.io/picloom/development/plugin-config.html#三类-schema-的边界).
+
+Drafts check types, unknown properties, enum/const, numeric bounds and string
+constraints, including patterns and formats. Required fields, composition and
+array length/uniqueness constraints are deferred until preview or application.
+Complete validation runs for every theme-supported language, including languages
+not currently enabled by the site. A missing required translation may be saved in
+a draft; supplied empty text still fails `minLength: 1`.
+
+Localized fields declare `type: "string"` and `"x-localized": true`. Their stored
+value and `default` are dictionaries such as `{ "en-US": "Welcome", "zh-CN": "欢迎" }`;
+string constraints and enum/const apply to each language's string. Dictionary keys
+must be core-supported locale tags. Missing translations never use another
+language's value. Read administrator text through `ctx.localized(ctx.config.heading)`;
+use `ctx.t()` for author-owned messages.
+
+The editor uses one tree and one array structure across languages. Defaults
+initialize installation drafts and explicitly added array items; saving, reading,
+previewing and applying never restore removed values. Values are not coerced;
+numbers must be finite and `integer` values must be safe integers. Strings without
+an explicit `maxLength` are limited to 10000 Unicode code points.

@@ -10,7 +10,7 @@ Send post-save text notifications based on the current accumulated decision, opt
 
 ## Configuration
 
-The core fills defaults when saving an instance. “Required” means a value must be supplied because no default is available.
+Defaults initialize new drafts only; saving does not fill missing values. Required fields must be present in the submitted configuration.
 
 ### `post_save`
 
@@ -18,9 +18,9 @@ The core fills defaults when saving an instance. “Required” means a value mu
 | --- | --- | --- | --- | --- |
 | `botToken` | Bot token | Yes | — | secret |
 | `chatId` | Chat ID | Yes | — | — |
-| `statuses` | Notify on statuses | No | `["block", "delete"]` | `pass`, `block`, `delete` |
-| `includeDetails` | Include previous step details | No | `false` | — |
-| `timeoutMs` | Timeout (ms) | No | `10000` | ≥ 100; ≤ 120000 |
+| `statuses` | Notify on statuses | Yes | `["block", "delete"]` | `pass`, `block`, `delete` |
+| `includeDetails` | Include previous step details | Yes | `false` | — |
+| `timeoutMs` | Timeout (ms) | Yes | `10000` | ≥ 100; ≤ 120000 |
 
 No request parameters.
 
@@ -30,13 +30,14 @@ Allow the bot to send messages to the target chat. Place this instance after mod
 
 ```json
 {
-  "botToken": "123456:YOUR_BOT_TOKEN",
-  "chatId": "-1001234567890",
   "statuses": [
     "block",
     "delete"
   ],
-  "includeDetails": true
+  "includeDetails": true,
+  "timeoutMs": 10000,
+  "botToken": "123456:YOUR_BOT_TOKEN",
+  "chatId": "-1001234567890"
 }
 ```
 

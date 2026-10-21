@@ -10,13 +10,13 @@ Host images through the NodeImage API.
 
 ## Configuration
 
-The core fills defaults when saving an instance. “Required” means a value must be supplied because no default is available.
+Defaults initialize new drafts only; saving does not fill missing values. Required fields must be present in the submitted configuration.
 
 | Field | Meaning | Required | Default | Constraints |
 | --- | --- | --- | --- | --- |
 | `apiKey` | API key | Yes | — | secret |
 | `redirect` | Redirect reads (302) | No | `true` | — |
-| `timeoutMs` | Timeout (ms) | No | `30000` | ≥ 100; ≤ 120000 |
+| `timeoutMs` | Timeout (ms) | Yes | `30000` | ≥ 100; ≤ 120000 |
 
 No request parameters.
 
@@ -26,6 +26,8 @@ Enter a NodeImage API key and connect the source through a storage group to an u
 
 ```json
 {
+  "redirect": true,
+  "timeoutMs": 30000,
   "apiKey": "YOUR_API_KEY"
 }
 ```

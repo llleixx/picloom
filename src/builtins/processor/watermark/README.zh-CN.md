@@ -10,27 +10,27 @@
 
 ## 配置
 
-下表默认值由核心在保存实例时补齐；“必填”表示没有默认值时必须提供。
+下表默认值仅用于生成初始草稿，保存时不补值；“必填”表示提交时必须存在，清空后须重新填写。
 
 ### `upload / access`
 
 | 字段 | 含义 | 必填 | 默认值 | 约束 |
 | --- | --- | --- | --- | --- |
-| `type` | 水印类型 | 否 | `"text"` | `text`, `image` |
+| `type` | 水印类型 | 是 | `"text"` | `text`, `image` |
 | `text` | 水印文字 | 文字模式 | — | 最多 500 字符；文字模式必填 |
-| `font` | 字体名称 | 否 | `"sans"` | — |
+| `font` | 字体名称 | 文字模式 | `"sans"` | — |
 | `fontFile` | 服务端字体文件路径 | 否 | — | — |
-| `sizeMode` | 相对尺寸或固定像素 | 否 | `"relative"` | `relative`, `fixed` |
-| `fontSizePercent` | 字号占原图短边百分比 | 否 | `3` | ≥ 0.1；≤ 50 |
-| `marginPercent` | 边距占原图短边百分比 | 否 | `2` | ≥ 0；≤ 49 |
-| `fontSize` | 固定字号，像素 | 否 | `32` | ≥ 1；≤ 512 |
-| `color` | 文字颜色，六位十六进制 | 否 | `"#ffffff"` | — |
+| `sizeMode` | 相对尺寸或固定像素 | 是 | `"relative"` | `relative`, `fixed` |
+| `fontSizePercent` | 字号占原图短边百分比 | 文字且相对尺寸 | `3` | ≥ 0.1；≤ 50 |
+| `marginPercent` | 边距占原图短边百分比 | 相对尺寸 | `2` | ≥ 0；≤ 49 |
+| `fontSize` | 固定字号，像素 | 文字且固定尺寸 | `32` | ≥ 1；≤ 512 |
+| `color` | 文字颜色，六位十六进制 | 文字模式 | `"#ffffff"` | — |
 | `imagePath` | 服务端水印图片路径 | 图片模式 | — | 图片模式必填 |
-| `imageWidth` | 固定图片水印宽度，像素 | 否 | `128` | ≥ 1；≤ 16384 |
-| `widthPercent` | 水印图片占原图宽度百分比 | 否 | `10` | ≥ 1；≤ 100 |
-| `position` | 水印位置 | 否 | `"bottom-right"` | `top-left`, `top`, `top-right`, `left`, `center`, `right`, `bottom-left`, `bottom`, `bottom-right` |
-| `margin` | 固定边距，像素 | 否 | `16` | ≥ 0；≤ 4096 |
-| `opacity` | 不透明度，百分比 | 否 | `70` | ≥ 0；≤ 100 |
+| `imageWidth` | 固定图片水印宽度，像素 | 图片且固定尺寸 | `128` | ≥ 1；≤ 16384 |
+| `widthPercent` | 水印图片占原图宽度百分比 | 图片且相对尺寸 | `10` | ≥ 1；≤ 100 |
+| `position` | 水印位置 | 是 | `"bottom-right"` | `top-left`, `top`, `top-right`, `left`, `center`, `right`, `bottom-left`, `bottom`, `bottom-right` |
+| `margin` | 固定边距，像素 | 固定尺寸 | `16` | ≥ 0；≤ 4096 |
+| `opacity` | 不透明度，百分比 | 是 | `70` | ≥ 0；≤ 100 |
 
 仅访问阶段提供以下请求参数，上传阶段无请求参数。需先在流水线步骤中显式开放。请求参数本身不由实例默认值补齐。
 
@@ -45,6 +45,17 @@
 ```json
 {
   "type": "text",
+  "font": "sans",
+  "sizeMode": "relative",
+  "fontSizePercent": 3,
+  "marginPercent": 2,
+  "fontSize": 32,
+  "color": "#ffffff",
+  "imageWidth": 128,
+  "widthPercent": 10,
+  "position": "bottom-right",
+  "margin": 16,
+  "opacity": 70,
   "text": "Picloom"
 }
 ```

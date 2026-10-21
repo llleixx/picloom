@@ -57,8 +57,8 @@ my-plugin/
 这里的 `example.*` 只是练习用 ID，分发前换成自己的稳定标识。入口直接读取清单中的
 身份字段，不需要再改一份版本号；`package.json` 的版本不是插件版本。
 
-在 `src/index.ts` 的 `content["en-US"].name` 中设置显示名称，例如 `My date path`。
-名称、简介和字段文案按语言放入 `content`，`defaultLocale` 指定缺少翻译时的默认语言。
+在 `src/index.ts` 的 `messages["en-US"][nameKey]` 中设置显示名称，例如 `My date path`。
+名称、简介和字段文案按语言放入 `messages`，`defaultLocale` 指定缺少翻译时的默认语言。
 详见[多语言文案](./plugin-config.md#界面提示与翻译)。
 
 模板已经能按 UTC 日期生成路径。打开 `src/index.ts`，可以在返回路径前加一段目录，
@@ -108,7 +108,7 @@ dist/example.my-date-path-0.1.0.zip
 1. 用示例实现替换 `src/index.ts`，将 `../../plugin-sdk` 改为 `@picloom/plugin-sdk`。
 2. 在清单中设置对应 `kind`（路径 `path`、存储 `storage`、处理 `processor`），保留自己的
    ID 和版本；删除示例默认导出中写死的 `id/version/kind/apiVersion`。
-   在入口的 `content` 中修改各语言的名称，保留示例的字段文案。
+   在入口的 `messages` 中修改各语言的名称，保留示例的字段文案。
 3. 从清单读取身份字段，并为 `kind/apiVersion` 做类型收窄。下面以存储插件为例，
    路径或处理插件把检查中的 `storage` 分别改为 `path` 或 `processor`：
 

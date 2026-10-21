@@ -10,7 +10,7 @@
 
 ## 配置
 
-下表默认值由核心在保存实例时补齐；“必填”表示没有默认值时必须提供。
+下表默认值仅用于生成初始草稿，保存时不补值；“必填”表示提交时必须存在，清空后须重新填写。
 
 ### `post_save`
 
@@ -18,9 +18,9 @@
 | --- | --- | --- | --- | --- |
 | `botToken` | 机器人令牌 | 是 | — | 敏感 |
 | `chatId` | 数字聊天 ID，可为负数 | 是 | — | — |
-| `statuses` | 触发通知的累计状态 | 否 | `["block", "delete"]` | `pass`, `block`, `delete` |
-| `includeDetails` | 附带前序插件详情 | 否 | `false` | — |
-| `timeoutMs` | 请求超时，毫秒 | 否 | `10000` | ≥ 100；≤ 120000 |
+| `statuses` | 触发通知的累计状态 | 是 | `["block", "delete"]` | `pass`, `block`, `delete` |
+| `includeDetails` | 附带前序插件详情 | 是 | `false` | — |
+| `timeoutMs` | 请求超时，毫秒 | 是 | `10000` | ≥ 100；≤ 120000 |
 
 无请求参数。
 
@@ -30,13 +30,14 @@
 
 ```json
 {
-  "botToken": "123456:YOUR_BOT_TOKEN",
-  "chatId": "-1001234567890",
   "statuses": [
     "block",
     "delete"
   ],
-  "includeDetails": true
+  "includeDetails": true,
+  "timeoutMs": 10000,
+  "botToken": "123456:YOUR_BOT_TOKEN",
+  "chatId": "-1001234567890"
 }
 ```
 

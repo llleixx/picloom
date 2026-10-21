@@ -10,7 +10,7 @@ Use storage mounted in OpenList through its API.
 
 ## Configuration
 
-The core fills defaults when saving an instance. “Required” means a value must be supplied because no default is available. Fields marked “immutable” cannot be changed after creation.
+Defaults initialize new drafts only; saving does not fill missing values. Required fields must be present in the submitted configuration. Fields marked “immutable” cannot be changed after creation.
 
 | Field | Meaning | Required | Default | Constraints |
 | --- | --- | --- | --- | --- |
@@ -18,7 +18,7 @@ The core fills defaults when saving an instance. “Required” means a value mu
 | `root` | Mount directory | Yes | — | immutable |
 | `token` | API token | Yes | — | secret |
 | `redirect` | Redirect reads (302) | No | `true` | — |
-| `timeoutMs` | Timeout (ms) | No | `30000` | ≥ 100; ≤ 120000 |
+| `timeoutMs` | Timeout (ms) | Yes | `30000` | ≥ 100; ≤ 120000 |
 
 No request parameters.
 
@@ -28,6 +28,8 @@ Set the OpenList service URL, mount directory and API token. Add the source to t
 
 ```json
 {
+  "redirect": true,
+  "timeoutMs": 30000,
   "endpoint": "https://openlist.example.com",
   "root": "/Images",
   "token": "YOUR_API_TOKEN"

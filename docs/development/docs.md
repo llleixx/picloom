@@ -4,18 +4,18 @@
 
 ## 文件放在哪里
 
-| 位置 | 内容 |
-| --- | --- |
-| `docs/guide/` | 用户概念与使用流程 |
-| `docs/operations/` | 部署、数据与运行维护 |
-| `docs/development/` | 插件开发与核心开发 |
-| `docs/reference/` | 配置等参考信息 |
-| `docs/.vitepress/zh.ts` | 中文导航、侧栏和首页配置 |
-| `docs/.vitepress/config.mts` | 站点路径、多语言、搜索与 Mermaid 配置 |
-| `docs/.vitepress/theme/` | 主题样式与扩展 |
-| `docs/public/` | 图标等静态文件 |
-| `docs/package.json`、`docs/bun.lock` | 独立依赖与锁文件 |
-| `.github/workflows/docs.yml` | GitHub Pages 构建与发布 |
+| 位置                                 | 内容                                  |
+| ------------------------------------ | ------------------------------------- |
+| `docs/guide/`                        | 用户概念与使用流程                    |
+| `docs/operations/`                   | 部署、数据与运行维护                  |
+| `docs/development/`                  | 插件开发与核心开发                    |
+| `docs/reference/`                    | 配置等参考信息                        |
+| `docs/.vitepress/zh.ts`              | 中文导航、侧栏和首页配置              |
+| `docs/.vitepress/config.mts`         | 站点路径、多语言、搜索与 Mermaid 配置 |
+| `docs/.vitepress/theme/`             | 主题样式与扩展                        |
+| `docs/public/`                       | 图标等静态文件                        |
+| `docs/package.json`、`docs/bun.lock` | 独立依赖与锁文件                      |
+| `.github/workflows/docs.yml`         | GitHub Pages 构建与发布               |
 
 `docs/dev/` 被排除在站点之外，不作为公开文档来源。
 
@@ -81,7 +81,7 @@ flowchart LR
 2. 增加英文导航配置，链接指向 `/en/` 下的页面。
 3. 在 `config.mts` 的 `locales` 增加 `en`，设置 `link: '/en/'`、`lang: 'en-US'`，补齐搜索界面翻译。
 
-翻译完成前不开放空语言入口。插件的 `content` 与文档站语言配置相互独立。
+翻译完成前不开放空语言入口。插件的 `messages` 与文档站语言配置相互独立。
 
 ## 内容约定
 

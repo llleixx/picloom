@@ -16,7 +16,7 @@ Install `outputs/themes/horizon.zip` through **管理后台 → 主题**, edit i
 
 ## Configuration / 配置
 
-- **Heading and description / 宣传标题与说明**: separate Chinese and English text; blank values remain empty. These do not modify the site name or browser title. Version 1.2.0 also exposes the login heading and description.
+- **Heading and description / 宣传标题与说明**: separate Chinese and English text; blank values remain empty. These do not modify the site name or browser title. The panel also exposes the login heading and description.
 - **Rotation / 自动轮换**: enabled by default, every 6 seconds; configurable from 5–60 seconds. Includes manual scene selection and a pause button. Rotation pauses while the document is hidden; reduced-motion preference disables autoplay initially and removes transitions.
 - **Shade / 遮罩浓度**: controls the additional dark overlay for readability.
 - **Scenery image URLs / 四张背景图片地址**: package asset paths or replacement URLs; defaults point to bundled images, and clearing a field disables that image. Prefer landscape images with a quiet right side. External images depend on their origin's availability and access rules.
@@ -45,6 +45,8 @@ Version 1.1.0 adds dawn valley and aurora fjord and defaults to 6-second rotatio
 
 > Create one finished wide 16:9 cinematic anime landscape illustration for a minimalist full-screen website background. An immense tranquil northern fjord under flowing delicate turquoise aurora curtains and a deep blue starry night sky, monumental snowy peaks receding into mist on the left, still dark teal water reflecting the aurora, distant tiny warm lights along the far shoreline for scale. Hand-painted Japanese animation background art, refined painterly detail, breathtaking openness, quiet magical wonder. Sky occupies upper two thirds; luminous aurora arcs mainly upper left and center; right third quieter blue sky and water suitable behind a translucent interface panel. Elegant restrained teal, indigo, silver, a hint of violet; no oversaturated neon. Minimal foreground, no people, no prominent buildings, no text, no logos, no watermark, no UI, no frame. Full bleed illustration.
 
-Version 1.2.0 uses explicit supported languages and the shared site default language. Empty content does not fall back to another language or site information.
+Horizon declares its supported languages and the shared site default language. Empty content does not fall back to another language or site information.
 
 Horizon uses a fixed visual style and does not read or change the host light/dark preference. Native form controls use a fixed dark color scheme. Scene-specific accent colors follow the background slideshow only.
+
+Version 1.3.0 uses `nameKey`, centralized `messages` and inline `x-ui` field hints. Install as a new version; no old declaration conversion is provided.

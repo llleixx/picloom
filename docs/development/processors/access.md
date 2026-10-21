@@ -36,14 +36,15 @@ flowchart LR
 
 定义设置 `kind: "processor"`，将以下阶段描述放在 `stages.access` 中，而不是插件顶层。
 
-| 位置 | 成员 | 必需 | 作用 |
-| --- | --- | --- | --- |
-| 阶段描述 | `defaultLocale`、`content`、`configSchemaVersion`、`configSchema`、`createInstance` | 是 | 创建 `AccessPlugin`，见 [共用协议](../plugin-config.md#配置描述字段) |
-| 阶段描述 | `paramsSchema` | 否 | 声明可接受的本次请求参数；还需管理员逐项启用 |
-| 阶段描述 | `validateConfig`、`migrateConfig`、`uiHints` | 否 | 配置校验、升级和展示 |
-| 运行对象 | `check`、`process` | 是 | 检查适用性，执行处理 |
-| 运行对象 | `cacheable` | 否 | 布尔值，默认允许派生缓存；`false` 禁用共享派生缓存 |
-| 运行对象 | `dispose` | 否 | [释放实例资源](../plugin-errors.md#dispose-释放实例) |
+| 位置     | 成员                                                                                 | 必需 | 作用                                                                 |
+| -------- | ------------------------------------------------------------------------------------ | ---- | -------------------------------------------------------------------- |
+| 阶段描述 | `configSchemaVersion`、`createInstance` | 是   | 创建 `AccessPlugin`，见 [共用协议](../plugin-config.md#配置描述字段) |
+| 阶段描述 | `configSchema` | 否 | 自定义配置表单；省略时只接受空配置 `{}` |
+| 阶段描述 | `paramsSchema`                                                                       | 否   | 声明可接受的本次请求参数；还需管理员逐项启用                         |
+| 阶段描述 | `validateConfig`、`migrateConfig`                                                    | 否   | 配置校验和升级                                                 |
+| 运行对象 | `check`、`process`                                                                   | 是   | 检查适用性，执行处理                                                 |
+| 运行对象 | `cacheable`                                                                          | 否   | 布尔值，默认允许派生缓存；`false` 禁用共享派生缓存                   |
+| 运行对象 | `dispose`                                                                            | 否   | [释放实例资源](../plugin-errors.md#dispose-释放实例)                 |
 
 `Parameters` 是 `Record<string, string | number | boolean>`，没有本次参数时为空对象。文件及元数据的完整字段见 [文件与输出](../plugin-config.md#文件与输出)。
 
@@ -63,21 +64,21 @@ check(input: {
 }>;
 ```
 
-| 参数 / 字段 | 类型 | 可选 | 含义 |
-| --- | --- | --- | --- |
-| `input.params` | `Parameters` | 否 | 已筛选并校验的请求参数，不自动合并固定配置 |
-| `input.metadata` | `Readonly<Metadata>` | 否 | 当前图片元数据，可先判断是否需要取图 |
-| `input.getFile()` | `() => Promise<FileInput>` | 否 | 无参数，按需取得当前图片输入；必须等待完成 |
-| `input.limits.maxDimension` | `number` | 否 | 最大单边尺寸，像素 |
-| `input.limits.maxPixels` | `number` | 否 | 最大像素总数 |
-| `context` | `CheckContext` | 否 | 取消、日志及只读 `data.get`，见 [调用上下文](../plugin-config.md#调用上下文) |
+| 参数 / 字段                 | 类型                       | 可选 | 含义                                                                         |
+| --------------------------- | -------------------------- | ---- | ---------------------------------------------------------------------------- |
+| `input.params`              | `Parameters`               | 否   | 已筛选并校验的请求参数，不自动合并固定配置                                   |
+| `input.metadata`            | `Readonly<Metadata>`       | 否   | 当前图片元数据，可先判断是否需要取图                                         |
+| `input.getFile()`           | `() => Promise<FileInput>` | 否   | 无参数，按需取得当前图片输入；必须等待完成                                   |
+| `input.limits.maxDimension` | `number`                   | 否   | 最大单边尺寸，像素                                                           |
+| `input.limits.maxPixels`    | `number`                   | 否   | 最大像素总数                                                                 |
+| `context`                   | `CheckContext`             | 否   | 取消、日志及只读 `data.get`，见 [调用上下文](../plugin-config.md#调用上下文) |
 
 返回对象必须含 `status`，可选 `reason: string` 说明原因：
 
-| `status` | 核心行为 |
-| --- | --- |
-| `applicable` | 调用本步骤的 `process` |
-| `noop` | 不处理，直接进入下一步 |
+| `status`      | 核心行为                                             |
+| ------------- | ---------------------------------------------------- |
+| `applicable`  | 调用本步骤的 `process`                               |
+| `noop`        | 不处理，直接进入下一步                               |
 | `unsupported` | 根据步骤配置跳过或中止；中止时使用 `reason` 说明原因 |
 
 检查阶段不能创建输出，也不能写入 `context.data`。执行异常应抛错，不要用 `unsupported` 隐藏失败。
@@ -100,21 +101,21 @@ process(input: {
 >;
 ```
 
-| 参数 / 字段 | 类型 | 可选 | 含义 |
-| --- | --- | --- | --- |
-| `input.params` | `Parameters` | 否 | 本次请求参数 |
-| `input.metadata` | `Readonly<Metadata>` | 否 | 当前图片元数据，可先判断是否需要取图 |
-| `input.getFile()` | `() => Promise<FileInput>` | 否 | 无参数，按需取得当前图片输入；必须等待完成 |
-| `input.limits.maxDimension` | `number` | 否 | 最大单边尺寸，像素 |
-| `input.limits.maxPixels` | `number` | 否 | 最大像素总数 |
-| `input.createOutput()` | `() => Promise<Output>` | 否 | 无参数，创建本次处理的输出对象 |
-| `context` | `PipelineContext` | 否 | 取消、日志及可读写的 `data`，见 [调用上下文](../plugin-config.md#调用上下文) |
+| 参数 / 字段                 | 类型                       | 可选 | 含义                                                                         |
+| --------------------------- | -------------------------- | ---- | ---------------------------------------------------------------------------- |
+| `input.params`              | `Parameters`               | 否   | 本次请求参数                                                                 |
+| `input.metadata`            | `Readonly<Metadata>`       | 否   | 当前图片元数据，可先判断是否需要取图                                         |
+| `input.getFile()`           | `() => Promise<FileInput>` | 否   | 无参数，按需取得当前图片输入；必须等待完成                                   |
+| `input.limits.maxDimension` | `number`                   | 否   | 最大单边尺寸，像素                                                           |
+| `input.limits.maxPixels`    | `number`                   | 否   | 最大像素总数                                                                 |
+| `input.createOutput()`      | `() => Promise<Output>`    | 否   | 无参数，创建本次处理的输出对象                                               |
+| `context`                   | `PipelineContext`          | 否   | 取消、日志及可读写的 `data`，见 [调用上下文](../plugin-config.md#调用上下文) |
 
-| 返回形式 | 必需字段 | 核心行为 |
-| --- | --- | --- |
-| 保留 | `status: "pass"` | 当前图片不变，继续下一步 |
-| 替换 | `status: "replace"`、`output: Output` | 校验输出并更新当前图片，继续下一步 |
-| 拒绝 | `status: "reject"`、`reason: string` | 中止本次访问并报错 |
+| 返回形式 | 必需字段                              | 核心行为                           |
+| -------- | ------------------------------------- | ---------------------------------- |
+| 保留     | `status: "pass"`                      | 当前图片不变，继续下一步           |
+| 替换     | `status: "replace"`、`output: Output` | 校验输出并更新当前图片，继续下一步 |
+| 拒绝     | `status: "reject"`、`reason: string`  | 中止本次访问并报错                 |
 
 输出来自本次 `createOutput()`，写入完成后才能返回。输出接口见 [文件与输出](../plugin-config.md#文件与输出)。
 
@@ -122,7 +123,6 @@ process(input: {
 
 先按[快速开始](../plugin-tooling.md)创建独立项目。下面展示仓库中的完整示例；
 复制到 `src/index.ts` 时，按[使用教程示例](../plugin-tooling.md#使用教程示例)调整 SDK 导入、清单身份和插件类型。
-
 
 本例没有固定配置，只有可选的 `width` 请求参数。先判断是否需要处理，再读取图片：
 
@@ -133,7 +133,7 @@ process(input: {
 ## 接入并验证
 
 在独立项目中运行 `bun run build`，使用生成的 `dist/<插件ID>-<版本>.zip`。
-下面的 **Example …** 是示例名，实际应选择入口 `content` 中设置、按当前界面语言显示的名称：
+下面的 **Example …** 是示例名，实际应选择入口 `messages` 中设置、按当前界面语言显示的名称：
 
 1. 安装 生成的 ZIP，在全局访问流水线中添加 **Example thumbnail**，启用参数 `width`。
 2. 测试时先只保留这个访问步骤，上传一张宽于 320 像素的静态 JPEG、PNG 或 WebP。

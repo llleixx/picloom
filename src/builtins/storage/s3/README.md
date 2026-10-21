@@ -10,13 +10,13 @@ Store images in S3 or an S3-compatible object store.
 
 ## Configuration
 
-The core fills defaults when saving an instance. “Required” means a value must be supplied because no default is available. Fields marked “immutable” cannot be changed after creation.
+Defaults initialize new drafts only; saving does not fill missing values. Required fields must be present in the submitted configuration. Fields marked “immutable” cannot be changed after creation.
 
 | Field | Meaning | Required | Default | Constraints |
 | --- | --- | --- | --- | --- |
-| `multipartThresholdMiB` | Multipart threshold (MiB) | No | `64` | ≥ 5; ≤ 5120 |
-| `partSizeMiB` | Part size (MiB) | No | `16` | ≥ 5; ≤ 512 |
-| `partConcurrency` | Part concurrency | No | `3` | ≥ 1; ≤ 8 |
+| `multipartThresholdMiB` | Multipart threshold (MiB) | Yes | `64` | ≥ 5; ≤ 5120 |
+| `partSizeMiB` | Part size (MiB) | Yes | `16` | ≥ 5; ≤ 512 |
+| `partConcurrency` | Part concurrency | Yes | `3` | ≥ 1; ≤ 8 |
 | `endpoint` | Endpoint | No | — | immutable |
 | `region` | Region | Yes | — | immutable |
 | `bucket` | Bucket | Yes | — | immutable |
@@ -26,7 +26,7 @@ The core fills defaults when saving an instance. “Required” means a value mu
 | `secretAccessKey` | Secret Access Key | Yes | — | secret |
 | `sessionToken` | Session Token | No | — | secret |
 | `redirect` | Redirect reads (302) | No | `false` | — |
-| `signedUrlSeconds` | Signed URL lifetime (seconds) | No | `300` | ≥ 1; ≤ 604800 |
+| `signedUrlSeconds` | Signed URL lifetime (seconds) | When redirect is enabled | `300` | ≥ 1; ≤ 604800 |
 
 No request parameters.
 
@@ -36,6 +36,13 @@ Replace the endpoint, region, bucket and credentials with provider values; regio
 
 ```json
 {
+  "multipartThresholdMiB": 64,
+  "partSizeMiB": 16,
+  "partConcurrency": 3,
+  "keyPrefix": "",
+  "forcePathStyle": true,
+  "redirect": false,
+  "signedUrlSeconds": 300,
   "endpoint": "https://s3.example.com",
   "region": "your-region",
   "bucket": "picloom",

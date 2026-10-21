@@ -90,3 +90,5 @@ bun test tests/examples.test.ts
 仓库示例的构建脚本如下；独立模板使用自己的 `scripts/build.ts`，不依赖此脚本：
 
 <<< ../../examples/build.ts
+
+SDK 构建会先清空生成目录 `dist/`，再生成运行时代码与类型声明，避免已经删除的模块声明残留在发布包中。

@@ -10,11 +10,11 @@ The default path plugin derives a stable 32-character filename from the random f
 
 ## Configuration
 
-The core fills defaults when saving an instance. “Required” means a value must be supplied because no default is available.
+Defaults initialize new drafts only; saving does not fill missing values. Required fields must be present in the submitted configuration.
 
 | Field | Meaning | Required | Default | Constraints |
 | --- | --- | --- | --- | --- |
-| `directoryDepth` | Directory shard depth | No | `2` | `0`, `1`, `2` |
+| `directoryDepth` | Directory shard depth | Yes | `2` | `0`, `1`, `2` |
 
 No request parameters.
 

@@ -10,7 +10,7 @@ Resize images or change format and quality during upload or access.
 
 ## Configuration
 
-The core fills defaults when saving an instance. “Required” means a value must be supplied because no default is available.
+Defaults initialize new drafts only; saving does not fill missing values. Required fields must be present in the submitted configuration.
 
 Upload instances accept all fields below. Access instances configure only `allowEnlargement`. Both stages accept `w`, `h`, `fit`, `q` and `format` as request parameters, with the same constraints; explicitly enable them on the pipeline step.
 
@@ -29,6 +29,7 @@ Upload stage: use the configuration below, add the instance to an upload pipelin
 
 ```json
 {
+  "allowEnlargement": false,
   "w": 1280,
   "format": "webp",
   "q": 80
@@ -43,7 +44,7 @@ Only static JPEG, PNG and WebP are supported; converting an image with transpare
 
 For a 1600 × 900 source and `w=640&h=480`:
 
-| `fit` | Behavior | Result |
+| `fit` | Behavior | No |
 | --- | --- | --- |
 | `inside` | Scale proportionally without cropping | 640 × 360 |
 | `cover` | Fill the target, cropping left and right | 640 × 480 |

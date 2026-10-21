@@ -10,13 +10,13 @@ Store and read images through WebDAV.
 
 ## Configuration
 
-The core fills defaults when saving an instance. “Required” means a value must be supplied because no default is available. Fields marked “immutable” cannot be changed after creation.
+Defaults initialize new drafts only; saving does not fill missing values. Required fields must be present in the submitted configuration. Fields marked “immutable” cannot be changed after creation.
 
 | Field | Meaning | Required | Default | Constraints |
 | --- | --- | --- | --- | --- |
 | `endpoint` | WebDAV endpoint | Yes | — | immutable |
 | `keyPrefix` | Directory Prefix | No | `""` | immutable |
-| `timeoutMs` | Timeout (ms) | No | `30000` | ≥ 100; ≤ 120000 |
+| `timeoutMs` | Timeout (ms) | Yes | `30000` | ≥ 100; ≤ 120000 |
 | `username` | Username | Yes | — | secret |
 | `password` | Password or app password | Yes | — | secret |
 
@@ -28,6 +28,8 @@ Use an existing WebDAV root URL and account credentials. Add the source to a sto
 
 ```json
 {
+  "keyPrefix": "",
+  "timeoutMs": 30000,
   "endpoint": "https://dav.example.com/images/",
   "username": "YOUR_USERNAME",
   "password": "YOUR_APP_PASSWORD"

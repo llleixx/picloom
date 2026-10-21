@@ -10,7 +10,7 @@ Run Tencent Cloud moderation after saving and return a pass, block or delete dec
 
 ## Configuration
 
-The core fills defaults when saving an instance. “Required” means a value must be supplied because no default is available.
+Defaults initialize new drafts only; saving does not fill missing values. Required fields must be present in the submitted configuration.
 
 ### `post_save`
 
@@ -18,14 +18,14 @@ The core fills defaults when saving an instance. “Required” means a value mu
 | --- | --- | --- | --- | --- |
 | `secretId` | Secret ID | Yes | — | secret |
 | `secretKey` | Secret key | Yes | — | secret |
-| `region` | Region | No | `"ap-guangzhou"` | — |
+| `region` | Region | Yes | `"ap-guangzhou"` | — |
 | `bizType` | BizType | Yes | — | — |
-| `submissionMode` | Submission method | No | `"content"` | `content`, `url` |
-| `maxContentMiB` | Content size limit (MiB) | No | `5` | ≥ 1; ≤ 20 |
-| `blockAction` | On violation | No | `"block"` | `block`, `delete` |
-| `timeoutMs` | Timeout (ms) | No | `30000` | ≥ 100; ≤ 120000 |
-| `interval` | GIF frame interval | No | `5` | ≥ 1; ≤ 1000 |
-| `maxFrames` | Maximum GIF frames | No | `5` | ≥ 1; ≤ 400 |
+| `submissionMode` | Submission method | Yes | `"content"` | `content`, `url` |
+| `maxContentMiB` | Content size limit (MiB) | Yes | `5` | ≥ 1; ≤ 20 |
+| `blockAction` | On violation | Yes | `"block"` | `block`, `delete` |
+| `timeoutMs` | Timeout (ms) | Yes | `30000` | ≥ 100; ≤ 120000 |
+| `interval` | GIF frame interval | Yes | `5` | ≥ 1; ≤ 1000 |
+| `maxFrames` | Maximum GIF frames | Yes | `5` | ≥ 1; ≤ 400 |
 
 No request parameters.
 
@@ -35,6 +35,13 @@ Prepare Tencent Cloud credentials and a policy ID, add the instance to a post-sa
 
 ```json
 {
+  "region": "ap-guangzhou",
+  "submissionMode": "content",
+  "maxContentMiB": 5,
+  "blockAction": "block",
+  "timeoutMs": 30000,
+  "interval": 5,
+  "maxFrames": 5,
   "secretId": "YOUR_SECRET_ID",
   "secretKey": "YOUR_SECRET_KEY",
   "bizType": "YOUR_BIZ_TYPE"
