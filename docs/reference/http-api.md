@@ -223,7 +223,7 @@ curl --fail-with-body "$PICLOOM_URL/api/files/$PICLOOM_FILE_ID" \
 
 敏感字段使用 `secretEdits`，键为 JSON Pointer，例如 `/token` 或 `/credentials/token`。每项为 `{ "action": "preserve" }`、`{ "action": "replace", "value": "..." }` 或 `{ "action": "clear" }`。省略编辑与 `preserve` 等价；新实例没有旧值可保留。`replace` 的值必须符合字段类型，空字符串与 `clear` 不同。直接在 `config` 中填写敏感字段不会更新它。响应中的 `secretPresence` 仅表示是否已设置，不包含凭据。
 
-读取后修改普通配置时保留其他普通字段；清除凭据必须显式提交 `clear`。完整规则及三类 Schema 的能力范围见[配置与宿主服务](../development/plugin-config.md#三类-schema-的边界)。主题配置公开且不支持敏感字段，其草稿、预览和应用规则见[主题开发](../development/themes.md)。
+读取后修改普通配置时保留其他普通字段；清除凭据必须显式提交 `clear`。完整规则及三类 Schema 的能力范围见[配置与请求参数](../development/schema.md#三类-schema-的边界)。主题配置公开且不支持敏感字段，其草稿、预览和应用规则见[主题开发](../development/themes.md)。
 
 ## 错误响应
 
@@ -265,3 +265,19 @@ curl --fail-with-body "$PICLOOM_URL/api/files/$PICLOOM_FILE_ID" \
 先按正常流程上传新图，再向 `POST /api/files/:id/replace` 发送 JSON：`{"replacementId":"新文件 ID","replacementPath":"新上传结果 URL 的 pathname"}`。上传时显式选择原上传配置或其他有权限的配置，不依赖默认配置回退。
 
 新旧图片必须可管理、处于 ready 状态、最终格式一致，且副本及后台任务已成功完成。成功返回新文件的 `id` 和保留的 `url`，旧文件随后异步清理；图片归属保持不变。切换失败不会删除原图，新上传的图片可能作为独立图片保留。公开链接不变，浏览器和 CDN 已有缓存需等到过期或主动刷新。
+
+## 主题管理
+
+`GET /api/theme` 返回启用主题描述或 `null`，匿名可读。其余主题管理接口限所有者，写请求使用会话 CSRF：
+
+| 方法与路径                             | 内容                                                                                         |
+| -------------------------------------- | -------------------------------------------------------------------------------------------- |
+| `GET /api/themes`                      | 已安装主题、兼容状态和候选配置                                                               |
+| `POST /api/themes/inspect`             | 请求体为原始 ZIP 字节，返回 `ticket` 和 `manifest`，凭据有效期 15 分钟                       |
+| `POST /api/themes/install`             | `{ "ticket": "…", "confirmed": true }`                                                       |
+| `PUT /api/themes/:id/:version/config`  | `{ config, language: { defaultLocale, languageRevision } }`                                  |
+| `GET /api/themes/:id/:version/preview` | 读取该版本候选配置及资源入口                                                                 |
+| `PUT /api/theme`                       | `{ id, version, defaultLocale, languageRevision }` 启用已保存草稿；`{ "id": null }` 恢复默认 |
+| `DELETE /api/themes/:id/:version`      | 卸载非启用版本                                                                               |
+
+资源位于 `/assets/themes/:id/:version/...`，可公开获取并长期缓存。不要将未发布的敏感文件放入主题包。后台使用的配置、预览权限不等于包内资源访问隔离。

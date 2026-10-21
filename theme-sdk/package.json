@@ -9,7 +9,18 @@
     }
   },
   "files": [
-    "index.ts"
+    "index.ts",
+    "README.md",
+    "LICENSE"
   ],
-  "license": "MIT"
+  "license": "MIT",
+  "description": "Browser-only public contracts for Picloom themes",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/llleixx/picloom.git",
+    "directory": "theme-sdk"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
 }

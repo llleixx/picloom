@@ -10,7 +10,16 @@
     "skipLibCheck": true,
     "types": ["vite/client"],
     "baseUrl": ".",
-    "paths": { "@/*": ["src/*"] }
+    "paths": {
+      "@/*": ["src/*"],
+      "@picloom/theme-sdk": ["../theme-sdk/index.ts"]
+    }
   },
-  "include": ["src/**/*.ts", "src/**/*.vue", "../shared/**/*.ts"]
+  "include": [
+    "src/**/*.ts",
+    "src/**/*.vue",
+    "../shared/**/*.ts",
+    "../themes/default/src/**/*.ts",
+    "../themes/default/src/**/*.vue"
+  ]
 }

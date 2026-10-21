@@ -2,7 +2,7 @@ import { createThemeRuntime } from "./themes/context";
 import type { Page, ThemeModule, ThemeView } from "../../theme-sdk";
 import { api, ApiError, errorText } from "./lib/api";
 import { t } from "./lib/i18n";
-import defaultStyles from "./style.css?url";
+import defaultStyles from "../../themes/default/src/style.css?url";
 const root = document.getElementById("app")!;
 let generation = 0;
 let dispose: (() => void) | undefined;

@@ -1,19 +1,21 @@
 import { PluginError, type Definition } from "../../plugin-sdk";
 
 export default {
+  id: "example.date-path",
+
+  kind: "path",
+  version: "1.0.0",
+  apiVersion: 1,
+  // #region implementation
   defaultLocale: "en-US",
   nameKey: "package.name",
   messages: {
     "en-US": {
       "package.name": "Example date path",
     },
+    "zh-CN": { "package.name": "日期路径示例" },
   },
 
-  id: "example.date-path",
-
-  kind: "path",
-  version: "1.0.0",
-  apiVersion: 1,
   configSchemaVersion: 1,
   async createInstance() {
     return {
@@ -32,4 +34,5 @@ export default {
       },
     };
   },
+  // #endregion implementation
 } satisfies Definition<"path">;

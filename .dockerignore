@@ -10,6 +10,9 @@
 !shared/**
 !plugin-sdk/
 !plugin-sdk/**
+!themes/
+!themes/default/
+!themes/default/**
 !web/
 !web/**
 web/node_modules/

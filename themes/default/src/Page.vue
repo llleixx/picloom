@@ -1,8 +1,6 @@
 <script setup lang="ts">
 import { ref, onUnmounted, computed } from "vue";
-import type { ThemeContext } from "../../../theme-sdk";
-import { t } from "../lib/i18n";
-import { size } from "../lib/utils";
+import type { ThemeContext } from "@picloom/theme-sdk";
 const props = defineProps<{ context: ThemeContext }>();
 const ctx = props.context,
   s = ref(ctx.getSnapshot());
@@ -10,6 +8,19 @@ const stop = ctx.subscribe((value) => {
   s.value = value;
 });
 onUnmounted(stop);
+const t = (key: string, params?: Record<string, string | number>) =>
+  ctx.t(key, params);
+function size(value: number) {
+  const unit = value < 1024 ? 1 : value < 1024 ** 2 ? 1024 : 1024 ** 2;
+  const digits = unit === 1 ? 0 : 1;
+  return (
+    new Intl.NumberFormat(s.value.locale, {
+      minimumFractionDigits: digits,
+      maximumFractionDigits: digits,
+    }).format(value / unit) +
+    (unit === 1 ? " B" : unit === 1024 ? " KB" : " MB")
+  );
+}
 const input = ref<HTMLInputElement>(),
   username = ref(""),
   password = ref(""),
@@ -57,7 +68,10 @@ async function login() {
 }
 </script>
 <template>
-  <div class="min-h-screen bg-background text-foreground">
+  <div
+    class="min-h-screen bg-background text-foreground"
+    :class="{ dark: s.dark }"
+  >
     <header
       class="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-5 py-6"
     >

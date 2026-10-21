@@ -9,6 +9,12 @@ import {
 } from "../../plugin-sdk";
 
 export default {
+  id: "example.local-storage",
+
+  kind: "storage",
+  version: "1.0.0",
+  apiVersion: 1,
+  // #region implementation
   defaultLocale: "en-US",
   nameKey: "package.name",
   messages: {
@@ -16,13 +22,9 @@ export default {
       "package.name": "Example local storage",
       "settings.root.label": "Root directory",
     },
+    "zh-CN": { "package.name": "本地存储示例", "settings.root.label": "根目录" },
   },
 
-  id: "example.local-storage",
-
-  kind: "storage",
-  version: "1.0.0",
-  apiVersion: 1,
   localDirectory: { configPath: "/root" },
   configSchemaVersion: 1,
   configSchema: {
@@ -79,4 +81,5 @@ export default {
       },
     };
   },
+  // #endregion implementation
 } satisfies Definition<"storage">;

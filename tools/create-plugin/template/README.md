@@ -45,7 +45,7 @@ for configuration migrations and dependency restrictions.
 
 For other plugin types and adapting the examples, follow
 [quick start](https://llleixx.github.io/picloom/development/plugin-tooling.html#使用教程示例).
-See [host services](https://llleixx.github.io/picloom/development/plugin-config.html)
+See [host services](https://llleixx.github.io/picloom/development/plugin-services.html)
 for configuration, secrets and state, and [errors and concurrency](https://llleixx.github.io/picloom/development/plugin-errors.html)
 for retries, cancellation and instance lifecycle.
 
@@ -65,17 +65,3 @@ for retries, cancellation and instance lifecycle.
 入口从清单读取身份字段；`package.json` 的版本不是插件版本。构建会加载入口，
 不要在模块顶层执行远端操作。Sharp 的开发依赖提供类型，运行时使用宿主实例。
 其他类型和完整接口见上方文档链接。
-
-## Before npm publication / npm 发布前
-
-The SDK is not published yet. Before the first `bun install`, replace only its
-existing development dependency value in `package.json` with the maintainer's tarball:
-
-```json
-{
-  "@picloom/plugin-sdk": "file:/absolute/path/picloom-plugin-sdk-0.1.0.tgz"
-}
-```
-
-Keep all other dependencies. SDK 尚未发布时，首次安装前只替换上述依赖值，保留其他
-开发依赖。之后照常安装和构建；发布后可改回精确 registry 版本并更新锁文件。

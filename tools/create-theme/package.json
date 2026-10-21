@@ -1,0 +1,31 @@
+{
+  "name": "@picloom/create-theme",
+  "version": "0.1.0",
+  "description": "Create a standalone Picloom Vue theme with local preview and ZIP packaging",
+  "type": "module",
+  "license": "MIT",
+  "bin": {
+    "create-theme": "./index.js"
+  },
+  "engines": {
+    "bun": ">=1.4.3"
+  },
+  "scripts": {
+    "build": "bun prepare.ts",
+    "prepack": "bun run build"
+  },
+  "files": [
+    "index.js",
+    "dist/template",
+    "README.md",
+    "LICENSE"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/llleixx/picloom.git",
+    "directory": "tools/create-theme"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

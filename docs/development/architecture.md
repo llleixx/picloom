@@ -81,3 +81,9 @@ flowchart TD
 | 备份与停机 | `src/runtime.ts`、`infra/backup.ts` |
 
 表中省略的服务端路径均以 `src/` 为根。涉及数据库修改继续阅读 [数据访问与初始化](./persistence.md)；涉及异步工作继续阅读 [状态、任务与资源生命周期](./states.md)。
+
+## 包配置与文案
+
+插件与主题共用 `shared/package-localization.ts` 解析字典和字段文案；`shared/field-schema.ts` 与 `src/core/schema-validation.ts` 负责公共字段规则。插件声明入口为 `src/plugins/declaration.ts`，主题入口为 `src/themes/schema.ts`，分别限制允许的扩展和编辑行为。
+
+作者文案通过 `fieldText()` 解析，管理员配置值不经过文案回退。两个 SDK 独立发布协议类型，不依赖宿主模块；主题通过注入的 `ctx.t()` 使用字典。

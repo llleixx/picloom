@@ -1,4 +1,5 @@
 import { languageValue as project } from "../../shared/theme-config";
+import { safeName, assetPath } from "../../shared/theme-package";
 import { schemaOrEmpty, type Schema } from "../../shared/field-schema";
 import { assertSchema, initialValue, pointer } from "../../shared/config";
 import {
@@ -19,15 +20,7 @@ import type { Config, Field, Json, Manifest } from "../../theme-sdk";
 import { AppError } from "../core/errors";
 export const invalid = (message = "Invalid theme package or configuration") =>
   new AppError("INVALID_INPUT", message);
-export const safeName = (v: unknown): v is string =>
-  typeof v === "string" &&
-  /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,99}$/.test(v) &&
-  !v.endsWith(".");
-export const assetPath = (v: unknown): v is string =>
-  typeof v === "string" &&
-  v.length <= 240 &&
-  !/[\\:< >"|?*\x00-\x1f]/.test(v) &&
-  v.split("/").every((p) => !!p && p !== "." && p !== ".." && !/[. ]$/.test(p));
+export { safeName, assetPath };
 const object = (v: unknown): v is Record<string, any> =>
   !!v && typeof v === "object" && !Array.isArray(v);
 function projectedSchema(

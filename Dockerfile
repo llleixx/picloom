@@ -7,6 +7,7 @@ RUN bun install --frozen-lockfile
 
 FROM dependencies AS frontend
 COPY web ./web
+COPY themes/default ./themes/default
 COPY shared ./shared
 RUN bun run build:web
 

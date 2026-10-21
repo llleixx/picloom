@@ -63,13 +63,20 @@ The [Docker quick start (中文)](https://llleixx.github.io/picloom/guide/quick-
 
 Built with Bun, TypeScript and Vue; supports SQLite and PostgreSQL.
 
+- [Developer guide (中文)](https://llleixx.github.io/picloom/development/)
 - [Core development (中文)](https://llleixx.github.io/picloom/development/contributing.html)
 - [Plugin development (中文)](https://llleixx.github.io/picloom/development/plugin-tooling.html)
 
-Standalone plugin tooling lives in this repository: [`@picloom/plugin-sdk`](plugin-sdk/README.md)
-and [`@picloom/create-plugin`](tools/create-plugin/README.md). Both npm packages are
-prepared but not yet published. See [local tarball instructions (中文)](docs/development/plugin-tooling.md)
-to create and build a plugin outside the main repository without publishing.
+Develop plugins and themes in standalone projects using the published npm packages:
+
+- Plugins: [`@picloom/plugin-sdk`](plugin-sdk/README.md) and [`@picloom/create-plugin`](tools/create-plugin/README.md).
+- Themes: [`@picloom/theme-sdk`](theme-sdk/README.md) and [`@picloom/create-theme`](tools/create-theme/README.md). See [theme development (中文)](https://llleixx.github.io/picloom/development/theme-tooling.html).
+
+```sh
+bun create @picloom/plugin@0.1.0 ./my-plugin
+bun create @picloom/theme@0.1.0 ./my-theme
+```
+
 
 ## License
 

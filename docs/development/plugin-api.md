@@ -30,10 +30,10 @@
 | `stages.access` | `Descriptor<AccessPlugin>`，可附 `paramsSchema` | 否 | 访问处理实现 |
 | `stages.post_save` | `Descriptor<PostSavePlugin>` | 否 | 保存后处理实现，不支持请求参数 |
 
-其他身份字段见 [插件基础](./plugin-start.md#代码默认导出什么)，各阶段描述的必需和可选字段见 [配置描述字段](./plugin-config.md#配置描述字段)。
+其他身份字段见 [插件基础](./plugin-start.md#代码默认导出什么)，各阶段描述的必需和可选字段见 [配置描述字段](./plugin-start.md#配置描述字段)。
 
 只实现需要的阶段即可。教程分别使用三个独立示例，便于单独构建和验证；正式插件也可以同时声明多个阶段。
 
 ## 先完成一个阶段
 
-每个教程都会从具体效果讲到完整实现。固定配置、请求参数、密钥等共用能力见 [配置与宿主服务](./plugin-config.md)；异常、取消和实例复用见 [错误、取消与并发](./plugin-errors.md)。
+每个教程都会从具体效果讲到完整实现。固定配置、请求参数、密钥等共用能力见 [配置与请求参数](./plugin-config.md)；异常、取消和实例复用见 [错误、取消与并发](./plugin-errors.md)。

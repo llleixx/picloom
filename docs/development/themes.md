@@ -1,32 +1,6 @@
-# 首页与登录页主题
+# 主题协议
 
-主题是运行在浏览器内的可信前端扩展，可完整替换首页和登录页。管理后台不加载主题代码。只允许站点所有者安装；登录页主题可以读取用户输入的账号密码，请审查来源后安装。
-
-## 安装与配置
-
-在 **管理后台 → 主题** 上传 ZIP，检查名称与版本，确认信任后安装。安装不会自动启用。
-
-选择“配置”，编辑后保存草稿；“预览首页／登录页”使用已保存草稿并在新窗口打开。“应用到网站”保存当前编辑内容并将版本与配置一起发布。保存草稿本身不改变线上内容。预览中的上传、登录是真实操作，不要把预览当作测试数据隔离区。
-
-一个主题版本作用于整站；缺少首页或登录页时，该页使用默认页面。每个版本独立安装和配置，新版本从自己的 Schema 默认配置开始，不提供跨版本配置复制或迁移。启用版本不能卸载；恢复默认后可以卸载，卸载也会删除该版本草稿。
-
-网站名称、简介、Logo、favicon 和站点语言仍在站点设置里，主题通过 SDK 读取。主题的宣传文案不会修改网站名称或浏览器标题。图片只需普通 URL 配置，不提供专用上传流程。
-
-## 构建示例
-
-在仓库根目录运行：
-
-```sh
-bun run build:themes
-```
-
-需要 Linux `zip` 命令。生成 `outputs/themes/split.zip` 和 `outputs/themes/horizon.zip`，在隔离的开发站点安装并预览即可。也可使用 `bun run build:themes horizon` 单独构建远空主题。`examples/themes/split` 同时是 Vue 3 开发模板，包含左右分栏布局、上传、登录、明暗模式、中英文和多语言配置。
-
-`examples/themes/horizon` 是「Horizon · 远空」完整主题：内置四张二次元风景插画、全屏淡入淡出轮换、半透明上传与登录面板、移动布局和双语文案。后台可配置标题、说明、轮换间隔、遮罩与可增删、排序的背景图片列表（图片地址、双语名称和配色），详见该目录的 README。
-
-修改示例后重新构建，使用新的 `version` 安装；同 ID、同版本不能覆盖，避免不可变资源缓存返回旧文件。开发时也可卸载未启用的测试版本后重新安装，但不要以相同版本替换已对外分发的不同内容。
-
-示例入口自行打包 Vue；不要引用 `web/src`、宿主组件或共享 Vue 实例。类型从 `theme-sdk/index.ts` 导入，独立项目可安装本地 `theme-sdk` 包并从 `@picloom/theme-sdk` 导入类型。包只提供类型，运行时能力由宿主注入。
+主题以浏览器 ESM 模块替换首页或登录页，通过宿主注入的 `ThemeContext` 读取状态、执行上传和登录。首次开发先完成[主题快速开始](./theme-tooling.md)。
 
 ## 主题包
 
@@ -34,15 +8,15 @@ ZIP 根目录必须直接包含 `theme.json`，不要多包一层目录：
 
 ```json
 {
-  "id": "example.split",
+  "id": "example.my-theme",
   "defaultLocale": "en-US",
   "nameKey": "package.name",
   "version": "1.0.0",
   "apiVersion": 1,
   "supportedLocales": ["zh-CN", "en-US"],
   "messages": {
-    "zh-CN": { "package.name": "分栏", "accent.label": "主色" },
-    "en-US": { "package.name": "Split", "accent.label": "Accent color" }
+    "zh-CN": { "package.name": "我的主题", "accent.label": "主色" },
+    "en-US": { "package.name": "My theme", "accent.label": "Accent color" }
   },
   "pages": {
     "home": { "entry": "entry.js" },
@@ -62,35 +36,9 @@ ZIP 根目录必须直接包含 `theme.json`，不要多包一层目录：
 }
 ```
 
-至少提供一个页面。页面也可声明自己的 `styles`；`preview` 可指向包内 PNG、JPEG 或 WebP 预览图。JavaScript 必须是浏览器 ESM，依赖随包构建，不执行服务器安装脚本。上限为 ZIP 20 MB、解压后 50 MB、512 项；入口、样式和预览图必须存在，文件路径不能越界。
+至少提供一个页面。页面也可声明自己的 `styles`；`preview` 可指向包内 PNG、JPEG 或 WebP 预览图。JavaScript 必须是浏览器 ESM，依赖随包构建，不执行服务器安装脚本。上限为 ZIP 20 MiB、解压后 50 MiB、512 项；入口、样式和预览图必须存在，文件路径不能越界。
 
-`configSchema` 可省略，省略时只接受空配置 `{}`，与显式声明空对象 Schema 等价；宿主加载清单后统一提供空对象 Schema。没有自定义选项时可删除上例的 `configSchema`，主题读取到的 `ctx.config` 为 `{}`。显式声明时根类型必须为 `object`，`null` 不表示省略。配置支持 `object`、单一 `items` 的 `array`、`string`、`number`、`integer`、`boolean`、`null`，以及数值、字符串、格式、枚举和数组约束；完整关键字及场景差异见[三类 Schema 的边界](./plugin-config.md#三类-schema-的边界)。对象不接受未声明字段。字段名与插件使用同一规则，支持 Unicode 和 JSON Pointer 转义字符，拒绝危险属性名；不另设主题专属的字段名格式或嵌套层数限制。静态 `properties/items` 决定结构；`allOf/anyOf/oneOf/not/if/then/else` 只能约束已有字段，不能引入字段、`default` 或 `x-*`。不支持 `$ref`、开放对象、元组数组、秘密字段和不可变字段。
-
-必填字段可以不提供默认值。默认值仅在安装创建初始草稿或显式新增数组项时使用；无默认值和子默认值的对象保持缺失。保存草稿仍检查类型、未知字段、`enum/const`、数值范围、字符串长度、模式和格式，但暂不执行 `required`、组合／条件分支及数组的 `minItems/maxItems/uniqueItems`。因此缺失的必填翻译可以保存为草稿，已填写但违反 `minLength` 的空串不能保存。预览和应用对全部主题支持语言执行完整约束，包括站点暂未启用的主题语言。`required` 表示存在，非空文本需设 `minLength: 1`。整数必须为安全整数，数值必须有限；字符串未声明 `maxLength` 时最多 10000 个 Unicode 字符。
-
-多语言值仍以语言字典保存。完整校验对每种主题支持语言生成临时视图，以该语言字符串执行条件和组合约束，不进行内容回退、不写回投影。必需多语言字段须覆盖全部 `supportedLocales`。条件不能跨语言比较。后台以单棵配置树编辑，主表单显示所选站点默认语言的文本，并在字段标题后标注语言名称；通过字段旁的“编辑翻译”弹窗同时编辑各语言。数组仅有一套增删排序操作。
-
-`x-localized` 字段的 `type` 仍是 `string`，`minLength/pattern/enum/const` 约束每种语言的字符串；`default` 和保存值则使用语言字典。例如：
-
-```json
-{
-  "type": "string",
-  "x-localized": true,
-  "minLength": 1,
-  "default": { "en-US": "Welcome", "zh-CN": "欢迎" }
-}
-```
-
-该字段保存为 `{ "en-US": "Welcome", "zh-CN": "欢迎" }`，主题通过 `ctx.localized(ctx.config.heading)` 读取当前语言。默认字典缺少某种语言时，不会从其他语言补齐。字典键只能是核心支持的语言标识；普通字符串字段仍保存为字符串。
-
-- `x-ui.widget: "textarea"`：多行文本。
-- `x-localized: true`：多语言文本，值为 `{ "zh-CN": "…", "en-US": "…" }`。
-- `x-ui`：共用 `labelKey`、`descriptionKey`、`enumKeys`、`groupKey`、`order`、`advanced`、`widget: textarea/password` 和 `visibleWhen: { path, equals }`。消息键引用 `messages`；枚举键与枚举值顺序一致。显示条件读取当前编辑语言视图，只控制显示，不删除值或改变校验。`password` 只是遮罩，主题配置没有密钥保障。
-- 不支持任意 JSON Schema 扩展、远程引用、秘密字段或配置界面脚本。
-
-可选字段可移除：数字清空表示未设置，文本清空保存空字符串，枚举可选择未设置，布尔值可移除。多语言文本移除只影响当前语言；移除对象分组会删除整个分组及全部语言内容。声明中的枚举、范围及所有显式默认值在安装前校验。
-
-所有主题配置都可能公开给访客，不保存凭据。URL、CSS 值等最终由可信主题按用途处理。
+同 ID、同版本不能覆盖安装。分发内容变化时增加 `version`。框架和依赖随主题打包，不引用宿主组件或共享 Vue 实例。包内资源可公开访问，不包含凭据。
 
 ## 生命周期与能力
 
@@ -123,44 +71,56 @@ export function mount(container: HTMLElement, ctx: ThemeContext) {
 
 离开页面必须清理主题自行创建的定时器、DOM 监听器和框架实例。首页与登录页共享宿主上传队列；进入后台会加载新文档，有未结束任务时提示离页。关闭、刷新或跨文档导航不保证上传恢复。
 
+在 Vue 中，将 `subscribe()` 提供的快照保存到本地 ref，再由它驱动渲染。`ctx.t()`、`ctx.localized()` 和 `ctx.links.format()` 不会为主题自己的 Vue 实例建立响应式依赖；使用 computed 时，显式依赖快照中的 `locale` 或 `copy.format`。配置在一次挂载期间固定，草稿变化后重新加载预览。
+
+## 配置与多语言文本
+
+`configSchema` 生成后台配置表单，主题通过 `ctx.config` 读取保存值。省略 Schema 时配置为 `{}`。类型、组合约束和默认值规则见 [Schema 参考](./schema.md)，字段标签及控件见[包文案与表单提示](./package-localization.md)。主题不支持密钥和不可变字段，所有配置都可能公开给访客。
+
+多语言内容字段使用 `x-localized`：
+
+```json
+{
+  "type": "string",
+  "x-localized": true,
+  "minLength": 1,
+  "default": { "en-US": "Welcome", "zh-CN": "欢迎" }
+}
+```
+
+`default` 和保存值使用语言字典；字符串约束、`enum` 和 `const` 分别校验每种语言的文本。字典键只能是核心支持的语言标识。通过 `ctx.localized(ctx.config.heading)` 读取当前语言；缺失或为空时返回空字符串，不跨语言回退，也不应自行补回管理员已清空的内容。
+
+### 草稿与完整校验
+
+默认值仅初始化安装草稿和显式新增数组项；保存、读取、预览和应用不补值。主题字符串未声明 `maxLength` 时，上限为 10000 个 Unicode 字符。
+
+| 操作 | 校验内容 |
+| --- | --- |
+| 保存草稿 | 类型、未知字段、`enum/const`、数值范围、字符串长度、模式与格式 |
+| 预览或应用 | 上述规则，以及 `required`、组合和条件约束、数组长度与唯一性 |
+
+预览和应用按全部 `supportedLocales` 校验，包括站点尚未启用的语言。每种语言生成自己的配置视图执行约束；条件不能跨语言比较，也不写回视图。必需多语言字段须覆盖全部支持语言。缺失翻译可先保存草稿，违反 `minLength: 1` 的空串仍不能保存。
+
+`visibleWhen` 读取当前编辑语言的配置视图；隐藏不删除值，也不绕过校验。`password` 控件只是遮罩，不能保护主题配置中的凭据。URL 和 CSS 配置值由主题按用途处理。
+
 ## 多语言
 
-核心的统一语言清单定义支持的语言、名称和方向。主题必须声明非空的 `supportedLocales`，只能使用核心支持的语言，必须声明属于支持语言的 `defaultLocale`，用于包内文案回退。`messages` 的默认语言字典必须包含全部翻译键；其他支持语言可省略字典或部分键，已提供的值不能空白。主题名称通过必填的 `nameKey` 引用默认字典中的非空文案。`ctx.t` 按当前语言、基础语言、主题默认语言查找，仍缺失时显示键名，支持 `{name}` 参数替换。
+清单必须声明非空的 `supportedLocales`，只能选择核心支持的语言；`defaultLocale` 必须属于该列表。主题名称和作者文案使用 `messages`，通过 `ctx.t(key, params)` 读取，支持 `{name}` 参数替换。字典完整性和回退规则见[包文案与表单提示](./package-localization.md#字典与回退)。
 
-站点默认语言只有一份，主题配置面板和站点设置提供两个入口。主题面板保存的语言选择仅供草稿预览；应用时与主题快照原子发布。默认语言必须是站点已启用且主题支持的语言。站点语言设置发生并发修改时，应用返回冲突，需要刷新确认。
+访客可用语言为站点启用语言与主题支持语言的交集。快照中的 `locales` 是语言标识列表，`languages` 提供名称与方向，`defaultLocale` 是站点默认语言。主题自行提供语言切换器；`setLocale()` 拒绝范围外语言，预览中切换不会持久化访客偏好。
 
-第三方主题页面的语言范围为站点启用语言与主题支持语言的交集。SDK 的 `locales` 保留语言标识列表，`languages` 提供名称及方向，`defaultLocale` 提供站点默认语言。主题自行决定是否提供切换器；官方示例在可选语言多于一种时显示。`setLocale` 拒绝范围外的语言；预览内切换不会持久化访客偏好。缺失页面或加载失败时，内置页面恢复核心语言规则。
+上传、登录错误由核心翻译，语言切换不重启通知关闭计时器。新增核心语言时先注册语言并补充核心字典，再由主题增加支持声明和文案。
 
-多语言字段通过弹窗并列编辑各语言，未启用的主题语言也可以提前填写并会标注状态。弹窗取消时丢弃修改，确定时仅更新当前表单，仍需保存草稿或应用到站点。`ctx.localized` 仅返回当前语言实际值，缺失或为空返回空字符串，不跨语言回退。安装主题版本时，`default` 经校验后实际保存为初始草稿；读取、重启和应用不再填充默认值，清空后不会自动恢复。网站名称、简介也遵循实际值规则。不要在官方主题中用站点信息或内置文案替代空配置。字段文案按后台语言、基础语言、主题默认语言逐键读取；仍缺失时显示键名。未声明 `labelKey` 时显示字段名，未声明 `enumKeys` 时显示枚举原值，与配置值分开处理。
+## 相关说明
 
-上传、登录错误由核心翻译。新增语言需要注册核心语言并补充核心字典，主题再按需增加字典及支持声明；无需改动配置面板。
+<span id="安装与配置"></span>
+安装、草稿、应用及语言设置见[使用主题](../guide/themes.md)。
 
-## 恢复与备份
+<span id="构建示例"></span>
+独立项目见[主题快速开始](./theme-tooling.md)，仓库示例构建见[工具维护](./theme-tooling-maintenance.md#仓库示例)。
 
-- `/?theme=default`、`/login?theme=default` 在导入主题前强制使用默认页面，不依赖主题配置接口成功。
-- 后台未登录时会跳转默认登录页；默认模式在登录失败后保留。
-- 加载失败或挂载异常自动回退，仅影响当前页面，不修改全站启用配置。任意 JavaScript 无限循环不保证自动恢复，应重新访问默认入口。
-- 包在数据目录 `themes/`，草稿及启用快照在 `site-settings.json`。应用升级不会覆盖。
-- SQLite 应用备份包含两者；仅恢复包含当前格式配置快照的备份。PostgreSQL 不提供应用内备份恢复，请随部署备份上述文件与数据库。
+<span id="恢复与备份"></span>
+恢复入口见[恢复默认页面](../guide/themes.md#恢复默认页面)，备份见[主题数据](../operations/data.md#主题数据)。
 
-## HTTP 接口
-
-`GET /api/theme` 返回启用主题描述或 `null`，匿名可读。其余主题管理接口限所有者，写请求使用会话 CSRF：
-
-| 方法与路径                             | 内容                                                                                         |
-| -------------------------------------- | -------------------------------------------------------------------------------------------- |
-| `GET /api/themes`                      | 已安装主题、兼容状态和候选配置                                                               |
-| `POST /api/themes/inspect`             | 请求体为原始 ZIP 字节，返回 `ticket` 和 `manifest`，凭据有效期 15 分钟                       |
-| `POST /api/themes/install`             | `{ "ticket": "…", "confirmed": true }`                                                       |
-| `PUT /api/themes/:id/:version/config`  | `{ config, language: { defaultLocale, languageRevision } }`                                  |
-| `GET /api/themes/:id/:version/preview` | 读取该版本候选配置及资源入口                                                                 |
-| `PUT /api/theme`                       | `{ id, version, defaultLocale, languageRevision }` 启用已保存草稿；`{ "id": null }` 恢复默认 |
-| `DELETE /api/themes/:id/:version`      | 卸载非启用版本                                                                               |
-
-资源位于 `/assets/themes/:id/:version/...`，可公开获取并长期缓存。不要将未发布的敏感文件放入主题包。后台使用的配置、预览权限不等于包内资源访问隔离。
-
-站点与主题状态集中保存在版本化的 `site-settings.json`，不读取或迁移旧格式配置文件。主题清单校验失败时保留包与草稿并标记为不兼容，运行时使用默认页面。
-
-主题名称由清单的 `nameKey` 引用 `messages`，不提供外层 `name`、`content` 或包说明。后台只显示当前界面语言的一份名称。名称、配置项标签和功能文案共用一套字典，逐键按当前语言、基础语言、主题默认语言查找；只允许支持语言列表中的字典。`defaultLocale` 属于包元信息，不改变站点默认语言或前台语言范围。管理员配置值保持空值，不跨语言回退。字段文案和多行输入统一使用 `x-ui`，不接受旧声明，也不自动转换旧包。
-
-主题与插件的宿主共用字典与字段文案解析，校验入口和配置表单各自保留。实现边界见[宿主实现边界](./plugin-config.md#宿主实现边界)。主题 SDK 不依赖插件 SDK；主题运行时继续使用 `ctx.t()`，无需引用宿主模块。
+<span id="http-接口"></span>
+管理接口见 [HTTP API](../reference/http-api.md#主题管理)。

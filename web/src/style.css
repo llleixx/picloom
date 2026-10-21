@@ -1,116 +1,7 @@
-@import "tailwindcss";
+@import "../../themes/default/src/style.css";
 @import "tw-animate-css";
-@custom-variant dark (&:is(.dark *));
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --color-card: var(--card);
-  --color-card-foreground: var(--foreground);
-  --color-popover: var(--card);
-  --color-popover-foreground: var(--foreground);
-  --color-primary: var(--primary);
-  --color-primary-foreground: var(--primary-foreground);
-  --color-secondary: var(--muted);
-  --color-secondary-foreground: var(--foreground);
-  --color-muted: var(--muted);
-  --color-muted-foreground: var(--muted-foreground);
-  --color-accent: var(--muted);
-  --color-accent-foreground: var(--foreground);
-  --color-destructive: #d44e55;
-  --color-destructive-foreground: #fff;
-  --color-border: var(--border);
-  --color-input: var(--border);
-  --color-ring: var(--primary);
-  --radius-sm: 6px;
-  --radius-md: 8px;
-  --radius-lg: 12px;
-  --radius-xl: 16px;
-}
-:root {
-  --background: #fff;
-  --foreground: #213547;
-  --card: #f9f9f9;
-  --primary: #287f59;
-  --primary-foreground: #fff;
-  color-scheme: light;
-  accent-color: var(--primary);
-  --muted: #f1f1f1;
-  --muted-foreground: #666;
-  --border: #e5e5e5;
-  font-family: Inter, "Segoe UI", "Microsoft YaHei", sans-serif;
-}
-.dark {
-  color-scheme: dark;
-  accent-color: var(--primary);
-  --background: #1a1a1a;
-  --foreground: #ffffffde;
-  --card: #242424;
-  --primary: #42b883;
-  --primary-foreground: #13261e;
-  --muted: #2f2f2f;
-  --muted-foreground: #ebebeb99;
-  --border: #5454547a;
-}
-@layer base {
-  * {
-    @apply border-border;
-  }
-  body {
-    @apply bg-background text-foreground;
-    margin: 0;
-  }
-  button,
-  a,
-  input,
-  select {
-    -webkit-tap-highlight-color: transparent;
-  }
-  /* Native popup menus may not inherit the select's transparent background. */
-  select {
-    color-scheme: inherit;
-  }
-  select option,
-  select optgroup {
-    background-color: var(--background);
-    color: var(--foreground);
-  }
-  button:not(:disabled),
-  a {
-    cursor: pointer;
-  }
-  :focus-visible {
-    outline: 2px solid var(--primary);
-    outline-offset: 3px;
-  }
-}
+@source "./";
 @layer components {
-  .panel {
-    @apply rounded-xl border bg-card dark:bg-transparent;
-  }
-  .field {
-    @apply grid gap-2 text-sm;
-  }
-  .native-select {
-    @apply h-9 min-w-0 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50;
-  }
-  input[type="checkbox"] {
-    @apply size-4 shrink-0 accent-primary;
-  }
-  label.field:has(> :required),
-  .required-label {
-    position: relative;
-  }
-  label.field:has(> :required)::after,
-  .required-label::after {
-    content: "*";
-    position: absolute;
-    right: 0;
-    top: 0;
-    color: var(--primary);
-  }
-  [aria-invalid="true"] {
-    border-color: var(--color-destructive);
-  }
   .editor-body {
     @apply min-h-0 flex-1 space-y-5 overflow-y-auto px-6 py-5;
   }
@@ -119,12 +10,6 @@
   }
   .page-heading {
     @apply text-2xl font-semibold tracking-tight;
-  }
-  .subtle {
-    @apply text-sm text-muted-foreground;
-  }
-  .error-box {
-    @apply rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive;
   }
   .checker {
     background-color: var(--card);

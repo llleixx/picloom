@@ -63,13 +63,20 @@ flowchart TD
 
 使用 Bun、TypeScript 和 Vue，支持 SQLite 与 PostgreSQL。
 
+- [开发者指南](https://llleixx.github.io/picloom/development/)
 - [核心开发](https://llleixx.github.io/picloom/development/contributing.html)
 - [插件开发](https://llleixx.github.io/picloom/development/plugin-tooling.html)
 
-独立插件工具在本仓库维护：[`@picloom/plugin-sdk`](plugin-sdk/README.md) 与
-[`@picloom/create-plugin`](tools/create-plugin/README.md)。两个 npm 包尚未发布；
-可按[本地压缩包说明](docs/development/plugin-tooling.md)在主仓库之外创建并构建插件，
-无需执行 npm 发布。
+使用已发布的 npm 包，在独立项目中开发插件与主题：
+
+- 插件：[`@picloom/plugin-sdk`](plugin-sdk/README.md) 与 [`@picloom/create-plugin`](tools/create-plugin/README.md)。
+- 主题：[`@picloom/theme-sdk`](theme-sdk/README.md) 与 [`@picloom/create-theme`](tools/create-theme/README.md)，参见[主题开发](https://llleixx.github.io/picloom/development/theme-tooling.html)。
+
+```sh
+bun create @picloom/plugin@0.1.0 ./my-plugin
+bun create @picloom/theme@0.1.0 ./my-theme
+```
+
 
 ## 许可证
 

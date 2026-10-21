@@ -95,6 +95,9 @@ export interface ParameterConstraint
   const?: ParameterValue;
   default?: never;
   "x-ui"?: never;
+  "x-sensitive"?: never;
+  "x-immutable"?: never;
+  "x-localized"?: never;
 }
 export interface ParameterSchema extends Omit<
   ParameterConstraint,

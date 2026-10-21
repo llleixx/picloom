@@ -3,11 +3,6 @@
 用独立模板开发一个日期路径插件，构建 ZIP 并安装到 Picloom。插件项目通过
 `@picloom/plugin-sdk` 获取类型和辅助函数，无需 clone 主仓库，也无需把插件发布到 npm。
 
-::: warning 当前发布状态
-SDK 和创建工具尚未发布到 npm。现在请获取维护者提供的两个 `.tgz`，按
-[本地压缩包](#本地压缩包)创建项目，再继续本文第 3 步。
-:::
-
 ## 1. 准备环境
 
 - Bun 1.4.3+：创建、安装依赖、类型检查和打包均使用 Bun，不需要 Node.js 或 npm CLI。
@@ -18,8 +13,6 @@ SDK 不包含宿主服务。当前 Docker 镜像也尚未发布；没有测试�
 部署，或参考[本地开发](./contributing.md)搭建宿主。插件项目本身不需要宿主源码。
 
 ## 2. 创建项目
-
-**以下 registry 命令在 npm 包发布后可用：**
 
 ```sh
 bun create @picloom/plugin@0.1.0 ./my-plugin
@@ -59,7 +52,7 @@ my-plugin/
 
 在 `src/index.ts` 的 `messages["en-US"][nameKey]` 中设置显示名称，例如 `My date path`。
 名称、简介和字段文案按语言放入 `messages`，`defaultLocale` 指定缺少翻译时的默认语言。
-详见[多语言文案](./plugin-config.md#界面提示与翻译)。
+详见[多语言文案](./package-localization.md#表单提示)。
 
 模板已经能按 UTC 日期生成路径。打开 `src/index.ts`，可以在返回路径前加一段目录，
 例如把 `logicalKey` 改为：
@@ -100,39 +93,13 @@ dist/example.my-date-path-0.1.0.zip
 
 ## 使用教程示例
 
-下一步按需求选择[存储插件](./plugin-storage.md)或[处理插件](./plugin-api.md)。
-各教程直接展示仓库里的完整示例，可以复制页面中的代码，无需下载仓库。
+按需求选择[路径](./plugin-path.md)、[存储](./plugin-storage.md)、[上传处理](./processors/upload.md)、[访问处理](./processors/access.md)或[保存后处理](./processors/post-save.md)。
 
-把示例放入独立项目时：
-
-1. 用示例实现替换 `src/index.ts`，将 `../../plugin-sdk` 改为 `@picloom/plugin-sdk`。
-2. 在清单中设置对应 `kind`（路径 `path`、存储 `storage`、处理 `processor`），保留自己的
-   ID 和版本；删除示例默认导出中写死的 `id/version/kind/apiVersion`。
-   在入口的 `messages` 中修改各语言的名称，保留示例的字段文案。
-3. 从清单读取身份字段，并为 `kind/apiVersion` 做类型收窄。下面以存储插件为例，
-   路径或处理插件把检查中的 `storage` 分别改为 `path` 或 `processor`：
-
-```ts
-import manifest from "../plugin.json";
-
-const { kind, apiVersion } = manifest;
-if (kind !== "storage" || apiVersion !== 1)
-  throw new Error("Expected storage plugin API 1");
-
-// 在示例默认导出中使用以下身份字段，其余配置和方法保持示例结构：
-// id: manifest.id,
-// version: manifest.version,
-// kind,
-// apiVersion,
-```
-
-使用对应的 `Definition<"storage">` 等类型，保持示例原有的其他 SDK 导入。
-运行 `bun run build`，上传 `dist/<自己的ID>-<版本>.zip`，再按教程接入验证。
-页面里的 **Example …** 是示例展示名，管理界面中应选择你自己设置的名称。
+每篇提供独立项目的完整导入和清单外层，以及从仓库示例引用的实现片段。按页面指定的 `kind` 更新清单，用实现片段替换外层代码的注释行即可；ID 和版本由清单读取。配置字段及运行方法与仓库示例使用同一来源。
 
 ## 本地压缩包
 
-当前未发布阶段，向维护者获取 `picloom-plugin-sdk-0.1.0.tgz` 和
+需要验证本地开发版本时，向维护者获取 `picloom-plugin-sdk-0.1.0.tgz` 和
 `picloom-create-plugin-0.1.0.tgz`。把它们放在任意目录，替换下面的绝对路径：
 
 ```sh
@@ -149,5 +116,5 @@ cd ../my-plugin
 "@picloom/plugin-sdk": "file:/absolute/path/picloom-plugin-sdk-0.1.0.tgz"
 ```
 
-执行 `bun install`，然后继续本文[修改插件](#_3-修改插件)。SDK 发布后可切回精确 registry
+执行 `bun install`，然后继续本文[修改插件](#_3-修改插件)。验证完成后可切回精确 registry
 版本并更新锁文件。维护者如何生成这些文件见[插件工具维护](./plugin-tooling-maintenance.md#本地打包)。

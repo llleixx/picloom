@@ -15,6 +15,7 @@ const guide = [
       { text: "流水线", link: "/guide/pipelines" },
       { text: "图片管理", link: "/guide/files" },
       { text: "用户、游客与令牌", link: "/guide/access" },
+      { text: "安装与使用主题", link: "/guide/themes" },
       { text: "常见场景", link: "/guide/recipes" },
     ],
   },
@@ -32,10 +33,7 @@ const operations = [
   },
 ];
 const development = [
-  {
-    text: "主题开发",
-    items: [{ text: "首页与登录页主题", link: "/development/themes" }],
-  },
+  { text: "开发者指南", link: "/development/" },
   {
     text: "插件开发",
     items: [
@@ -53,9 +51,24 @@ const development = [
           { text: "保存后处理", link: "/development/processors/post-save" },
         ],
       },
-      { text: "配置与宿主服务", link: "/development/plugin-config" },
+      { text: "配置与请求参数", link: "/development/plugin-config" },
+      { text: "宿主服务与运行上下文", link: "/development/plugin-services" },
       { text: "错误、取消与并发", link: "/development/plugin-errors" },
       { text: "打包与升级", link: "/development/plugin-release" },
+    ],
+  },
+  {
+    text: "主题开发",
+    items: [
+      { text: "快速开始", link: "/development/theme-tooling" },
+      { text: "主题协议", link: "/development/themes" },
+    ],
+  },
+  {
+    text: "参考",
+    items: [
+      { text: "Schema 参考", link: "/development/schema" },
+      { text: "包文案与表单提示", link: "/development/package-localization" },
     ],
   },
   {
@@ -63,8 +76,9 @@ const development = [
     items: [
       { text: "本地开发", link: "/development/contributing" },
       { text: "插件工具维护", link: "/development/plugin-tooling-maintenance" },
+      { text: "主题工具维护", link: "/development/theme-tooling-maintenance" },
       { text: "架构与代码导航", link: "/development/architecture" },
-      { text: "数据访问与迁移", link: "/development/persistence" },
+      { text: "数据访问与初始化", link: "/development/persistence" },
       { text: "状态、任务与资源生命周期", link: "/development/states" },
       { text: "文档站维护", link: "/development/docs" },
     ],
@@ -116,7 +130,7 @@ export const zh: LocaleSpecificConfig<DefaultTheme.Config> = {
       },
       {
         text: "开发者",
-        link: "/development/plugin-start",
+        link: "/development/",
         activeMatch: "/development/",
       },
       { text: "参考", link: "/reference/settings", activeMatch: "/reference/" },

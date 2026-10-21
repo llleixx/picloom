@@ -1,54 +1,51 @@
 # 保存后处理
 
-## 想实现什么
+保存后处理由后台执行。下面检查图片宽度，超过阈值就返回屏蔽意见，由 Picloom 更新状态；上传完成不代表审核完成，也不能保证图片在审核前未被访问。
 
-图片保存后检查宽度，超过 1280 像素就屏蔽，否则放行。这个简单规则用于演示审核流程，不需要连接外部审核服务。
+## 最小实现
 
-## 在哪里执行
+按[快速开始](../plugin-tooling.md)创建项目，将 `plugin.json.kind` 设为 `processor`，保留自己的 ID 和版本。将 `src/index.ts` 替换为以下外层代码，再用下一段实现替换注释行：
 
-```mermaid
-flowchart LR
-    A[图片保存成功] --> B[后台执行保存后流水线]
-    B --> C[各步骤返回处理意见]
-    C --> D[核心应用累计处置]
+```ts
+import { PluginError, type Definition } from "@picloom/plugin-sdk";
+import manifest from "../plugin.json";
+
+const { kind, apiVersion } = manifest;
+if (kind !== "processor" || apiVersion !== 1)
+  throw new Error("Expected processor plugin API 1");
+
+export default {
+  id: manifest.id,
+  version: manifest.version,
+  kind,
+  apiVersion,
+  // 将下一段实现放在这里
+} satisfies Definition<"processor">;
 ```
 
-保存后处理是后台工作。上传完成不表示审核已经完成，也不能保证审核之前图片从未被访问。
+<<< ../../../examples/post-save/index.ts#implementation
 
-## 谁负责什么
+`execute` 读取元数据，返回 `pass` 或 `block`，并用 `details` 记录宽度和阈值。
 
-插件检查文件并返回意见，不直接修改数据库或删除存储对象。Picloom 累计各步骤的意见，更新文件状态，需要删除时再安排副本清理。
+<span id="接入并验证"></span>
 
-通知也是保存后处理的一种：执行外部操作后返回 `pass`，不必改变已有审核意见。
+## 安装与验证
 
-## 看一次调用
+在独立项目中运行 `bun run build`，使用生成的 `dist/<插件ID>-<版本>.zip`。
+后台选择示例字典中的名称（随界面语言显示），或你自己修改后的名称：
 
-假设保存的图片宽 2400 像素，固定配置 `maxWidth` 为 1280。核心调用 `execute`，插件读取元数据后返回：
+1. 安装生成的 ZIP，创建保存后流水线，添加 **Example width review**，将 `maxWidth` 设为 `1280`。
+2. 关联到上传配置。测试时不要启用上传缩放，否则审核的是缩放后的图片。
+3. 分别上传宽度小于和大于 1280 的图片，等待后台操作完成。
+4. 在图片详情查看结果：前者可访问，后者被屏蔽，详情记录实际宽度和阈值。
 
-```json
-{
-  "status": "block",
-  "details": { "width": 2400, "maxWidth": 1280 }
-}
-```
+## 接口行为
 
-只有这一个步骤时，核心在本次执行结束后屏蔽图片。文件仍保留在存储中，但公开访问被阻止。宽度未超限则返回 `pass`。
+配置与实例声明见[插件基础](../plugin-start.md#配置描述字段)，文件和上下文见[宿主服务](../plugin-services.md)。
 
-## 定义与能力清单
+此阶段仅提供 `execute`，没有请求参数、`check/process` 或替换图片的输出接口。
 
-定义设置 `kind: "processor"`，配置描述放在 `stages.post_save` 中。
-
-| 位置     | 成员                                                                                 | 必需 | 作用                                                                   |
-| -------- | ------------------------------------------------------------------------------------ | ---- | ---------------------------------------------------------------------- |
-| 阶段描述 | `configSchemaVersion`、`createInstance` | 是   | 创建 `PostSavePlugin`，见 [共用协议](../plugin-config.md#配置描述字段) |
-| 阶段描述 | `configSchema` | 否 | 自定义配置表单；省略时只接受空配置 `{}` |
-| 阶段描述 | `validateConfig`、`migrateConfig`                                                    | 否   | 配置校验和升级                                                   |
-| 运行对象 | `execute`                                                                            | 是   | 执行操作并返回处理意见                                                 |
-| 运行对象 | `dispose`                                                                            | 否   | [释放实例资源](../plugin-errors.md#dispose-释放实例)                   |
-
-此阶段没有 `paramsSchema`、`check/process` 或替换图片的输出接口。
-
-## execute：执行保存后操作
+### execute：执行保存后操作
 
 后台任务按步骤调用；同一次操作可能因重试再次调用。
 
@@ -63,17 +60,6 @@ execute(input: {
   readonly previousResults: readonly Readonly<PostSaveStepResult>[];
 }, context: PipelineContext): Promise<PostSaveResult>;
 ```
-
-| 参数 / 字段             | 类型              | 可选 | 含义                                                                        |
-| ----------------------- | ----------------- | ---- | --------------------------------------------------------------------------- |
-| `input.operationId`     | `string`          | 否   | 本次步骤操作的标识，可用于幂等处理                                          |
-| `input.fileId`          | `string`          | 否   | Picloom 文件 ID                                                             |
-| `input.publicPath`      | `string`          | 否   | 完整公开路径，含前缀，不含域名                                              |
-| `input.url`             | `string`          | 否   | 图片链接；未配置站点或图片域名时可能是相对路径                              |
-| `input.file`            | `FileInput`       | 否   | 保存后图片的[元数据与可读取内容](../plugin-config.md#文件与输出)            |
-| `input.currentStatus`   | `PostSaveStatus`  | 否   | 当前步骤前的累计处置；初始为 `pass`                                         |
-| `input.previousResults` | 只读结果数组      | 否   | 本次尝试中成功完成的前序步骤快照；第一步为空数组                            |
-| `context`               | `PipelineContext` | 否   | 取消、日志和本次流水线数据，见 [调用上下文](../plugin-config.md#调用上下文) |
 
 `PostSaveStatus` 为 `"pass" | "block" | "delete"`。返回 `PostSaveResult`：
 
@@ -92,28 +78,13 @@ execute(input: {
 | `pluginVersion` | `string` | 是   | 插件版本                  |
 | `completedAt`   | `number` | 是   | 完成时间，Unix 毫秒时间戳 |
 
-返回 `block/delete` 不终止后续步骤；核心在本次执行结束时应用累计处置。下面的完整示例先演示单步，组合规则放在扩展部分。
+返回 `block/delete` 不终止后续步骤；核心在本次执行结束时应用累计处置。组合规则见下文。
 
-## 最小实现
+`operationId` 可用于远端幂等处理；`publicPath` 含公开前缀、不含域名，`url` 在未配置域名时可能是相对路径。`currentStatus` 初始为 `pass`，`previousResults` 只含当前尝试已完成步骤的快照。
 
-先按[快速开始](../plugin-tooling.md)创建独立项目。下面展示仓库中的完整示例；
-复制到 `src/index.ts` 时，按[使用教程示例](../plugin-tooling.md#使用教程示例)调整 SDK 导入、清单身份和插件类型。
+<span id="扩展与约束"></span>
 
-实例保存宽度阈值，`execute` 只读取文件元数据，返回处理结果：
-
-<<< ../../../examples/post-save/index.ts
-
-## 接入并验证
-
-在独立项目中运行 `bun run build`，使用生成的 `dist/<插件ID>-<版本>.zip`。
-下面的 **Example …** 是示例名，实际应选择入口 `messages` 中设置、按当前界面语言显示的名称：
-
-1. 安装 生成的 ZIP，创建保存后流水线，添加 **Example width review**，将 `maxWidth` 设为 `1280`。
-2. 关联到上传配置。测试时不要启用上传缩放，否则审核的是缩放后的图片。
-3. 分别上传宽度小于和大于 1280 的图片，等待后台操作完成。
-4. 在图片详情查看结果：前者可访问，后者被屏蔽，详情记录实际宽度和阈值。
-
-## 扩展与约束
+## 可选能力与约束
 
 先理解一个步骤的结果，再组合多个步骤。下面区分每一步的原始意见与核心最终采用的累计状态。
 
@@ -172,4 +143,7 @@ execute(input: {
 | `previousResults` | 保存后阶段读取前序步骤的原始结果，包括可选 `overrideStatus`          | 当前尝试已完成的步骤；核心另行保存结果记录 |
 | `currentStatus`   | 保存后阶段读取当前累计处置                                           | 每步执行前由核心计算                       |
 
-`context.data` 的命名空间应避免与其他插件冲突，例如使用插件 ID；总量限制为 256 KiB，读取返回副本，修改后需调用 `set` 才会生效。需要跨调用持久保存的数据应使用 [状态服务](../plugin-config.md#密钥与运行状态)。
+`context.data` 的命名空间应避免与其他插件冲突，例如使用插件 ID；总量限制为 256 KiB，读取返回副本，修改后需调用 `set` 才会生效。需要跨调用持久保存的数据应使用 [状态服务](../plugin-services.md#密钥与运行状态)。
+
+<span id="想实现什么"></span><span id="在哪里执行"></span><span id="谁负责什么"></span><span id="看一次调用"></span><span id="定义与能力清单"></span>
+开发流程见[最小实现](#最小实现)，调用规则见[接口行为](#接口行为)。

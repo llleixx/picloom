@@ -6,22 +6,26 @@ import {
 } from "../../plugin-sdk";
 
 export default {
-  defaultLocale: "en-US",
-  nameKey: "package.name",
-  messages: { "en-US": { "package.name": "Example thumbnail" } },
-
   id: "example.thumbnail",
 
   kind: "processor",
   version: "1.0.0",
   apiVersion: 1,
+  // #region implementation
+  defaultLocale: "en-US",
+  nameKey: "package.name",
+  messages: {
+    "en-US": { "package.name": "Example thumbnail", "settings.width.label": "Maximum width" },
+    "zh-CN": { "package.name": "缩略图示例", "settings.width.label": "最大宽度" },
+  },
+
   stages: {
     access: {
       configSchemaVersion: 1,
       paramsSchema: {
         type: "object",
         properties: {
-          width: { type: "integer", minimum: 1, maximum: 8192 },
+          width: { "x-ui": { labelKey: "settings.width.label" }, type: "integer", minimum: 1, maximum: 8192 },
         },
         additionalProperties: false,
       },
@@ -76,4 +80,5 @@ export default {
       },
     },
   },
+  // #endregion implementation
 } satisfies Definition<"processor">;

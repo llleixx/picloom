@@ -55,7 +55,7 @@ import { PluginError, type Definition } from "@picloom/plugin-sdk";
 ```
 
 独立模板从清单读取身份字段，配置和实现留在源码中。依赖打包规则见
-[构建依赖](./plugin-release.md#构建依赖)，宿主能力见[配置与宿主服务](./plugin-config.md)。
+[构建依赖](./plugin-release.md#构建依赖)，宿主能力见[宿主服务](./plugin-services.md)。
 
 ## 清单 plugin.json
 
@@ -81,7 +81,7 @@ import { PluginError, type Definition } from "@picloom/plugin-sdk";
 | `defaultLocale`                       | `string`                                 | 是   | 内容默认语言，使用规范语言代码，例如 `en-US`                                                                                  |
 | `nameKey`                             | `string`                                 | 是   | 插件名称翻译键                                                                                                                |
 | `descriptionKey`                      | `string`                                 | 否   | 插件说明翻译键                                                                                                                |
-| `messages`                            | `Record<string, Record<string, string>>` | 是   | 按语言保存名称、说明及所有阶段字段文案；默认语言必须包含 `nameKey` 引用的非空名称，见 [配置与宿主服务](./plugin-config.md#界面提示与翻译) |
+| `messages`                            | `Record<string, Record<string, string>>` | 是   | 按语言保存名称、说明及所有阶段字段文案；默认语言必须包含 `nameKey` 引用的非空名称，见[包文案与表单提示](./package-localization.md) |
 
 身份之后，按类型组织实现：
 
@@ -96,7 +96,7 @@ import { PluginError, type Definition } from "@picloom/plugin-sdk";
                                            └── 返回该阶段的运行方法
 ```
 
-`configSchema` 描述管理员要填写的配置；没有自定义配置项时可省略，宿主只接受空配置 `{}`。`createInstance` 根据这份配置创建可调用的对象。可选的校验、迁移和界面字段见 [配置描述字段](./plugin-config.md#配置描述字段)。各类教程会列出运行对象必须实现的方法。
+`configSchema` 描述管理员要填写的配置；没有自定义配置项时可省略，宿主只接受空配置 `{}`。`createInstance` 根据这份配置创建可调用的对象。可选的校验、迁移和界面字段见 [配置描述字段](./plugin-start.md#配置描述字段)。各类教程会列出运行对象必须实现的方法。
 
 ## 从代码到一次调用
 
@@ -122,3 +122,16 @@ flowchart LR
 <span id="准备并构建示例"></span>
 <span id="仓库贡献者：准备并构建示例"></span>
 仓库贡献者需要构建原有示例时，参见[插件工具维护](./plugin-tooling-maintenance.md#仓库示例)。
+
+## 配置描述字段
+
+下面这些字段共同构成 `Descriptor<R>`；`R` 是该类插件的运行对象类型。路径和存储在定义顶层声明，处理插件在对应 `stages` 下声明。
+
+| 字段 / 方法           | 类型                                     | 必需 | 作用                                                             |
+| --------------------- | ---------------------------------------- | ---- | ---------------------------------------------------------------- |
+| `configSchemaVersion` | 正整数                                   | 是   | 配置结构版本，从 `1` 开始                                        |
+| `configSchema`        | `ConfigSchema`                           | 否   | 根类型为对象的配置 Schema；省略表示没有自定义配置项，只接受 `{}` |
+| `createInstance`      | 异步函数                                 | 是   | 根据配置创建运行对象                                             |
+| `validateConfig`      | 异步函数                                 | 否   | 补充配置语义校验                                                 |
+| `migrateConfig`       | 异步函数                                 | 否   | [升级时转换旧配置](./plugin-release.md#migrateconfig-转换旧配置) |
+| `paramsSchema`        | `ParamsSchema`                           | 否   | 仅上传和访问阶段支持，声明可接受的请求参数                       |

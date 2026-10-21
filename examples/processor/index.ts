@@ -6,6 +6,12 @@ import {
 } from "../../plugin-sdk";
 
 export default {
+  id: "example.resize",
+
+  kind: "processor",
+  version: "1.0.0",
+  apiVersion: 1,
+  // #region implementation
   defaultLocale: "en-US",
   nameKey: "package.name",
   messages: {
@@ -13,13 +19,9 @@ export default {
       "package.name": "Example resize",
       "settings.width.label": "Maximum width",
     },
+    "zh-CN": { "package.name": "缩放示例", "settings.width.label": "最大宽度" },
   },
 
-  id: "example.resize",
-
-  kind: "processor",
-  version: "1.0.0",
-  apiVersion: 1,
   stages: {
     upload: {
       configSchemaVersion: 1,
@@ -93,4 +95,5 @@ export default {
       },
     },
   },
+  // #endregion implementation
 } satisfies Definition<"processor">;
