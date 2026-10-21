@@ -87,7 +87,7 @@ async function save() {
       error.value = t("ui.savedButSomePluginsFailedToInitialize");
       return;
     }
-    notify(t("ui.saved"));
+    notify({ key: "ui.saved" });
     open.value = false;
   } catch (e) {
     error.value = errorText(e);

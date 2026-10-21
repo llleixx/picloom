@@ -9,18 +9,42 @@ export default defineConfig(({ mode }) => {
   return {
     root: resolve("web"),
     base: "/",
-    plugins: [vue(), tailwindcss()],
+    plugins: [
+      {
+        name: "picloom-entry",
+        configureServer(server) {
+          server.middlewares.use((req, _res, next) => {
+            if (/^\/app(?:\/|\?|$)/.test(req.url ?? ""))
+              req.url = "/admin.html";
+            next();
+          });
+        },
+      },
+      vue(),
+      tailwindcss(),
+    ],
     resolve: { alias: { "@": resolve("web/src") } },
-    build: { outDir: resolve("dist/web"), emptyOutDir: true },
+    build: {
+      outDir: resolve("dist/web"),
+      emptyOutDir: true,
+      rollupOptions: {
+        input: {
+          index: resolve("web/index.html"),
+          admin: resolve("web/admin.html"),
+        },
+      },
+    },
     server: {
       host: "127.0.0.1",
       port: 5173,
       strictPort: true,
       proxy: {
-        "^/(?!$|app(?:/|$)|login(?:/|$)|assets(?:/|$)|@|src/|node_modules/)": {
-          target,
-          changeOrigin: false,
-        },
+        "/assets/themes/": { target, changeOrigin: false },
+        "^/(?!$|\\?|(?:admin|index)\\.html(?:\\?|$)|app(?:/|\\?|$)|login(?:/|\\?|$)|assets(?:/|$)|@|src/|node_modules/)":
+          {
+            target,
+            changeOrigin: false,
+          },
       },
     },
   };

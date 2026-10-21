@@ -1,5 +1,4 @@
 import { copyPreferences, formatLink } from "./link-formats";
-import { t } from "./i18n";
 import { reactive } from "vue";
 import type {
   ClientSettings,
@@ -13,7 +12,8 @@ import {
   ApiError,
   copy,
   decodeError,
-  errorText,
+  errorValue,
+  type DisplayMessage,
   onUnauthorized,
   queryClient,
   session,
@@ -35,7 +35,7 @@ export interface UploadItem {
     | "failed"
     | "cancelled";
   resumable?: boolean;
-  error?: string;
+  error?: DisplayMessage;
   result?: UploadResult;
   replaceId?: string;
 }
@@ -80,7 +80,7 @@ export function enqueue(
         !file.size || file.size > profile.maxUploadBytes ? "failed" : "queued",
       error:
         !file.size || file.size > profile.maxUploadBytes
-          ? t("ui.fileIsEmptyOrExceedsTheUpload")
+          ? { key: "ui.fileIsEmptyOrExceedsTheUpload" }
           : undefined,
     });
   pump();
@@ -123,7 +123,7 @@ export async function cancelUpload(item: UploadItem) {
         headers: { "X-Upload-Key": transfer.session.uploadKey },
       });
     } catch (error) {
-      item.error = errorText(error);
+      item.error = errorValue(error);
     }
   }
   transfers.delete(item.id);
@@ -163,13 +163,7 @@ function send<T>(
         if (xhr.status === 401) onUnauthorized();
       }
     };
-    xhr.onerror = xhr.ontimeout = () =>
-      reject(
-        new ApiError(
-          "NETWORK",
-          t("ui.connectionLostCheckImagesBeforeUploadingAgain"),
-        ),
-      );
+    xhr.onerror = xhr.ontimeout = () => reject(new ApiError("NETWORK", ""));
     xhr.onabort = () => reject(new DOMException("Cancelled", "AbortError"));
     xhr.onloadend = () => signal.removeEventListener("abort", abort);
     if (signal.aborted) {
@@ -338,7 +332,7 @@ async function pump() {
             for (;;) {
               signal.throwIfAborted();
               if (Date.now() > deadline)
-                throw new Error(t("images.replaceBusy"));
+                throw new ApiError("REPLACEMENT_BUSY", "");
               const candidate = await api<FileView>(`/api/files/${result.id}`, {
                 signal,
               });
@@ -367,7 +361,7 @@ async function pump() {
         .catch((error) => {
           if (item.status === "cancelled") return;
           item.status = "failed";
-          item.error = errorText(error);
+          item.error = errorValue(error);
         })
         .finally(() => {
           active--;
@@ -399,7 +393,7 @@ async function pump() {
   } catch (error) {
     for (const item of uploads.filter((x) => x.status === "queued")) {
       item.status = "failed";
-      item.error = errorText(error);
+      item.error = errorValue(error);
     }
   } finally {
     pumping = false;

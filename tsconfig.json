@@ -9,9 +9,7 @@
     "allowImportingTsExtensions": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
-    "types": [
-      "bun"
-    ]
+    "types": ["bun"]
   },
   "include": [
     "src/**/*.ts",
@@ -22,6 +20,7 @@
     "playwright.config.ts",
     "web/vite.config.ts",
     "examples/**/*.ts",
-    "docker/**/*.ts"
+    "docker/**/*.ts",
+    "theme-sdk/**/*.ts"
   ]
 }

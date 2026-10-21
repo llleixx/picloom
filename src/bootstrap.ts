@@ -1,3 +1,4 @@
+import { Themes } from "./themes/manager";
 import { reservedPrefix } from "../shared/web-routes";
 import { Imports } from "./core/import";
 import { Uploads } from "./core/uploads";
@@ -98,6 +99,8 @@ export async function bootstrap(
       );
     });
     await delivery.load();
+    const themes = new Themes(config.root, delivery.store);
+    await themes.start();
     await packages.start();
     await plugins.start();
     const configuration = new Configuration(db, plugins, files);
@@ -108,6 +111,7 @@ export async function bootstrap(
     return {
       config,
       delivery,
+      themes,
       system,
       webConflict,
       db: db as Persistence,
@@ -123,6 +127,7 @@ export async function bootstrap(
         closed = true;
         await system.close();
         await delivery.close();
+        await themes.close();
         await uploads.close();
         await files.close();
         await plugins.close();

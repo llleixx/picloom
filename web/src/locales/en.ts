@@ -1,5 +1,45 @@
 // UI copy lives here. Keep keys stable when editing English wording.
 export const en = {
+  "themes.chooseLanguage": "Choose a default language",
+  "themes.siteLanguageHelp":
+    "This is the site default language. It changes only when you apply this theme.",
+  "themes.enableLanguage":
+    "Enable a language supported by this theme in site settings first.",
+  "themes.draftLanguageDifference":
+    "The saved preview uses a different default language",
+  "themes.appearanceConfig": "Appearance and behavior",
+  "themes.localizedConfig": "Content and languages",
+  "themes.languageDisabled": "Not enabled on site",
+  "themes.title": "Themes",
+  "themes.language": "Language",
+  "themes.mode": "Appearance",
+  "themes.auto": "System",
+  "themes.previewWarning":
+    "Theme preview. Uploads and sign-ins perform real operations.",
+  "themes.incompatible": "Incompatible theme API version.",
+  "themes.loadFailed": "Theme could not be loaded.",
+  "themes.fallback": "Using the default theme.",
+  "themes.trust":
+    "Themes run trusted browser code and login themes can read entered credentials. Install only themes you trust.",
+  "themes.upload": "Upload ZIP (up to 20 MB)",
+  "themes.restore": "Restore default theme",
+  "themes.defaultActive": "Default theme active",
+  "themes.confirmTrust":
+    "I trust this theme and its access to login credentials.",
+  "themes.install": "Install",
+  "themes.active": "Active",
+  "themes.configure": "Configure",
+  "themes.uninstall": "Uninstall",
+  "themes.draftHelp":
+    "Save a draft before previewing. Apply publishes the version and current configuration together.",
+  "themes.noConfig": "This theme has no configuration options.",
+  "themes.saveDraft": "Save draft",
+  "themes.previewHome": "Preview home",
+  "themes.previewLogin": "Preview login",
+  "themes.apply": "Apply to site",
+  "themes.saved": "Draft saved",
+  "themes.applied": "Theme applied",
+
   "storage.usageLimited": "Used {used} / {limit} · {percent}%",
   "storage.usageUnlimited": "Used {used} · Unlimited",
   "storage.pending": "Pending {size}",

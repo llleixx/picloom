@@ -63,7 +63,7 @@ flowchart LR
 ```
 ````
 
-使用项目现有图标，保持 `docs/public/picloom.svg` 与 `web/src/assets/picloom.svg` 一致。
+使用项目现有图标，保持 `docs/public/picloom.svg` 与 `web/public/assets/picloom.svg` 一致。
 
 ## 发布到 GitHub Pages
 

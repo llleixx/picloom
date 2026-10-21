@@ -1,0 +1,300 @@
+{
+  "id": "picloom.horizon",
+  "version": "1.2.6",
+  "apiVersion": 1,
+  "pages": {
+    "home": {
+      "entry": "entry.js"
+    },
+    "login": {
+      "entry": "entry.js"
+    }
+  },
+  "styles": [
+    "style.css"
+  ],
+  "configSchema": {
+    "type": "object",
+    "properties": {
+      "heading": {
+        "type": "string",
+        "default": {
+          "zh-CN": "把此刻，\n留在远空。",
+          "en-US": "A little closer\nto the infinite."
+        },
+        "title": "Hero heading",
+        "content": {
+          "zh-CN": {
+            "title": "宣传标题"
+          }
+        },
+        "x-localized": true,
+        "x-multiline": true
+      },
+      "description": {
+        "type": "string",
+        "default": {
+          "zh-CN": "收藏每一次心动，让美好自由抵达。\n上传、分享，把你的世界留在这里。",
+          "en-US": "Keep the moments that move you.\nUpload, share, and let your world travel."
+        },
+        "title": "Hero description",
+        "content": {
+          "zh-CN": {
+            "title": "宣传说明"
+          }
+        },
+        "x-localized": true,
+        "x-multiline": true
+      },
+      "rotate": {
+        "type": "boolean",
+        "default": true,
+        "title": "Rotate scenery",
+        "content": {
+          "zh-CN": {
+            "title": "自动轮换背景"
+          }
+        }
+      },
+      "interval": {
+        "type": "integer",
+        "default": 6,
+        "title": "Rotation interval (seconds)",
+        "content": {
+          "zh-CN": {
+            "title": "轮换间隔（秒）"
+          }
+        },
+        "minimum": 5,
+        "maximum": 60
+      },
+      "shade": {
+        "type": "number",
+        "default": 0.18,
+        "title": "Background shading",
+        "content": {
+          "zh-CN": {
+            "title": "背景遮罩强度"
+          }
+        },
+        "minimum": 0,
+        "maximum": 0.6
+      },
+      "dayImage": {
+        "type": "string",
+        "default": "assets/cloud-sea.png",
+        "title": "Cloud sea image URL",
+        "content": {
+          "zh-CN": {
+            "title": "云海背景 URL",
+            "description": "填写包内资源路径或 HTTPS 地址，清空后不显示此图片。"
+          }
+        },
+        "description": "Package asset path or HTTPS URL. Empty disables this image."
+      },
+      "nightImage": {
+        "type": "string",
+        "default": "assets/star-lake.png",
+        "title": "Star lake image URL",
+        "content": {
+          "zh-CN": {
+            "title": "星湖背景 URL",
+            "description": "填写包内资源路径或 HTTPS 地址，清空后不显示此图片。"
+          }
+        },
+        "description": "Package asset path or HTTPS URL. Empty disables this image."
+      },
+      "dawnImage": {
+        "type": "string",
+        "default": "assets/dawn-valley.png",
+        "title": "Dawn valley image URL",
+        "content": {
+          "zh-CN": {
+            "title": "晨光山谷背景 URL",
+            "description": "填写包内资源路径或 HTTPS 地址，清空后不显示此图片。"
+          }
+        },
+        "description": "Package asset path or HTTPS URL. Empty disables this image."
+      },
+      "auroraImage": {
+        "type": "string",
+        "default": "assets/aurora-fjord.png",
+        "title": "Aurora fjord image URL",
+        "content": {
+          "zh-CN": {
+            "title": "极光峡湾背景 URL",
+            "description": "填写包内资源路径或 HTTPS 地址，清空后不显示此图片。"
+          }
+        },
+        "description": "Package asset path or HTTPS URL. Empty disables this image."
+      },
+      "loginHeading": {
+        "type": "string",
+        "x-localized": true,
+        "x-multiline": true,
+        "title": "Login heading",
+        "content": {
+          "zh-CN": {
+            "title": "登录页标题"
+          }
+        },
+        "default": {
+          "en-US": "Every return,\na new beginning.",
+          "zh-CN": "每一次回来，\n都是新的开始。"
+        }
+      },
+      "loginDescription": {
+        "type": "string",
+        "x-localized": true,
+        "x-multiline": true,
+        "title": "Login description",
+        "content": {
+          "zh-CN": {
+            "title": "登录页说明"
+          }
+        },
+        "default": {
+          "en-US": "Your moments, quietly waiting.\nSign in to pick up where you left off.",
+          "zh-CN": "那些值得珍藏的瞬间，正在等你。\n登录，继续记录属于你的世界。"
+        }
+      }
+    },
+    "required": [
+      "interval",
+      "shade",
+      "rotate"
+    ]
+  },
+  "messages": {
+    "en-US": {
+      "navigation": "Navigation",
+      "language": "Language",
+      "home": "Home",
+      "app": "Workspace",
+      "login": "Sign in",
+      "eyebrow": "A PLACE FOR YOUR PERSPECTIVE",
+      "welcome": "YOUR WORLD IS WAITING",
+      "note": "LITTLE MOMENTS. ENDLESS POSSIBILITIES.",
+      "upload": "Share a moment",
+      "uploadIntro": "A small frame. A whole world inside.",
+      "drop": "Drop your images here",
+      "paste": "or paste from your clipboard",
+      "choose": "Choose images",
+      "profile": "Upload to",
+      "selectProfile": "Choose a profile",
+      "loading": "Please wait…",
+      "retry": "Try again",
+      "unavailable": "The service is unavailable. Please try again.",
+      "noProfile": "No upload profile is currently available.",
+      "guest": "Sign in to start sharing your images.",
+      "perFile": "file",
+      "ready": "Your next moment starts here",
+      "fromUrl": "From a link",
+      "options": "Sharing preferences",
+      "copyFormat": "Link format",
+      "autoCopy": "Auto-copy",
+      "queue": "Your moments",
+      "copyAll": "Copy all",
+      "queued": "Waiting to upload",
+      "uploading": "Uploading",
+      "processing": "Finishing up",
+      "success": "Ready to share",
+      "failed": "Upload failed",
+      "cancelled": "Cancelled",
+      "cancel": "Cancel upload",
+      "dismiss": "Remove record",
+      "copy": "Copy link",
+      "result": "Share link",
+      "loginIntro": "Welcome back. Make yourself at home.",
+      "expired": "Your session expired. Please sign in again.",
+      "username": "Username",
+      "password": "Password",
+      "usernamePlaceholder": "Your username",
+      "passwordPlaceholder": "Your password",
+      "back": "← Back to the scenery",
+      "panelFoot": "Your images. Your space.",
+      "scenery": "BEYOND THE FRAME",
+      "sea": "Where clouds meet the sea",
+      "lake": "A lake full of stars",
+      "previous": "Previous scene",
+      "next": "Next scene",
+      "play": "Resume slideshow",
+      "pause": "Pause slideshow",
+      "footer": "THE WORLD IS WORTH KEEPING.",
+      "dawn": "Valley of first light",
+      "aurora": "Under the northern lights"
+    },
+    "zh-CN": {
+      "navigation": "导航",
+      "language": "语言",
+      "home": "首页",
+      "app": "管理界面",
+      "login": "登录",
+      "eyebrow": "在这里，看见更远的世界",
+      "welcome": "你的世界，一直在这里",
+      "note": "片刻珍藏 · 自由分享",
+      "upload": "分享此刻",
+      "uploadIntro": "一张图片，装下一个世界。",
+      "drop": "将图片拖放到这里",
+      "paste": "也可以直接粘贴剪贴板中的图片",
+      "choose": "选择图片",
+      "profile": "上传至",
+      "selectProfile": "选择上传方案",
+      "loading": "请稍候…",
+      "retry": "重试",
+      "unavailable": "服务暂不可用，请稍后重试。",
+      "noProfile": "暂时没有可用的上传方案。",
+      "guest": "登录后，即可开始分享你的图片。",
+      "perFile": "每张",
+      "ready": "下一次心动，从这里开始",
+      "fromUrl": "通过链接上传",
+      "options": "分享偏好",
+      "copyFormat": "链接格式",
+      "autoCopy": "自动复制",
+      "queue": "上传记录",
+      "copyAll": "复制全部",
+      "queued": "等待上传",
+      "uploading": "上传中",
+      "processing": "处理中",
+      "success": "分享链接已就绪",
+      "failed": "上传失败",
+      "cancelled": "已取消",
+      "cancel": "取消上传",
+      "dismiss": "移除记录",
+      "copy": "复制链接",
+      "result": "分享链接",
+      "loginIntro": "欢迎回来，继续你的美好收藏。",
+      "expired": "会话已过期，请重新登录。",
+      "username": "用户名",
+      "password": "密码",
+      "usernamePlaceholder": "输入你的用户名",
+      "passwordPlaceholder": "输入你的密码",
+      "back": "← 返回首页，看看风景",
+      "panelFoot": "你的图片，你的空间。",
+      "scenery": "画面之外",
+      "sea": "云与海的交界",
+      "lake": "一湖星光",
+      "previous": "上一张背景",
+      "next": "下一张背景",
+      "play": "继续轮换",
+      "pause": "暂停轮换",
+      "footer": "世界很大，美好值得留下。",
+      "dawn": "晨光山谷",
+      "aurora": "极光峡湾"
+    }
+  },
+  "preview": "assets/cloud-sea.png",
+  "supportedLocales": [
+    "zh-CN",
+    "en-US"
+  ],
+  "content": {
+    "zh-CN": {
+      "name": "远空"
+    },
+    "en-US": {
+      "name": "Horizon"
+    }
+  },
+  "defaultLocale": "en-US"
+}

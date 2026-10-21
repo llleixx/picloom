@@ -33,9 +33,10 @@ function browserLanguages(): string[] {
   ];
 }
 const browser = ref(browserLanguages());
+const temporaryPreference = ref<Locale | null>(null);
 const currentLocale = computed(() =>
   selectLocale(
-    preference.value,
+    temporaryPreference.value ?? preference.value,
     browser.value,
     available.value,
     fallback.value,
@@ -45,7 +46,9 @@ export const locale = currentLocale;
 export function configureLanguages(
   locales: readonly Locale[],
   defaultLocale: Locale,
+  previewLocale: Locale | null = null,
 ) {
+  temporaryPreference.value = previewLocale;
   available.value = [...locales];
   fallback.value = defaultLocale;
 }
@@ -90,7 +93,7 @@ export function t(
 ): string {
   const catalog: Partial<Record<MessageKey, string>> =
     catalogs[currentLocale.value];
-  return (catalog[key] ?? en[key]).replace(/\{(\w+)\}/g, (_, name: string) =>
+  return (catalog[key] ?? key).replace(/\{(\w+)\}/g, (_, name: string) =>
     String(params[name] ?? `{${name}}`),
   );
 }

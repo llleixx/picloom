@@ -152,7 +152,7 @@ async function install() {
     await refresh();
     if (result.status === "failed")
       error.value = t("ui.installedButFailedToLoadRetryOr");
-    else notify(t("ui.pluginInstalled"));
+    else notify({ key: "ui.pluginInstalled" });
   } catch (e) {
     error.value = errorText(e);
   } finally {
@@ -168,7 +168,7 @@ async function reload(p: PackageView) {
     });
     await refresh();
     if (result.error) error.value = t("plugins.loadError");
-    else notify(t("ui.pluginLoaded"));
+    else notify({ key: "ui.pluginLoaded" });
   } catch (e) {
     error.value = errorText(e);
   } finally {
@@ -183,7 +183,7 @@ async function uninstall() {
     await api(endpoint(remove.value), { method: "DELETE" });
     remove.value = null;
     await refresh();
-    notify(t("ui.pluginUninstalled"));
+    notify({ key: "ui.pluginUninstalled" });
   } catch (e) {
     error.value = errorText(e);
     await refresh();

@@ -29,7 +29,8 @@
     "test:docker": "bun docker/smoke.ts",
     "docs:dev": "bun run --cwd docs dev",
     "docs:build": "bun run --cwd docs build",
-    "docs:preview": "bun run --cwd docs preview"
+    "docs:preview": "bun run --cwd docs preview",
+    "build:themes": "bun examples/themes/build.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "3.1151.0",

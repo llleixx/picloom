@@ -212,7 +212,7 @@ async function save() {
     }
     await refresh();
     open.value = false;
-    notify(t("ui.saved"));
+    notify({ key: "ui.saved" });
   } catch (e) {
     error.value = errorText(e);
     if (e instanceof ApiError) {
@@ -237,8 +237,8 @@ async function initialize(id: string) {
     await refresh();
     notify(
       value.ready
-        ? t("ui.storageSourceReady")
-        : t("ui.settingsSavedInitializationFailed"),
+        ? { key: "ui.storageSourceReady" }
+        : { key: "ui.settingsSavedInitializationFailed" },
     );
   } catch (e) {
     error.value = errorText(e);
@@ -253,7 +253,7 @@ async function remove() {
     await api("/api/storage-sources/" + deleting.value, { method: "DELETE" });
     deleting.value = "";
     await refresh();
-    notify(t("ui.deleted"));
+    notify({ key: "ui.deleted" });
   } catch (e) {
     error.value = errorText(e);
   } finally {

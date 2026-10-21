@@ -183,7 +183,7 @@ async function save() {
         queryClient.invalidateQueries({ queryKey: [key] }),
       ),
     );
-    notify(t("settings.saved"));
+    notify({ key: "settings.saved" });
   } catch (e) {
     error.value = errorText(e);
     if (e instanceof ApiError)
@@ -310,14 +310,6 @@ async function save() {
                   :aria-invalid="!!fields[`/content/${editingLocale}/${field}`]"
                 />
               </label>
-              <p v-if="!editingContent[field]?.trim()" class="subtle mt-1">
-                {{ t("settings.fallbackContent") }}:
-                {{
-                  (editingLocale !== draft.defaultLocale &&
-                    draft.content[draft.defaultLocale]?.[field]?.trim()) ||
-                  t("settings.builtinContent")
-                }}
-              </p>
               <p
                 v-if="fields[`/content/${editingLocale}/${field}`]"
                 class="text-sm text-destructive"
@@ -338,7 +330,8 @@ async function save() {
               >{{ t(("settings." + field) as MessageKey) }}
               <Input
                 v-model="draft[field]"
-                type="url"
+                type="text"
+                inputmode="url"
                 :maxlength="2048"
                 :aria-invalid="!!fields['/' + field]"
               />

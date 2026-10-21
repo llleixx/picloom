@@ -44,6 +44,7 @@ export const navigation = [
     "configuration",
   ),
   page("/app/config/pipelines", "pipelines.title", Workflow, "configuration"),
+  page("/app/themes", "themes.title", Settings2, "configuration"),
   page("/app/plugins", "ui.plugins", Settings2, "configuration"),
   page("/app/users", "users.title", UserRound, "administration"),
   page("/app/settings", "settings.title", Settings, "administration"),

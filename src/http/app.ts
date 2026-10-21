@@ -1,3 +1,4 @@
+import { themeRequest } from "./themes";
 import { pluginErrorCode } from "../core/errors";
 import { maxDirectUploadBytes } from "../../shared/runtime-settings";
 import { normalizeGuestIp } from "./guest-ip";
@@ -95,6 +96,18 @@ export function handler(app: Application) {
       const url = new URL(req.url);
       const path = url.pathname;
       const method = req.method;
+      const themeAsset = path.match(
+        /^\/assets\/themes\/([^/]+)\/([^/]+)\/(.+)$/,
+      );
+      if (themeAsset)
+        return await app.themes.resource(
+          req,
+          themeAsset[1]!,
+          themeAsset[2]!,
+          decodeURIComponent(themeAsset[3]!),
+        );
+      if (path === "/api/theme" && method === "GET")
+        return json(app.themes.active());
       if (!app.webConflict && isWebRequest(path))
         return await webPage(req, app.config.webRoot);
       if (
@@ -329,6 +342,17 @@ export function handler(app: Application) {
           return json(limits);
         }
         const auth = await app.auth.authenticate(req, true);
+        if (
+          path === "/api/theme" ||
+          path === "/api/themes" ||
+          path.startsWith("/api/themes/")
+        ) {
+          if (auth.user.role !== "owner")
+            throw new AppError("FORBIDDEN", "Owner required", 403);
+          return json(
+            await themeRequest(app.themes, req, path, () => body(req)),
+          );
+        }
         if (path === "/api/access-parameters" && method === "GET")
           return json(await app.configuration.accessParameters());
         if (

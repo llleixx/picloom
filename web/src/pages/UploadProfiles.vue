@@ -24,6 +24,7 @@ import {
   ApiError,
   errorMessage,
   errorText,
+  errorValue,
   notify,
   queryClient,
 } from "@/lib/api";
@@ -65,7 +66,7 @@ async function setSiteDefault(profileId: string | null) {
     await queryClient.invalidateQueries({ queryKey: ["upload-defaults"] });
     await refresh();
   } catch (e) {
-    notify(errorText(e));
+    notify(errorValue(e));
   } finally {
     savingDefault.value = false;
   }
@@ -174,7 +175,7 @@ async function save() {
     }
     await refresh();
     open.value = false;
-    notify(t("ui.saved"));
+    notify({ key: "ui.saved" });
   } catch (e) {
     error.value = errorText(e);
     if (e instanceof ApiError) {
@@ -195,7 +196,7 @@ async function remove() {
     await api("/api/upload-profiles/" + deleting.value, { method: "DELETE" });
     deleting.value = "";
     await refresh();
-    notify(t("ui.deleted"));
+    notify({ key: "ui.deleted" });
   } catch (e) {
     error.value = errorText(e);
   } finally {

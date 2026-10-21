@@ -1,0 +1,111 @@
+{
+  "id": "example.split",
+  "version": "1.1.3",
+  "apiVersion": 1,
+  "pages": {
+    "home": {
+      "entry": "entry.js"
+    },
+    "login": {
+      "entry": "entry.js"
+    }
+  },
+  "styles": [
+    "style.css"
+  ],
+  "configSchema": {
+    "type": "object",
+    "properties": {
+      "accent": {
+        "type": "string",
+        "default": "#286456",
+        "title": "Accent color",
+        "content": {
+          "zh-CN": {
+            "title": "主色"
+          }
+        }
+      },
+      "heading": {
+        "type": "string",
+        "x-localized": true,
+        "x-multiline": true,
+        "default": {
+          "en-US": "Make room for your images.",
+          "zh-CN": "为你的图片留一个位置。"
+        },
+        "title": "Hero heading",
+        "content": {
+          "zh-CN": {
+            "title": "宣传标题"
+          }
+        }
+      }
+    }
+  },
+  "messages": {
+    "en-US": {
+      "home": "Home",
+      "app": "Workspace",
+      "login": "Sign in",
+      "language": "Language",
+      "appearance": "Switch appearance",
+      "upload": "Share your next image",
+      "loading": "Loading…",
+      "retry": "Retry",
+      "profile": "Upload profile",
+      "choose": "Choose or drop images",
+      "queued": "Queued",
+      "uploading": "Uploading",
+      "processing": "Processing",
+      "success": "Uploaded",
+      "failed": "Failed",
+      "cancelled": "Cancelled",
+      "cancel": "Cancel",
+      "dismiss": "Dismiss",
+      "copy": "Copy link",
+      "username": "Username",
+      "password": "Password",
+      "expired": "Your session expired. Sign in again.",
+      "unavailable": "The service is unavailable. Try again."
+    },
+    "zh-CN": {
+      "home": "首页",
+      "app": "管理界面",
+      "login": "登录",
+      "language": "语言",
+      "appearance": "切换明暗模式",
+      "upload": "分享下一张图片",
+      "loading": "加载中…",
+      "retry": "重试",
+      "profile": "上传方案",
+      "choose": "选择或拖入图片",
+      "queued": "排队中",
+      "uploading": "上传中",
+      "processing": "处理中",
+      "success": "上传成功",
+      "failed": "失败",
+      "cancelled": "已取消",
+      "cancel": "取消",
+      "dismiss": "移除",
+      "copy": "复制链接",
+      "username": "用户名",
+      "password": "密码",
+      "expired": "会话已过期，请重新登录。",
+      "unavailable": "服务暂不可用，请重试。"
+    }
+  },
+  "supportedLocales": [
+    "zh-CN",
+    "en-US"
+  ],
+  "content": {
+    "zh-CN": {
+      "name": "分栏"
+    },
+    "en-US": {
+      "name": "Split"
+    }
+  },
+  "defaultLocale": "en-US"
+}

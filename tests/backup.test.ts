@@ -1,3 +1,4 @@
+import { themePackage } from "./theme-fixtures";
 import { test, expect, spyOn } from "bun:test";
 import { Database } from "bun:sqlite";
 import { prepareRestoredDatabase } from "../src/persistence/sqlite/backup";
@@ -229,6 +230,15 @@ test("backup restores images, external local roots, settings and encrypted crede
     });
     await mkdir(join(source.root, "cache"), { recursive: true });
     await writeFile(join(source.root, "cache", "not-backed-up"), "cache");
+    const theme = await source.runtime.app.themes.inspect(themePackage());
+    await source.runtime.app.themes.install(theme.ticket, true);
+    await source.runtime.app.themes.activate({
+      id: "example.theme",
+      version: "1.0.0",
+    });
+    await source.runtime.app.themes.configure("example.theme", "1.0.0", {
+      heading: "Unpublished",
+    });
     const backup = await source.request("/api/system/backups", "POST");
     expect(backup.status).toBe(201);
     const id = backup.json().id;
@@ -249,6 +259,16 @@ test("backup restores images, external local roots, settings and encrypted crede
       { "x-confirm-restore": "restore" },
     );
     expect(restore.status).toBe(200);
+    expect(target.runtime.app.themes.active()!.config.heading).toBe("Original");
+    expect(
+      target.runtime.app.themes.preview("example.theme", "1.0.0").config
+        .heading,
+    ).toBe("Unpublished");
+    expect(
+      await Bun.file(
+        join(target.root, "themes/example.theme@1.0.0/entry.js"),
+      ).exists(),
+    ).toBe(true);
     expect((await target.request("/api/auth/session")).status).toBe(401);
     await target.login();
     const original = await target.request(new URL(image.url).pathname);
@@ -589,7 +609,7 @@ test("maintenance drains streams and failed restore preserves existing data", as
       file: join(dirname(f.root), "backups", backup.json().id),
       cwd: stage,
     });
-    await writeFile(join(stage, "data", "delivery-settings.json"), "{}");
+    await writeFile(join(stage, "data", "site-settings.json"), "{}");
     const file = join(parent, "broken-settings.tar.gz");
     await create({ cwd: stage, file, gzip: true }, ["manifest.json", "data"]);
     const uploaded = await f.request(

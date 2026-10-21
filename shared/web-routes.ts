@@ -1,6 +1,7 @@
 /** Public UI routes; API authorization remains on the server. */
-export const ownerPages = ["/app/plugins"];
+export const ownerPages = ["/app/plugins", "/app/themes"];
 export const adminPages = [
+  "/app/themes",
   "/app/users",
   "/app/plugins",
   "/app/settings",

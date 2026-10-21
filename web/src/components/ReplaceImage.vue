@@ -2,7 +2,7 @@
 import { computed, ref, watch } from "vue";
 import { useQuery } from "@tanstack/vue-query";
 import type { FileView, UploadProfileView } from "../../../shared/api";
-import { api, errorText, session } from "@/lib/api";
+import { api, errorText, session, messageText } from "@/lib/api";
 import { enqueue, uploads } from "@/lib/uploads";
 import { t } from "@/lib/i18n";
 import { Button } from "@/components/ui/button";
@@ -92,7 +92,7 @@ function submit() {
         {{ errorText(profiles.error.value) }}
       </p>
       <p v-if="item?.error" class="error-box">
-        {{ item.error }} {{ t("images.replaceFailure") }}
+        {{ messageText(item.error) }} {{ t("images.replaceFailure") }}
       </p>
       <p v-if="busy" class="subtle">
         {{ t("images.replacing") }} {{ item?.progress }}%

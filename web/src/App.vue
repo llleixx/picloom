@@ -1,6 +1,6 @@
 <script setup lang="ts">
+import { darkMode, setAppearance } from "./lib/appearance";
 import { supportedLocales } from "../../shared/locales";
-import defaultFavicon from "@/assets/picloom.svg?no-inline";
 import { navigation, navigationGroups } from "./lib/navigation";
 import { t, configureLanguages } from "@/lib/i18n";
 import { ref, watch, watchEffect, computed } from "vue";
@@ -27,13 +27,9 @@ watch(
       link.rel = "icon";
       document.head.append(link);
     }
-    link.onerror = () => {
-      link!.onerror = null;
-      if (defaultFavicon) link!.href = defaultFavicon;
-      else link!.removeAttribute("href");
-    };
-    if (url || defaultFavicon) link.href = url || defaultFavicon;
-    else link.removeAttribute("href");
+    link.onerror = () => link?.remove();
+    if (url) link.href = url;
+    else link.remove();
   },
   { immediate: true },
 );
@@ -47,19 +43,10 @@ watchEffect(() => {
   );
 });
 const menu = ref(false);
-const dark = ref(
-  localStorage.getItem("theme") === "dark" ||
-    (!localStorage.getItem("theme") &&
-      matchMedia("(prefers-color-scheme: dark)").matches),
-);
-watch(
-  dark,
-  (value) => {
-    document.documentElement.classList.toggle("dark", value);
-    localStorage.setItem("theme", value ? "dark" : "light");
-  },
-  { immediate: true },
-);
+const dark = computed({
+  get: () => darkMode.value,
+  set: (value) => setAppearance(value ? "dark" : "light"),
+});
 watch(
   () => route.path,
   () => (menu.value = false),
@@ -95,47 +82,19 @@ watchEffect(() => {
 </script>
 <template>
   <div v-if="pending" class="min-h-screen" aria-busy="true"></div>
-  <div v-else-if="route.path === '/login'"><RouterView /></div>
-  <div v-else-if="route.path === '/'" class="min-h-screen">
-    <header
-      class="mx-auto flex max-w-6xl items-center justify-between px-5 py-6"
-    >
-      <RouterLink to="/" class="flex items-center gap-2 text-lg font-semibold"
-        ><SiteBrand
-      /></RouterLink>
-      <div class="flex items-center gap-4">
-        <LanguageSwitcher />
-        <Button
-          variant="ghost"
-          size="icon"
-          :aria-label="dark ? t('ui.lightMode') : t('ui.darkMode')"
-          @click="dark = !dark"
-        >
-          <Sun v-if="dark" :size="18" /><Moon v-else :size="18" />
-        </Button>
-        <RouterLink
-          :to="session ? '/app/images' : '/login?return=/app/images'"
-          class="text-sm font-medium hover:text-primary"
-          >{{ session ? t("ui.app") : t("ui.signIn") }}
-          <span aria-hidden="true">→</span></RouterLink
-        >
-      </div>
-    </header>
-    <RouterView />
-  </div>
   <div v-else class="min-h-screen md:pl-56">
     <aside
       class="fixed inset-y-0 left-0 hidden w-56 flex-col overflow-y-auto border-r bg-background p-5 md:flex"
     >
-      <RouterLink
-        to="/"
+      <a
+        href="/"
         class="mb-7 mt-3 flex items-center gap-3 text-lg font-semibold tracking-tight"
         ><SiteBrand
-      /></RouterLink>
-      <RouterLink
-        to="/"
+      /></a>
+      <a
+        href="/"
         class="mb-5 flex items-center gap-3 px-3 py-2 text-sm text-muted-foreground hover:text-foreground"
-        ><CloudUpload :size="18" />{{ t("home.upload") }}</RouterLink
+        ><CloudUpload :size="18" />{{ t("home.upload") }}</a
       >
       <nav :aria-label="t('ui.mainNavigation')" class="space-y-6 pb-6">
         <section
@@ -220,9 +179,9 @@ watchEffect(() => {
         ><SheetTitle><SiteBrand /></SheetTitle
         ><SheetDescription>{{ t("ui.navigation") }}</SheetDescription>
         <nav class="mt-5 space-y-5">
-          <RouterLink @click="menu = false" to="/" class="block px-3 py-2">{{
+          <a @click="menu = false" href="/" class="block px-3 py-2">{{
             t("home.upload")
-          }}</RouterLink>
+          }}</a>
           <section
             v-for="group in groups"
             :key="group.id"

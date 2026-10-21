@@ -7,7 +7,7 @@ import { useQuery } from "@tanstack/vue-query";
 import { CloudUpload, Check, LoaderCircle, Copy } from "lucide-vue-next";
 import { Button } from "@/components/ui/button";
 import type { UploadProfileView, UploadDefaults } from "../../../shared/api";
-import { session, api, copy, errorMessage, errorText, notify } from "@/lib/api";
+import { session, api, copy, errorMessage, errorText, notify, messageText } from "@/lib/api";
 import { size } from "@/lib/utils";
 import {
   uploads,
@@ -87,7 +87,7 @@ const profile = computed(() =>
 );
 function add(files: File[]) {
   if (!profile.value) {
-    notify(t("ui.selectAnAvailableUploadProfile"));
+    notify({ key: "ui.selectAnAvailableUploadProfile" });
     return;
   }
   enqueue(files, profile.value);
@@ -126,7 +126,7 @@ function paste(event: ClipboardEvent) {
     return;
   event.preventDefault();
   if (!profile.value) {
-    notify(t("ui.selectAnAvailableUploadProfile"));
+    notify({ key: "ui.selectAnAvailableUploadProfile" });
     return;
   }
   enqueueUrls(urls, profile.value);
@@ -297,12 +297,12 @@ onUnmounted(() => window.removeEventListener("paste", paste));
         <p class="mt-2 text-xs" aria-live="polite">
           {{
             {
-              cancelled: item.error || t("uploads.cancelled"),
+              cancelled: messageText(item.error) || t("uploads.cancelled"),
               queued: t("ui.queued"),
               uploading: t("uploads.progress", { progress: item.progress }),
               processing: t("ui.processingOnServer"),
               success: t("ui.uploaded"),
-              failed: item.error,
+              failed: messageText(item.error),
             }[item.status]
           }}
         </p>

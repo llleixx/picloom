@@ -33,6 +33,10 @@ const operations = [
 ];
 const development = [
   {
+    text: "主题开发",
+    items: [{ text: "首页与登录页主题", link: "/development/themes" }],
+  },
+  {
     text: "插件开发",
     items: [
       { text: "快速开始", link: "/development/plugin-tooling" },
@@ -87,8 +91,14 @@ const reference = [
           { text: "Telegram 存储", link: "/reference/plugins/telegram" },
           { text: "图片处理", link: "/reference/plugins/sharp" },
           { text: "水印", link: "/reference/plugins/watermark" },
-          { text: "腾讯云图片审核", link: "/reference/plugins/tencent-moderation" },
-          { text: "Telegram 通知", link: "/reference/plugins/telegram-notification" },
+          {
+            text: "腾讯云图片审核",
+            link: "/reference/plugins/tencent-moderation",
+          },
+          {
+            text: "Telegram 通知",
+            link: "/reference/plugins/telegram-notification",
+          },
         ],
       },
       { text: "术语", link: "/reference/glossary" },

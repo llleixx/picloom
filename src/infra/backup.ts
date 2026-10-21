@@ -15,7 +15,6 @@ import {
 import { join, dirname, resolve, relative, isAbsolute } from "node:path";
 import { create, extract, list } from "tar";
 import type { BackupView } from "../../shared/backup";
-import type { DeliverySettings } from "../../shared/api";
 import { AppError } from "../core/errors";
 import { prepareRestoredDatabase } from "../persistence/sqlite/backup";
 import packageJson from "../../package.json";
@@ -24,7 +23,6 @@ const expandedLimit = 50 * 1024 ** 3;
 export interface BackupSnapshot {
   root: string;
   encryptionKey: string;
-  delivery: DeliverySettings;
   localSources: Array<{ id: string; root: string; configPath: string }>;
 }
 interface Manifest {
@@ -106,11 +104,18 @@ export class Backups {
       const data = join(stage, "data");
       const budget = { bytes: 0, entries: 0 };
       await mkdir(data);
-      for (const name of ["database.sqlite", "plugins", "temp", "uploads"])
+      for (const name of [
+        "database.sqlite",
+        "plugins",
+        "temp",
+        "uploads",
+        "themes",
+      ])
         await copyTree(join(snapshot.root, name), join(data, name), budget);
-      await writeFile(
-        join(data, "delivery-settings.json"),
-        JSON.stringify(snapshot.delivery),
+      await copyTree(
+        join(snapshot.root, "site-settings.json"),
+        join(data, "site-settings.json"),
+        budget,
       );
       const manifest: Manifest = {
         format: 1,
@@ -261,14 +266,17 @@ export class Backups {
       // Only this defined data layout may replace the live root.
       const allowed = new Set([
         "database.sqlite",
-        "delivery-settings.json",
+        "site-settings.json",
+        "themes",
         "plugins",
         "temp",
         "uploads",
         "originals",
       ]);
+      const entries = await readdir(join(stage, "data"));
       if (
-        (await readdir(join(stage, "data"))).some((name) => !allowed.has(name))
+        !entries.includes("site-settings.json") ||
+        entries.some((name) => !allowed.has(name))
       )
         throw invalid();
       return stage;

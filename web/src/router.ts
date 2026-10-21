@@ -1,4 +1,3 @@
-import { webPages } from "../../shared/web-routes";
 import { isSiteAdmin } from "../../shared/roles";
 import { createRouter, createWebHistory } from "vue-router";
 import {
@@ -9,8 +8,8 @@ import {
   setUnauthorizedHandler,
 } from "./lib/api";
 import Users from "./pages/Users.vue";
-import Home from "./pages/Home.vue";
-import Login from "./pages/Login.vue";
+import Themes from "./pages/Themes.vue";
+
 import Files from "./pages/Files.vue";
 import Tokens from "./pages/Tokens.vue";
 import Account from "./pages/Account.vue";
@@ -25,9 +24,9 @@ import { navigation } from "./lib/navigation";
 export const router = createRouter({
   history: createWebHistory(),
   routes: [
-    { path: "/", component: Home },
+    { path: "/app/themes", component: Themes },
     { path: "/app", redirect: "/app/images" },
-    { path: "/login", component: Login },
+
     { path: "/app/images", component: Files },
     { path: "/app/tokens", component: Tokens },
     { path: "/app/account", component: Account },
@@ -44,15 +43,11 @@ export const router = createRouter({
     meta: navigation.find((page) => page.path === route.path) ?? {},
   })),
 });
-export function safeReturn(value: unknown) {
-  return typeof value === "string" &&
-    webPages.includes(value.split("?")[0]!) &&
-    value.split("?")[0] !== "/login"
-    ? value
-    : "/app/images";
-}
 router.beforeEach(async (to) => {
-  if (to.path === "/login") return;
+  if (to.path === "/" || to.path === "/login") {
+    location.assign(to.fullPath);
+    return false;
+  }
   if (!session.value) {
     try {
       await getSession();
@@ -61,15 +56,12 @@ router.beforeEach(async (to) => {
         if (to.path === "/") return;
         clearSession();
       }
-      return {
-        path: "/login",
-        query: {
-          return: to.fullPath,
-          ...(e instanceof ApiError && e.status === 401
-            ? {}
-            : { unavailable: "1" }),
-        },
-      };
+      location.assign(
+        "/login?theme=default&return=" +
+          encodeURIComponent(to.fullPath) +
+          (e instanceof ApiError && e.status === 401 ? "" : "&unavailable=1"),
+      );
+      return false;
     }
   }
   if (to.meta.ownerOnly && session.value?.user.role !== "owner")
@@ -81,8 +73,7 @@ setUnauthorizedHandler(() => {
   const back = router.currentRoute.value.fullPath;
   clearSession();
   if (router.currentRoute.value.path !== "/login")
-    void router.replace({
-      path: "/login",
-      query: { return: back, expired: "1" },
-    });
+    location.assign(
+      "/login?theme=default&expired=1&return=" + encodeURIComponent(back),
+    );
 });

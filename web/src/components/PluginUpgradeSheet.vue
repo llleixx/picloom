@@ -206,7 +206,7 @@ async function save() {
     );
     emit("saved");
     await load();
-    if (initialized) notify(t("ui.saved"));
+    if (initialized) notify({ key: "ui.saved" });
     else error.value = t("ui.savedButInitializationFailedEditAndSave");
   } catch (e) {
     error.value = errorText(e);

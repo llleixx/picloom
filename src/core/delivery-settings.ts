@@ -1,3 +1,8 @@
+import {
+  builtinSiteIcon,
+  initialSiteContent,
+} from "../../shared/site-branding";
+import { SiteSettings } from "../infra/site-settings";
 import { isCanonicalLocale } from "../../plugin-sdk/localization";
 import { defaultLocalization, isLocale } from "../../shared/locales";
 import {
@@ -5,8 +10,6 @@ import {
   runtimeMaximums,
   type RuntimeSettings,
 } from "../../shared/runtime-settings";
-import { readFile, writeFile, rename, rm } from "node:fs/promises";
-import { join } from "node:path";
 import type { Settings } from "../config";
 import type { DeliverySettings } from "../../shared/api";
 import { AppError } from "./errors";
@@ -71,6 +74,7 @@ function validate(input: unknown): DeliverySettings {
   function imageUrl(key: string): string {
     const value = text(key, 2048);
     if (!value) return "";
+    if (value === builtinSiteIcon) return value;
     try {
       const url = new URL(value);
       if (
@@ -226,13 +230,11 @@ function validate(input: unknown): DeliverySettings {
 /** Single-process settings: persist atomically before applying to live services. */
 export class DeliveryConfiguration {
   private value: DeliverySettings;
-  private pending: Promise<unknown> = Promise.resolve();
-  private readonly path: string;
   constructor(
     private readonly config: Settings,
     private readonly applyRuntime: (value: DeliverySettings) => void,
+    readonly store = new SiteSettings(config.root),
   ) {
-    this.path = join(config.root, "delivery-settings.json");
     this.value = {
       ...(Object.fromEntries(
         runtimeKeys.map((key) => [key, config[key]]),
@@ -240,8 +242,9 @@ export class DeliveryConfiguration {
       guestMaxUploadBytes: config.guestMaxUploadBytes,
       guestDailyUploadLimit: config.guestDailyUploadLimit,
       ...defaultLocalization(),
-      siteLogoUrl: "",
-      siteFaviconUrl: "",
+      content: structuredClone(initialSiteContent),
+      siteLogoUrl: builtinSiteIcon,
+      siteFaviconUrl: builtinSiteIcon,
       cacheBytes: config.cacheBytes,
       cacheTtlMs: config.cacheTtlMs,
       publicOrigin: config.origin,
@@ -254,14 +257,31 @@ export class DeliveryConfiguration {
     };
   }
   async load() {
-    let contents: string;
-    try {
-      contents = await readFile(this.path, "utf8");
-    } catch (e) {
-      if ((e as NodeJS.ErrnoException).code === "ENOENT") return;
-      throw e;
-    }
-    this.apply(validate(JSON.parse(contents)));
+    await this.store.load();
+    const saved = this.store.get().delivery;
+    if (saved) this.apply(validate(saved));
+    else
+      await this.store.update((next) => {
+        next.delivery = this.value;
+      });
+    this.store.validators.push((next) => {
+      if (next.delivery) validate(next.delivery);
+    });
+    this.store.listeners.push((next) => {
+      if (
+        next.delivery &&
+        JSON.stringify(next.delivery) !== JSON.stringify(this.value)
+      ) {
+        const value = next.delivery;
+        const origin = this.config.origin;
+        const sameOrigin = value.publicOrigin === this.value.publicOrigin;
+        this.apply(value);
+        if (sameOrigin) {
+          this.config.origin = origin;
+          this.config.imageOrigin = value.imageOrigin ?? origin;
+        }
+      }
+    });
   }
   get(): DeliverySettings {
     return structuredClone({ ...this.value, publicOrigin: this.config.origin });
@@ -276,25 +296,14 @@ export class DeliveryConfiguration {
     });
     this.applyRuntime(value);
   }
-  save(input: unknown): Promise<DeliverySettings> {
+  async save(input: unknown): Promise<DeliverySettings> {
     const value = validate(input);
-    const operation = this.pending.then(async () => {
-      const temporary = this.path + ".tmp";
-      try {
-        await writeFile(temporary, JSON.stringify(value, null, 2) + "\n", {
-          mode: 0o600,
-        });
-        await rename(temporary, this.path);
-      } finally {
-        await rm(temporary, { force: true });
-      }
-      this.apply(value);
-      return this.get();
+    await this.store.update((next) => {
+      next.delivery = value;
     });
-    this.pending = operation.catch(() => {});
-    return operation;
+    return this.get();
   }
   async close() {
-    await this.pending;
+    await this.store.close();
   }
 }

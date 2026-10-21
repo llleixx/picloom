@@ -112,7 +112,6 @@ export async function startRuntime(
       const snapshot: BackupSnapshot = {
         root: base.root,
         encryptionKey: base.encryptionKey,
-        delivery: app.delivery.get(),
         localSources: sources.flatMap((s) => {
           const directory = app.plugins.localDirectory(s);
           return directory ? [directory] : [];

@@ -47,7 +47,7 @@ async function change() {
     });
     oldPassword.value = password.value = confirm.value = "";
     clearSession();
-    notify(t("ui.passwordChangedSignInAgain"));
+    notify({ key: "ui.passwordChangedSignInAgain" });
     await router.replace("/login");
   } catch (e) {
     error.value = errorText(e);

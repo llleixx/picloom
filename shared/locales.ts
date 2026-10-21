@@ -1,7 +1,4 @@
-import {
-  localizedText,
-  type LocalizedContent,
-} from "../plugin-sdk/localization";
+import { type LocalizedContent } from "../plugin-sdk/localization";
 export const languages = [
   {
     tag: "zh-CN",
@@ -76,5 +73,5 @@ export function siteText(
   locale: Locale,
   field: "name" | "description",
 ): string {
-  return localizedText(site, locale, (content) => content[field]);
+  return site.content[locale]?.[field] ?? "";
 }

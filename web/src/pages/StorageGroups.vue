@@ -83,7 +83,7 @@ async function save() {
     });
     await refresh();
     open.value = false;
-    notify(t("ui.saved"));
+    notify({ key: "ui.saved" });
   } catch (e) {
     error.value = errorText(e);
     if (e instanceof ApiError) {
@@ -111,7 +111,7 @@ async function remove() {
     await api("/api/storage-groups/" + deleting.value, { method: "DELETE" });
     deleting.value = "";
     await refresh();
-    notify(t("ui.deleted"));
+    notify({ key: "ui.deleted" });
   } catch (e) {
     error.value = errorText(e);
   } finally {

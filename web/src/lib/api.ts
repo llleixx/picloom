@@ -12,12 +12,29 @@ export const queryClient = new QueryClient({
 });
 export const session = shallowRef<SessionView | null>(null);
 export const isAdmin = computed(() => isSiteAdmin(session.value?.user.role));
-export const notice = shallowRef("");
+export type DisplayMessage =
+  | string
+  | Error
+  | { key: MessageKey; params?: Record<string, string | number> };
+export function messageText(message: DisplayMessage | undefined): string {
+  if (message === undefined) return "";
+  if (typeof message === "string") return message;
+  return message instanceof Error
+    ? errorText(message)
+    : t(message.key, message.params);
+}
+export function errorValue(error: unknown): DisplayMessage {
+  return error instanceof Error
+    ? error
+    : { key: "ui.somethingWentWrongTryAgain" };
+}
+const noticeSource = shallowRef<DisplayMessage>("");
+export const notice = computed(() => messageText(noticeSource.value));
 let noticeTimer: ReturnType<typeof setTimeout>;
-export function notify(message: string) {
-  notice.value = message;
+export function notify(message: DisplayMessage) {
+  noticeSource.value = message;
   clearTimeout(noticeTimer);
-  noticeTimer = setTimeout(() => (notice.value = ""), 4000);
+  noticeTimer = setTimeout(() => (noticeSource.value = ""), 4000);
 }
 export class ApiError extends Error {
   constructor(
@@ -27,10 +44,23 @@ export class ApiError extends Error {
     public status = 0,
     public fields: Array<{ path: string; message: string }> = [],
   ) {
-    super(message);
+    super();
+    // Preserve unknown/custom text; translate recognized codes when displayed.
+    Object.defineProperty(this, "message", {
+      configurable: true,
+      get: () =>
+        Object.hasOwn(messages, code)
+          ? t(messages[code]!)
+          : code === "HTTP_ERROR"
+            ? t("errors.httpStatus", { status })
+            : message,
+    });
   }
 }
 const messages: Record<string, MessageKey> = {
+  REQUEST_NETWORK: "ui.cannotReachTheServerTryAgain",
+  NETWORK: "ui.connectionLostCheckImagesBeforeUploadingAgain",
+  LOGIN_FAILED: "ui.incorrectUsernameOrPassword",
   BACKUP_INVALID: "backup.invalid",
   BACKUP_FAILED: "backup.failed",
   BACKUP_SOURCE: "backup.source",
@@ -121,15 +151,15 @@ const messages: Record<string, MessageKey> = {
   SCHEMA_MISMATCH: "errors.schema_mismatch",
 };
 export function errorMessage(code?: string | null): string {
-  return t(messages[code ?? ""] ?? "errors.generic");
+  return t(
+    Object.hasOwn(messages, code ?? "") ? messages[code!]! : "errors.generic",
+  );
 }
 export function decodeError(data: unknown, status: number) {
   const value = (data as Partial<ErrorResponse> | null)?.error;
   return new ApiError(
     value?.code ?? "HTTP_ERROR",
-    value?.code
-      ? errorMessage(value.code)
-      : t("errors.httpStatus", { status: status }),
+    value?.message ?? "",
     value?.requestId,
     status,
     (value as { fields?: Array<{ path: string; message: string }> } | undefined)
@@ -173,6 +203,9 @@ export async function response(
     ...init,
     headers,
     credentials: "same-origin",
+  }).catch((error: unknown) => {
+    if (error instanceof TypeError) throw new ApiError("REQUEST_NETWORK", "");
+    throw error;
   });
   if (!res.ok) {
     const error = decodeError(await res.json().catch(() => null), res.status);
@@ -200,8 +233,8 @@ export async function getSession() {
 export async function copy(text: string) {
   try {
     await navigator.clipboard.writeText(text);
-    notify(t("ui.copied"));
+    notify({ key: "ui.copied" });
   } catch {
-    notify(t("ui.clipboardUnavailableCopyTheLinkManually"));
+    notify({ key: "ui.clipboardUnavailableCopyTheLinkManually" });
   }
 }

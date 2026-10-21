@@ -1,5 +1,4 @@
 import { siteText } from "../../../shared/locales";
-import defaultIcon from "@/assets/picloom.svg?no-inline";
 import { computed } from "vue";
 import { useQuery } from "@tanstack/vue-query";
 import type { ClientSettings } from "../../../shared/api";
@@ -16,10 +15,10 @@ export function useSite() {
   return {
     settings: query.data,
     pending: query.isPending,
-    homeTitle: computed(() => text("name") || t("home.title")),
-    name: computed(() => text("name") || "Picloom"),
-    description: computed(() => text("description") || t("home.subtitle")),
-    logoUrl: computed(() => query.data.value?.siteLogoUrl || defaultIcon),
-    faviconUrl: computed(() => query.data.value?.siteFaviconUrl || defaultIcon),
+    homeTitle: computed(() => text("name")),
+    name: computed(() => text("name")),
+    description: computed(() => text("description")),
+    logoUrl: computed(() => query.data.value?.siteLogoUrl ?? ""),
+    faviconUrl: computed(() => query.data.value?.siteFaviconUrl ?? ""),
   };
 }

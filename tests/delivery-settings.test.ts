@@ -113,7 +113,7 @@ test("delivery settings require admin/CSRF, validate, apply live and survive res
 
 test("a failed settings write leaves the active and saved configuration intact", async () => {
   const f = await fixture();
-  const file = join(f.root, "delivery-settings.json");
+  const file = join(f.root, "site-settings.json");
   try {
     const current = await (await f.request("/api/settings")).json();
     await f.request("/api/settings", "PUT", current);
@@ -185,7 +185,7 @@ test("site branding persists with settings and is public, normalized and validat
   const f = await fixture();
   try {
     const current = await (await f.request("/api/settings")).json();
-    expect(current.content["en-US"]?.name).toBeUndefined();
+    expect(current.content["en-US"]?.name).toBe("Picloom");
     const branding = {
       content: {
         "en-US": { name: "  My Gallery  ", description: "  Private images  " },
@@ -353,6 +353,33 @@ test("site languages validate enabled/default locales and retain disabled transl
     expect((await (await f.request("/api/settings")).json()).content).toEqual(
       saved.content,
     );
+  } finally {
+    await f.close();
+  }
+});
+
+test("initial branding is persisted once and explicit empty values survive restart", async () => {
+  const f = await fixture();
+  try {
+    const initial = f.app.delivery.get();
+    expect(initial.content).toEqual({
+      "zh-CN": { name: "Picloom", description: "上传、复制、分享。" },
+      "en-US": { name: "Picloom", description: "Upload. Copy. Share." },
+    });
+    expect(initial.siteLogoUrl).toBe("/assets/picloom.svg");
+    expect(initial.siteFaviconUrl).toBe("/assets/picloom.svg");
+    const saved = await Bun.file(join(f.root, "site-settings.json")).json();
+    expect(saved.delivery.content).toEqual(initial.content);
+    await f.app.delivery.save({
+      ...initial,
+      content: {},
+      siteLogoUrl: "",
+      siteFaviconUrl: "",
+    });
+    await f.restart();
+    expect(f.app.delivery.get().content).toEqual({});
+    expect(f.app.delivery.get().siteLogoUrl).toBe("");
+    expect(f.app.delivery.get().siteFaviconUrl).toBe("");
   } finally {
     await f.close();
   }

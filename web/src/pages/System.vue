@@ -29,7 +29,7 @@ async function clearCache() {
   try {
     await api("/api/system/cache/clear", { method: "POST" });
     confirmClear.value = false;
-    notify(t("system.cacheCleared"));
+    notify({ key: "system.cacheCleared" });
     await query.refetch();
   } catch (e) {
     clearError.value = errorText(e);

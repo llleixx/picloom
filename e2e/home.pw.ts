@@ -12,9 +12,7 @@ test("upload homepage, batch auto-copy and workspace navigation", async ({
   await page.getByLabel("Password", { exact: true }).fill("test-password-123");
   await page.getByRole("button", { name: "Sign in" }).click();
   await page.getByRole("link", { name: "Upload", exact: true }).click();
-  await expect(
-    page.getByRole("heading", { name: "Upload. Copy. Share." }),
-  ).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Picloom", exact: true })).toBeVisible();
   await expect(
     page.getByRole("button", { name: "Choose files", exact: true }),
   ).toBeEnabled();
@@ -61,7 +59,8 @@ test("upload homepage, batch auto-copy and workspace navigation", async ({
     page.getByRole("heading", { name: "Images", exact: true }),
   ).toBeVisible();
   await page.getByRole("link", { name: "Upload", exact: true }).click();
-  await expect(page.getByText("Uploaded", { exact: true })).toHaveCount(2);
+  // Entering the workspace loads a separate document; completed queues are not persisted.
+  await expect(page.getByText("Uploaded", { exact: true })).toHaveCount(0);
   await page.setViewportSize({ width: 390, height: 844 });
   await expect(page.getByRole("link", { name: "App" })).toBeVisible();
   expect(
@@ -142,9 +141,16 @@ test("pasted image URLs join the upload queue without intercepting text inputs",
     "https://example.com/one.png",
     "https://example.com/two.svg",
   ]);
-  await expect(page.getByRole("button", { name: "Dismiss", exact: true })).toHaveCount(2);
-  await page.getByRole("button", { name: "Dismiss", exact: true }).first().click();
-  await expect(page.getByRole("button", { name: "Dismiss", exact: true })).toHaveCount(1);
+  await expect(
+    page.getByRole("button", { name: "Dismiss", exact: true }),
+  ).toHaveCount(2);
+  await page
+    .getByRole("button", { name: "Dismiss", exact: true })
+    .first()
+    .click();
+  await expect(
+    page.getByRole("button", { name: "Dismiss", exact: true }),
+  ).toHaveCount(1);
   await page.evaluate(() => {
     const input = document.createElement("input");
     document.body.append(input);

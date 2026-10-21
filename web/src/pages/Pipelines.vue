@@ -60,7 +60,7 @@ async function remove() {
     await api("/api/pipelines/" + deleting.value.id, { method: "DELETE" });
     deleting.value = undefined;
     await queryClient.invalidateQueries({ queryKey: ["pipelines"] });
-    notify(t("ui.deleted"));
+    notify({ key: "ui.deleted" });
   } catch (e) {
     error.value = errorText(e);
   } finally {

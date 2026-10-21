@@ -30,7 +30,7 @@ test("API error codes select English copy instead of backend display text", () =
   expect(
     decodeError({ error: { code: "FUTURE_ERROR", message: "后端提示" } }, 500)
       .message,
-  ).toBe("Request failed. Try again.");
+  ).toBe("后端提示");
 });
 
 afterEach(() => {
@@ -109,7 +109,7 @@ test("language negotiation respects ordered browser preferences and page availab
   configureLanguages(both, "en-US");
 });
 
-test("localized site content falls back per field without relabeling content", () => {
+test("localized site content does not borrow the site default language", () => {
   const site = {
     enabledLocales: ["zh-CN", "en-US"] as Array<"zh-CN" | "en-US">,
     defaultLocale: "zh-CN" as "zh-CN" | "en-US",
@@ -118,14 +118,14 @@ test("localized site content falls back per field without relabeling content", (
       "en-US": { description: "English introduction" },
     },
   };
-  expect(siteText(site, "en-US", "name")).toBe("拾光");
+  expect(siteText(site, "en-US", "name")).toBe("");
   expect(siteText(site, "en-US", "description")).toBe("English introduction");
   site.defaultLocale = "en-US";
   expect(siteText(site, "en-US", "name")).toBe("");
   expect(siteText(site, "zh-CN", "name")).toBe("拾光");
 });
 
-test("site content uses the same base-language and blank-field fallback as plugins", () => {
+test("site content preserves blank values without borrowing base-language or plugin fallback", () => {
   const site = {
     enabledLocales: ["en-US"] as Array<"en-US">,
     defaultLocale: "en-US" as const,
@@ -135,6 +135,6 @@ test("site content uses the same base-language and blank-field fallback as plugi
       "zh-CN": { name: "  ", description: " " },
     },
   };
-  expect(siteText(site, "zh-CN", "name")).toBe("图库");
-  expect(siteText(site, "zh-CN", "description")).toBe("Default");
+  expect(siteText(site, "zh-CN", "name")).toBe("  ");
+  expect(siteText(site, "zh-CN", "description")).toBe(" ");
 });

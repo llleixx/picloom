@@ -1,3 +1,4 @@
+import { builtinSiteIcon } from "../../shared/site-branding";
 import { webPages } from "../../shared/web-routes";
 import { safePath } from "../infra/files";
 import { AppError } from "../core/errors";
@@ -11,7 +12,10 @@ export async function webPage(req: Request, root: string): Promise<Response> {
       status: 308,
       headers: { location: "/app/images" },
     });
-  const entryPath = await safePath(root, "index.html").catch(() => null);
+  const entryPath = await safePath(
+    root,
+    path.startsWith("/app/") ? "admin.html" : "index.html",
+  ).catch(() => null);
   if (!entryPath || !(await Bun.file(entryPath).exists()))
     throw new AppError(
       "FRONTEND_NOT_BUILT",
@@ -42,9 +46,10 @@ export async function webPage(req: Request, root: string): Promise<Response> {
     headers: {
       "content-type": isPage ? "text/html; charset=utf-8" : file.type,
       "content-length": String(file.size),
-      "cache-control": isPage
-        ? "no-cache"
-        : "public, max-age=31536000, immutable",
+      "cache-control":
+        isPage || path === builtinSiteIcon
+          ? "no-cache"
+          : "public, max-age=31536000, immutable",
       "x-content-type-options": "nosniff",
     },
   });

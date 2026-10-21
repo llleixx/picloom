@@ -57,7 +57,9 @@ test("Vite proxy keeps login, upload URL and image access on the browser origin"
     await page.getByRole("button", { name: "Close", exact: true }).click();
     await expect(page.getByRole("dialog")).toHaveCount(0);
     await page.getByRole("button", { name: /^Open / }).click();
-    const url = await page.getByLabel("Original URL").inputValue();
+    const url = await page
+      .getByRole("textbox", { name: "Access link", exact: true })
+      .inputValue();
     expect(url).toMatch(/^http:\/\/127\.0\.0\.1:5173\/i\//);
     expect((await page.request.get(url)).status()).toBe(200);
     await page.reload();
