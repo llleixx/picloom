@@ -2,7 +2,12 @@ import { PluginError, type Definition } from "../../plugin-sdk";
 
 export default {
   defaultLocale: "en-US",
-  content: { "en-US": { name: "Example date path" } },
+  nameKey: "package.name",
+  messages: {
+    "en-US": {
+      "package.name": "Example date path",
+    },
+  },
 
   id: "example.date-path",
 
@@ -10,7 +15,6 @@ export default {
   version: "1.0.0",
   apiVersion: 1,
   configSchemaVersion: 1,
-  configSchema: { type: "object", properties: {}, additionalProperties: false },
   async createInstance() {
     return {
       async generate({ fileId, uploadedAt, metadata }) {

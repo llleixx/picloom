@@ -1,3 +1,4 @@
+import { PluginDeclarationError } from "./declaration";
 import {
   mkdir,
   readFile,
@@ -71,8 +72,11 @@ export class PluginPackages {
     try {
       await this.plugins.loadPackage(record.directory);
       record.error = null;
-    } catch {
-      record.error = "插件加载失败，请检查包内容与接口版本后重试";
+    } catch (error) {
+      record.error =
+        error instanceof PluginDeclarationError
+          ? error.message
+          : "插件加载失败，请检查包内容与接口版本后重试";
     }
   }
   async list(): Promise<PackageView[]> {
@@ -90,7 +94,9 @@ export class PluginPackages {
       views.set(this.key(def), {
         id: def.id,
         defaultLocale: def.defaultLocale,
-        content: def.content,
+        nameKey: def.nameKey,
+        descriptionKey: def.descriptionKey,
+        messages: def.messages,
         supportedStages:
           def.kind === "processor" ? def.supportedStages : undefined,
         kind: def.kind,
@@ -111,7 +117,7 @@ export class PluginPackages {
         views.set(this.key(m), {
           id: m.id,
           defaultLocale: "en-US",
-          content: {},
+          messages: { "en-US": {} },
           kind: m.kind,
           version: m.version,
           source: "external",

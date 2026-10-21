@@ -1,4 +1,5 @@
 import type { PluginLocalization } from "./config";
+import type { ConfigSchema, ParamsSchema } from "./schema";
 import type { PluginErrorCode } from "./errors";
 export type { PluginErrorCode } from "./errors";
 import type { Config, Json } from "./config";
@@ -200,30 +201,34 @@ export interface InstanceServices {
   readState(): Promise<{ value: Config; version: number }>;
   updateState(value: Config, expectedVersion: number): Promise<void>;
 }
-export interface Descriptor<R extends Runtime> extends PluginLocalization {
-  uiHints?: import("./config").UIHints;
+export interface Descriptor<R extends Runtime> {
   configSchemaVersion: number;
-  configSchema: Config;
+  /** Omit for no custom configuration. Defaults initialize drafts, never saves or reads. */
+  configSchema?: ConfigSchema;
+  /** Preview-time data conversion; supply new values explicitly, including required values. */
   migrateConfig?(input: {
     from: { pluginVersion: string; configSchemaVersion: number };
     apiVersion: 1;
     config: Config;
   }): Promise<Config>;
+  /** Save-time semantic check of the full configuration, including sensitive values. */
   validateConfig?(
     config: Readonly<Config>,
   ): Promise<Array<{ message: string; path?: string }>>;
   createInstance(input: {
     id: string;
+    /** Validated ordinary configuration; read sensitive values through services.readSecrets(). */
     config: Readonly<Config>;
     services: InstanceServices;
   }): Promise<R>;
 }
 export type StageDefinitions = {
-  upload?: Descriptor<ProcessorPlugin> & { paramsSchema?: Config };
-  access?: Descriptor<AccessPlugin> & { paramsSchema?: Config };
+  upload?: Descriptor<ProcessorPlugin> & { paramsSchema?: ParamsSchema };
+  access?: Descriptor<AccessPlugin> & { paramsSchema?: ParamsSchema };
   post_save?: Descriptor<PostSavePlugin>;
 };
 interface Identity<K extends Kind> extends PluginLocalization {
+  nameKey: string;
   id: string;
 
   kind: K;

@@ -151,7 +151,8 @@ async function install() {
     inspection.value = null;
     await refresh();
     if (result.status === "failed")
-      error.value = t("ui.installedButFailedToLoadRetryOr");
+      error.value =
+        t("ui.installedButFailedToLoadRetryOr") + " " + (result.error ?? "");
     else notify({ key: "ui.pluginInstalled" });
   } catch (e) {
     error.value = errorText(e);
@@ -167,7 +168,7 @@ async function reload(p: PackageView) {
       method: "POST",
     });
     await refresh();
-    if (result.error) error.value = t("plugins.loadError");
+    if (result.error) error.value = t("plugins.loadError") + " " + result.error;
     else notify({ key: "ui.pluginLoaded" });
   } catch (e) {
     error.value = errorText(e);
@@ -459,6 +460,7 @@ async function uninstall() {
           </p>
           <p v-if="details.error" class="text-destructive">
             {{ t("plugins.loadError") }}
+            <span class="block text-xs">{{ details.error }}</span>
           </p>
           <p v-if="!details.instances.length">{{ t("ui.notInUse") }}</p>
           <ul v-else class="space-y-2">

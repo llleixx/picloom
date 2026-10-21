@@ -206,6 +206,11 @@ test("S3 import lists only, keeps instance-relative keys, follows cursors and su
       version: "1.0.0",
       name: "s3",
       config: {
+        multipartThresholdMiB: 64,
+        partSizeMiB: 16,
+        partConcurrency: 3,
+        forcePathStyle: true,
+        signedUrlSeconds: 300,
         endpoint: server.url.origin,
         region: "test",
         bucket: "bucket",
@@ -246,7 +251,12 @@ test("optional enumeration validates entries and never reads content; opaque loc
     let enumeration = true;
     f.app.plugins.register({
       defaultLocale: "en-US",
-      content: { "en-US": { name: "Enumerate" } },
+      nameKey: "package.name",
+      messages: {
+        "en-US": {
+          "package.name": "Enumerate",
+        },
+      },
 
       id: "test.enumerate",
 
@@ -507,7 +517,11 @@ test("WebDAV generic MIME falls back to the filename while explicit non-image MI
       pluginId: "builtin.webdav",
       version: "1.0.0",
       name: "Legacy WebDAV",
-      config: { endpoint: remote.url.href + "dav/" },
+      config: {
+        keyPrefix: "",
+        timeoutMs: 30000,
+        endpoint: remote.url.href + "dav/",
+      },
       secretEdits: {
         "/username": { action: "replace", value: "test" },
         "/password": { action: "replace", value: "test" },

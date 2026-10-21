@@ -1,5 +1,5 @@
 import { isAbsolute } from "node:path";
-import type { Config, Definition } from "../../plugin-sdk";
+import type { Config, Definition, FieldSchema } from "../../plugin-sdk";
 import { readPointer } from "../../shared/config";
 
 export function validConfigPath(path: unknown): path is string {
@@ -20,12 +20,14 @@ export function assertLocalDirectory(def: Definition) {
   if (!("localDirectory" in def) || def.localDirectory === undefined) return;
   if (def.kind !== "storage" || !validConfigPath(def.localDirectory.configPath))
     throw new Error("Invalid local directory declaration");
-  let schema: Config = def.configSchema;
+  if (def.configSchema === undefined)
+    throw new Error("Unknown local directory field");
+  let schema: FieldSchema = def.configSchema;
   for (const key of def.localDirectory.configPath.slice(1).split("/")) {
     if (schema["x-sensitive"])
       throw new Error("Local directory must be public configuration");
-    const fields = schema.properties as Record<string, Config> | undefined;
-    const next = fields?.[key.replace(/~1/g, "/").replace(/~0/g, "~")];
+    const next =
+      schema.properties?.[key.replace(/~1/g, "/").replace(/~0/g, "~")];
     if (!next) throw new Error("Unknown local directory field");
     schema = next;
   }

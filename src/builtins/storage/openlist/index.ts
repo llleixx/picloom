@@ -47,29 +47,27 @@ function error(code: string, writing = false) {
 
 export const openListStorage: Definition<"storage"> = {
   defaultLocale: "en-US",
-  content: {
+  nameKey: "package.name",
+  descriptionKey: "package.description",
+  messages: {
     "en-US": {
-      name: "OpenList Storage",
-      description:
+      "package.name": "OpenList Storage",
+      "package.description":
         "Store files through an OpenList mount with a configured API token.",
-      configSchema: {
-        "/properties/endpoint": { title: "Endpoint" },
-        "/properties/root": { title: "Mount directory" },
-        "/properties/token": { title: "API token" },
-        "/properties/redirect": { title: "Redirect reads (302)" },
-        "/properties/timeoutMs": { title: "Timeout (ms)" },
-      },
+      "settings.endpoint.label": "Endpoint",
+      "settings.root.label": "Mount directory",
+      "settings.token.label": "API token",
+      "settings.redirect.label": "Redirect reads (302)",
+      "settings.timeoutMs.label": "Timeout (ms)",
     },
     "zh-CN": {
-      name: "OpenList 存储",
-      description: "使用 API 令牌将文件存储到 OpenList 挂载目录。",
-      configSchema: {
-        "/properties/endpoint": { title: "端点" },
-        "/properties/root": { title: "挂载目录" },
-        "/properties/token": { title: "API 令牌" },
-        "/properties/redirect": { title: "302 重定向" },
-        "/properties/timeoutMs": { title: "超时（毫秒）" },
-      },
+      "package.name": "OpenList 存储",
+      "package.description": "使用 API 令牌将文件存储到 OpenList 挂载目录。",
+      "settings.endpoint.label": "端点",
+      "settings.root.label": "挂载目录",
+      "settings.token.label": "API 令牌",
+      "settings.redirect.label": "302 重定向",
+      "settings.timeoutMs.label": "超时（毫秒）",
     },
   },
 
@@ -83,29 +81,34 @@ export const openListStorage: Definition<"storage"> = {
     type: "object",
     properties: {
       endpoint: {
+        "x-ui": { labelKey: "settings.endpoint.label" },
         type: "string",
 
         format: "uri",
         "x-immutable": true,
       },
       root: {
+        "x-ui": { labelKey: "settings.root.label" },
         type: "string",
 
         minLength: 1,
         "x-immutable": true,
       },
       token: {
+        "x-ui": { labelKey: "settings.token.label" },
         type: "string",
 
         minLength: 1,
         "x-sensitive": true,
       },
       redirect: {
+        "x-ui": { labelKey: "settings.redirect.label" },
         type: "boolean",
 
         default: true,
       },
       timeoutMs: {
+        "x-ui": { labelKey: "settings.timeoutMs.label", advanced: true },
         type: "integer",
 
         minimum: 100,
@@ -113,10 +116,9 @@ export const openListStorage: Definition<"storage"> = {
         default: 30000,
       },
     },
-    required: ["endpoint", "root", "token"],
+    required: ["endpoint", "root", "token", "timeoutMs"],
     additionalProperties: false,
   },
-  uiHints: { "/timeoutMs": { advanced: true } },
 
   async validateConfig(config) {
     const issues: Array<{ path: string; message: string }> = [];
@@ -138,10 +140,7 @@ export const openListStorage: Definition<"storage"> = {
     const root = String(config.root);
     if (!validRoot(root)) throw error("CONFIG");
     const signalFor = (signal: AbortSignal) =>
-      AbortSignal.any([
-        signal,
-        AbortSignal.timeout(Number(config.timeoutMs ?? 30000)),
-      ]);
+      AbortSignal.any([signal, AbortSignal.timeout(Number(config.timeoutMs))]);
     function pathFor(storageKey: string, locator: Locator) {
       const prefix = root === "/" ? "/" : root + "/";
       let path: unknown;

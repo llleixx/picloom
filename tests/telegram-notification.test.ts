@@ -43,7 +43,12 @@ async function instance(
     stage: "post_save",
     version: "1.0.0",
     name: "Notify",
-    config: { chatId: "-100123", includeDetails, timeoutMs: 100 },
+    config: {
+      statuses: ["block", "delete"],
+      chatId: "-100123",
+      includeDetails,
+      timeoutMs: 100,
+    },
     secretEdits: {
       "/botToken": { action: "replace", value: "123:test-token" },
     },
@@ -180,7 +185,8 @@ test("moderation followed by Telegram preserves block/delete even when delivery 
   try {
     f.app.plugins.register({
       defaultLocale: "en-US",
-      content: { "en-US": { name: "Review" } },
+      nameKey: "package.name",
+      messages: { "en-US": { "package.name": "Review" } },
 
       id: "test.review",
 
@@ -189,9 +195,6 @@ test("moderation followed by Telegram preserves block/delete even when delivery 
       version: "1",
       stages: {
         post_save: {
-          defaultLocale: "en-US",
-          content: { "en-US": {} },
-
           configSchemaVersion: 1,
           configSchema: { type: "object" },
           async createInstance() {
@@ -212,7 +215,12 @@ test("moderation followed by Telegram preserves block/delete even when delivery 
         {
           pluginId: "builtin.telegram-notification",
           version: "1.0.0",
-          config: { chatId: "-100123", includeDetails: true },
+          config: {
+            statuses: ["block", "delete"],
+            timeoutMs: 10000,
+            chatId: "-100123",
+            includeDetails: true,
+          },
           secretEdits: {
             "/botToken": { action: "replace", value: "123:test-token" },
           },

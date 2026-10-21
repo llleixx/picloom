@@ -87,11 +87,11 @@ export class Themes {
             id: raw.id,
             version: raw.version,
             defaultLocale: "en-US",
-            content: { "en-US": { name: raw.id } },
+            nameKey: "package.name",
             apiVersion: 1,
             supportedLocales: [],
             pages: {},
-            messages: {},
+            messages: { "en-US": { "package.name": raw.id } },
           });
         }
       } catch {
@@ -255,7 +255,7 @@ export class Themes {
       await rename(join(this.root, ".stage-" + ticket), join(this.root, key));
       this.installed.set(key, m);
       try {
-        const config = configuration(m.configSchema, {}, true, false);
+        const config = configuration(m.configSchema, undefined, true, false);
         await this.store.update((next) => {
           next.themes.drafts[key] = config;
         });

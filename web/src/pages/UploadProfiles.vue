@@ -28,6 +28,7 @@ import {
   notify,
   queryClient,
 } from "@/lib/api";
+import { createPluginDraft } from "@/lib/plugin-draft";
 import PluginConfigurationEditor from "@/components/PluginConfigurationEditor.vue";
 import PipelinePicker from "@/components/PipelinePicker.vue";
 import type {
@@ -132,11 +133,7 @@ async function edit(id?: string) {
           id: "",
           name: "",
           publicPrefix: "/i/",
-          path: {
-            pluginId: "builtin.random-path",
-            version: "1.0.0",
-            config: {},
-          },
+          path: await createPluginDraft("builtin.random-path", "1.0.0"),
           storageGroupId: "",
           enabled: true,
           allowGuestUpload: false,

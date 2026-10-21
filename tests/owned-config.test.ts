@@ -8,7 +8,7 @@ const path = () => ({
 const processor = () => ({
   pluginId: "builtin.sharp",
   version: "1.0.0",
-  config: {},
+  config: { allowEnlargement: false },
   onNotApplicable: "abort" as const,
 });
 test("pipelines own encrypted settings, share references, duplicate independently and reject stale or invalid edits", async () => {
@@ -168,7 +168,12 @@ test("initialization failures keep owner configuration; retrying save recovers a
   try {
     f.app.plugins.register({
       defaultLocale: "en-US",
-      content: { "en-US": { name: "Owned" } },
+      nameKey: "package.name",
+      messages: {
+        "en-US": {
+          "package.name": "Owned",
+        },
+      },
 
       id: "test.owned",
 
@@ -325,7 +330,8 @@ test("removing a running action deletes configuration immediately while the acqu
   let disposed = false;
   f.app.plugins.register({
     defaultLocale: "en-US",
-    content: { "en-US": { name: "Running" } },
+    nameKey: "package.name",
+    messages: { "en-US": { "package.name": "Running" } },
 
     id: "test.running-action",
 
@@ -334,9 +340,6 @@ test("removing a running action deletes configuration immediately while the acqu
     apiVersion: 1,
     stages: {
       post_save: {
-        defaultLocale: "en-US",
-        content: { "en-US": {} },
-
         configSchemaVersion: 1,
         configSchema: { type: "object", properties: {} },
         async createInstance() {

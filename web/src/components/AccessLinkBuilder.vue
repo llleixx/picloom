@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { ParameterSchema } from "../../../plugin-sdk/schema";
 import { computed, onUnmounted, reactive, ref, watch } from "vue";
 import { useQuery } from "@tanstack/vue-query";
 import { Link, Plus, X, ExternalLink, LoaderCircle } from "lucide-vue-next";
@@ -7,12 +8,19 @@ import { Input } from "@/components/ui/input";
 import { api, response, errorText } from "@/lib/api";
 import { locale, t } from "@/lib/i18n";
 import { localizePlugin } from "../../../shared/plugin-localization";
-import { localizedText } from "../../../plugin-sdk/localization";
+import { fieldText } from "../../../shared/package-localization";
 import {
+  initialValue,
   pointer,
+  readPointer,
+  type FieldHint,
   type AccessParameterGroup,
   type Config,
 } from "../../../shared/config";
+import {
+  sameParameterConstraints,
+  sameParameterDefault,
+} from "../../../shared/parameter-fields";
 import SchemaField from "./SchemaField.vue";
 import CopyResult from "./CopyResult.vue";
 import ImagePreview from "./ImagePreview.vue";
@@ -24,44 +32,44 @@ const query = useQuery({
   staleTime: 0,
 });
 const groups = computed(() =>
-  (query.data.value ?? []).map((group) => ({
-    ...localizePlugin(group, locale.value),
-    name: localizedText(
-      group.plugin,
-      locale.value,
-      (c) => c.name,
-      group.plugin.id,
-    ),
-  })),
+  (query.data.value ?? []).map((group) => localizePlugin(group, locale.value)),
 );
 const fields = computed(() => {
   const result = new Map<
     string,
-    { key: string; schema: Config; groups: string[]; conflict: boolean }
+    {
+      key: string;
+      schema: ParameterSchema;
+      localization: AccessParameterGroup;
+      groups: string[];
+      conflict: boolean;
+      defaultConflict: boolean;
+    }
   >();
   for (const group of groups.value) {
     for (const [key, schema] of Object.entries(
-      group.paramsSchema.properties as Record<string, Config>,
+      group.paramsSchema.properties ?? {},
     )) {
       const existing = result.get(key);
       if (existing) {
         existing.groups.push(group.name);
-        // Labels may differ between steps; constraints must agree for a shared input.
-        const constraints = (rule: Config) =>
-          JSON.stringify(
-            Object.entries(rule)
-              .filter(
-                ([name]) =>
-                  !["title", "description", "x-enumLabels", "default"].includes(
-                    name,
-                  ),
-              )
-              .sort(([a], [b]) => a.localeCompare(b)),
-          );
-        existing.conflict ||=
-          constraints(existing.schema) !== constraints(schema);
+        existing.defaultConflict ||= !sameParameterDefault(
+          existing.schema,
+          schema,
+        );
+        existing.conflict ||= !sameParameterConstraints(
+          existing.schema,
+          schema,
+        );
       } else
-        result.set(key, { key, schema, groups: [group.name], conflict: false });
+        result.set(key, {
+          key,
+          schema,
+          localization: group,
+          groups: [group.name],
+          conflict: false,
+          defaultConflict: false,
+        });
     }
   }
   return result;
@@ -80,11 +88,11 @@ const choices = computed(() =>
   groups.value
     .map((group) => ({
       ...group,
-      fields: Object.keys(group.paramsSchema.properties as Config)
+      fields: Object.keys(group.paramsSchema.properties ?? {})
         .filter((key) => !selected.value.includes(key))
         .map((key) => fields.value.get(key)!)
         .filter((field) =>
-          `${field.key} ${field.schema.title ?? ""} ${group.name}`
+          `${field.key} ${fieldText(field.localization, locale.value, field.schema["x-ui"] as FieldHint | undefined).label ?? ""} ${group.name}`
             .toLowerCase()
             .includes(search.value.toLowerCase()),
         ),
@@ -94,7 +102,9 @@ const choices = computed(() =>
 function add(key: string) {
   if (!selected.value.includes(key)) selected.value.push(key);
   const rule = fields.value.get(key)!.schema;
-  if (rule.type === "boolean") values[key] = false;
+  const field = fields.value.get(key)!;
+  const value = field.defaultConflict ? undefined : initialValue(rule);
+  if (value !== undefined) values[key] = value;
   picker.value = false;
   search.value = "";
 }
@@ -112,13 +122,8 @@ function clearParameters() {
 const url = computed(() => {
   const result = new URL(props.url);
   for (const field of active.value) {
-    const value = values[field.key];
-    if (
-      !field.conflict &&
-      value !== undefined &&
-      value !== null &&
-      value !== ""
-    )
+    const value = readPointer(values, "/" + pointer(field.key));
+    if (!field.conflict && value !== undefined && value !== null)
       result.searchParams.set(field.key, String(value));
   }
   return result.href;
@@ -207,15 +212,22 @@ async function showPreview() {
               ><X :size="15"
             /></Button>
           </div>
+          <p v-if="field.defaultConflict" class="subtle">
+            {{ t("linkBuilder.defaultConflict") }}
+          </p>
           <SchemaField
             :schema="field.schema"
-            :config="values"
+            :value="readPointer(values, '/' + pointer(field.key))"
+            :root="values"
+            :localization="field.localization"
+            @change="
+              (value) => {
+                if (value === undefined) delete values[field.key];
+                else values[field.key] = value;
+              }
+            "
             :path="'/' + pointer(field.key)"
             :label="field.key"
-            :hints="{}"
-            :secret-presence="{}"
-            :edits="{}"
-            :editing="false"
             :errors="[]"
           />
         </div>
@@ -248,7 +260,13 @@ async function showPreview() {
                 @click="add(field.key)"
               >
                 <span
-                  >{{ field.schema.title ?? field.key }}
+                  >{{
+                    fieldText(
+                      field.localization,
+                      locale,
+                      field.schema["x-ui"] as FieldHint | undefined,
+                    ).label ?? field.key
+                  }}
                   <span v-if="field.conflict" class="subtle">{{
                     t("linkBuilder.conflict")
                   }}</span></span

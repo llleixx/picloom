@@ -1,14 +1,16 @@
 import type { Definition } from "../../../../plugin-sdk";
 export const datePath: Definition<"path"> = {
   defaultLocale: "en-US",
-  content: {
+  nameKey: "package.name",
+  descriptionKey: "package.description",
+  messages: {
     "en-US": {
-      name: "Date Path",
-      description: "Organize image paths by UTC year, month and day.",
+      "package.name": "Date Path",
+      "package.description": "Organize image paths by UTC year, month and day.",
     },
     "zh-CN": {
-      name: "日期路径",
-      description: "按 UTC 年、月、日生成图片路径。",
+      "package.name": "日期路径",
+      "package.description": "按 UTC 年、月、日生成图片路径。",
     },
   },
 
@@ -18,7 +20,6 @@ export const datePath: Definition<"path"> = {
   version: "1.0.0",
   apiVersion: 1,
   configSchemaVersion: 1,
-  configSchema: { type: "object", properties: {}, additionalProperties: false },
   async createInstance() {
     return {
       async generate({ fileId, uploadedAt, metadata }) {

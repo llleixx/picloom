@@ -9,40 +9,94 @@ export type Json =
 export type Config = Record<string, Json>;
 export type Page = "home" | "login";
 export type Locale = string;
+export type SchemaFormat =
+  | "date"
+  | "time"
+  | "date-time"
+  | "duration"
+  | "email"
+  | "hostname"
+  | "ipv4"
+  | "ipv6"
+  | "uri"
+  | "uri-reference"
+  | "uuid"
+  | "regex";
+/** Static properties/items define structure; branches only constrain existing fields. */
 export interface Field {
-  type: "object" | "string" | "number" | "integer" | "boolean";
-  title?: string;
-  description?: string;
+  $schema?: string;
+  type:
+    | "object"
+    | "array"
+    | "string"
+    | "number"
+    | "integer"
+    | "boolean"
+    | "null";
   properties?: Record<string, Field>;
+  items?: Field;
   required?: string[];
-  enum?: (string | number | boolean)[];
+  additionalProperties?: false;
+  enum?: Json[];
+  const?: Json;
+  /** Initial draft data only; localized strings use a language dictionary here. */
   default?: Json;
   minimum?: number;
   maximum?: number;
+  exclusiveMinimum?: number;
+  exclusiveMaximum?: number;
+  multipleOf?: number;
   minLength?: number;
   maxLength?: number;
-  "x-multiline"?: boolean;
+  pattern?: string;
+  format?: SchemaFormat;
+  minItems?: number;
+  maxItems?: number;
+  uniqueItems?: boolean;
+  allOf?: Constraint[];
+  anyOf?: Constraint[];
+  oneOf?: Constraint[];
+  not?: Constraint;
+  if?: Constraint;
+  then?: Constraint;
+  else?: Constraint;
+  /** String fields only: store a language dictionary and validate each language's string. */
   "x-localized"?: boolean;
-  content?: Partial<
-    Record<
-      Locale,
-      { title?: string; description?: string; enumLabels?: string[] }
-    >
-  >;
+  "x-ui"?: {
+    labelKey?: string;
+    descriptionKey?: string;
+    enumKeys?: string[];
+    groupKey?: string;
+    order?: number;
+    advanced?: boolean;
+    widget?: "textarea" | "password";
+    visibleWhen?: { path: string; equals: Json };
+  };
 }
+export type Constraint = Omit<
+  Partial<Field>,
+  "properties" | "items" | "default" | "x-ui" | "x-localized"
+> & {
+  properties?: Record<string, Constraint>;
+  items?: Constraint;
+  default?: never;
+  "x-ui"?: never;
+  "x-localized"?: never;
+};
 export interface Manifest {
   id: string;
   /** Package text fallback only; does not select the visitor or site language. */
   defaultLocale: Locale;
-  content: Partial<Record<Locale, { name: string }>>;
+  nameKey: string;
   version: string;
   apiVersion: 1;
   supportedLocales: Locale[];
   pages: Partial<Record<Page, { entry: string; styles?: string[] }>>;
   styles?: string[];
   preview?: string;
-  configSchema?: Field;
-  messages?: Partial<Record<Locale, Record<string, string>>>;
+  /** Optional object schema; omission permits only an empty configuration. */
+  configSchema?: Field & { type: "object" };
+  messages: Record<Locale, Record<string, string>>;
 }
 export interface ThemeView {
   manifest: Manifest;
@@ -122,6 +176,7 @@ export interface ThemeContext {
   subscribe(listener: (snapshot: Snapshot) => void): () => void;
   asset(path: string): string;
   t(key: string, params?: Record<string, string | number>): string;
+  /** Read current-language administrator text; missing or empty text never falls back. */
   localized(value: Json | undefined): string;
   setLocale(locale: Locale): void;
   setMode(mode: Snapshot["mode"]): void;

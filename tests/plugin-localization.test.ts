@@ -1,41 +1,42 @@
-import { expect, test } from "bun:test";
+import { fieldText } from "../shared/package-localization";
 import {
-  assertPluginContent,
-  localizePlugin,
-  type PluginLocalization,
-} from "../shared/plugin-localization";
-import { assertSchema, type PluginView } from "../shared/config";
+  assertPluginIdentity,
+  assertPluginFieldMessages,
+} from "../src/plugins/declaration";
+import { expect, test } from "bun:test";
+import { localizePlugin } from "../shared/plugin-localization";
+import { type PluginView } from "../shared/config";
 import { fixture } from "./helpers";
 import type { Definition } from "../src/plugins/api";
-import { localizedText } from "../plugin-sdk/localization";
+import { messageText } from "../shared/package-localization";
 import type { AccessParameterGroup } from "../shared/config";
 
 const plugin: PluginView & import("../shared/config").StageView = {
   defaultLocale: "en-US",
-  content: {
+  nameKey: "package.name",
+  messages: {
     "en-US": {
-      name: "Example",
-      configSchema: {
-        "/properties/mode": {
-          title: "Mode",
-          description: "Read mode",
-          enumLabels: ["Stream", "Redirect"],
-        },
-        "/properties/nested/items/properties/a~1b": { title: "Value" },
-        "/allOf/0/then": { description: "Condition" },
-      },
-      groups: { read: "read" },
+      "package.name": "Example",
+      "settings.mode.label": "Mode",
+      "settings.mode.description": "Read mode",
+      "settings.mode.options.stream": "Stream",
+      "settings.mode.options.redirect": "Redirect",
+      "settings.nested.items.a~1b.label": "Value",
+
+      "groups.read": "read",
     },
     zh: {
-      name: "示例",
-      groups: { read: "读取" },
-      configSchema: {
-        "/properties/mode": { title: "模式", enumLabels: ["文件流", "重定向"] },
-        "/properties/nested/items/properties/a~1b": { title: "值" },
-        "/allOf/0/then": { description: "条件" },
-      },
+      "package.name": "示例",
+      "settings.mode.label": "模式",
+      "settings.mode.options.stream": "文件流",
+      "settings.mode.options.redirect": "重定向",
+      "settings.nested.items.a~1b.label": "值",
+
+      "groups.read": "读取",
     },
-    "zh-CN": { configSchema: { "/properties/mode": { title: "读取模式" } } },
+    "zh-CN": {
+      "settings.mode.label": "读取模式",
+    },
   },
 
   id: "test.translated",
@@ -47,6 +48,16 @@ const plugin: PluginView & import("../shared/config").StageView = {
     type: "object",
     properties: {
       mode: {
+        "x-ui": {
+          labelKey: "settings.mode.label",
+          descriptionKey: "settings.mode.description",
+          enumKeys: [
+            "settings.mode.options.stream",
+            "settings.mode.options.redirect",
+          ],
+          order: 1,
+          groupKey: "groups.read",
+        },
         type: "string",
 
         enum: ["stream", "redirect"],
@@ -57,70 +68,84 @@ const plugin: PluginView & import("../shared/config").StageView = {
         type: "array",
         items: {
           type: "object",
-          properties: { "a/b": { type: "string" } },
+          properties: {
+            "a/b": {
+              "x-ui": { labelKey: "settings.nested.items.a~1b.label" },
+              type: "string",
+            },
+          },
         },
       },
     },
     allOf: [
       {
         if: { properties: { mode: { const: "stream" } } },
-        then: {},
+        then: {
+          required: ["mode"],
+        },
       },
     ],
   },
-  uiHints: { "/mode": { group: "read", order: 1 } },
 };
 
 test("plugin localization falls back per field and preserves original metadata and values", () => {
   const original = structuredClone(plugin);
-  assertPluginContent(plugin, plugin.configSchema, plugin.uiHints);
+  assertPluginFieldMessages(plugin, plugin.configSchema);
   const display = localizePlugin(plugin, "zh-CN");
   const mode = (display.configSchema.properties as any).mode;
   expect(display.name).toBe("示例");
-  expect(mode.title).toBe("读取模式");
-  expect(mode.description).toBe("Read mode");
-  expect(mode["x-enumLabels"]).toEqual(["文件流", "重定向"]);
+  expect(fieldText(plugin, "zh-CN", mode["x-ui"]).label).toBe("读取模式");
+  expect(fieldText(plugin, "zh-CN", mode["x-ui"]).description).toBe(
+    "Read mode",
+  );
+  expect(fieldText(plugin, "zh-CN", mode["x-ui"]).enumLabels).toEqual([
+    "文件流",
+    "重定向",
+  ]);
   expect(mode.enum).toEqual(["stream", "redirect"]);
   expect(mode.default).toBe("stream");
-  expect(display.uiHints["/mode"]).toEqual({ group: "读取", order: 1 });
+  expect(mode["x-ui"]).toMatchObject({ order: 1 });
+  expect(messageText(plugin, "zh-CN", mode["x-ui"].groupKey)).toBe("读取");
   expect(
-    (display.configSchema.properties as any).nested.items.properties["a/b"]
-      .title,
+    fieldText(
+      plugin,
+      "zh-CN",
+      (display.configSchema.properties as any).nested.items.properties["a/b"][
+        "x-ui"
+      ],
+    ).label,
   ).toBe("值");
-  expect((display.configSchema.allOf as any)[0].then.description).toBe("条件");
+
   expect(localizePlugin(plugin, "fr-FR").name).toBe("Example");
   expect(plugin).toEqual(original);
 });
 
 test("translation validation rejects unsupported changes and invalid references", () => {
-  const invalid: unknown[] = [
+  for (const messages of [
     { zh_CN: {} },
-    { zh: { name: 42 } },
-    { zh: { groups: { typo: "组" } } },
-    { zh: { configSchema: { "/properties/missing": { title: "字段" } } } },
-    { zh: { configSchema: { "/properties/mode": { default: "redirect" } } } },
-    { zh: { configSchema: { "/properties/mode": { enumLabels: ["单个"] } } } },
-    {
-      zh: { configSchema: { "/properties/mode": { title: () => "dynamic" } } },
-    },
-  ];
-  for (const value of invalid)
+    { zh: { "package.name": 42 } },
+    { zh: { typo: "组" } },
+    { zh: { "package.name": " " } },
+  ])
     expect(() =>
-      assertPluginContent(
-        {
-          ...plugin,
-          content: {
-            ...plugin.content,
-            ...(value as PluginLocalization["content"]),
-          },
-        },
-        plugin.configSchema,
-        plugin.uiHints,
-      ),
+      assertPluginIdentity({
+        ...plugin,
+        messages: { ...plugin.messages, ...messages },
+      } as any),
     ).toThrow();
-  expect(() =>
-    assertSchema({ type: "string", enum: ["a"], "x-enumLabels": [] }),
-  ).toThrow();
+  for (const ui of [
+    { labelKey: "missing" },
+    { enumKeys: ["package.name"] },
+    { widget: "unknown" },
+    { group: "inline" },
+  ])
+    expect(() =>
+      assertPluginFieldMessages(plugin, {
+        type: "string",
+        enum: ["a", "b"],
+        "x-ui": ui as any,
+      }),
+    ).toThrow();
 });
 
 test("registration validates translations and management APIs return untranslated descriptors", async () => {
@@ -128,6 +153,7 @@ test("registration validates translations and management APIs return untranslate
   try {
     const definition: Definition<"path"> = {
       ...plugin,
+      nameKey: plugin.nameKey!,
       kind: "path",
       apiVersion: 1,
       async createInstance() {
@@ -137,10 +163,7 @@ test("registration validates translations and management APIs return untranslate
     expect(() =>
       f.app.plugins.register({
         ...definition,
-        content: {
-          ...definition.content,
-          zh: { name: 1 },
-        } as unknown as PluginLocalization["content"],
+        messages: { ...definition.messages, zh: { "package.name": 1 } } as any,
       }),
     ).toThrow();
     f.app.plugins.register(definition);
@@ -149,35 +172,20 @@ test("registration validates translations and management APIs return untranslate
     const view = await response.json();
     expect(view.name).toBeUndefined();
     expect(view.defaultLocale).toBe("en-US");
-    expect(view.content).toEqual(plugin.content);
+    expect(view.messages).toEqual(plugin.messages);
     expect(view.configSchema.properties.mode.title).toBeUndefined();
     const list = await (await f.request("/api/plugins")).json();
-    expect(list.find((p: any) => p.id === plugin.id).content).toEqual(
-      plugin.content,
+    expect(list.find((p: any) => p.id === plugin.id).messages).toEqual(
+      plugin.messages,
     );
   } finally {
     await f.close();
   }
 });
 
-test("blank plugin fields and enum labels fall back independently to the resource default", () => {
-  const value = structuredClone(plugin);
-  value.defaultLocale = "zh";
-  value.content["zh-CN"] = {
-    name: "  ",
-    description: " ",
-    groups: { read: " " },
-    configSchema: {
-      "/properties/mode": { title: " ", enumLabels: [" ", "本地重定向"] },
-    },
-  };
-  const display = localizePlugin(value, "zh-CN");
-  expect(display.name).toBe("示例");
-  expect(display.uiHints["/mode"]?.group).toBe("读取");
-  expect((display.configSchema.properties as any).mode["x-enumLabels"]).toEqual(
-    ["文件流", "本地重定向"],
-  );
-  expect(localizePlugin(value, "fr-FR").name).toBe("示例");
+test("missing author translations use the resource default; unknown keys stay visible", () => {
+  expect(messageText(plugin, "fr-FR", "package.name")).toBe("Example");
+  expect(messageText(plugin, "zh-CN", "missing")).toBe("missing");
 });
 
 test("plugin authoring requires a default name and keeps schema text out of data rules", () => {
@@ -189,18 +197,13 @@ test("plugin authoring requires a default name and keeps schema text out of data
     { ...plugin, content: { "en-US": { name: " " } } },
     { ...plugin, configSchema: { ...plugin.configSchema, title: "Inline" } },
   ])
-    expect(() =>
-      assertPluginContent(
-        value,
-        value.configSchema,
-        value.uiHints,
-        undefined,
-        true,
-      ),
-    ).toThrow();
+    expect(() => {
+      assertPluginIdentity(value);
+      assertPluginFieldMessages(value, value.configSchema);
+    }).toThrow();
 });
 
-test("access parameter APIs preserve independent identity and stage language fallbacks", async () => {
+test("access parameter APIs use a single package catalog", async () => {
   const f = await fixture();
   try {
     f.app.plugins.register({
@@ -209,28 +212,39 @@ test("access parameter APIs preserve independent identity and stage language fal
       version: "1",
       apiVersion: 1,
       defaultLocale: "en-US",
-      content: {
-        "en-US": { name: "Example" },
-        "zh-CN": { name: "示例" },
+      nameKey: "package.name",
+      messages: {
+        "en-US": {
+          "package.name": "Example",
+          "params.mode.label": "Mode",
+          "params.hidden.label": "Hidden",
+          "params.group": "Parameters",
+        },
+        "zh-CN": {
+          "package.name": "示例",
+          "params.mode.label": "模式",
+          "params.hidden.label": "隐藏字段",
+          "params.group": "参数",
+        },
       },
       stages: {
         access: {
-          defaultLocale: "zh-CN",
-          content: {
-            "zh-CN": {
-              paramsSchema: {
-                "/properties/mode": { title: "模式" },
-                "/properties/hidden": { title: "隐藏字段" },
-              },
-            },
-          },
           configSchemaVersion: 1,
           configSchema: { type: "object", properties: {} },
           paramsSchema: {
             type: "object",
             properties: {
-              mode: { type: "string" },
-              hidden: { type: "string" },
+              mode: {
+                "x-ui": {
+                  labelKey: "params.mode.label",
+                  groupKey: "params.group",
+                },
+                type: "string",
+              },
+              hidden: {
+                "x-ui": { labelKey: "params.hidden.label" },
+                type: "string",
+              },
             },
           },
           async createInstance() {
@@ -268,18 +282,73 @@ test("access parameter APIs preserve independent identity and stage language fal
     const response = await f.request("/api/access-parameters");
     expect(response.status).toBe(200);
     const [group] = (await response.json()) as AccessParameterGroup[];
-    expect(localizedText(group!.plugin, "fr-FR", (c) => c.name)).toBe(
-      "Example",
-    );
-    expect(localizedText(group!.plugin, "zh-CN", (c) => c.name)).toBe("示例");
+    expect(messageText(group!, "fr-FR", group!.nameKey!)).toBe("Example");
+    expect(messageText(group!, "zh-CN", group!.nameKey!)).toBe("示例");
     const display = localizePlugin(group!, "fr-FR");
-    expect((display.paramsSchema.properties as any).mode.title).toBe("模式");
+    expect(
+      fieldText(
+        group!,
+        "fr-FR",
+        (display.paramsSchema.properties as any).mode["x-ui"],
+      ).label,
+    ).toBe("Mode");
     expect(display.paramsSchema.properties).not.toHaveProperty("hidden");
-    expect(group!.content["zh-CN"]!.paramsSchema).not.toHaveProperty(
-      "/properties/hidden",
-    );
-    expect(group!.content["zh-CN"]!.name).toBeUndefined();
+    expect(group!.messages["zh-CN"]).toEqual({
+      "package.name": "示例",
+      "params.mode.label": "模式",
+      "params.group": "参数",
+    });
+    expect(
+      messageText(
+        group!,
+        "fr-FR",
+        (display.paramsSchema.properties as any).mode["x-ui"].groupKey,
+      ),
+    ).toBe("Parameters");
   } finally {
     await f.close();
+  }
+});
+
+test("builtin submission options and watermark request labels keep their authored translations", async () => {
+  const { tencentModeration } =
+    await import("../src/builtins/processor/tencent-moderation");
+  const { watermark } = await import("../src/builtins/processor/watermark");
+  const moderation = localizePlugin(
+    {
+      ...tencentModeration.stages.post_save!,
+      ...{
+        defaultLocale: tencentModeration.defaultLocale,
+        messages: tencentModeration.messages,
+      },
+    },
+    "en-US",
+  );
+  expect(
+    fieldText(
+      moderation,
+      "en-US",
+      (moderation.configSchema!.properties as any).submissionMode["x-ui"],
+    ).enumLabels,
+  ).toEqual(["File content", "Public URL"]);
+  for (const [locale, label] of [
+    ["en-US", "Watermark"],
+    ["zh-CN", "水印"],
+  ]) {
+    const display = localizePlugin(
+      {
+        ...watermark.stages.access!,
+        defaultLocale: watermark.defaultLocale,
+        messages: watermark.messages,
+      },
+      locale!,
+    );
+    expect(
+      fieldText(
+        display,
+        locale!,
+        (display.paramsSchema!.properties as any).watermark["x-ui"],
+      ).label,
+    ).toBe(label);
   }
 });

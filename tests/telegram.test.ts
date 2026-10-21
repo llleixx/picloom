@@ -49,7 +49,7 @@ const locator = {
 const runtime = () =>
   telegramStorage.createInstance({
     id: "test",
-    config: { chatId: "-100123" },
+    config: { chatId: "-100123", timeoutMs: 30000 },
     services,
   });
 const uploadResult = () =>

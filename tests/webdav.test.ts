@@ -32,7 +32,7 @@ async function runtime(
 ): Promise<StoragePlugin> {
   return webdavStorage.createInstance({
     id: "dav-test",
-    config: { endpoint, ...config },
+    config: { endpoint, timeoutMs: 30000, ...config },
     services: {
       images: { sharp },
       log() {},
@@ -462,11 +462,11 @@ test("WebDAV endpoint validation rejects ambiguous URLs and preserves sensitive 
       keyPrefix: "中文/space %value",
     }),
   ).toEqual([]);
-  const properties = webdavStorage.configSchema.properties as Config;
-  expect((properties.endpoint as Config)["x-immutable"]).toBe(true);
-  expect((properties.keyPrefix as Config)["x-immutable"]).toBe(true);
-  expect((properties.username as Config)["x-sensitive"]).toBe(true);
-  expect((properties.password as Config)["x-sensitive"]).toBe(true);
+  const properties = webdavStorage.configSchema!.properties!;
+  expect(properties.endpoint!["x-immutable"]).toBe(true);
+  expect(properties.keyPrefix!["x-immutable"]).toBe(true);
+  expect(properties.username!["x-sensitive"]).toBe(true);
+  expect(properties.password!["x-sensitive"]).toBe(true);
 });
 
 test("WebDAV read cancellation and abort close the real HTTP response", async () => {

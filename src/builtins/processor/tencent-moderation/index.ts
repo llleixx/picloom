@@ -111,14 +111,62 @@ function apiError(code: string): PluginError {
 
 export const tencentModeration: Definition<"processor"> = {
   defaultLocale: "en-US",
-  content: {
+  nameKey: "package.name",
+  descriptionKey: "package.description",
+  messages: {
     "en-US": {
-      name: "Tencent Cloud Moderation",
-      description: "Review images using a Tencent Cloud content safety policy.",
+      "package.name": "Tencent Cloud Moderation",
+      "package.description":
+        "Review images using a Tencent Cloud content safety policy.",
+      "settings.secretId.label": "Secret ID",
+      "settings.secretKey.label": "Secret key",
+      "settings.region.label": "Region",
+      "settings.bizType.label": "BizType",
+      "settings.bizType.description":
+        "Policy ID from the Tencent Cloud console.",
+      "settings.submissionMode.label": "Submission method",
+      "settings.submissionMode.description":
+        "URL mode uses the public image URL. It must be accessible to Tencent Cloud; hotlink protection or redirects may prevent access.",
+      "settings.submissionMode.options.content": "File content",
+      "settings.submissionMode.options.url": "Public URL",
+      "settings.maxContentMiB.label": "Content size limit (MiB)",
+      "settings.maxContentMiB.description":
+        "File content mode only. Oversized files fail without retry; this does not change the provider's limits.",
+      "settings.blockAction.label": "On violation",
+      "settings.blockAction.description":
+        "Review results always block access for manual review.",
+      "settings.blockAction.options.block": "block",
+      "settings.blockAction.options.delete": "delete",
+      "settings.timeoutMs.label": "Timeout (ms)",
+      "settings.interval.label": "GIF frame interval",
+      "settings.maxFrames.label": "Maximum GIF frames",
+      "settings.maxFrames.description":
+        "Sampled frames only; additional frames may increase usage.",
     },
     "zh-CN": {
-      name: "腾讯云内容审核",
-      description: "使用腾讯云内容安全策略审核图片。",
+      "package.name": "腾讯云内容审核",
+      "package.description": "使用腾讯云内容安全策略审核图片。",
+      "settings.secretId.label": "密钥 ID",
+      "settings.secretKey.label": "密钥",
+      "settings.region.label": "地域",
+      "settings.bizType.label": "BizType",
+      "settings.bizType.description": "腾讯云控制台中的策略标识。",
+      "settings.submissionMode.label": "送审方式",
+      "settings.submissionMode.description":
+        "URL 模式使用图片公开链接。腾讯云须能访问；防盗链或重定向可能导致下载失败。",
+      "settings.submissionMode.options.content": "文件内容",
+      "settings.submissionMode.options.url": "公开 URL",
+      "settings.maxContentMiB.label": "内容大小上限（MiB）",
+      "settings.maxContentMiB.description":
+        "仅限文件内容模式；超限失败且不重试，不改变服务商自身限制。",
+      "settings.blockAction.label": "违规处置",
+      "settings.blockAction.description": "疑似结果始终阻止访问，供人工复核。",
+      "settings.blockAction.options.block": "阻止访问",
+      "settings.blockAction.options.delete": "删除",
+      "settings.timeoutMs.label": "超时（毫秒）",
+      "settings.interval.label": "GIF 抽帧间隔",
+      "settings.maxFrames.label": "GIF 最大抽帧数",
+      "settings.maxFrames.description": "只审核抽样帧；增加帧数可能增加用量。",
     },
   },
 
@@ -129,117 +177,59 @@ export const tencentModeration: Definition<"processor"> = {
   apiVersion: 1,
   stages: {
     post_save: {
-      defaultLocale: "en-US",
-      content: {
-        "en-US": {
-          configSchema: {
-            "/properties/secretId": { title: "Secret ID" },
-            "/properties/secretKey": { title: "Secret key" },
-            "/properties/region": { title: "Region" },
-            "/properties/bizType": {
-              title: "BizType",
-              description: "Policy ID from the Tencent Cloud console.",
-            },
-            "/properties/submissionMode": {
-              title: "Submission method",
-              description:
-                "URL mode uses the public image URL. It must be accessible to Tencent Cloud; hotlink protection or redirects may prevent access.",
-            },
-            "/properties/maxContentMiB": {
-              title: "Content size limit (MiB)",
-              description:
-                "File content mode only. Oversized files fail without retry; this does not change the provider's limits.",
-            },
-            "/properties/blockAction": {
-              title: "On violation",
-              description:
-                "Review results always block access for manual review.",
-            },
-            "/properties/timeoutMs": { title: "Timeout (ms)" },
-            "/properties/interval": { title: "GIF frame interval" },
-            "/properties/maxFrames": {
-              title: "Maximum GIF frames",
-              description:
-                "Sampled frames only; additional frames may increase usage.",
-            },
-          },
-        },
-        en: {
-          configSchema: {
-            "/properties/submissionMode": {
-              enumLabels: ["File content", "Public URL"],
-            },
-          },
-        },
-        "zh-CN": {
-          configSchema: {
-            "/properties/secretId": { title: "密钥 ID" },
-            "/properties/secretKey": { title: "密钥" },
-            "/properties/region": { title: "地域" },
-            "/properties/bizType": {
-              title: "BizType",
-              description: "腾讯云控制台中的策略标识。",
-            },
-            "/properties/submissionMode": {
-              title: "送审方式",
-              enumLabels: ["文件内容", "公开 URL"],
-              description:
-                "URL 模式使用图片公开链接。腾讯云须能访问；防盗链或重定向可能导致下载失败。",
-            },
-            "/properties/maxContentMiB": {
-              title: "内容大小上限（MiB）",
-              description:
-                "仅限文件内容模式；超限失败且不重试，不改变服务商自身限制。",
-            },
-            "/properties/blockAction": {
-              title: "违规处置",
-              enumLabels: ["阻止访问", "删除"],
-              description: "疑似结果始终阻止访问，供人工复核。",
-            },
-            "/properties/timeoutMs": { title: "超时（毫秒）" },
-            "/properties/interval": { title: "GIF 抽帧间隔" },
-            "/properties/maxFrames": {
-              title: "GIF 最大抽帧数",
-              description: "只审核抽样帧；增加帧数可能增加用量。",
-            },
-          },
-        },
-      },
-
       configSchemaVersion: 1,
       configSchema: {
         type: "object",
         properties: {
           secretId: {
+            "x-ui": { labelKey: "settings.secretId.label" },
             type: "string",
 
             minLength: 1,
             "x-sensitive": true,
           },
           secretKey: {
+            "x-ui": { labelKey: "settings.secretKey.label" },
             type: "string",
 
             minLength: 1,
             "x-sensitive": true,
           },
           region: {
+            "x-ui": { labelKey: "settings.region.label", advanced: true },
             type: "string",
 
             minLength: 1,
             default: "ap-guangzhou",
           },
           bizType: {
+            "x-ui": {
+              labelKey: "settings.bizType.label",
+              descriptionKey: "settings.bizType.description",
+            },
             type: "string",
 
             minLength: 1,
           },
           submissionMode: {
+            "x-ui": {
+              labelKey: "settings.submissionMode.label",
+              descriptionKey: "settings.submissionMode.description",
+              enumKeys: [
+                "settings.submissionMode.options.content",
+                "settings.submissionMode.options.url",
+              ],
+            },
             type: "string",
 
             enum: ["content", "url"],
             default: "content",
           },
           maxContentMiB: {
+            "x-ui": {
+              labelKey: "settings.maxContentMiB.label",
+              descriptionKey: "settings.maxContentMiB.description",
+            },
             type: "integer",
 
             minimum: 1,
@@ -247,12 +237,21 @@ export const tencentModeration: Definition<"processor"> = {
             default: 5,
           },
           blockAction: {
+            "x-ui": {
+              labelKey: "settings.blockAction.label",
+              descriptionKey: "settings.blockAction.description",
+              enumKeys: [
+                "settings.blockAction.options.block",
+                "settings.blockAction.options.delete",
+              ],
+            },
             type: "string",
 
             enum: ["block", "delete"],
             default: "block",
           },
           timeoutMs: {
+            "x-ui": { labelKey: "settings.timeoutMs.label", advanced: true },
             type: "integer",
 
             minimum: 100,
@@ -260,6 +259,7 @@ export const tencentModeration: Definition<"processor"> = {
             default: 30000,
           },
           interval: {
+            "x-ui": { labelKey: "settings.interval.label", advanced: true },
             type: "integer",
 
             minimum: 1,
@@ -267,6 +267,11 @@ export const tencentModeration: Definition<"processor"> = {
             default: 5,
           },
           maxFrames: {
+            "x-ui": {
+              labelKey: "settings.maxFrames.label",
+              descriptionKey: "settings.maxFrames.description",
+              advanced: true,
+            },
             type: "integer",
 
             minimum: 1,
@@ -284,14 +289,9 @@ export const tencentModeration: Definition<"processor"> = {
           "timeoutMs",
           "interval",
           "maxFrames",
+          "maxContentMiB",
         ],
         additionalProperties: false,
-      },
-      uiHints: {
-        "/region": { advanced: true },
-        "/timeoutMs": { advanced: true },
-        "/interval": { advanced: true },
-        "/maxFrames": { advanced: true },
       },
 
       async createInstance({ config, services }) {
@@ -323,7 +323,7 @@ export const tencentModeration: Definition<"processor"> = {
                       FileContent: await content(
                         input.file,
                         signal,
-                        Number(config.maxContentMiB ?? 5) * 1024 ** 2,
+                        Number(config.maxContentMiB) * 1024 ** 2,
                       ),
                     }),
                 Type: "IMAGE",

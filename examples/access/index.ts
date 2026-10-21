@@ -7,7 +7,8 @@ import {
 
 export default {
   defaultLocale: "en-US",
-  content: { "en-US": { name: "Example thumbnail" } },
+  nameKey: "package.name",
+  messages: { "en-US": { "package.name": "Example thumbnail" } },
 
   id: "example.thumbnail",
 
@@ -16,15 +17,7 @@ export default {
   apiVersion: 1,
   stages: {
     access: {
-      defaultLocale: "en-US",
-      content: { "en-US": {} },
-
       configSchemaVersion: 1,
-      configSchema: {
-        type: "object",
-        properties: {},
-        additionalProperties: false,
-      },
       paramsSchema: {
         type: "object",
         properties: {

@@ -22,6 +22,12 @@ const enabled = process.env.TENCENT_LIVE === "1";
         stage: "post_save",
         name: "Tencent live",
         config: {
+          submissionMode: "content",
+          maxContentMiB: 5,
+          blockAction: "block",
+          timeoutMs: 30000,
+          interval: 5,
+          maxFrames: 5,
           bizType,
           region: process.env.TENCENT_REGION ?? "ap-guangzhou",
         },

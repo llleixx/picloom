@@ -45,7 +45,7 @@ function input(): FileInput {
 async function instance(endpoint: string, extra: Config = {}) {
   return openListStorage.createInstance({
     id: "openlist-test",
-    config: { endpoint, root: "/挂载 a%#", ...extra },
+    config: { endpoint, root: "/挂载 a%#", timeoutMs: 30000, ...extra },
     services: services(),
   });
 }
@@ -488,7 +488,7 @@ test("OpenList request preparation failures do not become network or unknown wri
   try {
     const runtime = await openListStorage.createInstance({
       id: "preparation-test",
-      config: { endpoint: remote.url.href, root: "/images" },
+      config: { endpoint: remote.url.href, root: "/images", timeoutMs: 30000 },
       services: {
         ...services(),
         async readSecrets() {

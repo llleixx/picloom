@@ -153,7 +153,7 @@ test("an independently bundled SDK error preserves retry and write outcome", asy
       await bundledPackage(
         "external.errors",
         "path",
-        `import { PluginError } from ${JSON.stringify(sdk)}; export default {id:"external.errors",defaultLocale:"en-US",content:{"en-US":{name:"external.errors"}},kind:"path",version:"1.0.0",apiVersion:1,configSchemaVersion:1,configSchema:{type:"object",properties:{}},async createInstance(){return {async generate(){throw new PluginError("INVALID_INPUT","External failure",false,"notApplied")}}}};`,
+        `import { PluginError } from ${JSON.stringify(sdk)}; export default {id:"external.errors",defaultLocale:"en-US",nameKey:"package.name",messages:{"en-US":{"package.name":"external.errors"}},kind:"path",version:"1.0.0",apiVersion:1,configSchemaVersion:1,configSchema:{type:"object",properties:{}},async createInstance(){return {async generate(){throw new PluginError("INVALID_INPUT","External failure",false,"notApplied")}}}};`,
       ),
     );
     const instance = await f.app.plugins.save({
@@ -211,7 +211,7 @@ test("an independently bundled SDK error preserves retry and write outcome", asy
 });
 
 test("SDK and builtins stay within the public dependency boundary; directory declarations are validated", async () => {
-  for (const folder of ["plugin-sdk", "src/builtins"]) {
+  for (const folder of ["plugin-sdk", "theme-sdk", "src/builtins"]) {
     const root = new URL("../" + folder + "/", import.meta.url);
     for (const name of await readdir(root, { recursive: true })) {
       if (!name.endsWith(".ts")) continue;
@@ -221,8 +221,10 @@ test("SDK and builtins stay within the public dependency boundary; directory dec
       )) {
         const target = new URL(match[1]!, new URL(name, root)).pathname;
         expect(
-          target.includes("/plugin-sdk") ||
-            (folder === "src/builtins" && target.includes("/src/builtins/")),
+          target.includes(`/${folder}/`) ||
+            (folder === "src/builtins" &&
+              (target.includes("/plugin-sdk/") ||
+                target.endsWith("/plugin-sdk"))),
         ).toBe(true);
       }
     }

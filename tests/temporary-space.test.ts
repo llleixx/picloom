@@ -144,7 +144,8 @@ test("automatic retries retain sources only until exhausted; pending sessions su
     f.app.config.retryLimit = 2;
     f.app.plugins.register({
       defaultLocale: "en-US",
-      content: { "en-US": { name: "Retain" } },
+      nameKey: "package.name",
+      messages: { "en-US": { "package.name": "Retain" } },
 
       id: "test.keep-temp",
 
@@ -153,9 +154,6 @@ test("automatic retries retain sources only until exhausted; pending sessions su
       apiVersion: 1,
       stages: {
         post_save: {
-          defaultLocale: "en-US",
-          content: { "en-US": {} },
-
           configSchemaVersion: 1,
           configSchema: { type: "object", properties: {} },
           async createInstance() {
@@ -291,7 +289,8 @@ test("processor output uses the same budget while the input is still retained", 
   try {
     f.app.plugins.register({
       defaultLocale: "en-US",
-      content: { "en-US": { name: "Large output" } },
+      nameKey: "package.name",
+      messages: { "en-US": { "package.name": "Large output" } },
 
       id: "test.large-output",
 
@@ -300,9 +299,6 @@ test("processor output uses the same budget while the input is still retained", 
       apiVersion: 1,
       stages: {
         upload: {
-          defaultLocale: "en-US",
-          content: { "en-US": {} },
-
           configSchemaVersion: 1,
           configSchema: { type: "object", properties: {} },
           async createInstance() {
@@ -478,7 +474,8 @@ test("task timeout cancels execution and retains its source until the reader exi
     f.app.config.retryLimit = 1;
     f.app.plugins.register({
       defaultLocale: "en-US",
-      content: { "en-US": { name: "Timeout" } },
+      nameKey: "package.name",
+      messages: { "en-US": { "package.name": "Timeout" } },
 
       id: "test.timeout",
 
@@ -487,9 +484,6 @@ test("task timeout cancels execution and retains its source until the reader exi
       apiVersion: 1,
       stages: {
         post_save: {
-          defaultLocale: "en-US",
-          content: { "en-US": {} },
-
           configSchemaVersion: 1,
           configSchema: { type: "object", properties: {} },
           async createInstance() {

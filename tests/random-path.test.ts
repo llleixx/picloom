@@ -40,7 +40,11 @@ const input: Parameters<PathPlugin["generate"]>[0] = {
   },
 };
 const runtime = () =>
-  randomPath.createInstance({ id: "test", config: {}, services });
+  randomPath.createInstance({
+    id: "test",
+    config: { directoryDepth: 2 },
+    services,
+  });
 
 test("random path is stable across instances and hides dates and source filenames", async () => {
   const first = await runtime();

@@ -10,7 +10,7 @@ const enabled = !!process.env.NODEIMAGE_TEST_KEY;
       pluginId: "builtin.nodeimage",
       version: "1.0.0",
       name: "Live NodeImage",
-      config: {},
+      config: { redirect: true, timeoutMs: 30000 },
       secretEdits: {
         "/apiKey": {
           action: "replace",

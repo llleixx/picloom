@@ -1,12 +1,27 @@
+import { DeclarationError } from "../../shared/config";
+import {
+  equalJson,
+  schemaOrEmpty,
+  type Schema,
+} from "../../shared/field-schema";
 import { assertLocalDirectory, directoryRoot } from "./local-directory";
 import sharp from "sharp";
 import { assertParamsSchema } from "../../shared/params-schema";
-import { assertPluginContent } from "../../shared/plugin-localization";
-import Ajv2020 from "ajv/dist/2020";
-import addFormats from "ajv-formats";
+import {
+  assertPluginIdentity,
+  assertPluginFieldMessages,
+  PluginDeclarationError,
+} from "./declaration";
+import {
+  compileSchema,
+  assertDeclaration,
+  schemaErrors,
+} from "../core/schema-validation";
+
 import { readFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import type { ConfigSchema, ParamsSchema } from "../../plugin-sdk/schema";
 import { AppError, Conflict, requireValue } from "../core/errors";
 import { Mutex } from "../core/concurrency";
 import { Secrets } from "../infra/secrets";
@@ -16,7 +31,6 @@ import type { Persistence, Instance } from "../persistence/port";
 import { entity } from "../persistence/port";
 import {
   assertSchema,
-  assertUIHints,
   pointer,
   sensitivePaths,
   readPointer,
@@ -35,7 +49,17 @@ import type {
   Json,
   Stage,
   Descriptor,
+  StageDefinitions,
 } from "./api";
+type LoadedDefinition =
+  | (Definition<"path" | "storage"> & { configSchema: ConfigSchema })
+  | (Omit<Definition<"processor">, "stages"> & {
+      stages: {
+        [K in Stage]?: NonNullable<StageDefinitions[K]> & {
+          configSchema: ConfigSchema;
+        };
+      };
+    });
 interface Slot {
   record: Instance;
   runtime: Runtime;
@@ -50,35 +74,13 @@ function freeze<T>(value: T): T {
   }
   return value;
 }
-function hasSensitive(value: unknown): boolean {
-  if (!value || typeof value !== "object") return false;
-  if (!Array.isArray(value) && (value as Config)["x-sensitive"] === true)
-    return true;
-  return Object.values(value).some(hasSensitive);
-}
-function normalizeSchema(schema: Config): Config {
-  const result = structuredClone(schema);
-  if (result.type === "object" && result.additionalProperties === undefined)
-    result.additionalProperties = false;
-  const properties = result.properties as Record<string, Config> | undefined;
-  if (properties)
-    for (const key of Object.keys(properties))
-      properties[key] = normalizeSchema(properties[key]!);
-  if (
-    result.items &&
-    typeof result.items === "object" &&
-    !Array.isArray(result.items)
-  )
-    result.items = normalizeSchema(result.items as Config);
-  return result;
-}
 function split(
   value: Config,
-  schema: Config,
+  schema: Schema,
 ): { config: Config; secrets: Config } {
   const config: Config = {},
     secrets: Config = {};
-  const props = (schema.properties ?? {}) as Record<string, Config>;
+  const props = schema.properties ?? {};
   for (const [key, val] of Object.entries(value)) {
     const rule = props[key] ?? {};
     if (rule["x-sensitive"] === true) secrets[key] = val;
@@ -91,7 +93,7 @@ function split(
       const nested = split(val as Config, rule);
       config[key] = nested.config;
       if (Object.keys(nested.secrets).length) secrets[key] = nested.secrets;
-    } else if (hasSensitive(rule)) secrets[key] = val;
+    } else if (sensitivePaths(rule).includes("")) secrets[key] = val;
     else config[key] = val;
   }
   return { config, secrets };
@@ -113,39 +115,30 @@ export function mergeConfig(a: Config, b: Config): Config {
   return out;
 }
 export class PluginManager {
-  private definitions = new Map<string, Definition>();
+  private definitions = new Map<string, LoadedDefinition>();
   private builtins = new Set<string>();
   private slots = new Map<string, Slot>();
   private retired = new Set<Slot>();
   private mutex = new Mutex();
-  private ajv = new Ajv2020({
-    allErrors: true,
-    useDefaults: false,
-    strict: false,
-  });
   constructor(
     private db: Persistence,
     private secrets: Secrets,
     private dataRoot: string,
-  ) {
-    addFormats(this.ajv);
-    this.ajv.addKeyword({
-      keyword: "x-sensitive",
-      schemaType: "boolean",
-      valid: true,
-    });
-    this.ajv.addKeyword({
-      keyword: "x-enumLabels",
-      schemaType: "array",
-      valid: true,
-    });
-    this.ajv.addKeyword({
-      keyword: "x-immutable",
-      schemaType: "boolean",
-      valid: true,
-    });
-  }
-  register(def: Definition, source: "builtin" | "external" = "builtin") {
+  ) {}
+  register(definition: Definition, source: "builtin" | "external" = "builtin") {
+    const def: Definition =
+      definition.kind === "processor"
+        ? {
+            ...definition,
+            stages: Object.fromEntries(
+              Object.entries(definition.stages ?? {}).map(([key, desc]) => [
+                key,
+                desc && { ...desc },
+              ]),
+            ),
+          }
+        : { ...definition };
+    let location = "package";
     try {
       if (
         !def.id ||
@@ -154,15 +147,32 @@ export class PluginManager {
         !["path", "storage", "processor"].includes(def.kind)
       )
         throw new Error("Invalid identity");
-      assertLocalDirectory(def);
       const descriptions =
         def.kind === "processor"
           ? Object.entries(def.stages ?? {})
           : [[null, def] as const];
       if (!descriptions.length) throw new Error("No stages");
-      if (def.kind === "processor")
-        assertPluginContent(def, { type: "object" }, {}, undefined, true);
+      assertPluginIdentity(def);
       for (const [stage, desc] of descriptions) {
+        location = stage ?? "package";
+        if (
+          stage !== null &&
+          desc &&
+          [
+            "messages",
+            "defaultLocale",
+            "nameKey",
+            "descriptionKey",
+            "name",
+            "description",
+            "content",
+            "translations",
+            "uiHints",
+          ].some((key) => key in desc)
+        )
+          throw new DeclarationError(
+            "/: Stage localization is not supported; use the package catalog",
+          );
         if (
           stage !== null &&
           !["upload", "access", "post_save"].includes(stage)
@@ -177,41 +187,50 @@ export class PluginManager {
           desc.configSchemaVersion < 1
         )
           throw new Error("Invalid stage");
-        desc.configSchema = normalizeSchema(desc.configSchema);
+        desc.configSchema = structuredClone(schemaOrEmpty(desc.configSchema));
+        assertSchema(desc.configSchema, "/configSchema");
         if (
           desc.configSchema.type !== "object" ||
           desc.configSchema["x-sensitive"]
         )
-          throw new Error("Invalid configuration root");
-        assertSchema(desc.configSchema);
-        if (desc.uiHints) assertUIHints(desc.uiHints);
-        assertPluginContent(
-          desc,
+          throw new DeclarationError(
+            "/configSchema: Root must be a non-sensitive object",
+          );
+        if (stage === "access" || stage === "upload")
+          Object.assign(desc, {
+            paramsSchema: structuredClone(
+              schemaOrEmpty(
+                "paramsSchema" in desc
+                  ? (desc.paramsSchema as ParamsSchema | undefined)
+                  : undefined,
+              ),
+            ),
+          });
+        assertPluginFieldMessages(
+          def,
           desc.configSchema,
-          desc.uiHints ?? {},
-          "paramsSchema" in desc ? (desc.paramsSchema as Config) : undefined,
-          stage === null,
+          "paramsSchema" in desc
+            ? (desc.paramsSchema as ParamsSchema)
+            : undefined,
         );
-        this.ajv.compile(desc.configSchema);
+        assertDeclaration(desc.configSchema, "/configSchema");
         if ("paramsSchema" in desc && desc.paramsSchema !== undefined) {
           if (stage !== "access" && stage !== "upload")
             throw new Error(
               "Request parameters require upload or access stage",
             );
-          assertParamsSchema(desc.paramsSchema as Config);
-          this.ajv.compile(desc.paramsSchema as Config);
+          assertParamsSchema(desc.paramsSchema as ParamsSchema);
+          assertDeclaration(desc.paramsSchema as ParamsSchema, "/paramsSchema");
         }
       }
-    } catch {
-      throw new AppError(
-        "PLUGIN_INVALID",
-        "Invalid plugin or stage description",
-      );
+      assertLocalDirectory(def);
+    } catch (error) {
+      throw new PluginDeclarationError(location, error);
     }
     const k = def.id + "@" + def.version;
     if (this.definitions.has(k))
       throw new Conflict("Plugin version already loaded");
-    this.definitions.set(k, def);
+    this.definitions.set(k, def as LoadedDefinition);
     if (source === "builtin") this.builtins.add(k);
   }
   async loadPackage(directory: string) {
@@ -285,7 +304,7 @@ export class PluginManager {
     if (root.kind !== "processor") {
       if (record.stage)
         throw new AppError("CONFIG_INVALID", "Unexpected stage");
-      return { ...root, paramsSchema: undefined as Config | undefined };
+      return { ...root, paramsSchema: undefined as ParamsSchema | undefined };
     }
     const stage = record.stage && root.stages[record.stage];
     if (!stage)
@@ -295,7 +314,7 @@ export class PluginManager {
       ...stage,
       paramsSchema:
         "paramsSchema" in stage
-          ? (stage.paramsSchema as Config | undefined)
+          ? (stage.paramsSchema as ParamsSchema | undefined)
           : undefined,
     };
   }
@@ -416,33 +435,6 @@ export class PluginManager {
     for (const record of await this.db.read((x) => x.instances()))
       await this.initialize(record);
   }
-  private applyDefaults(schema: Config, value: Config) {
-    for (const [key, rule] of Object.entries(
-      (schema.properties ?? {}) as Record<string, Config>,
-    )) {
-      if (value[key] === undefined && rule.default !== undefined)
-        value[key] = structuredClone(rule.default);
-      if (rule.type === "object") {
-        const nested = value[key] === undefined ? {} : value[key];
-        if (nested && typeof nested === "object" && !Array.isArray(nested)) {
-          this.applyDefaults(rule, nested as Config);
-          if (Object.keys(nested).length) value[key] = nested;
-        }
-      }
-      if (rule.type === "array" && Array.isArray(value[key]) && rule.items)
-        for (const item of value[key] as Json[])
-          if (item && typeof item === "object" && !Array.isArray(item))
-            this.applyDefaults(rule.items as Config, item as Config);
-    }
-    for (const clause of (schema.allOf ?? []) as Config[])
-      this.applyDefaults(clause, value);
-    if (schema.if) {
-      const branch = this.ajv.compile(schema.if as Config)(value)
-        ? schema.then
-        : schema.else;
-      if (branch) this.applyDefaults(branch as Config, value);
-    }
-  }
   private upgradeTarget(old: Instance, version: string) {
     if (
       this.isBuiltin(old.plugin_id, old.plugin_version) ||
@@ -490,15 +482,9 @@ export class PluginManager {
         400,
       );
     }
-    this.applyDefaults(target.configSchema, migrated);
-    const validate = this.ajv.compile(target.configSchema);
+    const validate = compileSchema(target.configSchema);
     validate(migrated);
-    const fields = (validate.errors ?? []).map((e) => ({
-      path:
-        e.instancePath +
-        (e.keyword === "required" ? "/" + e.params.missingProperty : ""),
-      message: e.message ?? "Invalid field",
-    }));
+    const fields = schemaErrors(validate.errors);
     const parts = split(migrated, target.configSchema);
     const secretEdits: Record<string, SecretEdit> = {};
     for (const path of sensitivePaths(target.configSchema)) {
@@ -607,19 +593,13 @@ export class PluginManager {
     }
     if (!input.name?.trim() || input.name.length > 100)
       throw new AppError("CONFIG_INVALID", "实例名称须为 1–100 字符");
-    this.applyDefaults(def.configSchema, full);
-    const validate = this.ajv.compile(def.configSchema);
+    const validate = compileSchema(def.configSchema);
     if (!validate(full))
       throw new AppError(
         "CONFIG_INVALID",
         "Configuration does not match plugin schema",
         400,
-        validate.errors?.map((e) => ({
-          path:
-            e.instancePath +
-            (e.keyword === "required" ? "/" + e.params.missingProperty : ""),
-          message: e.message ?? "Invalid field",
-        })),
+        schemaErrors(validate.errors),
       );
     if ("localDirectory" in def && def.localDirectory) {
       try {
@@ -650,20 +630,19 @@ export class PluginManager {
     }
     const parts = split(full, def.configSchema);
     if (old) {
-      const check = (rule: Config, path: string) => {
+      const previousFull = mergeConfig(old.config_json, previous);
+      const check = (rule: Schema, path: string) => {
         if (
           rule["x-immutable"] &&
-          (!input.upgrade ||
-            readPointer(old.config_json, path) !== undefined) &&
-          JSON.stringify(readPointer(old.config_json, path)) !==
-            JSON.stringify(readPointer(parts.config, path))
+          (!input.upgrade || readPointer(previousFull, path) !== undefined) &&
+          !equalJson(readPointer(previousFull, path), readPointer(full, path))
         )
           throw new AppError(
             "NEW_INSTANCE_REQUIRED",
             "存储目标变化需要创建新实例",
           );
         for (const [key, child] of Object.entries(
-          (rule.properties ?? {}) as Record<string, Config>,
+          (rule.properties ?? {}) as Record<string, Schema>,
         ))
           check(child, path + "/" + pointer(key));
       };
@@ -791,12 +770,14 @@ export class PluginManager {
       throw new Error("Plugin calls still active");
   }
   definitionsView(): import("../../shared/config").PluginView[] {
-    const view = (d: Descriptor<Runtime> & { paramsSchema?: Config }) => ({
+    const view = (
+      d: Descriptor<Runtime> & {
+        configSchema: ConfigSchema;
+        paramsSchema?: ParamsSchema;
+      },
+    ) => ({
       configSchemaVersion: d.configSchemaVersion,
       configSchema: structuredClone(d.configSchema),
-      uiHints: structuredClone(d.uiHints ?? {}),
-      defaultLocale: d.defaultLocale,
-      content: structuredClone(d.content),
       ...(d.paramsSchema
         ? { paramsSchema: structuredClone(d.paramsSchema) }
         : {}),
@@ -809,13 +790,22 @@ export class PluginManager {
         ? {
             kind: d.kind,
             defaultLocale: d.defaultLocale,
-            content: structuredClone(d.content),
+            nameKey: d.nameKey,
+            descriptionKey: d.descriptionKey,
+            messages: structuredClone(d.messages),
             supportedStages: Object.keys(d.stages) as Stage[],
             stages: Object.fromEntries(
               Object.entries(d.stages).map(([key, desc]) => [key, view(desc)]),
             ),
           }
-        : { ...view(d), kind: d.kind }),
+        : {
+            ...view(d),
+            kind: d.kind,
+            defaultLocale: d.defaultLocale,
+            nameKey: d.nameKey,
+            descriptionKey: d.descriptionKey,
+            messages: structuredClone(d.messages),
+          }),
     }));
   }
   isReady(id: string, kind?: Kind) {

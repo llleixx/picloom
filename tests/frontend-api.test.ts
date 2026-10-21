@@ -28,9 +28,12 @@ test("frontend endpoints expose public safe limits and protected profile options
     expect(settings).toEqual({
       enabledLocales: ["zh-CN", "en-US"],
       defaultLocale: "en-US",
-      content: {},
-      siteLogoUrl: "",
-      siteFaviconUrl: "",
+      content: {
+        "en-US": { name: "Picloom", description: "Upload. Copy. Share." },
+        "zh-CN": { name: "Picloom", description: "上传、复制、分享。" },
+      },
+      siteLogoUrl: "/assets/picloom.svg",
+      siteFaviconUrl: "/assets/picloom.svg",
       uploadConcurrency: 4,
       chunkedUpload: {
         thresholdBytes: 8 * 1024 ** 2,
@@ -131,7 +134,12 @@ test("frontend endpoints expose public safe limits and protected profile options
     ).toContain("冗余数");
     f.app.plugins.register({
       defaultLocale: "en-US",
-      content: { "en-US": { name: "failed" } },
+      nameKey: "package.name",
+      messages: {
+        "en-US": {
+          "package.name": "failed",
+        },
+      },
 
       id: "test.failed-path",
 
@@ -228,6 +236,10 @@ test("web assets, public home and workspace fallback are bounded to UI routes", 
     await mkdir(join(f.app.config.webRoot, "assets"), { recursive: true });
     await writeFile(
       join(f.app.config.webRoot, "index.html"),
+      "<html>test admin</html>",
+    );
+    await writeFile(
+      join(f.app.config.webRoot, "admin.html"),
       "<html>test admin</html>",
     );
     await writeFile(

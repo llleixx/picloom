@@ -12,7 +12,12 @@ test("path collision never overwrites existing image or tombstone", async () => 
   try {
     const def: Definition<"path"> = {
       defaultLocale: "en-US",
-      content: { "en-US": { name: "fixed" } },
+      nameKey: "package.name",
+      messages: {
+        "en-US": {
+          "package.name": "fixed",
+        },
+      },
 
       id: "test.fixed",
 

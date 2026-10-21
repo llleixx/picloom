@@ -1,3 +1,4 @@
+import { initialConfig } from "../shared/config";
 import { Themes } from "./themes/manager";
 import { reservedPrefix } from "../shared/web-routes";
 import { Imports } from "./core/import";
@@ -165,7 +166,16 @@ export async function initializeUploadDefaults(
         pluginId,
         version: "1.0.0",
         name,
-        config,
+        config: {
+          ...initialConfig(
+            app.plugins.descriptor({
+              plugin_id: pluginId,
+              plugin_version: "1.0.0",
+              stage: pluginId === "builtin.sharp" ? "access" : null,
+            }).configSchema,
+          ),
+          ...config,
+        },
         stage: pluginId === "builtin.sharp" ? "access" : undefined,
       })
     );

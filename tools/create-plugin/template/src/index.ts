@@ -9,12 +9,12 @@ if (kind !== "path" || apiVersion !== 1)
 export default {
   id: manifest.id,
   defaultLocale: "en-US",
-  content: { "en-US": { name: "My date path" } },
+  nameKey: "package.name",
+  messages: { "en-US": { "package.name": "My date path" } },
   version: manifest.version,
   kind,
   apiVersion,
   configSchemaVersion: 1,
-  configSchema: { type: "object", properties: {}, additionalProperties: false },
   async createInstance() {
     return {
       async generate({ fileId, uploadedAt, metadata }) {

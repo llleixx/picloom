@@ -7,11 +7,11 @@ export function themePackage(
     "theme.json": JSON.stringify({
       id: "example.theme",
       defaultLocale: "en-US",
-      content: { "en-US": { name: "Example" } },
+      nameKey: "package.name",
+      messages: { "en-US": { "package.name": "Example" }, "zh-CN": {} },
       version,
       apiVersion: 1,
       supportedLocales: ["zh-CN", "en-US"],
-      messages: { "zh-CN": {}, "en-US": {} },
       pages: { home: { entry: "entry.js" }, login: { entry: "entry.js" } },
       configSchema: {
         type: "object",

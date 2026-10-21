@@ -77,7 +77,12 @@ test("concurrent uploads through nested prefixes reserve one complete path witho
   try {
     f.app.plugins.register({
       defaultLocale: "en-US",
-      content: { "en-US": { name: "Path" } },
+      nameKey: "package.name",
+      messages: {
+        "en-US": {
+          "package.name": "Path",
+        },
+      },
 
       id: "test.path",
 

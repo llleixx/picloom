@@ -1,5 +1,11 @@
 import type { en } from "./en";
 export const zhCN = {
+  "ui.moveItemUp": "上移数组项",
+  "ui.moveItemDown": "下移数组项",
+  "ui.newItem": "新数组项",
+  "ui.disabled": "禁用",
+  "linkBuilder.defaultConflict": "默认值不一致，请手动填写。",
+  "themes.removeObject": "移除整个分组（包含全部语言及设置）",
   "themes.chooseLanguage": "选择默认语言",
   "themes.siteLanguageHelp": "此项是站点默认语言，应用主题后与站点设置同步。",
   "themes.enableLanguage": "请先在站点设置启用一种主题支持的语言。",
@@ -718,6 +724,7 @@ export const zhCN = {
   "ui.removeItem": "移除条目",
   "ui.addItem": "添加条目",
   "ui.notSet": "未设置",
+  "ui.setEmptyObject": "设为空对象",
   "ui.setToNull": "设为 null",
   "ui.enabled": "已启用",
   "ui.imageFailedToLoad": "图片加载失败",

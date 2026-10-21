@@ -1,6 +1,6 @@
 {
   "id": "example.split",
-  "version": "1.1.3",
+  "version": "1.2.0",
   "apiVersion": 1,
   "pages": {
     "home": {
@@ -10,35 +10,27 @@
       "entry": "entry.js"
     }
   },
-  "styles": [
-    "style.css"
-  ],
+  "styles": ["style.css"],
   "configSchema": {
     "type": "object",
     "properties": {
       "accent": {
         "type": "string",
         "default": "#286456",
-        "title": "Accent color",
-        "content": {
-          "zh-CN": {
-            "title": "主色"
-          }
+        "x-ui": {
+          "labelKey": "settings.accent.title"
         }
       },
       "heading": {
         "type": "string",
         "x-localized": true,
-        "x-multiline": true,
         "default": {
           "en-US": "Make room for your images.",
           "zh-CN": "为你的图片留一个位置。"
         },
-        "title": "Hero heading",
-        "content": {
-          "zh-CN": {
-            "title": "宣传标题"
-          }
+        "x-ui": {
+          "labelKey": "settings.heading.title",
+          "widget": "textarea"
         }
       }
     }
@@ -67,7 +59,10 @@
       "username": "Username",
       "password": "Password",
       "expired": "Your session expired. Sign in again.",
-      "unavailable": "The service is unavailable. Try again."
+      "unavailable": "The service is unavailable. Try again.",
+      "package.name": "Split",
+      "settings.accent.title": "Accent color",
+      "settings.heading.title": "Hero heading"
     },
     "zh-CN": {
       "home": "首页",
@@ -92,20 +87,13 @@
       "username": "用户名",
       "password": "密码",
       "expired": "会话已过期，请重新登录。",
-      "unavailable": "服务暂不可用，请重试。"
+      "unavailable": "服务暂不可用，请重试。",
+      "package.name": "分栏",
+      "settings.accent.title": "主色",
+      "settings.heading.title": "宣传标题"
     }
   },
-  "supportedLocales": [
-    "zh-CN",
-    "en-US"
-  ],
-  "content": {
-    "zh-CN": {
-      "name": "分栏"
-    },
-    "en-US": {
-      "name": "Split"
-    }
-  },
-  "defaultLocale": "en-US"
+  "supportedLocales": ["zh-CN", "en-US"],
+  "defaultLocale": "en-US",
+  "nameKey": "package.name"
 }

@@ -39,34 +39,28 @@ function stored(locator: Locator): TelegramLocator {
 }
 export const telegramStorage: Definition<"storage"> = {
   defaultLocale: "en-US",
-  content: {
+  nameKey: "package.name",
+  descriptionKey: "package.description",
+  messages: {
     "en-US": {
-      name: "Telegram Storage",
-      description:
+      "package.name": "Telegram Storage",
+      "package.description":
         "Store originals as bot documents (20 MB limit). Non-deletable messages finish local cleanup but may remain on Telegram.",
-      configSchema: {
-        "/properties/botToken": { title: "Bot token" },
-        "/properties/chatId": {
-          title: "Chat ID",
-          description:
-            "Numeric chat ID. Files are limited to 20,000,000 bytes so the hosted API can download them. Deletion needs permissions and a message age below 48 hours.",
-        },
-        "/properties/timeoutMs": { title: "Timeout (ms)" },
-      },
+      "settings.botToken.label": "Bot token",
+      "settings.chatId.label": "Chat ID",
+      "settings.chatId.description":
+        "Numeric chat ID. Files are limited to 20,000,000 bytes so the hosted API can download them. Deletion needs permissions and a message age below 48 hours.",
+      "settings.timeoutMs.label": "Timeout (ms)",
     },
     "zh-CN": {
-      name: "Telegram 存储",
-      description:
+      "package.name": "Telegram 存储",
+      "package.description":
         "以机器人文档保存原文件（上限 20 MB）。消息无法删除时仅完成本地清理，Telegram 消息可能保留。",
-      configSchema: {
-        "/properties/botToken": { title: "机器人令牌" },
-        "/properties/chatId": {
-          title: "聊天 ID",
-          description:
-            "填写数字聊天 ID。单文件最多 20,000,000 字节，以保证官方 API 可下载。删除需相应权限，且消息不超过 48 小时。",
-        },
-        "/properties/timeoutMs": { title: "超时（毫秒）" },
-      },
+      "settings.botToken.label": "机器人令牌",
+      "settings.chatId.label": "聊天 ID",
+      "settings.chatId.description":
+        "填写数字聊天 ID。单文件最多 20,000,000 字节，以保证官方 API 可下载。删除需相应权限，且消息不超过 48 小时。",
+      "settings.timeoutMs.label": "超时（毫秒）",
     },
   },
 
@@ -80,18 +74,24 @@ export const telegramStorage: Definition<"storage"> = {
     type: "object",
     properties: {
       botToken: {
+        "x-ui": { labelKey: "settings.botToken.label" },
         type: "string",
 
         minLength: 1,
         "x-sensitive": true,
       },
       chatId: {
+        "x-ui": {
+          labelKey: "settings.chatId.label",
+          descriptionKey: "settings.chatId.description",
+        },
         type: "string",
 
         pattern: "^-?[0-9]+$",
         "x-immutable": true,
       },
       timeoutMs: {
+        "x-ui": { labelKey: "settings.timeoutMs.label", advanced: true },
         type: "integer",
 
         minimum: 100,
@@ -99,17 +99,13 @@ export const telegramStorage: Definition<"storage"> = {
         default: 30000,
       },
     },
-    required: ["botToken", "chatId"],
+    required: ["botToken", "chatId", "timeoutMs"],
     additionalProperties: false,
   },
-  uiHints: { "/timeoutMs": { advanced: true } },
 
   async createInstance({ config, services }) {
     const signalFor = (signal: AbortSignal) =>
-      AbortSignal.any([
-        signal,
-        AbortSignal.timeout(Number(config.timeoutMs ?? 30000)),
-      ]);
+      AbortSignal.any([signal, AbortSignal.timeout(Number(config.timeoutMs))]);
     async function token() {
       const value = (await services.readSecrets()).value.botToken;
       if (typeof value !== "string" || !/^\d+:[A-Za-z0-9_-]+$/.test(value))

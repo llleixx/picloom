@@ -12,30 +12,24 @@ const extensions = new Map([
 
 export const randomPath: Definition<"path"> = {
   defaultLocale: "en-US",
-  content: {
+  nameKey: "package.name",
+  descriptionKey: "package.description",
+  messages: {
     "en-US": {
-      name: "Random Path",
-      description:
+      "package.name": "Random Path",
+      "package.description":
         "A stable 32-character random filename derived from the upload ID, without dates or original filenames.",
-      configSchema: {
-        "/properties/directoryDepth": {
-          title: "Directory shard depth",
-          description:
-            "Use two filename characters per directory level. Only storage paths change; public URLs stay flat. 0 disables sharding.",
-        },
-      },
+      "settings.directoryDepth.label": "Directory shard depth",
+      "settings.directoryDepth.description":
+        "Use two filename characters per directory level. Only storage paths change; public URLs stay flat. 0 disables sharding.",
     },
     "zh-CN": {
-      name: "随机路径",
-      configSchema: {
-        "/properties/directoryDepth": {
-          title: "分片目录层数",
-          description:
-            "按文件名每两位分一层目录，仅影响存储路径，公开链接保持平铺。0 表示不分层。",
-        },
-      },
-      description:
+      "package.name": "随机路径",
+      "package.description":
         "从随机上传 ID 稳定派生 32 位随机文件名，不包含日期或原始文件名。",
+      "settings.directoryDepth.label": "分片目录层数",
+      "settings.directoryDepth.description":
+        "按文件名每两位分一层目录，仅影响存储路径，公开链接保持平铺。0 表示不分层。",
     },
   },
 
@@ -49,12 +43,17 @@ export const randomPath: Definition<"path"> = {
     type: "object",
     properties: {
       directoryDepth: {
+        "x-ui": {
+          labelKey: "settings.directoryDepth.label",
+          descriptionKey: "settings.directoryDepth.description",
+        },
         type: "integer",
 
         enum: [0, 1, 2],
         default: 2,
       },
     },
+    required: ["directoryDepth"],
     additionalProperties: false,
   },
   async createInstance({ config }) {
@@ -71,7 +70,7 @@ export const randomPath: Definition<"path"> = {
         // The upload ID is already random; deriving the name keeps retries stable.
         const name = fileId.replaceAll("-", "");
         const logicalKey = name + "." + ext;
-        const depth = Number(config.directoryDepth ?? 2);
+        const depth = Number(config.directoryDepth);
         const directories = Array.from({ length: depth }, (_, i) =>
           name.slice(i * 2, i * 2 + 2),
         );

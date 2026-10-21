@@ -3,7 +3,7 @@ import {
   initialSiteContent,
 } from "../../shared/site-branding";
 import { SiteSettings } from "../infra/site-settings";
-import { isCanonicalLocale } from "../../plugin-sdk/localization";
+import { isCanonicalLocale } from "../../shared/package-localization";
 import { defaultLocalization, isLocale } from "../../shared/locales";
 import {
   runtimeKeys,

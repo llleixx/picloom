@@ -28,62 +28,50 @@ function failureCode(error: unknown) {
 }
 export const s3Storage: Definition<"storage"> = {
   defaultLocale: "en-US",
-  content: {
+  nameKey: "package.name",
+  descriptionKey: "package.description",
+  messages: {
     "en-US": {
-      name: "S3-Compatible Storage",
-      description: "Store files in an S3-compatible bucket.",
-      configSchema: {
-        "/properties/multipartThresholdMiB": {
-          title: "Multipart threshold (MiB)",
-        },
-        "/properties/partSizeMiB": { title: "Part size (MiB)" },
-        "/properties/partConcurrency": { title: "Part concurrency" },
-        "/properties/endpoint": { title: "Endpoint" },
-        "/properties/region": { title: "Region" },
-        "/properties/bucket": { title: "Bucket" },
-        "/properties/keyPrefix": {
-          title: "Object prefix",
-          description:
-            "Prefix all stored object keys; leave empty to add no prefix.",
-        },
-        "/properties/forcePathStyle": {
-          title: "Path-style addressing",
-          description:
-            "Use endpoint/bucket URLs; follow your storage provider’s requirements.",
-        },
-        "/properties/accessKeyId": { title: "Access Key ID" },
-        "/properties/secretAccessKey": { title: "Secret Access Key" },
-        "/properties/sessionToken": { title: "Session Token" },
-        "/properties/redirect": { title: "Redirect reads (302)" },
-        "/properties/signedUrlSeconds": {
-          title: "Signed URL lifetime (seconds)",
-        },
-      },
+      "package.name": "S3-Compatible Storage",
+      "package.description": "Store files in an S3-compatible bucket.",
+      "settings.multipartThresholdMiB.label": "Multipart threshold (MiB)",
+      "settings.partSizeMiB.label": "Part size (MiB)",
+      "settings.partConcurrency.label": "Part concurrency",
+      "settings.endpoint.label": "Endpoint",
+      "settings.region.label": "Region",
+      "settings.bucket.label": "Bucket",
+      "settings.keyPrefix.label": "Object prefix",
+      "settings.keyPrefix.description":
+        "Prefix all stored object keys; leave empty to add no prefix.",
+      "settings.forcePathStyle.label": "Path-style addressing",
+      "settings.forcePathStyle.description":
+        "Use endpoint/bucket URLs; follow your storage provider’s requirements.",
+      "settings.accessKeyId.label": "Access Key ID",
+      "settings.secretAccessKey.label": "Secret Access Key",
+      "settings.sessionToken.label": "Session Token",
+      "settings.redirect.label": "Redirect reads (302)",
+      "settings.signedUrlSeconds.label": "Signed URL lifetime (seconds)",
     },
     "zh-CN": {
-      name: "S3 兼容存储",
-      description: "将文件保存到 S3 兼容存储桶。",
-      configSchema: {
-        "/properties/multipartThresholdMiB": { title: "分片阈值（MiB）" },
-        "/properties/partSizeMiB": { title: "分片大小（MiB）" },
-        "/properties/partConcurrency": { title: "分片并发数" },
-        "/properties/endpoint": { title: "端点" },
-        "/properties/region": { title: "区域" },
-        "/properties/bucket": { title: "存储桶" },
-        "/properties/keyPrefix": {
-          title: "对象前缀",
-          description: "为所有存储对象添加统一路径前缀，留空不添加。",
-        },
-        "/properties/forcePathStyle": {
-          title: "路径寻址",
-          description: "使用端点/桶名形式访问，是否启用以服务商要求为准。",
-        },
-        "/properties/accessKeyId": { title: "访问密钥 ID" },
-        "/properties/secretAccessKey": { title: "访问密钥" },
-        "/properties/sessionToken": { title: "会话令牌" },
-        "/properties/redirect": { title: "302 重定向" },
-        "/properties/signedUrlSeconds": { title: "签名链接有效期（秒）" },
-      },
+      "package.name": "S3 兼容存储",
+      "package.description": "将文件保存到 S3 兼容存储桶。",
+      "settings.multipartThresholdMiB.label": "分片阈值（MiB）",
+      "settings.partSizeMiB.label": "分片大小（MiB）",
+      "settings.partConcurrency.label": "分片并发数",
+      "settings.endpoint.label": "端点",
+      "settings.region.label": "区域",
+      "settings.bucket.label": "存储桶",
+      "settings.keyPrefix.label": "对象前缀",
+      "settings.keyPrefix.description":
+        "为所有存储对象添加统一路径前缀，留空不添加。",
+      "settings.forcePathStyle.label": "路径寻址",
+      "settings.forcePathStyle.description":
+        "使用端点/桶名形式访问，是否启用以服务商要求为准。",
+      "settings.accessKeyId.label": "访问密钥 ID",
+      "settings.secretAccessKey.label": "访问密钥",
+      "settings.sessionToken.label": "会话令牌",
+      "settings.redirect.label": "302 重定向",
+      "settings.signedUrlSeconds.label": "签名链接有效期（秒）",
     },
   },
 
@@ -97,6 +85,10 @@ export const s3Storage: Definition<"storage"> = {
     type: "object",
     properties: {
       multipartThresholdMiB: {
+        "x-ui": {
+          labelKey: "settings.multipartThresholdMiB.label",
+          advanced: true,
+        },
         type: "integer",
 
         minimum: 5,
@@ -104,6 +96,7 @@ export const s3Storage: Definition<"storage"> = {
         default: 64,
       },
       partSizeMiB: {
+        "x-ui": { labelKey: "settings.partSizeMiB.label", advanced: true },
         type: "integer",
 
         minimum: 5,
@@ -111,6 +104,7 @@ export const s3Storage: Definition<"storage"> = {
         default: 16,
       },
       partConcurrency: {
+        "x-ui": { labelKey: "settings.partConcurrency.label", advanced: true },
         type: "integer",
 
         minimum: 1,
@@ -118,58 +112,78 @@ export const s3Storage: Definition<"storage"> = {
         default: 3,
       },
       endpoint: {
+        "x-ui": { labelKey: "settings.endpoint.label" },
         type: "string",
 
         format: "uri",
         "x-immutable": true,
       },
       region: {
+        "x-ui": { labelKey: "settings.region.label" },
         type: "string",
 
         minLength: 1,
         "x-immutable": true,
       },
       bucket: {
+        "x-ui": { labelKey: "settings.bucket.label" },
         type: "string",
 
         minLength: 1,
         "x-immutable": true,
       },
       keyPrefix: {
+        "x-ui": {
+          labelKey: "settings.keyPrefix.label",
+          descriptionKey: "settings.keyPrefix.description",
+          advanced: true,
+        },
         type: "string",
 
         default: "",
         "x-immutable": true,
       },
       forcePathStyle: {
+        "x-ui": {
+          labelKey: "settings.forcePathStyle.label",
+          descriptionKey: "settings.forcePathStyle.description",
+        },
         type: "boolean",
 
         default: true,
         "x-immutable": true,
       },
       accessKeyId: {
+        "x-ui": { labelKey: "settings.accessKeyId.label" },
         type: "string",
 
         minLength: 1,
         "x-sensitive": true,
       },
       secretAccessKey: {
+        "x-ui": { labelKey: "settings.secretAccessKey.label" },
         type: "string",
 
         minLength: 1,
         "x-sensitive": true,
       },
       sessionToken: {
+        "x-ui": { labelKey: "settings.sessionToken.label", advanced: true },
         type: "string",
 
         "x-sensitive": true,
       },
       redirect: {
+        "x-ui": { labelKey: "settings.redirect.label" },
         type: "boolean",
 
         default: false,
       },
       signedUrlSeconds: {
+        "x-ui": {
+          labelKey: "settings.signedUrlSeconds.label",
+          visibleWhen: { path: "/redirect", equals: true },
+        },
         type: "integer",
 
         minimum: 1,
@@ -177,16 +191,25 @@ export const s3Storage: Definition<"storage"> = {
         default: 300,
       },
     },
-    required: ["region", "bucket", "accessKeyId", "secretAccessKey"],
+    allOf: [
+      {
+        if: {
+          properties: { redirect: { const: true } },
+          required: ["redirect"],
+        },
+        then: { required: ["signedUrlSeconds"] },
+      },
+    ],
+    required: [
+      "region",
+      "bucket",
+      "accessKeyId",
+      "secretAccessKey",
+      "multipartThresholdMiB",
+      "partSizeMiB",
+      "partConcurrency",
+    ],
     additionalProperties: false,
-  },
-  uiHints: {
-    "/multipartThresholdMiB": { advanced: true },
-    "/partSizeMiB": { advanced: true },
-    "/partConcurrency": { advanced: true },
-    "/signedUrlSeconds": { visibleWhen: { path: "/redirect", equals: true } },
-    "/sessionToken": { advanced: true },
-    "/keyPrefix": { advanced: true },
   },
   async validateConfig(config) {
     if (config.endpoint) {
@@ -313,7 +336,7 @@ export const s3Storage: Definition<"storage"> = {
           );
         let body: Readable | undefined;
         try {
-          if (size >= Number(config.multipartThresholdMiB ?? 64) * 1024 ** 2) {
+          if (size >= Number(config.multipartThresholdMiB) * 1024 ** 2) {
             await multipartWrite(
               client,
               {
@@ -323,8 +346,8 @@ export const s3Storage: Definition<"storage"> = {
                 Metadata: { operation: operationId, file: fileId },
               },
               file,
-              Number(config.partSizeMiB ?? 16) * 1024 ** 2,
-              Number(config.partConcurrency ?? 3),
+              Number(config.partSizeMiB) * 1024 ** 2,
+              Number(config.partConcurrency),
               ctx,
             );
             return { locator: null };

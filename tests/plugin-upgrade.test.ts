@@ -14,7 +14,12 @@ test("storage upgrade previews credentials and required fields, preserves identi
     initialized = 0;
   const plugin = (version: string): Definition<"storage"> => ({
     defaultLocale: "en-US",
-    content: { "en-US": { name: "Upgrade test" } },
+    nameKey: "package.name",
+    messages: {
+      "en-US": {
+        "package.name": "Upgrade test",
+      },
+    },
 
     id: "example.upgrade",
 
@@ -110,7 +115,7 @@ test("storage upgrade previews credentials and required fields, preserves identi
     expect(res.headers.get("cache-control")).toBe("no-store");
     const preview = (await res.json()) as UpgradePreview;
     expect(preview.fields.some((x) => x.path === "/region")).toBe(true);
-    expect(preview.configuration.config.timeout).toBe(30);
+    expect(preview.configuration.config.timeout).toBeUndefined();
     expect(preview.configuration.secretEdits?.["/apiKey"]).toEqual({
       action: "replace",
       value: "old-secret",
@@ -174,7 +179,8 @@ test("owned stage upgrades validate parameters, keep IDs and retain saved config
   const f = await fixture();
   const plugin = (version: string): Definition<"processor"> => ({
     defaultLocale: "en-US",
-    content: { "en-US": { name: "Processor" } },
+    nameKey: "package.name",
+    messages: { "en-US": { "package.name": "Processor" } },
 
     id: "example.processor",
 
@@ -183,9 +189,6 @@ test("owned stage upgrades validate parameters, keep IDs and retain saved config
     apiVersion: 1,
     stages: {
       upload: {
-        defaultLocale: "en-US",
-        content: { "en-US": {} },
-
         configSchemaVersion: version === "1" ? 1 : 2,
         configSchema: {
           type: "object",
@@ -246,9 +249,6 @@ test("owned stage upgrades validate parameters, keep IDs and retain saved config
         ...plugin("3"),
         stages: {
           post_save: {
-            defaultLocale: "en-US",
-            content: { "en-US": {} },
-
             configSchemaVersion: 1,
             configSchema: { type: "object", properties: {} },
             async createInstance() {
@@ -296,7 +296,12 @@ test("upgrade refuses stale credentials and failed migrations without changing t
   const f = await fixture();
   const definition = (version: string): Definition<"path"> => ({
     defaultLocale: "en-US",
-    content: { "en-US": { name: "Path" } },
+    nameKey: "package.name",
+    messages: {
+      "en-US": {
+        "package.name": "Path",
+      },
+    },
 
     id: "example.path-upgrade",
 

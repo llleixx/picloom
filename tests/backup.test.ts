@@ -218,7 +218,16 @@ test("backup restores images, external local roots, settings and encrypted crede
       version: "1.0.0",
       name: "secret",
       stage: "post_save",
-      config: { bizType: "test" },
+      config: {
+        region: "ap-guangzhou",
+        submissionMode: "content",
+        maxContentMiB: 5,
+        blockAction: "block",
+        timeoutMs: 30000,
+        interval: 5,
+        maxFrames: 5,
+        bizType: "test",
+      },
       secretEdits: {
         "/secretId": { action: "replace", value: "test-id" },
         "/secretKey": { action: "replace", value: "kept-secret" },

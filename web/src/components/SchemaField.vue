@@ -1,118 +1,155 @@
 <script setup lang="ts">
-import SecretField from "./SecretField.vue";
-import { t } from "@/lib/i18n";
-import { computed, ref, useId, watch } from "vue";
-import { ChevronRight, Plus } from "lucide-vue-next";
+import { computed, ref, useId, watch, type PropType } from "vue";
+import { equalJson, type Schema } from "../../../shared/field-schema";
+import { t, locale } from "@/lib/i18n";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
-  cloneJson,
-  readPointer,
-  writePointer,
+  initialValue,
   pointer,
+  readPointer,
   type Config,
   type Json,
-  type UIHints,
-  type SecretEdit,
+  type FieldHint,
 } from "../../../shared/config";
-const props = defineProps<{
-  schema: Config;
-  config: Config;
-  path: string;
-  hints: UIHints;
-  secretPresence: Record<string, boolean>;
-  edits: Record<string, SecretEdit>;
-  editing: boolean;
-  configurationKey?: string;
-  errors: Array<{ path: string; message: string }>;
-  label?: string;
-  required?: boolean;
-  locked?: boolean;
+import {
+  fieldText,
+  messageText,
+  type MessageCatalog,
+} from "../../../shared/package-localization";
+// A JSON value must not undergo Vue's Boolean-prop casting ("" must stay "").
+const props = defineProps({
+  schema: { type: Object as PropType<Schema>, required: true },
+  value: { type: null as unknown as PropType<Json | undefined> },
+  path: { type: String, default: "" },
+  label: String,
+  required: Boolean,
+  localization: { type: Object as PropType<MessageCatalog>, required: true },
+  root: Object as PropType<Config>,
+  errors: {
+    type: Array as PropType<Array<{ path: string; message: string }>>,
+    default: () => [],
+  },
+  disabled: Function as PropType<(schema: Schema, path: string) => boolean>,
+  removable: Function as PropType<(schema: Schema, path: string) => boolean>,
+});
+const emit = defineEmits<{ change: [value: Json | undefined] }>();
+defineSlots<{
+  field(props: {
+    schema: Schema;
+    path: string;
+    value: Json | undefined;
+    label: string;
+    required: boolean | undefined;
+    locked: boolean;
+    change: (value: Json | undefined) => void;
+  }): any;
 }>();
-const hint = computed(() => props.hints[props.path] ?? {}),
-  visible = computed(
-    () =>
-      !hint.value.visibleWhen ||
-      JSON.stringify(readPointer(props.config, hint.value.visibleWhen.path)) ===
-        JSON.stringify(hint.value.visibleWhen.equals),
-  );
-const sensitive = computed(
+const id = useId();
+const hint = computed<FieldHint>(() => props.schema["x-ui"] ?? {});
+const text = computed(() =>
+  fieldText(props.localization, locale.value, hint.value),
+);
+const label = computed(() => text.value.label ?? props.label ?? props.path);
+const root = computed(() => props.root ?? (props.value as Config) ?? {});
+const locked = computed(
+  () => props.disabled?.(props.schema, props.path) ?? false,
+);
+const visible = computed(
   () =>
-    props.path in props.secretPresence ||
-    props.schema["x-sensitive"] === true ||
-    (props.schema.type === "array" &&
-      JSON.stringify(props.schema).includes('"x-sensitive":true')),
-);
-const immutable = computed(
-  () => props.locked || (props.editing && props.schema["x-immutable"] === true),
-);
-const value = computed(() =>
-  sensitive.value
-    ? props.edits[props.path]?.value
-    : readPointer(props.config, props.path),
+    !hint.value.visibleWhen ||
+    equalJson(
+      readPointer(root.value, hint.value.visibleWhen.path),
+      hint.value.visibleWhen.equals,
+    ),
 );
 const children = computed(() =>
-  Object.entries(
-    (props.schema.properties ?? {}) as Record<string, Config>,
-  ).sort(
-    ([a], [b]) =>
-      (props.hints[props.path + "/" + pointer(a)]?.order ?? 0) -
-      (props.hints[props.path + "/" + pointer(b)]?.order ?? 0),
+  Object.entries(props.schema.properties ?? {}).sort(
+    ([, a], [, b]) => (a["x-ui"]?.order ?? 0) - (b["x-ui"]?.order ?? 0),
   ),
 );
-function set(value: Json | undefined) {
-  if (sensitive.value) {
-    const edit = props.edits[props.path];
-    if (edit) edit.value = value;
-  } else writePointer(props.config, props.path, value);
-}
-const showAdvanced = ref(false);
-const advancedId = useId();
-const regularChildren = computed(() =>
-  children.value.filter(
-    ([key]) => !props.hints[props.path + "/" + pointer(key)]?.advanced,
-  ),
-);
-const advancedChildren = computed(() =>
-  children.value.filter(
-    ([key]) => props.hints[props.path + "/" + pointer(key)]?.advanced,
-  ),
-);
+const advanced = ref(false);
 watch(
   () => props.errors,
   (errors) => {
     if (
-      advancedChildren.value.some(([key]) =>
-        errors.some(
-          (error) =>
-            error.path === props.path + "/" + pointer(key) ||
-            error.path.startsWith(props.path + "/" + pointer(key) + "/"),
-        ),
+      children.value.some(
+        ([key, rule]) =>
+          rule["x-ui"]?.advanced &&
+          errors.some(
+            (error) =>
+              error.path === props.path + "/" + pointer(key) ||
+              error.path.startsWith(props.path + "/" + pointer(key) + "/"),
+          ),
       )
     )
-      showAdvanced.value = true;
+      advanced.value = true;
   },
   { immediate: true },
 );
+// Row identity follows structural edits so nested drafts move with their item.
+let nextRowKey = 0;
+const rowKeys = ref<number[]>([]);
+watch(
+  () => (Array.isArray(props.value) ? props.value.length : 0),
+  (length) => {
+    rowKeys.value.length = Math.min(rowKeys.value.length, length);
+    while (rowKeys.value.length < length) rowKeys.value.push(nextRowKey++);
+  },
+  { immediate: true, flush: "sync" },
+);
+const pending = ref(false);
+const pendingValue = ref<Json>();
 const invalid = computed(() =>
   props.errors.some((error) => error.path === props.path),
 );
-function initial(rule: Config): Json {
-  return rule.default !== undefined
-    ? cloneJson(rule.default)
-    : rule.type === "object"
-      ? {}
-      : rule.type === "array"
-        ? []
-        : rule.type === "boolean"
-          ? false
-          : rule.type === "number" || rule.type === "integer"
-            ? 0
-            : "";
+const options = computed(() => props.schema.enum as Json[] | undefined);
+const selectedOption = computed(() => {
+  const option = options.value?.find((value) => equalJson(value, props.value));
+  return option === undefined ? "__unset" : JSON.stringify(option);
+});
+function set(value: Json | undefined) {
+  emit("change", value);
+}
+function child(key: string, value: Json | undefined) {
+  if (props.schema.type === "array") {
+    if (value === undefined) return; // Removing array items is an explicit structural operation.
+    const next = [...(props.value as Json[])];
+    next[Number(key)] = value;
+    set(next);
+  } else {
+    if (value === undefined && props.value === undefined) return;
+    const next = { ...((props.value as Config) ?? {}) };
+    if (value === undefined) delete next[key];
+    else next[key] = value;
+    set(next);
+  }
 }
 function append() {
-  const items = Array.isArray(value.value) ? [...value.value] : [];
-  items.push(initial(props.schema.items as Config));
+  const rule = props.schema.items!;
+  let value = initialValue(rule);
+  if (value === undefined && rule.type === "object") value = {};
+  if (value === undefined) {
+    pendingValue.value = undefined;
+    pending.value = true;
+  } else set([...(Array.isArray(props.value) ? props.value : []), value]);
+}
+function finish(value: Json | undefined) {
+  if (value === undefined) return;
+  set([...(Array.isArray(props.value) ? props.value : []), value]);
+  pending.value = false;
+}
+function remove(index: number) {
+  rowKeys.value.splice(index, 1);
+  set((props.value as Json[]).filter((_, n) => n !== index));
+}
+function move(index: number, delta: number) {
+  const items = [...(props.value as Json[])];
+  [items[index], items[index + delta]] = [items[index + delta]!, items[index]!];
+  [rowKeys.value[index], rowKeys.value[index + delta]] = [
+    rowKeys.value[index + delta]!,
+    rowKeys.value[index]!,
+  ];
   set(items);
 }
 </script>
@@ -120,20 +157,21 @@ function append() {
   <div v-if="visible" class="space-y-2">
     <div v-if="path" class="flex items-center justify-between gap-2">
       <label
-        :for="'field' + path"
+        :for="id"
         class="relative pr-3 text-sm font-medium"
         :class="{ 'required-label': required }"
-        >{{ schema.title ?? label ?? path
-        }}<span v-if="hint.group" class="ml-2 text-xs text-muted-foreground">{{
-          hint.group
-        }}</span
-        ><span
-          v-if="hint.advanced"
-          class="ml-2 text-xs text-muted-foreground"
-          >{{ t("ui.advanced") }}</span
-        ></label
-      ><Button
-        v-if="!required && !sensitive && !immutable && value !== undefined"
+        >{{ label
+        }}<span v-if="hint.groupKey" class="ml-2 subtle">{{
+          messageText(localization, locale, hint.groupKey)
+        }}</span></label
+      >
+      <Button
+        v-if="
+          !required &&
+          !locked &&
+          value !== undefined &&
+          (removable?.(schema, path) ?? true)
+        "
         type="button"
         size="sm"
         variant="ghost"
@@ -141,204 +179,255 @@ function append() {
         >{{ t("ui.removeField") }}</Button
       >
     </div>
-    <p v-if="schema.description" class="subtle">{{ schema.description }}</p>
-    <SecretField
-      v-if="sensitive"
+    <p v-if="text.description" class="subtle">{{ text.description }}</p>
+    <slot
+      name="field"
+      :schema="schema"
       :path="path"
-      :label="String(schema.title ?? label ?? path)"
-      :configuration-key="configurationKey"
-      :configured="!!secretPresence[path]"
-      :edit="edits[path]"
-      :json-value="schema.type !== 'string'"
-      :invalid="invalid"
-      :locked="immutable"
-      @update:edit="edits[path] = $event"
-    />
-    <template v-else-if="schema.type === 'object'">
-      <div class="space-y-4" :class="path ? 'border-l pl-4' : ''">
-        <SchemaField
-          v-for="[key, rule] in regularChildren"
-          :key="key"
-          :schema="rule"
-          :path="path + '/' + pointer(key)"
-          :label="key"
-          :required="(schema.required as string[] | undefined)?.includes(key)"
-          :config="config"
-          :hints="hints"
-          :secret-presence="secretPresence"
-          :edits="edits"
-          :editing="editing"
-          :configuration-key="configurationKey"
-          :locked="immutable"
-          :errors="errors"
-        />
-        <Button
-          v-if="advancedChildren.length"
-          type="button"
-          size="sm"
-          variant="ghost"
-          :aria-expanded="showAdvanced"
-          :aria-controls="advancedId"
-          @click="showAdvanced = !showAdvanced"
+      :value="value"
+      :label="label"
+      :required="required"
+      :locked="locked"
+      :change="set"
+    >
+      <select
+        v-if="options"
+        :id="id"
+        :aria-label="label"
+        :aria-invalid="invalid || undefined"
+        :disabled="locked"
+        class="native-select w-full"
+        :value="selectedOption"
+        @change="
+          set(
+            ($event.target as HTMLSelectElement).value === '__unset'
+              ? undefined
+              : JSON.parse(($event.target as HTMLSelectElement).value),
+          )
+        "
+      >
+        <option value="__unset" :disabled="required">
+          {{ t("ui.notSet") }}
+        </option>
+        <option
+          v-for="(option, index) in options"
+          :key="JSON.stringify(option)"
+          :value="JSON.stringify(option)"
         >
-          <ChevronRight
-            class="size-4 transition-transform"
-            :class="{ 'rotate-90': showAdvanced }"
-            aria-hidden="true"
-          />
-          {{ showAdvanced ? t("ui.hideAdvanced") : t("ui.showAdvanced") }}
-        </Button>
-        <div
-          v-if="advancedChildren.length"
-          v-show="showAdvanced"
-          :id="advancedId"
-          class="space-y-4"
-        >
-          <SchemaField
-            v-for="[key, rule] in advancedChildren"
-            :key="key"
-            :schema="rule"
-            :path="path + '/' + pointer(key)"
-            :label="key"
-            :required="(schema.required as string[] | undefined)?.includes(key)"
-            :config="config"
-            :hints="hints"
-            :secret-presence="secretPresence"
-            :edits="edits"
-            :editing="editing"
-            :configuration-key="configurationKey"
-            :locked="immutable"
-            :errors="errors"
-          />
-        </div>
-      </div>
-    </template>
-    <template v-else-if="schema.type === 'array'">
-      <div class="space-y-3 border-t py-4">
-        <div
-          v-for="(_, index) in Array.isArray(value) ? value : []"
-          :key="index"
-          class="space-y-2 border-b pb-3"
-        >
-          <SchemaField
-            :schema="schema.items as Config"
-            :path="path + '/' + index"
-            :label="t('fields.item', { number: index + 1 })"
-            :config="config"
-            :hints="hints"
-            :secret-presence="secretPresence"
-            :edits="edits"
-            :editing="editing"
-            :configuration-key="configurationKey"
-            :locked="immutable"
-            :errors="errors"
-          /><Button
-            v-if="!immutable"
+          {{
+            text.enumLabels?.[index] ??
+            (typeof option === "object"
+              ? JSON.stringify(option)
+              : String(option))
+          }}
+        </option>
+      </select>
+      <template v-else-if="schema.type === 'object'">
+        <div class="space-y-4" :class="path ? 'border-l pl-4' : ''">
+          <Button
+            v-if="value === undefined && children.length === 0"
+            type="button"
+            variant="outline"
+            :disabled="locked"
+            @click="set({})"
+            >{{ t("ui.setEmptyObject") }}</Button
+          >
+          <template v-for="[key, rule] in children" :key="key">
+            <SchemaField
+              v-if="!rule['x-ui']?.advanced || advanced"
+              :schema="rule"
+              :value="readPointer((value ?? {}) as Config, '/' + pointer(key))"
+              :path="path + '/' + pointer(key)"
+              :label="key"
+              :required="
+                (schema.required as string[] | undefined)?.includes(key)
+              "
+              :root="root"
+              :localization="localization"
+              :errors="errors"
+              :disabled="disabled"
+              :removable="removable"
+              @change="child(key, $event)"
+            >
+              <template #field="field"
+                ><slot name="field" v-bind="field"
+              /></template>
+            </SchemaField>
+          </template>
+          <Button
+            v-if="children.some(([, rule]) => rule['x-ui']?.advanced)"
             type="button"
             size="sm"
             variant="ghost"
-            @click="set((value as Json[]).filter((_, n) => n !== index))"
-            >{{ t("ui.removeItem") }}</Button
+            :aria-expanded="advanced"
+            @click="advanced = !advanced"
+            >{{
+              advanced ? t("ui.hideAdvanced") : t("ui.showAdvanced")
+            }}</Button
           >
         </div>
-        <Button
-          v-if="!immutable"
-          type="button"
-          variant="outline"
-          size="sm"
-          @click="append"
-          ><Plus />{{ t("ui.addItem") }}</Button
+      </template>
+      <template v-else-if="schema.type === 'array'">
+        <div
+          v-for="(item, index) in Array.isArray(value) ? value : []"
+          :key="rowKeys[index]"
+          class="space-y-2 border-l pl-4"
         >
-      </div>
-    </template>
-    <select
-      v-else-if="schema.enum"
-      :id="'field' + path"
-      :aria-invalid="invalid || undefined"
-      :aria-label="String(schema.title ?? label ?? path)"
-      :disabled="immutable"
-      class="native-select w-full"
-      :value="value === undefined ? '__unset' : JSON.stringify(value)"
-      @change="
-        set(
-          ($event.target as HTMLSelectElement).value === '__unset'
-            ? undefined
-            : JSON.parse(($event.target as HTMLSelectElement).value),
-        )
-      "
-    >
-      <option v-if="!required" value="__unset">{{ t("ui.notSet") }}</option>
-      <option
-        v-for="(option, index) in schema.enum as Json[]"
-        :key="JSON.stringify(option)"
-        :value="JSON.stringify(option)"
+          <SchemaField
+            :schema="schema.items!"
+            :value="item"
+            :path="path + '/' + index"
+            :label="t('fields.item', { number: index + 1 })"
+            required
+            :root="root"
+            :localization="localization"
+            :errors="errors"
+            :disabled="disabled"
+            :removable="removable"
+            @change="child(String(index), $event)"
+          >
+            <template #field="field"
+              ><slot name="field" v-bind="field"
+            /></template>
+          </SchemaField>
+          <div v-if="!locked" class="flex gap-2">
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              @click="remove(index)"
+              >{{ t("ui.removeItem") }}</Button
+            >
+            <Button
+              v-if="index > 0"
+              type="button"
+              size="sm"
+              variant="ghost"
+              :aria-label="t('ui.moveItemUp')"
+              @click="move(index, -1)"
+              >↑</Button
+            >
+            <Button
+              v-if="index + 1 < (value as Json[]).length"
+              type="button"
+              size="sm"
+              variant="ghost"
+              :aria-label="t('ui.moveItemDown')"
+              @click="move(index, 1)"
+              >↓</Button
+            >
+          </div>
+        </div>
+        <SchemaField
+          v-if="pending && !locked"
+          :schema="schema.items!"
+          :path="path + '/' + (Array.isArray(value) ? value.length : 0)"
+          :label="t('ui.newItem')"
+          :value="pendingValue"
+          required
+          :localization="localization"
+          :root="root"
+          @change="pendingValue = $event"
+        >
+          <template #field="field"
+            ><slot name="field" v-bind="field"
+          /></template>
+        </SchemaField>
+        <Button
+          v-if="pending"
+          type="button"
+          :disabled="pendingValue === undefined"
+          @click="finish(pendingValue)"
+          >{{ t("ui.addItem") }}</Button
+        >
+        <Button
+          v-if="pending"
+          type="button"
+          variant="ghost"
+          @click="pending = false"
+          >{{ t("ui.cancel") }}</Button
+        >
+        <Button
+          v-if="!locked && !pending"
+          type="button"
+          size="sm"
+          variant="outline"
+          @click="append"
+          >{{ t("ui.addItem") }}</Button
+        >
+      </template>
+      <Button
+        v-else-if="schema.type === 'null'"
+        type="button"
+        variant="outline"
+        :disabled="locked"
+        @click="set(null)"
+        >{{ t("ui.setToNull") }}</Button
       >
-        {{
-          (schema["x-enumLabels"] as string[] | undefined)?.[index] ?? option
-        }}
-      </option>
-    </select>
-    <Button
-      v-else-if="schema.type === 'null'"
-      type="button"
-      variant="outline"
-      :disabled="immutable"
-      @click="set(null)"
-      >{{ t("ui.setToNull") }}</Button
-    >
-    <label
-      v-else-if="schema.type === 'boolean'"
-      class="flex items-center gap-2 text-sm"
-      ><input
-        :id="'field' + path"
+      <select
+        v-else-if="schema.type === 'boolean'"
+        :id="id"
+        :aria-label="label"
         :aria-invalid="invalid || undefined"
-        :aria-label="String(schema.title ?? label ?? path)"
-        type="checkbox"
-        :checked="!!value"
-        :disabled="immutable"
-        @change="set(($event.target as HTMLInputElement).checked)"
-      />{{ t("ui.enabled") }}</label
-    >
-    <textarea
-      v-else-if="hint.widget === 'textarea'"
-      :id="'field' + path"
-      :aria-invalid="invalid || undefined"
-      :aria-label="String(schema.title ?? label ?? path)"
-      :value="value as string"
-      :disabled="immutable"
-      class="native-select h-24 w-full"
-      @input="set(($event.target as HTMLTextAreaElement).value)"
-    />
-    <Input
-      v-else
-      :id="'field' + path"
-      :aria-invalid="invalid || undefined"
-      :aria-label="String(schema.title ?? label ?? path)"
-      :model-value="(value ?? '') as string | number"
-      :disabled="immutable"
-      :type="
-        ['integer', 'number'].includes(String(schema.type))
-          ? 'number'
-          : hint.widget === 'password'
-            ? 'password'
-            : 'text'
-      "
-      :min="schema.minimum as number"
-      :max="schema.maximum as number"
-      :step="schema.type === 'integer' ? 1 : 'any'"
-      @update:model-value="
-        set(
-          ['integer', 'number'].includes(String(schema.type))
-            ? $event === ''
+        class="native-select w-full"
+        :disabled="locked"
+        :value="value === undefined ? '__unset' : String(value)"
+        @change="
+          set(
+            ($event.target as HTMLSelectElement).value === '__unset'
               ? undefined
-              : Number($event)
-            : String($event),
-        )
-      "
-    />
-    <p v-if="immutable" class="text-xs text-muted-foreground">
-      {{ t("ui.storageLocationIsFixedCreateANew") }}
-    </p>
+              : ($event.target as HTMLSelectElement).value === 'true',
+          )
+        "
+      >
+        <option value="__unset" :disabled="required">
+          {{ t("ui.notSet") }}
+        </option>
+        <option value="true">{{ t("ui.enabled") }}</option>
+        <option value="false">{{ t("ui.disabled") }}</option>
+      </select>
+      <textarea
+        v-else-if="hint.widget === 'textarea'"
+        :id="id"
+        :aria-label="label"
+        :aria-invalid="invalid || undefined"
+        :value="value as string"
+        :disabled="locked"
+        class="native-select h-24 w-full"
+        :minlength="schema.minLength as number"
+        :maxlength="schema.maxLength as number"
+        @input="set(($event.target as HTMLTextAreaElement).value)"
+      />
+      <Input
+        v-else
+        :id="id"
+        :aria-label="label"
+        :aria-invalid="invalid || undefined"
+        :model-value="(value ?? '') as string | number"
+        :disabled="locked"
+        :type="
+          ['integer', 'number'].includes(String(schema.type))
+            ? 'number'
+            : hint.widget === 'password'
+              ? 'password'
+              : 'text'
+        "
+        :min="schema.minimum as number"
+        :max="schema.maximum as number"
+        :step="schema.type === 'integer' ? 1 : 'any'"
+        :minlength="schema.minLength as number"
+        :maxlength="schema.maxLength as number"
+        @update:model-value="
+          set(
+            ['integer', 'number'].includes(String(schema.type))
+              ? $event === ''
+                ? undefined
+                : Number($event)
+              : String($event),
+          )
+        "
+      />
+    </slot>
     <p
       v-for="error in errors.filter((e) => e.path === path)"
       :key="error.message"

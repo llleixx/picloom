@@ -7,7 +7,13 @@ import {
 
 export default {
   defaultLocale: "en-US",
-  content: { "en-US": { name: "Example resize" } },
+  nameKey: "package.name",
+  messages: {
+    "en-US": {
+      "package.name": "Example resize",
+      "settings.width.label": "Maximum width",
+    },
+  },
 
   id: "example.resize",
 
@@ -16,18 +22,12 @@ export default {
   apiVersion: 1,
   stages: {
     upload: {
-      defaultLocale: "en-US",
-      content: {
-        "en-US": {
-          configSchema: { "/properties/width": { title: "Maximum width" } },
-        },
-      },
-
       configSchemaVersion: 1,
       configSchema: {
         type: "object",
         properties: {
           width: {
+            "x-ui": { labelKey: "settings.width.label" },
             type: "integer",
 
             minimum: 1,

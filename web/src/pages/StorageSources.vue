@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/dialog";
 import { api, ApiError, errorText, notify, queryClient } from "@/lib/api";
 import ImportSheet from "@/components/ImportSheet.vue";
+import { createPluginDraft } from "@/lib/plugin-draft";
 import PluginConfigurationEditor from "@/components/PluginConfigurationEditor.vue";
 import type {
   PluginSummary,
@@ -135,12 +136,16 @@ watch(
       const plugin = plugins.data.value.find(
         (p) => p.id + "@" + p.version === choice,
       );
-      if (plugin)
-        storage.value = {
-          pluginId: plugin.id,
-          version: plugin.version,
-          config: {},
-        };
+      if (plugin) {
+        busy.value = true;
+        try {
+          storage.value = await createPluginDraft(plugin.id, plugin.version);
+        } catch (e) {
+          error.value = errorText(e);
+        } finally {
+          busy.value = false;
+        }
+      }
     }
   },
   { immediate: true },

@@ -203,14 +203,27 @@ test("schema form supports nested arrays, sensitive arrays and conditions, and k
     .selectOption(group.id);
   await page.getByLabel("Profile name").fill("Schema profile");
   await expect(page.getByLabel("Details", { exact: true })).toHaveCount(0);
-  await page.getByLabel("Show details", { exact: true }).check();
+  await page.getByLabel("Show details", { exact: true }).selectOption("true");
   await page.getByLabel("Details", { exact: true }).fill("value");
   await page
     .getByRole("button", { name: "Show advanced", exact: true })
     .click();
   await page.getByLabel("Nested name").fill("nested");
-  await page.getByRole("button", { name: "Add item", exact: true }).click();
+  await page
+    .getByRole("button", { name: "Add item", exact: true })
+    .first()
+    .click();
   await page.getByLabel("Item name").fill("first");
+  await page
+    .getByRole("button", { name: "Add item", exact: true })
+    .last()
+    .click();
+  await expect(
+    page.getByRole("button", { name: "Set to null", exact: true }),
+  ).toHaveCount(1);
+  await expect(
+    page.getByRole("button", { name: "Remove item", exact: true }),
+  ).toHaveCount(2);
   await page
     .getByLabel("Secret items", { exact: true })
     .fill('[{"token":"secret-array-token"}]');
@@ -227,6 +240,7 @@ test("schema form supports nested arrays, sensitive arrays and conditions, and k
   expect(JSON.stringify(instance)).not.toContain("secret-array-token");
   expect(instance.config.nested.label).toBe("nested");
   expect(instance.config.items[0].name).toBe("first");
+  expect(instance.config.nulls).toEqual([null]);
   const row = page
     .getByRole("heading", { name: "Schema profile", exact: true })
     .locator("..")
@@ -379,7 +393,9 @@ test("processor forms use stage settings and persist request parameter permissio
     .click();
   await expect(page.getByLabel("Width", { exact: true })).toHaveCount(0);
   await page.getByLabel("Enable q", { exact: true }).uncheck();
-  await page.getByLabel("Allow enlargement", { exact: true }).check();
+  await page
+    .getByLabel("Allow enlargement", { exact: true })
+    .selectOption("true");
   await page
     .getByRole("dialog")
     .getByRole("button", { name: "Save", exact: true })
@@ -408,7 +424,7 @@ test("processor forms use stage settings and persist request parameter permissio
   await expect(page.getByLabel("Enable q", { exact: true })).not.toBeChecked();
   await expect(
     page.getByLabel("Allow enlargement", { exact: true }),
-  ).toBeChecked();
+  ).toHaveValue("true");
 });
 
 test("pipeline errors identify the step and submissions keep the drawer open", async ({
@@ -556,4 +572,214 @@ test("storage source uses the shared editor and preserves hidden credentials on 
     await page.request.get(service.url + "/api/storage-sources/" + saved.id)
   ).json();
   expect(cleared.secretPresence["/sessionToken"]).not.toBe(true);
+});
+
+test("new plugin drafts do not restore removed defaults on rerenders or save", async ({
+  page,
+  service,
+}) => {
+  await login(page, service.url);
+  await page
+    .getByRole("link", { name: "Upload Profiles", exact: true })
+    .click();
+  await page.getByRole("button", { name: "Create", exact: true }).click();
+  // Retry a failed explicit selection; details loading must never initialize a draft.
+  await page.route(
+    "**/api/plugins/test.form/versions/1",
+    (route) => route.abort(),
+    { times: 1 },
+  );
+  await page
+    .getByLabel("Path plugin", { exact: true })
+    .selectOption("test.form@1");
+  await page.getByRole("button", { name: "Retry", exact: true }).click();
+  const group = (
+    await (await page.request.get(service.url + "/api/storage-groups")).json()
+  )[0];
+  await page
+    .getByLabel("Storage group", { exact: true })
+    .selectOption(group.id);
+  await page.getByLabel("Profile name").fill("Removed defaults");
+  await page
+    .getByRole("button", { name: "Show advanced", exact: true })
+    .click();
+  const nested = page.getByLabel("Nested name", { exact: true });
+  await expect(nested).toHaveValue("default");
+  await nested
+    .locator("..")
+    .getByRole("button", { name: "Remove field", exact: true })
+    .click();
+  await expect(nested).toHaveValue("");
+  // Force a UI rerender without replacing the draft.
+  await page.getByLabel("Show details", { exact: true }).selectOption("true");
+  await page.getByLabel("Show details", { exact: true }).selectOption("false");
+  await expect(nested).toHaveValue("");
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  const profiles = await (
+    await page.request.get(service.url + "/api/upload-profiles")
+  ).json();
+  const profile = profiles.find((p: any) => p.name === "Removed defaults");
+  const detail = await (
+    await page.request.get(service.url + "/api/upload-profiles/" + profile.id)
+  ).json();
+  expect(detail.path.config.nested).toEqual({});
+});
+
+test("explicit empty objects and empty secrets preserve missing-value distinctions", async ({
+  page,
+  service,
+}) => {
+  await login(page, service.url);
+  await page
+    .getByRole("link", { name: "Upload Profiles", exact: true })
+    .click();
+  await page.getByRole("button", { name: "Create", exact: true }).click();
+  await page
+    .getByLabel("Path plugin", { exact: true })
+    .selectOption("test.form@1");
+  await expect(page.getByLabel("toString", { exact: true })).toHaveValue("");
+  const empty = page.getByRole("button", {
+    name: "Set empty object",
+    exact: true,
+  });
+  await expect(empty).toBeVisible();
+  await empty.click();
+  await expect(empty).toHaveCount(0);
+  await page.getByLabel("Empty secret", { exact: true }).fill("temporary");
+  await page.getByLabel("Empty secret", { exact: true }).fill("");
+  await expect(
+    page.getByRole("button", { name: "Clear Empty secret", exact: true }),
+  ).toBeVisible();
+  const group = (
+    await (await page.request.get(service.url + "/api/storage-groups")).json()
+  )[0];
+  await page
+    .getByLabel("Storage group", { exact: true })
+    .selectOption(group.id);
+  await page.getByLabel("Profile name").fill("Explicit empty values");
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  const profiles = await (
+    await page.request.get(service.url + "/api/upload-profiles")
+  ).json();
+  const profile = profiles.find((p: any) => p.name === "Explicit empty values");
+  const detail = await (
+    await page.request.get(service.url + "/api/upload-profiles/" + profile.id)
+  ).json();
+  expect(detail.path.config.empty).toEqual({});
+  expect(Object.hasOwn(detail.path.config, "toString")).toBe(false);
+  expect(detail.path.secretPresence["/emptySecret"]).toBe(true);
+  const session = await (
+    await page.request.get(service.url + "/api/auth/session")
+  ).json();
+  const revealed = await (
+    await page.request.post(
+      service.url +
+        "/api/plugin-configurations/" +
+        detail.path.key +
+        "/reveal-secret",
+      {
+        headers: { "X-CSRF-Token": session.csrfToken },
+        data: { path: "/emptySecret" },
+      },
+    )
+  ).json();
+  expect(revealed.value).toBe("");
+  await page
+    .getByRole("heading", { name: "Explicit empty values", exact: true })
+    .locator("..")
+    .locator("..")
+    .getByRole("button", { name: "Edit", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: "Clear Empty secret", exact: true })
+    .click();
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  const cleared = await (
+    await page.request.get(service.url + "/api/upload-profiles/" + profile.id)
+  ).json();
+  expect(cleared.path.secretPresence["/emptySecret"]).not.toBe(true);
+});
+
+test("nested array drafts follow their row through reorder and removal", async ({
+  page,
+  service,
+}) => {
+  await login(page, service.url);
+  await page
+    .getByRole("link", { name: "Upload Profiles", exact: true })
+    .click();
+  await page.getByRole("button", { name: "Create", exact: true }).click();
+  await page
+    .getByLabel("Path plugin", { exact: true })
+    .selectOption("test.form@1");
+  const items = page.getByText("Items", { exact: true }).locator("../..");
+  const rows = items.locator(":scope > div.border-l");
+  for (const name of ["A", "B", "C"]) {
+    await items
+      .getByRole("button", { name: "Add item", exact: true })
+      .last()
+      .click();
+    await rows.last().getByLabel("Item name", { exact: true }).fill(name);
+  }
+  await rows
+    .first()
+    .getByRole("button", { name: "Add item", exact: true })
+    .click();
+  await page.getByLabel("New item", { exact: true }).fill("draft-for-A");
+  await rows
+    .first()
+    .getByRole("button", { name: "Move item down", exact: true })
+    .click();
+  await expect(
+    rows.nth(1).getByLabel("Item name", { exact: true }),
+  ).toHaveValue("A");
+  await expect(rows.nth(1).getByLabel("New item", { exact: true })).toHaveValue(
+    "draft-for-A",
+  );
+  await rows
+    .nth(1)
+    .getByRole("button", { name: "Add item", exact: true })
+    .click();
+  await rows
+    .nth(2)
+    .getByRole("button", { name: "Add item", exact: true })
+    .click();
+  await page.getByLabel("New item", { exact: true }).fill("draft-for-C");
+  await rows
+    .first()
+    .getByRole("button", { name: "Remove item", exact: true })
+    .click();
+  await expect(
+    rows.nth(1).getByLabel("Item name", { exact: true }),
+  ).toHaveValue("C");
+  await expect(rows.nth(1).getByLabel("New item", { exact: true })).toHaveValue(
+    "draft-for-C",
+  );
+  await rows
+    .nth(1)
+    .getByRole("button", { name: "Add item", exact: true })
+    .click();
+  const group = (
+    await (await page.request.get(service.url + "/api/storage-groups")).json()
+  )[0];
+  await page
+    .getByLabel("Storage group", { exact: true })
+    .selectOption(group.id);
+  await page.getByLabel("Profile name").fill("Array row drafts");
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  const profiles = await (
+    await page.request.get(service.url + "/api/upload-profiles")
+  ).json();
+  const profile = profiles.find((p: any) => p.name === "Array row drafts");
+  const detail = await (
+    await page.request.get(service.url + "/api/upload-profiles/" + profile.id)
+  ).json();
+  expect(detail.path.config.items).toEqual([
+    { name: "A", tags: ["draft-for-A"] },
+    { name: "C", tags: ["draft-for-C"] },
+  ]);
 });

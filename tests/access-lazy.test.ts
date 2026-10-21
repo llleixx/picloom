@@ -42,7 +42,8 @@ test("parameterless access executes; lazy reads share a source; untouched chains
   };
   f.app.plugins.register({
     defaultLocale: "en-US",
-    content: { "en-US": { name: "Lazy" } },
+    nameKey: "package.name",
+    messages: { "en-US": { "package.name": "Lazy" } },
 
     id: "test.lazy",
 
@@ -51,9 +52,6 @@ test("parameterless access executes; lazy reads share a source; untouched chains
     apiVersion: 1,
     stages: {
       access: {
-        defaultLocale: "en-US",
-        content: { "en-US": {} },
-
         configSchemaVersion: 1,
         configSchema: { type: "object", properties: {} },
         async createInstance() {
@@ -119,7 +117,8 @@ test("later access steps see replacements; parameterless output is cached", asyn
   let checks = 0;
   f.app.plugins.register({
     defaultLocale: "en-US",
-    content: { "en-US": { name: "Inspect" } },
+    nameKey: "package.name",
+    messages: { "en-US": { "package.name": "Inspect" } },
 
     id: "test.inspect",
 
@@ -128,9 +127,6 @@ test("later access steps see replacements; parameterless output is cached", asyn
     apiVersion: 1,
     stages: {
       access: {
-        defaultLocale: "en-US",
-        content: { "en-US": {} },
-
         configSchemaVersion: 1,
         configSchema: { type: "object", properties: {} },
         async createInstance({ services }) {
@@ -161,7 +157,8 @@ test("later access steps see replacements; parameterless output is cached", asyn
   });
   f.app.plugins.register({
     defaultLocale: "en-US",
-    content: { "en-US": { name: "Observe" } },
+    nameKey: "package.name",
+    messages: { "en-US": { "package.name": "Observe" } },
 
     id: "test.observe",
 
@@ -170,9 +167,6 @@ test("later access steps see replacements; parameterless output is cached", asyn
     apiVersion: 1,
     stages: {
       access: {
-        defaultLocale: "en-US",
-        content: { "en-US": {} },
-
         configSchemaVersion: 1,
         configSchema: { type: "object", properties: {} },
         async createInstance() {

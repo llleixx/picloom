@@ -1,5 +1,12 @@
 // UI copy lives here. Keep keys stable when editing English wording.
 export const en = {
+  "ui.moveItemUp": "Move item up",
+  "ui.moveItemDown": "Move item down",
+  "ui.newItem": "New item",
+  "ui.disabled": "Disabled",
+  "linkBuilder.defaultConflict":
+    "Default values differ; enter a value explicitly.",
+  "themes.removeObject": "Remove entire group (all languages and settings)",
   "themes.chooseLanguage": "Choose a default language",
   "themes.siteLanguageHelp":
     "This is the site default language. It changes only when you apply this theme.",
@@ -787,6 +794,7 @@ export const en = {
   "ui.removeItem": "Remove item",
   "ui.addItem": "Add item",
   "ui.notSet": "Not set",
+  "ui.setEmptyObject": "Set empty object",
   "ui.setToNull": "Set to null",
   "ui.enabled": "Enabled",
   "ui.imageFailedToLoad": "Image failed to load",

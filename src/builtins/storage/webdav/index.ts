@@ -67,44 +67,34 @@ function failure(
 
 export const webdavStorage: Definition<"storage"> = {
   defaultLocale: "en-US",
-  content: {
+  nameKey: "package.name",
+  descriptionKey: "package.description",
+  messages: {
     "en-US": {
-      name: "WebDAV Storage",
-      description: "Authenticated WebDAV storage with streamed reads",
-      configSchema: {
-        "/properties/endpoint": {
-          title: "WebDAV endpoint",
-          description:
-            "Existing WebDAV root URL; use the final URL, redirects are refused",
-        },
-        "/properties/keyPrefix": {
-          title: "Directory Prefix",
-          description:
-            "Directory relative to the WebDAV endpoint. Leave empty to use the endpoint directory. Do not URL-encode.",
-        },
-        "/properties/timeoutMs": { title: "Timeout (ms)" },
-        "/properties/username": { title: "Username" },
-        "/properties/password": { title: "Password or app password" },
-      },
+      "package.name": "WebDAV Storage",
+      "package.description": "Authenticated WebDAV storage with streamed reads",
+      "settings.endpoint.label": "WebDAV endpoint",
+      "settings.endpoint.description":
+        "Existing WebDAV root URL; use the final URL, redirects are refused",
+      "settings.keyPrefix.label": "Directory Prefix",
+      "settings.keyPrefix.description":
+        "Directory relative to the WebDAV endpoint. Leave empty to use the endpoint directory. Do not URL-encode.",
+      "settings.timeoutMs.label": "Timeout (ms)",
+      "settings.username.label": "Username",
+      "settings.password.label": "Password or app password",
     },
     "zh-CN": {
-      name: "WebDAV 存储",
-      description: "通过 WebDAV 认证存储并以流式方式读取文件",
-      configSchema: {
-        "/properties/endpoint": {
-          title: "WebDAV 端点",
-          description:
-            "已存在的 WebDAV 根目录 URL；使用服务最终地址，不跟随重定向",
-        },
-        "/properties/keyPrefix": {
-          title: "目录前缀",
-          description:
-            "相对于 WebDAV 端点的目录；留空使用端点目录，不要进行 URL 编码",
-        },
-        "/properties/timeoutMs": { title: "超时（毫秒）" },
-        "/properties/username": { title: "用户名" },
-        "/properties/password": { title: "密码或应用密码" },
-      },
+      "package.name": "WebDAV 存储",
+      "package.description": "通过 WebDAV 认证存储并以流式方式读取文件",
+      "settings.endpoint.label": "WebDAV 端点",
+      "settings.endpoint.description":
+        "已存在的 WebDAV 根目录 URL；使用服务最终地址，不跟随重定向",
+      "settings.keyPrefix.label": "目录前缀",
+      "settings.keyPrefix.description":
+        "相对于 WebDAV 端点的目录；留空使用端点目录，不要进行 URL 编码",
+      "settings.timeoutMs.label": "超时（毫秒）",
+      "settings.username.label": "用户名",
+      "settings.password.label": "密码或应用密码",
     },
   },
 
@@ -119,18 +109,27 @@ export const webdavStorage: Definition<"storage"> = {
     type: "object",
     properties: {
       endpoint: {
+        "x-ui": {
+          labelKey: "settings.endpoint.label",
+          descriptionKey: "settings.endpoint.description",
+        },
         type: "string",
 
         format: "uri",
         "x-immutable": true,
       },
       keyPrefix: {
+        "x-ui": {
+          labelKey: "settings.keyPrefix.label",
+          descriptionKey: "settings.keyPrefix.description",
+        },
         type: "string",
 
         default: "",
         "x-immutable": true,
       },
       timeoutMs: {
+        "x-ui": { labelKey: "settings.timeoutMs.label", advanced: true },
         type: "integer",
 
         minimum: 100,
@@ -138,6 +137,7 @@ export const webdavStorage: Definition<"storage"> = {
         default: 30000,
       },
       username: {
+        "x-ui": { labelKey: "settings.username.label" },
         type: "string",
 
         minLength: 1,
@@ -145,6 +145,7 @@ export const webdavStorage: Definition<"storage"> = {
         "x-sensitive": true,
       },
       password: {
+        "x-ui": { labelKey: "settings.password.label" },
         type: "string",
 
         minLength: 1,
@@ -152,11 +153,8 @@ export const webdavStorage: Definition<"storage"> = {
         "x-sensitive": true,
       },
     },
-    required: ["endpoint", "username", "password"],
+    required: ["endpoint", "username", "password", "timeoutMs"],
     additionalProperties: false,
-  },
-  uiHints: {
-    "/timeoutMs": { advanced: true },
   },
   async validateConfig(config) {
     const errors: Array<{ path: string; message: string }> = [];
@@ -174,10 +172,7 @@ export const webdavStorage: Definition<"storage"> = {
   },
   async createInstance({ config, services }) {
     const signalFor = (signal: AbortSignal) =>
-      AbortSignal.any([
-        signal,
-        AbortSignal.timeout(Number(config.timeoutMs ?? 30000)),
-      ]);
+      AbortSignal.any([signal, AbortSignal.timeout(Number(config.timeoutMs))]);
     const base = endpoint(String(config.endpoint));
     const prefix = config.keyPrefix
       ? validKey(String(config.keyPrefix)) + "/"

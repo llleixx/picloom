@@ -1,3 +1,4 @@
+import { messageText as packageText } from "../../../shared/package-localization";
 import { appearance, darkMode, setAppearance } from "../lib/appearance";
 import { reactive, watch, type WatchStopHandle } from "vue";
 import type {
@@ -287,15 +288,9 @@ export function createThemeRuntime(navigate: (path: string) => void) {
         return new URL(path, location.origin + view.baseUrl).href;
       },
       t(key, params = {}) {
-        const dict = view?.manifest.messages;
-        const current = dict?.[locale.value];
-        const fallback = view ? dict?.[view.manifest.defaultLocale] : undefined;
-        const value =
-          (current && Object.hasOwn(current, key) ? current[key] : undefined) ??
-          (fallback && Object.hasOwn(fallback, key)
-            ? fallback[key]
-            : undefined) ??
-          key;
+        const value = view
+          ? packageText(view.manifest, locale.value, key)
+          : key;
         return value.replace(/\{(\w+)\}/g, (match, k: string) =>
           String(params[k] ?? match),
         );

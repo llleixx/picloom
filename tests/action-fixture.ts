@@ -21,9 +21,8 @@ export async function fixture(...args: Parameters<typeof baseFixture>) {
       `
 export default {
   ...${JSON.stringify(manifest)},
-  defaultLocale: "en-US", content: { "en-US": { name: "Test action" } },
+  defaultLocale: "en-US", nameKey:"package.name", messages: { "en-US": { "package.name": "Test action" } },
   stages: { post_save: {
-    defaultLocale: "en-US", content: { "en-US": {} },
     configSchemaVersion: 1,
     configSchema: {
       type: "object",

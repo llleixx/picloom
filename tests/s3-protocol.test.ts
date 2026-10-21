@@ -55,6 +55,12 @@ test("S3 SDK protocol enforces conditional creation, metadata recovery, streams 
       version: "1.0.0",
       name: "S3 protocol fixture",
       config: {
+        multipartThresholdMiB: 64,
+        partSizeMiB: 16,
+        partConcurrency: 3,
+        keyPrefix: "",
+        forcePathStyle: true,
+        signedUrlSeconds: 300,
         endpoint: server.url.origin,
         region: "test",
         bucket: "test",

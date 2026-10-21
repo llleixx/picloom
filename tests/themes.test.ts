@@ -179,11 +179,11 @@ test("theme languages, empty content, atomic publication and stale drafts", asyn
     const base = {
       id: "language.theme",
       defaultLocale: "en-US",
-      content: { "en-US": { name: "Languages" } },
+      nameKey: "package.name",
+      messages: { "en-US": { "package.name": "Languages", hello: "Hello" } },
       version: "1",
       apiVersion: 1,
       supportedLocales: ["en-US"],
-      messages: { "en-US": { hello: "Hello" } },
       pages: { home: { entry: "entry.js" } },
       configSchema: {
         type: "object",
@@ -199,7 +199,10 @@ test("theme languages, empty content, atomic publication and stale drafts", asyn
     for (const extra of [
       { name: "Old top-level name" },
       { defaultLocale: undefined },
-      { content: undefined },
+      { nameKey: undefined },
+      { nameKey: "missing" },
+      { descriptionKey: "package.name" },
+      { content: {} },
       { messages: { "zh-CN": { hello: "你好" } } },
       { messages: { "en-US": { hello: " " } } },
       {
@@ -209,10 +212,17 @@ test("theme languages, empty content, atomic publication and stale drafts", asyn
       { supportedLocales: [] },
       { supportedLocales: ["ja-JP"] },
       { defaultLocale: "zh-CN" },
-      { content: { "en-US": { name: " " } } },
-      { content: { "en-US": { name: 42 } } },
-      { content: { "ja-JP": { name: "Name" } } },
-      { content: { "en-US": { name: "Name", unexpected: true } } },
+      ...[
+        { labelKey: "missing" },
+        { widget: "unknown" },
+        { advanced: "yes" },
+        { enumKeys: ["package.name"] },
+      ].map((ui) => ({
+        configSchema: {
+          type: "object",
+          properties: { text: { type: "string", "x-ui": ui } },
+        },
+      })),
       {
         supportedLocales: ["en-US", "zh-CN"],
         messages: { "en-US": {}, "zh-CN": { hello: "你好" } },
@@ -222,11 +232,9 @@ test("theme languages, empty content, atomic publication and stale drafts", asyn
     expect(
       manifest({
         ...base,
-        content: {
-          "en-US": { name: "Languages" },
-          "zh-CN": { name: "语言主题" },
-        },
-      }).content?.["zh-CN"]?.name,
+        supportedLocales: ["en-US", "zh-CN"],
+        messages: { ...base.messages, "zh-CN": { "package.name": "语言主题" } },
+      }).messages?.["zh-CN"]?.["package.name"],
     ).toBe("语言主题");
     expect(
       manifest({ ...base, supportedLocales: ["en-US", "zh-CN"] }).messages,
@@ -417,11 +425,11 @@ test("incomplete required configuration can be installed and drafted but not pre
     const manifest = {
       id: "required.theme",
       defaultLocale: "en-US",
-      content: { "en-US": { name: "Required" } },
+      nameKey: "package.name",
+      messages: { "en-US": { "package.name": "Required" }, "zh-CN": {} },
       version: "1",
       apiVersion: 1,
       supportedLocales: ["en-US", "zh-CN"],
-      messages: { "en-US": {}, "zh-CN": {} },
       pages: { home: { entry: "entry.js" } },
       configSchema: {
         type: "object",

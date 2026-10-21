@@ -1,4 +1,20 @@
-import { isLocale } from "../../shared/locales";
+import { languageValue as project } from "../../shared/theme-config";
+import { schemaOrEmpty, type Schema } from "../../shared/field-schema";
+import { assertSchema, initialValue, pointer } from "../../shared/config";
+import {
+  assertDeclaration,
+  compileSchema,
+  valueSchema,
+  schemaErrors,
+} from "../core/schema-validation";
+import {
+  assertMessageCatalog,
+  assertMessageKey,
+  assertFieldHints,
+  schemaNodes,
+  schemaEntries,
+} from "../../shared/package-localization";
+import { isLocale, supportedLocales } from "../../shared/locales";
 import type { Config, Field, Json, Manifest } from "../../theme-sdk";
 import { AppError } from "../core/errors";
 export const invalid = (message = "Invalid theme package or configuration") =>
@@ -14,97 +30,159 @@ export const assetPath = (v: unknown): v is string =>
   v.split("/").every((p) => !!p && p !== "." && p !== ".." && !/[. ]$/.test(p));
 const object = (v: unknown): v is Record<string, any> =>
   !!v && typeof v === "object" && !Array.isArray(v);
-export function validateField(f: unknown, depth = 0): asserts f is Field {
-  if (
-    !object(f) ||
-    depth > 8 ||
-    !["object", "string", "number", "integer", "boolean"].includes(f.type)
-  )
-    throw invalid("Unsupported theme configuration schema");
-  const keys = [
-    "type",
-    "title",
-    "description",
-    "properties",
-    "required",
-    "enum",
-    "default",
-    "minimum",
-    "maximum",
-    "maxLength",
-    "minLength",
-    "x-multiline",
-    "x-localized",
-    "content",
-  ];
-  if (Object.keys(f).some((k) => !keys.includes(k)))
-    throw invalid("Unsupported schema keyword");
-  if (f["x-localized"] && f.type !== "string")
-    throw invalid("Only text can be localized");
-  for (const key of ["title", "description"])
-    if (f[key] !== undefined && typeof f[key] !== "string") throw invalid();
-  for (const key of ["minimum", "maximum", "maxLength", "minLength"])
-    if (
-      f[key] !== undefined &&
-      (typeof f[key] !== "number" || !Number.isFinite(f[key]))
-    )
-      throw invalid();
-  for (const key of ["minLength", "maxLength"])
-    if (
-      f[key] !== undefined &&
-      (f.type !== "string" || !Number.isSafeInteger(f[key]) || f[key] < 0)
-    )
-      throw invalid("Invalid text length constraint");
-  if (
-    f.minLength !== undefined &&
-    f.maxLength !== undefined &&
-    f.minLength > f.maxLength
-  )
-    throw invalid("Invalid text length range");
-  if (
-    f.enum !== undefined &&
-    (!Array.isArray(f.enum) ||
-      !f.enum.length ||
-      f.enum.some(
-        (v: unknown) => !["string", "number", "boolean"].includes(typeof v),
-      ))
-  )
-    throw invalid();
-  if (f.content !== undefined) {
-    if (!object(f.content)) throw invalid();
-    for (const [locale, content] of Object.entries(f.content)) {
-      if (!isLocale(locale) || !object(content)) throw invalid();
-      for (const [key, value] of Object.entries(content)) {
-        if (key === "enumLabels") {
-          if (!Array.isArray(value) || value.some((v) => typeof v !== "string"))
-            throw invalid();
-        } else if (
-          !["title", "description"].includes(key) ||
-          typeof value !== "string"
-        )
-          throw invalid();
+function projectedSchema(
+  schema: Schema,
+  lang: string,
+  structure = schema,
+  constraint = false,
+): Schema {
+  const result = { ...schema };
+  delete result.default;
+  delete result["x-localized"];
+  if (!constraint && schema.type === "string") result.maxLength ??= 10000;
+  for (const key of ["const", "enum"] as const)
+    if (schema[key] !== undefined && !structure["x-localized"]) {
+      result[key] =
+        key === "enum"
+          ? (schema.enum as Json[]).map((value) =>
+              project(structure, value, lang),
+            )
+          : project(structure, schema.const, lang);
+    }
+  if (schema.properties)
+    result.properties = Object.fromEntries(
+      Object.entries(schema.properties).map(([key, child]) => [
+        key,
+        projectedSchema(
+          child,
+          lang,
+          (structure.properties ?? {})[key] ?? child,
+          constraint,
+        ),
+      ]),
+    );
+  if (schema.items)
+    result.items = projectedSchema(
+      schema.items!,
+      lang,
+      structure.items!,
+      constraint,
+    );
+  for (const key of ["if", "then", "else", "not"] as const)
+    if (schema[key])
+      result[key] = projectedSchema(schema[key]!, lang, structure, true);
+  for (const key of ["allOf", "anyOf", "oneOf"] as const)
+    if (schema[key])
+      result[key] = schema[key]!.map((child) =>
+        projectedSchema(child, lang, structure, true),
+      );
+  return result;
+}
+const validators = new WeakMap<
+  Schema,
+  Map<string, ReturnType<typeof compileSchema>>
+>();
+function themeValidator(
+  schema: Schema,
+  lang: string,
+  mode: "complete" | "draft" | "default",
+) {
+  let entries = validators.get(schema);
+  if (!entries) {
+    entries = new Map();
+    validators.set(schema, entries);
+  }
+  const key = lang + "/" + mode;
+  let validate = entries.get(key);
+  if (!validate) {
+    const projected = projectedSchema(schema, lang);
+    validate = compileSchema(valueSchema(projected, mode));
+    entries.set(key, validate);
+  }
+  return validate;
+}
+function storageLanguages(
+  schema: Schema,
+  value: unknown,
+  path: string,
+  languages: Set<string>,
+) {
+  if (value === undefined) return;
+  if (schema["x-localized"]) {
+    if (!object(value) || Object.keys(value).some((key) => !isLocale(key)))
+      throw fieldError(path);
+    for (const lang of Object.keys(value)) languages.add(lang);
+    return;
+  }
+  if (schema.type === "object" && object(value))
+    for (const [key, child] of Object.entries(schema.properties ?? {}))
+      if (Object.hasOwn(value, key))
+        storageLanguages(
+          child,
+          value[key],
+          path + "/" + pointer(key),
+          languages,
+        );
+  if (schema.type === "array" && Array.isArray(value))
+    value.forEach((item, index) =>
+      storageLanguages(schema.items!, item, path + "/" + index, languages),
+    );
+}
+function languagePath(schema: Schema, path: string, lang: string) {
+  let node = schema;
+  let result = "";
+  for (const token of path.split("/").slice(1)) {
+    result += "/" + token;
+    const child =
+      node.type === "array"
+        ? node.items
+        : node.properties?.[token.replace(/~1/g, "/").replace(/~0/g, "~")];
+    if (!child) break;
+    node = child;
+    if (node["x-localized"]) return result + "/" + pointer(lang);
+  }
+  return result;
+}
+const fieldError = (path: string) =>
+  new AppError("INVALID_INPUT", "Invalid theme configuration", 400, [
+    { path, message: "Value does not meet the field constraints." },
+  ]);
+export function validateField(
+  f: unknown,
+  path = "/configSchema",
+): asserts f is Field {
+  try {
+    assertSchema(f as Schema, path, "theme");
+    for (const { node: entry, path: relativePath } of schemaEntries(
+      f as Schema,
+      false,
+    )) {
+      const node = entry as Schema;
+      const location = path + relativePath;
+      if (node.default !== undefined) {
+        const languages = new Set<string>();
+        storageLanguages(node, node.default, location, languages);
+        if (!languages.size) languages.add("en-US");
+        for (const lang of languages)
+          if (
+            !themeValidator(
+              node,
+              lang,
+              "default",
+            )(project(node, node.default, lang))
+          )
+            throw new Error(
+              `${location}: Default does not satisfy field constraints`,
+            );
       }
     }
-  }
-  if (f.type === "object") {
-    if (!object(f.properties)) throw invalid();
-    for (const [key, child] of Object.entries(f.properties)) {
-      if (
-        !/^[a-zA-Z][a-zA-Z0-9_-]{0,63}$/.test(key) ||
-        ["constructor", "prototype", "__proto__"].includes(key)
-      )
-        throw invalid();
-      validateField(child, depth + 1);
-    }
-    if (
-      f.required !== undefined &&
-      (!Array.isArray(f.required) ||
-        f.required.some(
-          (k: unknown) =>
-            typeof k !== "string" || !Object.hasOwn(f.properties, k),
-        ))
-    )
-      throw invalid();
+    // Declaration checking and enum validation use the same value engine.
+    for (const lang of supportedLocales)
+      assertDeclaration(projectedSchema(f as Schema, lang), path);
+  } catch (error) {
+    throw invalid(
+      `${path}: ${error instanceof Error ? error.message : "Invalid field declaration"}`,
+    );
   }
 }
 export function configuration(
@@ -114,93 +192,34 @@ export function configuration(
   complete = true,
   locales: readonly string[] = [],
 ): Config {
-  const fieldError = (path: string) =>
-    new AppError("INVALID_INPUT", "Invalid theme configuration", 400, [
-      {
-        path: "/" + path,
-        message:
-          "Required value is missing or does not meet the field constraints.",
-      },
-    ]);
-  const visit = (
-    f: Field,
-    value: unknown,
-    path: string,
-    required = false,
-  ): Json => {
-    value =
-      value === undefined && initialize ? structuredClone(f.default) : value;
-    if (f["x-localized"]) {
-      if (value === undefined) return {};
-      if (!object(value) || Object.keys(value).some((k) => !isLocale(k)))
-        throw fieldError(path);
-      if (complete && required)
-        for (const lang of locales)
-          if (value[lang] === undefined) throw fieldError(path + "/" + lang);
-      return Object.fromEntries(
-        Object.entries(value).map(([k, v]) => [
-          k,
-          visit(
-            { ...f, "x-localized": false, default: undefined },
-            v,
-            path + "/" + k,
-          ),
-        ]),
+  const rule = schemaOrEmpty(schema);
+  const value = initialize
+    ? (initialValue(rule, input as Json) ??
+      (rule.type === "object" ? {} : undefined))
+    : input;
+  const languages = new Set(locales);
+  storageLanguages(rule, value, "/config", languages);
+  if (!languages.size) languages.add("en-US");
+  for (const lang of languages) {
+    const validate = themeValidator(
+      rule,
+      lang,
+      complete ? "complete" : "draft",
+    );
+    if (!validate(project(rule, value, lang)))
+      throw new AppError(
+        "INVALID_INPUT",
+        "Invalid theme configuration",
+        400,
+        schemaErrors(validate.errors).map((error) => ({
+          ...error,
+          path: "/config" + languagePath(rule, error.path, lang),
+        })),
       );
-    }
-    if (f.type === "object") {
-      if (value === undefined) value = {};
-      if (
-        !object(value) ||
-        Object.keys(value).some((k) => !Object.hasOwn(f.properties!, k))
-      )
-        throw fieldError(path);
-      const result: Config = {};
-      for (const [key, child] of Object.entries(f.properties!)) {
-        const required = f.required?.includes(key) ?? false;
-        const childValue =
-          value[key] === undefined && initialize
-            ? structuredClone(child.default)
-            : value[key];
-        if (
-          childValue === undefined &&
-          !(initialize && child.type === "object")
-        ) {
-          if (complete && required) throw fieldError(path + "/" + key);
-          continue;
-        }
-        result[key] = visit(child, childValue, path + "/" + key, required);
-      }
-      return result;
-    }
-    if (
-      f.type === "integer"
-        ? !Number.isSafeInteger(value)
-        : typeof value !== f.type
-    )
-      throw fieldError(path);
-    if (
-      typeof value === "number" &&
-      (!Number.isFinite(value) ||
-        (f.minimum !== undefined && value < f.minimum) ||
-        (f.maximum !== undefined && value > f.maximum))
-    )
-      throw fieldError(path);
-    if (
-      typeof value === "string" &&
-      ([...value].length > (f.maxLength ?? 10000) ||
-        [...value].length < (f.minLength ?? 0))
-    )
-      throw fieldError(path);
-    if (f.enum && !f.enum.includes(value as string)) throw fieldError(path);
-    return value as Json;
-  };
-  return visit(
-    schema ?? { type: "object", properties: {} },
-    input,
-    "config",
-  ) as Config;
+  }
+  return structuredClone(value) as Config;
 }
+
 export function manifest(input: unknown): Manifest {
   if (
     !object(input) ||
@@ -223,21 +242,6 @@ export function manifest(input: unknown): Manifest {
     Object.keys(input.pages).some((k) => !["home", "login"].includes(k))
   )
     throw invalid();
-  {
-    if (!object(input.content) || !input.content[input.defaultLocale])
-      throw invalid("Default language name required");
-    for (const [language, content] of Object.entries(input.content)) {
-      if (
-        !isLocale(language) ||
-        !object(content) ||
-        Object.keys(content).some((key) => key !== "name") ||
-        typeof content.name !== "string" ||
-        !content.name.trim() ||
-        content.name.length > 100
-      )
-        throw invalid("Invalid localized theme name");
-    }
-  }
   const styles = (v: unknown) => {
     if (
       v !== undefined &&
@@ -256,33 +260,35 @@ export function manifest(input: unknown): Manifest {
     (!assetPath(input.preview) || !/\.(png|jpe?g|webp)$/i.test(input.preview))
   )
     throw invalid();
-  if (input.configSchema !== undefined) {
-    validateField(input.configSchema);
-    if (input.configSchema.type !== "object") throw invalid();
-  }
-  if (!object(input.messages)) throw invalid("Theme dictionaries are required");
-  const dictionaries = input.messages;
-  const keys = new Set<string>();
-  for (const entries of Object.values(dictionaries)) {
+  const configSchema = schemaOrEmpty(input.configSchema);
+  validateField(configSchema);
+  if (configSchema.type !== "object") throw invalid();
+  try {
     if (
-      !object(entries) ||
-      Object.values(entries).some((v) => typeof v !== "string" || !v.trim())
+      [
+        "name",
+        "description",
+        "descriptionKey",
+        "content",
+        "translations",
+        "uiHints",
+      ].some((k) => k in input)
     )
-      throw invalid("Invalid translation");
-    Object.keys(entries).forEach((key) => keys.add(key));
+      throw invalid("Unsupported theme metadata");
+    assertMessageCatalog(input as Manifest);
+    assertMessageKey(input as Manifest, input.nameKey);
+    for (const node of schemaNodes(configSchema)) {
+      assertFieldHints(input as Manifest, node);
+    }
+  } catch (e) {
+    throw invalid(e instanceof Error ? e.message : "Invalid theme messages");
   }
   if (
-    Object.keys(dictionaries).some(
+    Object.keys(input.messages).some(
       (lang) => !input.supportedLocales.includes(lang),
-    ) ||
-    !object(dictionaries[input.defaultLocale]) ||
-    [...keys].some(
-      (key) => !Object.hasOwn(dictionaries[input.defaultLocale], key),
     )
   )
-    throw invalid(
-      "Default language dictionary must contain every translation key",
-    );
-  configuration(input.configSchema, {}, true, false);
-  return structuredClone(input) as Manifest;
+    throw invalid("Unsupported message language");
+  configuration(configSchema, undefined, true, false);
+  return structuredClone({ ...input, configSchema }) as Manifest;
 }

@@ -6,27 +6,20 @@ export type Json =
   | Json[]
   | { [key: string]: Json };
 export type Config = Record<string, Json>;
-export interface FieldHint {
-  group?: string;
+/** Display hints on a schema node; message keys refer to its package catalog. */
+export type FieldHint = {
+  labelKey?: string;
+  descriptionKey?: string;
+  enumKeys?: string[];
+  groupKey?: string;
   order?: number;
   advanced?: boolean;
   widget?: "textarea" | "password";
   visibleWhen?: { path: string; equals: Json };
+};
+export interface PluginLocalization {
+  defaultLocale: string;
+  messages: Record<string, Record<string, string>>;
+  nameKey?: string;
+  descriptionKey?: string;
 }
-export type UIHints = Record<string, FieldHint>;
-export interface SchemaContent {
-  title?: string;
-  description?: string;
-  /** Labels correspond to enum values by position; values never change. */
-  enumLabels?: string[];
-}
-export interface PluginContent {
-  name?: string;
-  description?: string;
-  configSchema?: Record<string, SchemaContent>;
-  paramsSchema?: Record<string, SchemaContent>;
-  /** Keys are existing UIHints group identifiers. */
-  groups?: Record<string, string>;
-}
-export type PluginLocalization =
-  import("./localization").LocalizedContent<PluginContent>;

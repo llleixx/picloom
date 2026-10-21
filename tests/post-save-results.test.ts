@@ -26,7 +26,8 @@ async function pipeline(
   ] as const)
     f.app.plugins.register({
       defaultLocale: "en-US",
-      content: { "en-US": { name: id } },
+      nameKey: "package.name",
+      messages: { "en-US": { "package.name": id } },
 
       id,
 
@@ -35,9 +36,6 @@ async function pipeline(
       apiVersion: 1,
       stages: {
         post_save: {
-          defaultLocale: "en-US",
-          content: { "en-US": {} },
-
           configSchemaVersion: 1,
           configSchema: { type: "object", properties: {} },
           async createInstance() {

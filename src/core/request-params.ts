@@ -1,9 +1,8 @@
-import Ajv from "ajv/dist/2020";
-import addFormats from "ajv-formats";
+import type { ParamsSchema } from "../../plugin-sdk/schema";
+import { compileSchema } from "./schema-validation";
 import { AppError } from "./errors";
-import type { Config, Parameters, Query } from "../plugins/api";
-const ajv = new Ajv({ strict: false });
-addFormats(ajv);
+import type { Parameters, Query } from "../plugins/api";
+
 export function parseQuery(search: URLSearchParams): Query {
   if (search.toString().length > 8192 || [...search].length > 64)
     throw new AppError("INVALID_PARAMS", "Too many query parameters");
@@ -12,13 +11,13 @@ export function parseQuery(search: URLSearchParams): Query {
   return result;
 }
 export function requestParameters(
-  schema: Config | undefined,
+  schema: ParamsSchema | undefined,
   enabled: string[],
   query: Query | Record<string, unknown>,
   source: "query" | "body" = "query",
 ): Parameters {
   const result: Parameters = Object.create(null);
-  const properties = (schema?.properties ?? {}) as Record<string, Config>;
+  const properties = schema?.properties ?? {};
   for (const key of enabled) {
     const rule = properties[key];
     if (!rule || !Object.hasOwn(query, key)) continue;
@@ -42,13 +41,7 @@ export function requestParameters(
         value = Number(raw);
       }
     }
-    if (
-      typeof value === "number" &&
-      (!Number.isFinite(value) ||
-        (rule.type === "integer" && !Number.isSafeInteger(value)))
-    )
-      throw new AppError("INVALID_PARAMS", "Invalid number: " + key);
-    if (!ajv.validate(rule, value))
+    if (!compileSchema(rule)(value))
       throw new AppError("INVALID_PARAMS", "Invalid parameter: " + key);
     result[key] = value as string | number | boolean;
   }

@@ -10,10 +10,11 @@ import {
 
 export default {
   defaultLocale: "en-US",
-  content: {
+  nameKey: "package.name",
+  messages: {
     "en-US": {
-      name: "Example local storage",
-      configSchema: { "/properties/root": { title: "Root directory" } },
+      "package.name": "Example local storage",
+      "settings.root.label": "Root directory",
     },
   },
 
@@ -28,6 +29,7 @@ export default {
     type: "object",
     properties: {
       root: {
+        "x-ui": { labelKey: "settings.root.label" },
         type: "string",
 
         minLength: 1,

@@ -12,7 +12,12 @@ test("plugins share core Sharp and watermark works in upload and access pipeline
     f.app.plugins.register(
       {
         defaultLocale: "en-US",
-        content: { "en-US": { name: "Sharp service" } },
+        nameKey: "package.name",
+        messages: {
+          "en-US": {
+            "package.name": "Sharp service",
+          },
+        },
 
         id: "example.sharp-service",
 
@@ -53,6 +58,12 @@ test("plugins share core Sharp and watermark works in upload and access pipeline
           pluginId: "builtin.watermark",
           version: "1.0.0",
           config: {
+            font: "sans",
+            fontSizePercent: 3,
+            marginPercent: 2,
+            fontSize: 32,
+            color: "#ffffff",
+            widthPercent: 10,
             type: "image",
             sizeMode: "fixed",
             imagePath: logo,
@@ -97,6 +108,14 @@ test("plugins share core Sharp and watermark works in upload and access pipeline
             pluginId: "builtin.watermark",
             version: "1.0.0",
             config: {
+              font: "sans",
+              sizeMode: "relative",
+              fontSizePercent: 3,
+              marginPercent: 2,
+              imageWidth: 128,
+              widthPercent: 10,
+              position: "bottom-right",
+              opacity: 70,
               type: "text",
               text: "A&B <test>",
               fontSize: 12,
@@ -140,7 +159,21 @@ test("watermark rejects missing content, skips unsupported inputs and honors acc
   ).toHaveLength(1);
   const runtime = await watermark.stages.access!.createInstance({
     id: "test",
-    config: { type: "text", text: "hello" },
+    config: {
+      font: "sans",
+      sizeMode: "relative",
+      fontSizePercent: 3,
+      marginPercent: 2,
+      fontSize: 32,
+      color: "#ffffff",
+      imageWidth: 128,
+      widthPercent: 10,
+      position: "bottom-right",
+      margin: 16,
+      opacity: 70,
+      type: "text",
+      text: "hello",
+    },
     services: { images: { sharp } } as InstanceServices,
   });
   const input = {
@@ -224,6 +257,10 @@ test("relative text and margin scale with the short side; fixed mode preserves p
       const runtime = await watermark.stages.upload!.createInstance({
         id: "size",
         config: {
+          font: "sans",
+          imageWidth: 128,
+          widthPercent: 10,
+          position: "bottom-right",
           type: "text",
           text: "Star",
           sizeMode: mode,
@@ -325,6 +362,12 @@ test("watermark positions use EXIF-oriented dimensions without a raw base image"
           onNotApplicable: "abort",
           version: "1.0.0",
           config: {
+            font: "sans",
+            fontSizePercent: 3,
+            marginPercent: 2,
+            fontSize: 32,
+            color: "#ffffff",
+            widthPercent: 10,
             type: "image",
             sizeMode: "fixed",
             imagePath: logo,

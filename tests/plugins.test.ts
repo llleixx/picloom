@@ -18,7 +18,12 @@ test("stream cancellation keeps retired instance alive until resource release", 
   try {
     const def: Definition<"storage"> = {
       defaultLocale: "en-US",
-      content: { "en-US": { name: "stream" } },
+      nameKey: "package.name",
+      messages: {
+        "en-US": {
+          "package.name": "stream",
+        },
+      },
 
       id: "test.stream",
 
@@ -88,7 +93,8 @@ test("initialization failure preserves new settings and retires old instance", a
   try {
     const def: Definition<"processor"> = {
       defaultLocale: "en-US",
-      content: { "en-US": { name: "failure" } },
+      nameKey: "package.name",
+      messages: { "en-US": { "package.name": "failure" } },
 
       id: "test.failure",
 
@@ -97,9 +103,6 @@ test("initialization failure preserves new settings and retires old instance", a
       apiVersion: 1,
       stages: {
         access: {
-          defaultLocale: "en-US",
-          content: { "en-US": {} },
-
           configSchemaVersion: 1,
           configSchema: {
             type: "object",
@@ -152,7 +155,8 @@ test("credentials are encrypted, kept on edits and protected by versions", async
     let observed = "";
     const def: Definition<"processor"> = {
       defaultLocale: "en-US",
-      content: { "en-US": { name: "secret" } },
+      nameKey: "package.name",
+      messages: { "en-US": { "package.name": "secret" } },
 
       id: "test.secret",
 
@@ -161,9 +165,6 @@ test("credentials are encrypted, kept on edits and protected by versions", async
       apiVersion: 1,
       stages: {
         access: {
-          defaultLocale: "en-US",
-          content: { "en-US": {} },
-
           configSchemaVersion: 1,
           configSchema: {
             type: "object",
@@ -247,7 +248,7 @@ test("trusted ESM package can load while service is running", async () => {
     );
     await Bun.write(
       join(directory, "index.js"),
-      `export default {id:'external.path',defaultLocale:"en-US",content:{"en-US":{name:'external'}},version:'1',kind:'path',apiVersion:1,configSchemaVersion:1,configSchema:{type:'object'},async createInstance(){return {async generate(){return {logicalKey:'external.png'}}}}}`,
+      `export default {id:'external.path',defaultLocale:"en-US",nameKey:"package.name",messages:{"en-US":{"package.name":'external'}},version:'1',kind:'path',apiVersion:1,configSchemaVersion:1,configSchema:{type:'object'},async createInstance(){return {async generate(){return {logicalKey:'external.png'}}}}}`,
     );
     await f.app.plugins.loadPackage(directory);
     const record = await f.app.plugins.save({
@@ -290,7 +291,8 @@ test("cacheable false executes every request; normal processor result is cached"
     let calls = 0;
     const def: Definition<"processor"> = {
       defaultLocale: "en-US",
-      content: { "en-US": { name: "counter" } },
+      nameKey: "package.name",
+      messages: { "en-US": { "package.name": "counter" } },
 
       id: "test.counter",
 
@@ -299,9 +301,6 @@ test("cacheable false executes every request; normal processor result is cached"
       apiVersion: 1,
       stages: {
         access: {
-          defaultLocale: "en-US",
-          content: { "en-US": {} },
-
           configSchemaVersion: 1,
           configSchema: {
             type: "object",
@@ -329,7 +328,7 @@ test("cacheable false executes every request; normal processor result is cached"
       stage: "access",
       version: "1",
       name: "counter",
-      config: {},
+      config: { cache: false },
     });
     await f.app.db.transaction(async (r) =>
       r.insertStep({
@@ -369,7 +368,12 @@ test("302 shares configured cache lifetime; transforms force stream", async () =
     const modes: string[] = [];
     const def: Definition<"storage"> = {
       defaultLocale: "en-US",
-      content: { "en-US": { name: "redirect" } },
+      nameKey: "package.name",
+      messages: {
+        "en-US": {
+          "package.name": "redirect",
+        },
+      },
 
       id: "test.redirect",
 

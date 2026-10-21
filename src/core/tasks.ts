@@ -1,4 +1,4 @@
-import { localizedText } from "../../plugin-sdk/localization";
+import { messageText } from "../../shared/package-localization";
 import { checkStorageCapacity } from "./storage-capacity";
 import { pluginErrorCode } from "./errors";
 import type { TemporarySpace } from "../infra/temporary-space";
@@ -396,11 +396,10 @@ export class TaskExecutor {
             "post_save",
           );
           const definition = this.plugins.definition(stage.record);
-          activeStep.name = localizedText(
+          activeStep.name = messageText(
             definition,
             definition.defaultLocale,
-            (content) => content.name,
-            definition.id,
+            definition.nameKey,
           );
           try {
             const path = await sourcePath();

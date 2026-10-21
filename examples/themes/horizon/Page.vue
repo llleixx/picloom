@@ -65,8 +65,17 @@ const profile = computed(() =>
 );
 const interval = Number(ctx.config.interval) * 1000;
 let timer: ReturnType<typeof setInterval>;
+function resetTimer() {
+  clearInterval(timer);
+  timer = setInterval(() => {
+    if (!paused.value && !hidden.value) next();
+  }, interval);
+}
 function switchScene(index: number) {
-  if (ready.value[index]) current.value = index;
+  if (ready.value[index]) {
+    current.value = index;
+    resetTimer();
+  }
 }
 function next(step = 1) {
   for (let offset = 1; offset <= scenes.length; offset++) {
@@ -116,9 +125,7 @@ function size(bytes: number) {
     : `${Math.ceil(bytes / 1024)} KB`;
 }
 onMounted(() => {
-  timer = setInterval(() => {
-    if (!paused.value && !hidden.value) next();
-  }, interval);
+  resetTimer();
   document.addEventListener("visibilitychange", visibility);
   window.addEventListener("paste", paste);
   reduced.addEventListener("change", motion);

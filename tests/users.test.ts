@@ -529,13 +529,13 @@ test("upload profile discovery intersects token scope with current grants withou
       pluginId: "builtin.random-path",
       version: "1.0.0",
       name: "Public path",
-      config: {},
+      config: { directoryDepth: 2 },
     });
     const privatePath = await f.app.plugins.save({
       pluginId: "builtin.random-path",
       version: "1.0.0",
       name: "Private path",
-      config: {},
+      config: { directoryDepth: 2 },
     });
     const extra = await f.app.db.transaction(async (r) => {
       const base = (await r.profile(f.profileId))!;

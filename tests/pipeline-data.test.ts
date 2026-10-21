@@ -1,3 +1,4 @@
+import type { ConfigSchema, ParamsSchema } from "../plugin-sdk/schema";
 import { test, expect } from "bun:test";
 import { pipelineData } from "../src/core/pipeline-data";
 import { fixture } from "./helpers";
@@ -51,7 +52,7 @@ test("all stages share data within an attempt; failed actions release sources an
   const f = await fixture();
   let fail = true;
   const calls: string[] = [];
-  const schema: Config = {
+  const schema: ConfigSchema = {
     type: "object",
     properties: { role: { type: "string", enum: ["produce", "consume"] } },
     required: ["role"],
@@ -73,15 +74,12 @@ test("all stages share data within an attempt; failed actions release sources an
     }
   };
   const transform = (stage: string) => ({
-    defaultLocale: "en-US",
-    content: { "en-US": {} },
-
     configSchemaVersion: 1,
     configSchema: schema,
     paramsSchema: {
       type: "object",
       properties: { run: { type: "boolean" } },
-    } as Config,
+    } satisfies ParamsSchema,
     async createInstance({ config }: { config: Readonly<Config> }) {
       return {
         async check(
@@ -102,7 +100,8 @@ test("all stages share data within an attempt; failed actions release sources an
   });
   const def: Definition<"processor"> = {
     defaultLocale: "en-US",
-    content: { "en-US": { name: "Data" } },
+    nameKey: "package.name",
+    messages: { "en-US": { "package.name": "Data" } },
 
     id: "test.data",
 
@@ -113,9 +112,6 @@ test("all stages share data within an attempt; failed actions release sources an
       upload: transform("upload"),
       access: transform("access"),
       post_save: {
-        defaultLocale: "en-US",
-        content: { "en-US": {} },
-
         configSchemaVersion: 1,
         configSchema: schema,
         async createInstance({ config }) {

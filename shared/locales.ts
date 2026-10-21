@@ -1,4 +1,3 @@
-import { type LocalizedContent } from "../plugin-sdk/localization";
 export const languages = [
   {
     tag: "zh-CN",
@@ -54,10 +53,8 @@ export function selectLocale(
   }
   return available.includes(fallback) ? fallback : (available[0] ?? "en-US");
 }
-export interface SiteLocalization extends LocalizedContent<{
-  name?: string;
-  description?: string;
-}> {
+export interface SiteLocalization {
+  content: Record<string, { name?: string; description?: string } | undefined>;
   enabledLocales: Locale[];
   defaultLocale: Locale;
 }

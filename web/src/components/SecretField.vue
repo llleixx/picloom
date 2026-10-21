@@ -51,7 +51,7 @@ function update(event: Event) {
   draft.value = element.value;
   error.value = "";
   element.setCustomValidity("");
-  if (!draft.value) {
+  if (!draft.value && props.jsonValue) {
     emit("update:edit", { action: "clear" });
     return;
   }
@@ -124,7 +124,12 @@ async function toggle() {
       />
       <div class="absolute inset-y-0 right-1 flex items-center">
         <button
-          v-if="!locked && (draft || (configured && edit?.action !== 'clear'))"
+          v-if="
+            !locked &&
+            (draft ||
+              edit?.action === 'replace' ||
+              (configured && edit?.action !== 'clear'))
+          "
           type="button"
           class="rounded p-2 text-muted-foreground hover:text-foreground focus-visible:outline focus-visible:outline-ring"
           :disabled="loading"

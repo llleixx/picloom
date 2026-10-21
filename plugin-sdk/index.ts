@@ -1,12 +1,14 @@
 export * from "./api";
 export * from "./files";
+export type { FieldHint, PluginLocalization } from "./config";
 export type {
-  FieldHint,
-  UIHints,
-  SchemaContent,
-  PluginContent,
-  PluginLocalization,
-} from "./config";
+  FieldSchema,
+  ConfigSchema,
+  ParamsSchema,
+  ParameterSchema,
+  SchemaConstraint,
+  ParameterConstraint,
+  SchemaType,
+  SchemaFormat,
+} from "./schema";
 export * from "./errors";
-
-export * from "./localization";

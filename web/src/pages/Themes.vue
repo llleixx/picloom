@@ -3,11 +3,9 @@ import { ref, shallowRef, onMounted, computed } from "vue";
 import type { Config, InstalledTheme, Manifest } from "../../../theme-sdk";
 import { api, ApiError, errorText, notify, queryClient } from "../lib/api";
 import { t, locale } from "../lib/i18n";
+import { messageText } from "../../../shared/package-localization";
 function themeName(manifest: Manifest) {
-  return (
-    manifest.content[locale.value]?.name ??
-    manifest.content[manifest.defaultLocale]!.name
-  );
+  return messageText(manifest, locale.value, manifest.nameKey);
 }
 import { languages } from "../../../shared/locales";
 import ThemeField from "../components/ThemeField.vue";
@@ -21,6 +19,7 @@ const inspected = shallowRef<{ ticket: string; manifest: Manifest } | null>(
   busy = ref(false),
   error = ref("");
 const editingLocale = ref("");
+const editSession = ref(0);
 const defaultLocale = ref("");
 const languageRevision = ref(0);
 const editLanguages = computed(() =>
@@ -42,7 +41,8 @@ function containsLocalized(
   return (
     !!field &&
     (!!field["x-localized"] ||
-      Object.values(field.properties ?? {}).some(containsLocalized))
+      Object.values(field.properties ?? {}).some(containsLocalized) ||
+      containsLocalized(field.items))
   );
 }
 
@@ -66,6 +66,7 @@ async function run(fn: () => Promise<unknown>) {
   }
 }
 function edit(theme: InstalledTheme) {
+  editSession.value++;
   selected.value = theme;
   config.value = structuredClone(theme.config);
   defaultLocale.value = theme.manifest.supportedLocales.includes(
@@ -259,21 +260,10 @@ onMounted(() => run(load));
         </p>
       </section>
       <section v-if="selected.manifest.configSchema" class="space-y-4">
-        <h3 class="font-medium">{{ t("themes.appearanceConfig") }}</h3>
-        <ThemeField
-          :field="selected.manifest.configSchema"
-          :default-locale="selected.manifest.defaultLocale"
-          :value="config"
-          name=""
-          mode="ordinary"
-          @change="config = $event as Config"
-        />
-      </section>
-      <section
-        v-if="containsLocalized(selected.manifest.configSchema)"
-        class="space-y-4"
-      >
-        <div class="flex items-center justify-between gap-4">
+        <div
+          v-if="containsLocalized(selected.manifest.configSchema)"
+          class="flex items-center justify-between gap-4"
+        >
           <h3 class="font-medium">{{ t("themes.localizedConfig") }}</h3>
           <select
             v-if="editLanguages.length > 1"
@@ -297,11 +287,10 @@ onMounted(() => run(load));
           <span v-else>{{ editLanguages[0]?.name }}</span>
         </div>
         <ThemeField
-          :field="selected.manifest.configSchema!"
-          :default-locale="selected.manifest.defaultLocale"
+          :key="editSession"
+          :field="selected.manifest.configSchema"
+          :localization="selected.manifest"
           :value="config"
-          name=""
-          mode="localized"
           :editing-locale="editingLocale"
           @change="config = $event as Config"
         />

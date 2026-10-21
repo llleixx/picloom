@@ -1,6 +1,6 @@
 {
   "id": "picloom.horizon",
-  "version": "1.2.6",
+  "version": "1.3.0",
   "apiVersion": 1,
   "pages": {
     "home": {
@@ -10,9 +10,7 @@
       "entry": "entry.js"
     }
   },
-  "styles": [
-    "style.css"
-  ],
+  "styles": ["style.css"],
   "configSchema": {
     "type": "object",
     "properties": {
@@ -22,14 +20,11 @@
           "zh-CN": "把此刻，\n留在远空。",
           "en-US": "A little closer\nto the infinite."
         },
-        "title": "Hero heading",
-        "content": {
-          "zh-CN": {
-            "title": "宣传标题"
-          }
-        },
         "x-localized": true,
-        "x-multiline": true
+        "x-ui": {
+          "labelKey": "settings.heading.title",
+          "widget": "textarea"
+        }
       },
       "description": {
         "type": "string",
@@ -37,133 +32,95 @@
           "zh-CN": "收藏每一次心动，让美好自由抵达。\n上传、分享，把你的世界留在这里。",
           "en-US": "Keep the moments that move you.\nUpload, share, and let your world travel."
         },
-        "title": "Hero description",
-        "content": {
-          "zh-CN": {
-            "title": "宣传说明"
-          }
-        },
         "x-localized": true,
-        "x-multiline": true
+        "x-ui": {
+          "labelKey": "settings.description.title",
+          "widget": "textarea"
+        }
       },
       "rotate": {
         "type": "boolean",
         "default": true,
-        "title": "Rotate scenery",
-        "content": {
-          "zh-CN": {
-            "title": "自动轮换背景"
-          }
+        "x-ui": {
+          "labelKey": "settings.rotate.title"
         }
       },
       "interval": {
         "type": "integer",
         "default": 6,
-        "title": "Rotation interval (seconds)",
-        "content": {
-          "zh-CN": {
-            "title": "轮换间隔（秒）"
-          }
-        },
         "minimum": 5,
-        "maximum": 60
+        "maximum": 60,
+        "x-ui": {
+          "labelKey": "settings.interval.title"
+        }
       },
       "shade": {
         "type": "number",
         "default": 0.18,
-        "title": "Background shading",
-        "content": {
-          "zh-CN": {
-            "title": "背景遮罩强度"
-          }
-        },
         "minimum": 0,
-        "maximum": 0.6
+        "maximum": 0.6,
+        "x-ui": {
+          "labelKey": "settings.shade.title"
+        }
       },
       "dayImage": {
         "type": "string",
         "default": "assets/cloud-sea.png",
-        "title": "Cloud sea image URL",
-        "content": {
-          "zh-CN": {
-            "title": "云海背景 URL",
-            "description": "填写包内资源路径或 HTTPS 地址，清空后不显示此图片。"
-          }
-        },
-        "description": "Package asset path or HTTPS URL. Empty disables this image."
+        "x-ui": {
+          "labelKey": "settings.dayImage.title",
+          "descriptionKey": "settings.dayImage.description"
+        }
       },
       "nightImage": {
         "type": "string",
         "default": "assets/star-lake.png",
-        "title": "Star lake image URL",
-        "content": {
-          "zh-CN": {
-            "title": "星湖背景 URL",
-            "description": "填写包内资源路径或 HTTPS 地址，清空后不显示此图片。"
-          }
-        },
-        "description": "Package asset path or HTTPS URL. Empty disables this image."
+        "x-ui": {
+          "labelKey": "settings.nightImage.title",
+          "descriptionKey": "settings.nightImage.description"
+        }
       },
       "dawnImage": {
         "type": "string",
         "default": "assets/dawn-valley.png",
-        "title": "Dawn valley image URL",
-        "content": {
-          "zh-CN": {
-            "title": "晨光山谷背景 URL",
-            "description": "填写包内资源路径或 HTTPS 地址，清空后不显示此图片。"
-          }
-        },
-        "description": "Package asset path or HTTPS URL. Empty disables this image."
+        "x-ui": {
+          "labelKey": "settings.dawnImage.title",
+          "descriptionKey": "settings.dawnImage.description"
+        }
       },
       "auroraImage": {
         "type": "string",
         "default": "assets/aurora-fjord.png",
-        "title": "Aurora fjord image URL",
-        "content": {
-          "zh-CN": {
-            "title": "极光峡湾背景 URL",
-            "description": "填写包内资源路径或 HTTPS 地址，清空后不显示此图片。"
-          }
-        },
-        "description": "Package asset path or HTTPS URL. Empty disables this image."
+        "x-ui": {
+          "labelKey": "settings.auroraImage.title",
+          "descriptionKey": "settings.auroraImage.description"
+        }
       },
       "loginHeading": {
         "type": "string",
         "x-localized": true,
-        "x-multiline": true,
-        "title": "Login heading",
-        "content": {
-          "zh-CN": {
-            "title": "登录页标题"
-          }
-        },
         "default": {
           "en-US": "Every return,\na new beginning.",
           "zh-CN": "每一次回来，\n都是新的开始。"
+        },
+        "x-ui": {
+          "labelKey": "settings.loginHeading.title",
+          "widget": "textarea"
         }
       },
       "loginDescription": {
         "type": "string",
         "x-localized": true,
-        "x-multiline": true,
-        "title": "Login description",
-        "content": {
-          "zh-CN": {
-            "title": "登录页说明"
-          }
-        },
         "default": {
           "en-US": "Your moments, quietly waiting.\nSign in to pick up where you left off.",
           "zh-CN": "那些值得珍藏的瞬间，正在等你。\n登录，继续记录属于你的世界。"
+        },
+        "x-ui": {
+          "labelKey": "settings.loginDescription.title",
+          "widget": "textarea"
         }
       }
     },
-    "required": [
-      "interval",
-      "shade",
-      "rotate"
-    ]
+    "required": ["interval", "shade", "rotate"]
   },
   "messages": {
     "en-US": {
@@ -222,7 +179,23 @@
       "pause": "Pause slideshow",
       "footer": "THE WORLD IS WORTH KEEPING.",
       "dawn": "Valley of first light",
-      "aurora": "Under the northern lights"
+      "aurora": "Under the northern lights",
+      "package.name": "Horizon",
+      "settings.heading.title": "Hero heading",
+      "settings.description.title": "Hero description",
+      "settings.rotate.title": "Rotate scenery",
+      "settings.interval.title": "Rotation interval (seconds)",
+      "settings.shade.title": "Background shading",
+      "settings.dayImage.title": "Cloud sea image URL",
+      "settings.dayImage.description": "Package asset path or HTTPS URL. Empty disables this image.",
+      "settings.nightImage.title": "Star lake image URL",
+      "settings.nightImage.description": "Package asset path or HTTPS URL. Empty disables this image.",
+      "settings.dawnImage.title": "Dawn valley image URL",
+      "settings.dawnImage.description": "Package asset path or HTTPS URL. Empty disables this image.",
+      "settings.auroraImage.title": "Aurora fjord image URL",
+      "settings.auroraImage.description": "Package asset path or HTTPS URL. Empty disables this image.",
+      "settings.loginHeading.title": "Login heading",
+      "settings.loginDescription.title": "Login description"
     },
     "zh-CN": {
       "navigation": "导航",
@@ -280,21 +253,27 @@
       "pause": "暂停轮换",
       "footer": "世界很大，美好值得留下。",
       "dawn": "晨光山谷",
-      "aurora": "极光峡湾"
+      "aurora": "极光峡湾",
+      "package.name": "远空",
+      "settings.heading.title": "宣传标题",
+      "settings.description.title": "宣传说明",
+      "settings.rotate.title": "自动轮换背景",
+      "settings.interval.title": "轮换间隔（秒）",
+      "settings.shade.title": "背景遮罩强度",
+      "settings.dayImage.title": "云海背景 URL",
+      "settings.dayImage.description": "填写包内资源路径或 HTTPS 地址，清空后不显示此图片。",
+      "settings.nightImage.title": "星湖背景 URL",
+      "settings.nightImage.description": "填写包内资源路径或 HTTPS 地址，清空后不显示此图片。",
+      "settings.dawnImage.title": "晨光山谷背景 URL",
+      "settings.dawnImage.description": "填写包内资源路径或 HTTPS 地址，清空后不显示此图片。",
+      "settings.auroraImage.title": "极光峡湾背景 URL",
+      "settings.auroraImage.description": "填写包内资源路径或 HTTPS 地址，清空后不显示此图片。",
+      "settings.loginHeading.title": "登录页标题",
+      "settings.loginDescription.title": "登录页说明"
     }
   },
   "preview": "assets/cloud-sea.png",
-  "supportedLocales": [
-    "zh-CN",
-    "en-US"
-  ],
-  "content": {
-    "zh-CN": {
-      "name": "远空"
-    },
-    "en-US": {
-      "name": "Horizon"
-    }
-  },
-  "defaultLocale": "en-US"
+  "supportedLocales": ["zh-CN", "en-US"],
+  "defaultLocale": "en-US",
+  "nameKey": "package.name"
 }

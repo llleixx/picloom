@@ -25,7 +25,7 @@
     "access": "public"
   },
   "scripts": {
-    "build": "bun build ./index.ts --target=bun --format=esm --outfile=dist/index.js && bun run --bun tsc -p tsconfig.build.json",
+    "build": "bun -e 'await require(\"node:fs/promises\").rm(\"dist\", {recursive: true, force: true})' && bun build ./index.ts --target=bun --format=esm --outfile=dist/index.js && bun run --bun tsc -p tsconfig.build.json",
     "prepack": "bun run build"
   },
   "peerDependencies": {

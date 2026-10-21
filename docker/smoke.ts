@@ -158,7 +158,7 @@ PUBLISH_ADDRESS=127.0.0.1
         {
           pluginId: "builtin.sharp",
           version: "1.0.0",
-          config: {},
+          config: { allowEnlargement: false },
           onNotApplicable: "abort",
           enabledParams: ["w", "h", "fit", "q", "format"],
         },
@@ -232,6 +232,13 @@ PUBLISH_ADDRESS=127.0.0.1
           pluginId: "builtin.watermark",
           version: "1.0.0",
           config: {
+            font: "sans",
+            fontSizePercent: 3,
+            marginPercent: 2,
+            color: "#ffffff",
+            imageWidth: 128,
+            widthPercent: 10,
+            margin: 16,
             type: "text",
             text,
             sizeMode: "fixed",

@@ -17,6 +17,7 @@ test("theme installation, drafts, preview, full replacement, upload, isolation a
 }) => {
   await login(page, service.url);
   await page.getByRole("link", { name: "Themes", exact: true }).click();
+  await expect(page.getByLabel("Upload ZIP (up to 20 MB)")).toBeEnabled();
   await page.getByLabel("Upload ZIP (up to 20 MB)").setInputFiles({
     name: "theme.zip",
     mimeType: "application/zip",
@@ -264,11 +265,11 @@ test("single-language page constrains SDK choices without overwriting visitor pr
     "theme.json": JSON.stringify({
       id: "single.theme",
       defaultLocale: "en-US",
-      content: { "en-US": { name: "Single" } },
+      nameKey: "package.name",
+      messages: { "en-US": { "package.name": "Single" } },
       version: "1",
       apiVersion: 1,
       supportedLocales: ["en-US"],
-      messages: { "en-US": {} },
       pages: { home: { entry: "entry.js" } },
     }),
     "entry.js": entry,
@@ -330,11 +331,11 @@ test("incomplete theme preview reports validation failure instead of mounting a 
     "theme.json": JSON.stringify({
       id: "required.preview",
       defaultLocale: "en-US",
-      content: { "en-US": { name: "Required preview" } },
+      nameKey: "package.name",
+      messages: { "en-US": { "package.name": "Required preview" } },
       version: "1",
       apiVersion: 1,
       supportedLocales: ["en-US"],
-      messages: { "en-US": {} },
       pages: { home: { entry: "entry.js" } },
       configSchema: {
         type: "object",
@@ -575,8 +576,15 @@ test("theme package default localizes one name and labels without filling config
         apiVersion: 1,
         defaultLocale: "en-US",
         supportedLocales: ["en-US", "zh-CN"],
-        content: { "en-US": { name: "Horizon" }, "zh-CN": { name: "远空" } },
-        messages: { "en-US": { action: "Upload now" } },
+        nameKey: "package.name",
+        messages: {
+          "en-US": {
+            "package.name": "Horizon",
+            action: "Upload now",
+            "heading.label": "Hero heading",
+          },
+          "zh-CN": { "package.name": "远空" },
+        },
         pages: { home: { entry: "entry.js" } },
         configSchema: {
           type: "object",
@@ -585,7 +593,7 @@ test("theme package default localizes one name and labels without filling config
               type: "string",
               "x-localized": true,
               default: { "en-US": "Welcome", "zh-CN": "" },
-              content: { "en-US": { title: "Hero heading" } },
+              "x-ui": { labelKey: "heading.label" },
             },
           },
         },
@@ -625,4 +633,256 @@ test("theme package default localizes one name and labels without filling config
   await expect(preview.locator("#app")).toContainText("Upload now||toString");
   await expect(preview.locator("#app")).not.toContainText("Welcome");
   await preview.close();
+});
+
+test("theme fields preserve removals, empty text and other languages after saving and previewing", async ({
+  page,
+  service,
+  context,
+}) => {
+  const { zip } = await import("../tests/package-fixtures");
+  await login(page, service.url);
+  await page.goto(service.url + "/app/themes");
+  const manifest = {
+    id: "removal.theme",
+    version: "1",
+    apiVersion: 1,
+    nameKey: "name",
+    defaultLocale: "en-US",
+    supportedLocales: ["en-US", "zh-CN"],
+    messages: { "en-US": { name: "Removal" } },
+    pages: { home: { entry: "entry.js" } },
+    configSchema: {
+      type: "object",
+      properties: {
+        count: { type: "integer", minimum: 1, default: 3 },
+        mode: { type: "string", enum: ["a", "b"], default: "a" },
+        enabled: { type: "boolean", default: true },
+        heading: { type: "string", default: "Original" },
+        welcome: {
+          type: "string",
+          "x-localized": true,
+          default: { "en-US": "Hello", "zh-CN": "欢迎" },
+        },
+        group: {
+          type: "object",
+          properties: {
+            ordinary: { type: "string", default: "ordinary" },
+            translated: {
+              type: "string",
+              "x-localized": true,
+              default: { "en-US": "Group", "zh-CN": "分组" },
+            },
+          },
+        },
+      },
+    },
+  };
+  await page.getByLabel("Upload ZIP (up to 20 MB)").setInputFiles({
+    name: "removal.zip",
+    mimeType: "application/zip",
+    buffer: zip({
+      "theme.json": JSON.stringify(manifest),
+      "entry.js":
+        "export function mount(el,ctx){el.dataset.testid='config-output';el.textContent=JSON.stringify(ctx.config);return {dispose(){}}}",
+    }),
+  });
+  await page
+    .getByLabel("I trust this theme and its access to login credentials.")
+    .check();
+  await page.getByRole("button", { name: "Install", exact: true }).click();
+  await page.getByRole("button", { name: "Configure", exact: true }).click();
+  await page.getByLabel("count", { exact: true }).fill("");
+  await page.getByLabel("mode", { exact: true }).selectOption("__unset");
+  await page
+    .getByLabel("enabled", { exact: true })
+    .locator("..")
+    .getByRole("button", { name: "Remove field", exact: true })
+    .click();
+  await page.getByLabel("heading", { exact: true }).fill("");
+  await page
+    .getByLabel("Content language", { exact: true })
+    .selectOption("en-US");
+  await page
+    .getByLabel("welcome", { exact: true })
+    .locator("..")
+    .getByRole("button", { name: "Remove field", exact: true })
+    .click();
+  await page
+    .getByText("group", { exact: true })
+    .locator("..")
+    .getByRole("button", { name: "Remove field", exact: true })
+    .click();
+  await page.getByRole("button", { name: "Save draft", exact: true }).click();
+  await expect(page.getByText("Draft saved", { exact: true })).toBeVisible();
+  const expected = { heading: "", welcome: { "zh-CN": "欢迎" } };
+  const installed = await (
+    await page.request.get(service.url + "/api/themes")
+  ).json();
+  expect(installed[0].config).toEqual(expected);
+  await page.reload();
+  await page.getByRole("button", { name: "Configure", exact: true }).click();
+  await expect(page.getByLabel("count", { exact: true })).toHaveValue("");
+  await expect(page.getByLabel("mode", { exact: true })).toHaveValue("__unset");
+  await page
+    .getByLabel("Content language", { exact: true })
+    .selectOption("zh-CN");
+  await expect(page.getByLabel("welcome", { exact: true })).toHaveValue("欢迎");
+  const opened = context.waitForEvent("page");
+  await page.getByRole("button", { name: "Preview home", exact: true }).click();
+  const preview = await opened;
+  await expect(preview.getByTestId("config-output")).toHaveText(
+    JSON.stringify(expected),
+  );
+  await preview.close();
+});
+
+test("theme configuration sessions reset pending array drafts and language switches preserve them", async ({
+  page,
+  service,
+}) => {
+  await login(page, service.url);
+  await page.route("**/api/themes", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify(
+        ["First", "Second"].map((name) => ({
+          manifest: {
+            id: name.toLowerCase() + ".theme",
+            version: "1",
+            defaultLocale: "en-US",
+            supportedLocales: ["en-US", "zh-CN"],
+            nameKey: "name",
+            messages: { "en-US": { name } },
+            configSchema: {
+              type: "object",
+              properties: {
+                rows: {
+                  type: "array",
+                  items: { type: "string", "x-localized": true },
+                },
+              },
+            },
+          },
+          compatible: true,
+          config: { rows: [] },
+          enabledLocales: ["en-US", "zh-CN"],
+          siteDefaultLocale: "en-US",
+        })),
+      ),
+    }),
+  );
+  await page.goto(service.url + "/app/themes");
+  const configure = page.getByRole("button", { name: "Configure", exact: true });
+  const add = page.getByRole("button", { name: "Add item", exact: true });
+  const draft = page.getByRole("textbox", { name: "New item", exact: true });
+  const language = page.getByLabel("Content language", { exact: true });
+  await configure.nth(0).click();
+  await add.click();
+  await draft.fill("English draft");
+  await language.selectOption("zh-CN");
+  await expect(draft).toHaveValue("");
+  await draft.fill("中文草稿");
+  await language.selectOption("en-US");
+  await expect(draft).toHaveValue("English draft");
+
+  await configure.nth(1).click();
+  await expect(draft).toHaveCount(0);
+  await add.click();
+  await expect(draft).toHaveValue("");
+  await draft.fill("Second theme draft");
+  await configure.nth(1).click();
+  await expect(draft).toHaveCount(0);
+  await add.click();
+  await expect(draft).toHaveValue("");
+});
+
+test("localized arrays have one structure and persist edits without language fallback", async ({
+  page,
+  service,
+}) => {
+  const { zip } = await import("../tests/package-fixtures");
+  await login(page, service.url);
+  await page.getByRole("link", { name: "Themes", exact: true }).click();
+  await expect(page.getByLabel("Upload ZIP (up to 20 MB)")).toBeEnabled();
+  await page.getByLabel("Upload ZIP (up to 20 MB)").setInputFiles({
+    name: "array-theme.zip",
+    mimeType: "application/zip",
+    buffer: zip({
+      "theme.json": JSON.stringify({
+        id: "test.arrays",
+        version: "1",
+        apiVersion: 1,
+        defaultLocale: "en-US",
+        supportedLocales: ["en-US", "zh-CN"],
+        nameKey: "name",
+        messages: { "en-US": { name: "Arrays" } },
+        pages: { home: { entry: "entry.js" } },
+        configSchema: {
+          type: "object",
+          properties: {
+            choice: {
+              type: "object",
+              properties: { a: { type: "integer" }, b: { type: "integer" } },
+              enum: [
+                { a: 1, b: 2 },
+                { a: 3, b: 4 },
+              ],
+              default: { b: 2, a: 1 },
+            },
+            rows: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  title: { type: "string", "x-localized": true },
+                  url: { type: "string" },
+                },
+              },
+            },
+          },
+        },
+      }),
+      "entry.js": "export function mount(){return {dispose(){}}}",
+    }),
+  });
+  await page
+    .getByLabel("I trust this theme and its access to login credentials.")
+    .check();
+  await page.getByRole("button", { name: "Install", exact: true }).click();
+  await page.getByRole("button", { name: "Configure", exact: true }).click();
+  await expect(page.getByLabel("choice", { exact: true })).toHaveValue(
+    JSON.stringify({ a: 1, b: 2 }),
+  );
+  await page
+    .getByLabel("choice", { exact: true })
+    .selectOption(JSON.stringify({ a: 3, b: 4 }));
+  await expect(
+    page.getByRole("button", { name: "Add item", exact: true }),
+  ).toHaveCount(1);
+  await page.getByRole("button", { name: "Add item", exact: true }).click();
+  await page.getByLabel("title", { exact: true }).fill("English");
+  await page.getByLabel("url", { exact: true }).fill("/one");
+  await page
+    .getByLabel("Content language", { exact: true })
+    .selectOption("zh-CN");
+  await expect(page.getByLabel("title", { exact: true })).toHaveValue("");
+  await expect(page.getByLabel("url", { exact: true })).toHaveValue("/one");
+  await page.getByLabel("title", { exact: true }).fill("中文");
+  await page.getByRole("button", { name: "Add item", exact: true }).click();
+  await page.getByLabel("title", { exact: true }).nth(1).fill("第二项");
+  await page.getByRole("button", { name: "Move item up", exact: true }).click();
+  await page.getByRole("button", { name: "Save draft", exact: true }).click();
+  await expect(page.getByText("Draft saved", { exact: true })).toBeVisible();
+  const themes = await (
+    await page.request.get(service.url + "/api/themes")
+  ).json();
+  const config = themes.find(
+    (theme: any) => theme.manifest.id === "test.arrays",
+  ).config;
+  expect(config.choice).toEqual({ a: 3, b: 4 });
+  expect(config.rows).toEqual([
+    { title: { "zh-CN": "第二项" } },
+    { title: { "en-US": "English", "zh-CN": "中文" }, url: "/one" },
+  ]);
 });

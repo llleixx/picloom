@@ -475,7 +475,12 @@ test("unknown redundant writes recover with task ID without writing twice", asyn
   try {
     f.app.plugins.register({
       defaultLocale: "en-US",
-      content: { "en-US": { name: "unknown" } },
+      nameKey: "package.name",
+      messages: {
+        "en-US": {
+          "package.name": "unknown",
+        },
+      },
 
       id: "test.unknown",
 
@@ -625,7 +630,8 @@ test("deleting during an action stops the chain and cleans temporary data after 
   try {
     f.app.plugins.register({
       defaultLocale: "en-US",
-      content: { "en-US": { name: "cancel" } },
+      nameKey: "package.name",
+      messages: { "en-US": { "package.name": "cancel" } },
 
       id: "test.cancel-action",
 
@@ -634,9 +640,6 @@ test("deleting during an action stops the chain and cleans temporary data after 
       apiVersion: 1,
       stages: {
         post_save: {
-          defaultLocale: "en-US",
-          content: { "en-US": {} },
-
           configSchemaVersion: 1,
           configSchema: { type: "object", properties: {} },
           async createInstance() {
@@ -748,7 +751,8 @@ test("background tasks refill a free slot after failure while another task remai
     f.app.config.taskConcurrency = 2;
     f.app.plugins.register({
       defaultLocale: "en-US",
-      content: { "en-US": { name: "Refill" } },
+      nameKey: "package.name",
+      messages: { "en-US": { "package.name": "Refill" } },
 
       id: "test.refill",
 
@@ -757,9 +761,6 @@ test("background tasks refill a free slot after failure while another task remai
       apiVersion: 1,
       stages: {
         post_save: {
-          defaultLocale: "en-US",
-          content: { "en-US": {} },
-
           configSchemaVersion: 1,
           configSchema: { type: "object", properties: {} },
           async createInstance() {

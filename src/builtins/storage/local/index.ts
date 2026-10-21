@@ -16,20 +16,18 @@ import {
 } from "../../../../plugin-sdk";
 export const localStorage: Definition<"storage"> = {
   defaultLocale: "en-US",
-  content: {
+  nameKey: "package.name",
+  descriptionKey: "package.description",
+  messages: {
     "en-US": {
-      name: "Local Storage",
-      description: "Store files in a local directory.",
-      configSchema: { "/properties/root": { title: "Root directory" } },
+      "package.name": "Local Storage",
+      "package.description": "Store files in a local directory.",
+      "settings.root.label": "Root directory",
     },
     "zh-CN": {
-      name: "本地存储",
-      description: "将文件保存到本地目录。",
-      configSchema: {
-        "/properties/root": {
-          title: "根目录",
-        },
-      },
+      "package.name": "本地存储",
+      "package.description": "将文件保存到本地目录。",
+      "settings.root.label": "根目录",
     },
   },
 
@@ -44,6 +42,7 @@ export const localStorage: Definition<"storage"> = {
     type: "object",
     properties: {
       root: {
+        "x-ui": { labelKey: "settings.root.label" },
         type: "string",
 
         minLength: 1,

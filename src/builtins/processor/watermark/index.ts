@@ -3,7 +3,7 @@ import { retainStream, withAbortSignal } from "../../../../plugin-sdk/files";
 import { readFile } from "node:fs/promises";
 import {
   PluginError,
-  type Config,
+  type ConfigSchema,
   type Definition,
   type Descriptor,
   type ProcessorPlugin,
@@ -12,27 +12,64 @@ import {
   type AccessCheckInput,
   type AccessProcessorInput,
 } from "../../../../plugin-sdk";
-const configSchema: Config = {
+const configSchema: ConfigSchema = {
   type: "object",
   properties: {
     type: {
+      "x-ui": {
+        labelKey: "settings.type.label",
+        enumKeys: ["settings.type.options.text", "settings.type.options.image"],
+        order: -2,
+      },
       type: "string",
 
       enum: ["text", "image"],
       default: "text",
     },
-    text: { type: "string", maxLength: 500 },
-    font: { type: "string", default: "sans" },
+    text: {
+      "x-ui": {
+        labelKey: "settings.text.label",
+        visibleWhen: { path: "/type", equals: "text" },
+      },
+      type: "string",
+      maxLength: 500,
+    },
+    font: {
+      "x-ui": {
+        labelKey: "settings.font.label",
+        visibleWhen: { path: "/type", equals: "text" },
+      },
+      type: "string",
+      default: "sans",
+    },
     fontFile: {
+      "x-ui": {
+        labelKey: "settings.fontFile.label",
+        descriptionKey: "settings.fontFile.description",
+        visibleWhen: { path: "/type", equals: "text" },
+      },
       type: "string",
     },
     sizeMode: {
+      "x-ui": {
+        labelKey: "settings.sizeMode.label",
+        descriptionKey: "settings.sizeMode.description",
+        enumKeys: [
+          "settings.sizeMode.options.relative",
+          "settings.sizeMode.options.fixed",
+        ],
+        order: -1,
+      },
       type: "string",
 
       enum: ["relative", "fixed"],
       default: "relative",
     },
     fontSizePercent: {
+      "x-ui": {
+        labelKey: "settings.fontSizePercent.label",
+        visibleWhen: { path: "/sizeMode", equals: "relative" },
+      },
       type: "number",
 
       minimum: 0.1,
@@ -40,6 +77,10 @@ const configSchema: Config = {
       default: 3,
     },
     marginPercent: {
+      "x-ui": {
+        labelKey: "settings.marginPercent.label",
+        visibleWhen: { path: "/sizeMode", equals: "relative" },
+      },
       type: "number",
 
       minimum: 0,
@@ -47,6 +88,10 @@ const configSchema: Config = {
       default: 2,
     },
     fontSize: {
+      "x-ui": {
+        labelKey: "settings.fontSize.label",
+        visibleWhen: { path: "/sizeMode", equals: "fixed" },
+      },
       type: "integer",
 
       minimum: 1,
@@ -54,15 +99,28 @@ const configSchema: Config = {
       default: 32,
     },
     color: {
+      "x-ui": {
+        labelKey: "settings.color.label",
+        visibleWhen: { path: "/type", equals: "text" },
+      },
       type: "string",
 
       pattern: "^#[0-9a-fA-F]{6}$",
       default: "#ffffff",
     },
     imagePath: {
+      "x-ui": {
+        labelKey: "settings.imagePath.label",
+        descriptionKey: "settings.imagePath.description",
+        visibleWhen: { path: "/type", equals: "image" },
+      },
       type: "string",
     },
     imageWidth: {
+      "x-ui": {
+        labelKey: "settings.imageWidth.label",
+        visibleWhen: { path: "/sizeMode", equals: "fixed" },
+      },
       type: "integer",
 
       minimum: 1,
@@ -70,6 +128,10 @@ const configSchema: Config = {
       default: 128,
     },
     widthPercent: {
+      "x-ui": {
+        labelKey: "settings.widthPercent.label",
+        visibleWhen: { path: "/sizeMode", equals: "relative" },
+      },
       type: "number",
 
       minimum: 1,
@@ -77,6 +139,20 @@ const configSchema: Config = {
       default: 10,
     },
     position: {
+      "x-ui": {
+        labelKey: "settings.position.label",
+        enumKeys: [
+          "settings.position.options.top-left",
+          "settings.position.options.top",
+          "settings.position.options.top-right",
+          "settings.position.options.left",
+          "settings.position.options.center",
+          "settings.position.options.right",
+          "settings.position.options.bottom-left",
+          "settings.position.options.bottom",
+          "settings.position.options.bottom-right",
+        ],
+      },
       type: "string",
 
       enum: [
@@ -93,6 +169,10 @@ const configSchema: Config = {
       default: "bottom-right",
     },
     margin: {
+      "x-ui": {
+        labelKey: "settings.margin.label",
+        visibleWhen: { path: "/sizeMode", equals: "fixed" },
+      },
       type: "integer",
 
       minimum: 0,
@@ -100,6 +180,7 @@ const configSchema: Config = {
       default: 16,
     },
     opacity: {
+      "x-ui": { labelKey: "settings.opacity.label" },
       type: "number",
 
       minimum: 0,
@@ -107,7 +188,56 @@ const configSchema: Config = {
       default: 70,
     },
   },
-  required: ["type"],
+  required: ["type", "sizeMode", "opacity", "position"],
+  allOf: [
+    {
+      if: { properties: { type: { const: "text" } }, required: ["type"] },
+      then: { required: ["text", "font", "color"] },
+      else: { required: ["imagePath"] },
+    },
+    {
+      if: {
+        properties: { sizeMode: { const: "relative" } },
+        required: ["sizeMode"],
+      },
+      then: { required: ["marginPercent"] },
+      else: { required: ["margin"] },
+    },
+    {
+      if: {
+        properties: {
+          type: { const: "text" },
+          sizeMode: { const: "relative" },
+        },
+        required: ["type", "sizeMode"],
+      },
+      then: { required: ["fontSizePercent"] },
+    },
+    {
+      if: {
+        properties: { type: { const: "text" }, sizeMode: { const: "fixed" } },
+        required: ["type", "sizeMode"],
+      },
+      then: { required: ["fontSize"] },
+    },
+    {
+      if: {
+        properties: {
+          type: { const: "image" },
+          sizeMode: { const: "relative" },
+        },
+        required: ["type", "sizeMode"],
+      },
+      then: { required: ["widthPercent"] },
+    },
+    {
+      if: {
+        properties: { type: { const: "image" }, sizeMode: { const: "fixed" } },
+        required: ["type", "sizeMode"],
+      },
+      then: { required: ["imageWidth"] },
+    },
+  ],
   additionalProperties: false,
 };
 const escape = (text: string) =>
@@ -131,147 +261,8 @@ function stage(
   >
 > {
   return {
-    defaultLocale: "en-US",
-    content: {
-      "en-US": {
-        ...(access
-          ? {
-              paramsSchema: { "/properties/watermark": { title: "Watermark" } },
-            }
-          : {}),
-        configSchema: {
-          "/properties/type": { title: "Watermark Type" },
-          "/properties/text": { title: "Text" },
-          "/properties/font": { title: "Font" },
-          "/properties/fontFile": {
-            title: "Font File",
-            description:
-              "Optional server font file. Chinese text requires a font with Chinese glyphs.",
-          },
-          "/properties/sizeMode": {
-            title: "Size Mode",
-            description: "Relative uses percentages; Fixed uses pixels.",
-          },
-          "/properties/fontSizePercent": {
-            title: "Font Size (% of Short Side)",
-          },
-          "/properties/marginPercent": { title: "Margin (% of Short Side)" },
-          "/properties/fontSize": { title: "Font Size (px)" },
-          "/properties/color": { title: "Color" },
-          "/properties/imagePath": {
-            title: "Image Path",
-            description: "Server path to a static PNG, JPEG or WebP watermark.",
-          },
-          "/properties/imageWidth": { title: "Image Width (px)" },
-          "/properties/widthPercent": { title: "Image Width (%)" },
-          "/properties/position": { title: "Position" },
-          "/properties/margin": { title: "Margin (px)" },
-          "/properties/opacity": { title: "Opacity (%)" },
-        },
-      },
-      "zh-CN": {
-        ...(access
-          ? { paramsSchema: { "/properties/watermark": { title: "水印" } } }
-          : {}),
-        configSchema: {
-          "/properties/type": {
-            title: "水印类型",
-            enumLabels: ["文字", "图片"],
-          },
-          "/properties/text": {
-            title: "文字",
-          },
-          "/properties/font": {
-            title: "字体",
-          },
-          "/properties/fontFile": {
-            title: "字体文件",
-            description:
-              "可选的服务器字体文件。中文文字需要支持中文字形的字体。",
-          },
-          "/properties/sizeMode": {
-            title: "尺寸模式",
-            enumLabels: ["相对尺寸", "固定尺寸"],
-            description: "相对尺寸使用百分比，固定尺寸使用像素。",
-          },
-          "/properties/fontSizePercent": {
-            title: "字号（短边百分比）",
-          },
-          "/properties/marginPercent": {
-            title: "边距（短边百分比）",
-          },
-          "/properties/fontSize": {
-            title: "字号（px）",
-          },
-          "/properties/color": {
-            title: "颜色",
-          },
-          "/properties/imagePath": {
-            title: "图片路径",
-            description: "服务器上的静态 PNG、JPEG 或 WebP 水印图片路径。",
-          },
-          "/properties/imageWidth": {
-            title: "图片宽度（px）",
-          },
-          "/properties/widthPercent": {
-            title: "图片宽度（%）",
-          },
-          "/properties/position": {
-            title: "位置",
-            enumLabels: [
-              "左上",
-              "上方",
-              "右上",
-              "左侧",
-              "居中",
-              "右侧",
-              "左下",
-              "下方",
-              "右下",
-            ],
-          },
-          "/properties/margin": {
-            title: "边距（px）",
-          },
-          "/properties/opacity": {
-            title: "不透明度（%）",
-          },
-        },
-        ...(access
-          ? { paramsSchema: { "/properties/watermark": { title: "水印" } } }
-          : {}),
-      },
-    },
-
     configSchemaVersion: 1,
     configSchema,
-    uiHints: Object.fromEntries([
-      ["/type", { order: -2 }],
-      ["/sizeMode", { order: -1 }],
-      ["/fontSize", { visibleWhen: { path: "/sizeMode", equals: "fixed" } }],
-      [
-        "/fontSizePercent",
-        { visibleWhen: { path: "/sizeMode", equals: "relative" } },
-      ],
-      ["/margin", { visibleWhen: { path: "/sizeMode", equals: "fixed" } }],
-      [
-        "/marginPercent",
-        { visibleWhen: { path: "/sizeMode", equals: "relative" } },
-      ],
-      ...["text", "font", "fontFile", "color"].map((key) => [
-        "/" + key,
-        { visibleWhen: { path: "/type", equals: "text" } },
-      ]),
-      ["/imageWidth", { visibleWhen: { path: "/sizeMode", equals: "fixed" } }],
-      [
-        "/widthPercent",
-        { visibleWhen: { path: "/sizeMode", equals: "relative" } },
-      ],
-      ...["imagePath"].map((key) => [
-        "/" + key,
-        { visibleWhen: { path: "/type", equals: "image" } },
-      ]),
-    ]),
     async validateConfig(config) {
       const key = config.type === "image" ? "imagePath" : "text";
       return typeof config[key] !== "string" || !String(config[key]).trim()
@@ -339,15 +330,15 @@ function stage(
               1,
               Math.round(
                 relative
-                  ? (shortSide * Number(config.fontSizePercent ?? 3)) / 100
-                  : Number(config.fontSize ?? 32),
+                  ? (shortSide * Number(config.fontSizePercent)) / 100
+                  : Number(config.fontSize),
               ),
             );
             const margin = Math.min(
               Math.round(
                 relative
-                  ? (shortSide * Number(config.marginPercent ?? 2)) / 100
-                  : Number(config.margin ?? 16),
+                  ? (shortSide * Number(config.marginPercent)) / 100
+                  : Number(config.margin),
               ),
               Math.floor((Math.min(width, height) - 1) / 2),
             );
@@ -364,8 +355,8 @@ function stage(
                       1,
                       Math.round(
                         relative
-                          ? (width * Number(config.widthPercent ?? 10)) / 100
-                          : Number(config.imageWidth ?? 128),
+                          ? (width * Number(config.widthPercent)) / 100
+                          : Number(config.imageWidth),
                       ),
                     ),
                   ),
@@ -382,8 +373,8 @@ function stage(
                 );
               overlay = sharp({
                 text: {
-                  text: `<span foreground="${config.color ?? "#ffffff"}">${escape(String(config.text))}</span>`,
-                  font: `${config.font ?? "sans"} ${fontSize}`,
+                  text: `<span foreground="${config.color}">${escape(String(config.text))}</span>`,
+                  font: `${config.font} ${fontSize}`,
                   fontfile: config.fontFile
                     ? String(config.fontFile)
                     : undefined,
@@ -403,9 +394,9 @@ function stage(
             );
             for (let i = 3; i < mark.data.length; i += 4)
               mark.data[i] = Math.round(
-                (mark.data[i]! * Number(config.opacity ?? 70)) / 100,
+                (mark.data[i]! * Number(config.opacity)) / 100,
               );
-            const position = String(config.position ?? "bottom-right");
+            const position = String(config.position);
             const left = position.includes("left")
               ? margin
               : position.includes("right")
@@ -436,14 +427,96 @@ function stage(
     },
   };
 }
+const fieldMessages = {
+  "en-US": {
+    ...{ "params.watermark.label": "Watermark" },
+    "settings.type.label": "Watermark Type",
+    "settings.type.options.text": "text",
+    "settings.type.options.image": "image",
+    "settings.text.label": "Text",
+    "settings.font.label": "Font",
+    "settings.fontFile.label": "Font File",
+    "settings.fontFile.description":
+      "Optional server font file. Chinese text requires a font with Chinese glyphs.",
+    "settings.sizeMode.label": "Size Mode",
+    "settings.sizeMode.description":
+      "Relative uses percentages; Fixed uses pixels.",
+    "settings.sizeMode.options.relative": "relative",
+    "settings.sizeMode.options.fixed": "fixed",
+    "settings.fontSizePercent.label": "Font Size (% of Short Side)",
+    "settings.marginPercent.label": "Margin (% of Short Side)",
+    "settings.fontSize.label": "Font Size (px)",
+    "settings.color.label": "Color",
+    "settings.imagePath.label": "Image Path",
+    "settings.imagePath.description":
+      "Server path to a static PNG, JPEG or WebP watermark.",
+    "settings.imageWidth.label": "Image Width (px)",
+    "settings.widthPercent.label": "Image Width (%)",
+    "settings.position.label": "Position",
+    "settings.position.options.top-left": "top-left",
+    "settings.position.options.top": "top",
+    "settings.position.options.top-right": "top-right",
+    "settings.position.options.left": "left",
+    "settings.position.options.center": "center",
+    "settings.position.options.right": "right",
+    "settings.position.options.bottom-left": "bottom-left",
+    "settings.position.options.bottom": "bottom",
+    "settings.position.options.bottom-right": "bottom-right",
+    "settings.margin.label": "Margin (px)",
+    "settings.opacity.label": "Opacity (%)",
+  },
+  "zh-CN": {
+    ...{ "params.watermark.label": "水印" },
+    "settings.type.label": "水印类型",
+    "settings.type.options.text": "文字",
+    "settings.type.options.image": "图片",
+    "settings.text.label": "文字",
+    "settings.font.label": "字体",
+    "settings.fontFile.label": "字体文件",
+    "settings.fontFile.description":
+      "可选的服务器字体文件。中文文字需要支持中文字形的字体。",
+    "settings.sizeMode.label": "尺寸模式",
+    "settings.sizeMode.description": "相对尺寸使用百分比，固定尺寸使用像素。",
+    "settings.sizeMode.options.relative": "相对尺寸",
+    "settings.sizeMode.options.fixed": "固定尺寸",
+    "settings.fontSizePercent.label": "字号（短边百分比）",
+    "settings.marginPercent.label": "边距（短边百分比）",
+    "settings.fontSize.label": "字号（px）",
+    "settings.color.label": "颜色",
+    "settings.imagePath.label": "图片路径",
+    "settings.imagePath.description":
+      "服务器上的静态 PNG、JPEG 或 WebP 水印图片路径。",
+    "settings.imageWidth.label": "图片宽度（px）",
+    "settings.widthPercent.label": "图片宽度（%）",
+    "settings.position.label": "位置",
+    "settings.position.options.top-left": "左上",
+    "settings.position.options.top": "上方",
+    "settings.position.options.top-right": "右上",
+    "settings.position.options.left": "左侧",
+    "settings.position.options.center": "居中",
+    "settings.position.options.right": "右侧",
+    "settings.position.options.bottom-left": "左下",
+    "settings.position.options.bottom": "下方",
+    "settings.position.options.bottom-right": "右下",
+    "settings.margin.label": "边距（px）",
+    "settings.opacity.label": "不透明度（%）",
+  },
+};
 export const watermark: Definition<"processor"> = {
   defaultLocale: "en-US",
-  content: {
+  nameKey: "package.name",
+  descriptionKey: "package.description",
+  messages: {
     "en-US": {
-      name: "Watermark",
-      description: "Add a text or image watermark.",
+      ...fieldMessages["en-US"],
+      "package.name": "Watermark",
+      "package.description": "Add a text or image watermark.",
     },
-    "zh-CN": { name: "水印", description: "为图片添加文字或图片水印。" },
+    "zh-CN": {
+      ...fieldMessages["zh-CN"],
+      "package.name": "水印",
+      "package.description": "为图片添加文字或图片水印。",
+    },
   },
 
   id: "builtin.watermark",
@@ -457,7 +530,12 @@ export const watermark: Definition<"processor"> = {
       ...stage(true),
       paramsSchema: {
         type: "object",
-        properties: { watermark: { type: "boolean" } },
+        properties: {
+          watermark: {
+            type: "boolean",
+            "x-ui": { labelKey: "params.watermark.label" },
+          },
+        },
         additionalProperties: false,
       },
     },

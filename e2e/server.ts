@@ -13,6 +13,7 @@ const app = await bootstrap(
     encryptionKey: "cd".repeat(32),
     origin: "http://127.0.0.1",
     secureCookie: false,
+    ...(process.env.E2E_WEB_ROOT ? { webRoot: process.env.E2E_WEB_ROOT } : {}),
     ...(scenario === "queue"
       ? { maxUploadBytes: 1024, uploadConcurrency: 2 }
       : {}),
@@ -37,7 +38,14 @@ await app.auth.initialize("admin", "test-password-123");
 if (scenario === "configuration")
   app.plugins.register({
     defaultLocale: "en-US",
-    content: { "en-US": { name: "Test webhook" } },
+    nameKey: "package.name",
+    messages: {
+      "en-US": {
+        "package.name": "Test webhook",
+        "settings.url.label": "Target URL",
+        "settings.token.label": "Bearer Token",
+      },
+    },
 
     id: "test.webhook",
 
@@ -46,22 +54,17 @@ if (scenario === "configuration")
     apiVersion: 1,
     stages: {
       post_save: {
-        defaultLocale: "en-US",
-        content: {
-          "en-US": {
-            configSchema: {
-              "/properties/url": { title: "Target URL" },
-              "/properties/token": { title: "Bearer Token" },
-            },
-          },
-        },
-
         configSchemaVersion: 1,
         configSchema: {
           type: "object",
           properties: {
-            url: { type: "string", format: "uri" },
+            url: {
+              "x-ui": { labelKey: "settings.url.label" },
+              type: "string",
+              format: "uri",
+            },
             token: {
+              "x-ui": { labelKey: "settings.token.label" },
               type: "string",
 
               "x-sensitive": true,
@@ -95,18 +98,21 @@ if (scenario === "configuration")
 if (scenario === "configuration")
   app.plugins.register({
     defaultLocale: "en-US",
-    content: {
+    nameKey: "package.name",
+    messages: {
       "en-US": {
-        name: "Schema test",
-        configSchema: {
-          "/properties/enabled": { title: "Show details" },
-          "/properties/detail": { title: "Details" },
-          "/properties/nested": { title: "Nested settings" },
-          "/properties/nested/properties/label": { title: "Nested name" },
-          "/properties/items": { title: "Items" },
-          "/properties/items/items/properties/name": { title: "Item name" },
-          "/properties/secretItems": { title: "Secret items" },
-        },
+        "package.name": "Schema test",
+        "settings.enabled.label": "Show details",
+        "settings.empty.label": "Empty settings",
+        "settings.emptySecret.label": "Empty secret",
+        "settings.detail.label": "Details",
+        "settings.nested.label": "Nested settings",
+        "settings.nested.label.label": "Nested name",
+        "settings.items.label": "Items",
+        "settings.nulls.label": "Null items",
+        "settings.items.items.name.label": "Item name",
+        "settings.items.items.tags.label": "Item tags",
+        "settings.secretItems.label": "Secret items",
       },
     },
 
@@ -119,25 +125,68 @@ if (scenario === "configuration")
     configSchema: {
       type: "object",
       properties: {
-        enabled: { type: "boolean", default: false },
-        detail: { type: "string" },
+        empty: {
+          type: "object",
+          properties: {},
+          "x-ui": { labelKey: "settings.empty.label" },
+        },
+        toString: { type: "string" as const },
+        emptySecret: {
+          type: "string",
+          "x-sensitive": true,
+          "x-ui": { labelKey: "settings.emptySecret.label" },
+        },
+        enabled: {
+          "x-ui": { labelKey: "settings.enabled.label" },
+          type: "boolean",
+          default: false,
+        },
+        detail: {
+          "x-ui": {
+            labelKey: "settings.detail.label",
+            visibleWhen: { path: "/enabled", equals: true },
+          },
+          type: "string",
+        },
         nested: {
+          "x-ui": { labelKey: "settings.nested.label", advanced: true },
           type: "object",
 
           properties: {
-            label: { type: "string", default: "default" },
+            label: {
+              "x-ui": { labelKey: "settings.nested.label.label" },
+              type: "string",
+              default: "default",
+            },
           },
         },
         items: {
+          "x-ui": { labelKey: "settings.items.label" },
           type: "array",
 
           items: {
             type: "object",
-            properties: { name: { type: "string" } },
+            properties: {
+              name: {
+                "x-ui": { labelKey: "settings.items.items.name.label" },
+                type: "string",
+              },
+              tags: {
+                type: "array",
+                items: { type: "string" },
+                "x-ui": { labelKey: "settings.items.items.tags.label" },
+              },
+            },
             required: ["name"],
           },
         },
+        nulls: {
+          "x-ui": { labelKey: "settings.nulls.label" },
+          type: "array",
+          items: { type: "null", default: null },
+        },
         secretItems: {
+          "x-ui": { labelKey: "settings.secretItems.label" },
           type: "array",
 
           items: {
@@ -150,10 +199,6 @@ if (scenario === "configuration")
       if: { properties: { enabled: { const: true } }, required: ["enabled"] },
       then: { required: ["detail"] },
       additionalProperties: false,
-    },
-    uiHints: {
-      "/detail": { visibleWhen: { path: "/enabled", equals: true } },
-      "/nested": { advanced: true },
     },
     async createInstance() {
       return {
@@ -168,7 +213,8 @@ const profile =
 if (scenario === "moderation" && profile) {
   app.plugins.register({
     defaultLocale: "en-US",
-    content: { "en-US": { name: "Review" } },
+    nameKey: "package.name",
+    messages: { "en-US": { "package.name": "Review" } },
 
     id: "test.review",
 
@@ -177,9 +223,6 @@ if (scenario === "moderation" && profile) {
     kind: "processor",
     stages: {
       post_save: {
-        defaultLocale: "en-US",
-        content: { "en-US": {} },
-
         configSchemaVersion: 1,
         configSchema: { type: "object", properties: {} },
         async createInstance() {

@@ -1,19 +1,20 @@
 <script setup lang="ts">
+import type { ParameterSchema } from "../../../plugin-sdk/schema";
+import type { PluginLocalization } from "../../../plugin-sdk/config";
 import { t, locale } from "@/lib/i18n";
-import { localizePlugin } from "../../../shared/plugin-localization";
-import { computed, ref, watch } from "vue";
+import { computed, onScopeDispose, ref, watch } from "vue";
 import { Button } from "@/components/ui/button";
-import SchemaField from "./SchemaField.vue";
+import PluginField from "./PluginField.vue";
+import { fieldText } from "../../../shared/package-localization";
 import { api, errorText } from "@/lib/api";
+import { createPluginDraft } from "@/lib/plugin-draft";
 import {
-  cloneJson,
   sensitivePaths,
   type ConfiguredStep,
   type StageView,
   type PipelineKind,
   type PluginSummary,
   type PluginView,
-  type Config,
   type UpgradePreview,
 } from "../../../shared/config";
 const model = defineModel<ConfiguredStep>({ required: true });
@@ -27,14 +28,13 @@ const props = defineProps<{
   errors?: Array<{ path: string; message: string }>;
 }>();
 const emit = defineEmits<{ ready: [value: boolean] }>();
-const rawDefinition = ref<StageView>();
-const definition = computed(() =>
-  rawDefinition.value
-    ? localizePlugin(rawDefinition.value, locale.value)
-    : undefined,
-);
+const definition = ref<StageView & PluginLocalization>();
+
 const error = ref("");
 let epoch = 0;
+onScopeDispose(() => {
+  ++epoch;
+});
 const retry = ref(0),
   loading = ref(false);
 const choice = computed({
@@ -43,18 +43,50 @@ const choice = computed({
       ? model.value.pluginId + "@" + model.value.version
       : "",
   set: (value: string) => {
-    const p = props.plugins.find((p) => p.id + "@" + p.version === value);
-    if (p)
-      model.value = {
-        pluginId: p.id,
-        version: p.version,
-        config: {},
-        ...("onNotApplicable" in model.value
-          ? { onNotApplicable: model.value.onNotApplicable }
-          : {}),
-      };
+    void selectPlugin(value);
   },
 });
+const selecting = ref(false);
+const failedChoice = ref("");
+const failedUpgrade = ref(false);
+async function selectPlugin(value: string) {
+  const plugin = props.plugins.find((p) => p.id + "@" + p.version === value);
+  if (!plugin || selecting.value) return;
+  const draft = model.value;
+  const current = ++epoch;
+  loading.value = false;
+  selecting.value = true;
+  failedUpgrade.value = false;
+  emit("ready", false);
+  error.value = "";
+  failedChoice.value = "";
+  try {
+    const next = await createPluginDraft(
+      plugin.id,
+      plugin.version,
+      props.stage,
+    );
+    if (current !== epoch || model.value !== draft) return;
+    model.value = {
+      ...next,
+      ...("onNotApplicable" in draft
+        ? { onNotApplicable: draft.onNotApplicable }
+        : {}),
+    };
+  } catch (e) {
+    if (current !== epoch || model.value !== draft) return;
+    failedChoice.value = value;
+    error.value = errorText(e);
+  } finally {
+    selecting.value = false;
+  }
+}
+function retryLoad() {
+  if (failedUpgrade.value) void previewUpgrade();
+  else if (failedChoice.value) void selectPlugin(failedChoice.value);
+  else retry.value++;
+}
+
 const targetVersion = ref("");
 const upgrading = ref(false);
 const upgradeFields = ref<Array<{ path: string; message: string }>>([]);
@@ -78,13 +110,14 @@ const versions = computed(() => {
 const removedParams = computed(() =>
   (model.value.enabledParams ?? []).filter(
     (key) =>
-      !(key in ((definition.value?.paramsSchema?.properties ?? {}) as Config)),
+      !Object.hasOwn(definition.value?.paramsSchema?.properties ?? {}, key),
   ),
 );
 async function previewUpgrade() {
   if (!model.value.key || !targetVersion.value || upgrading.value) return;
   const draft = model.value;
   upgrading.value = true;
+  failedUpgrade.value = false;
   emit("ready", false);
   error.value = "";
   try {
@@ -102,6 +135,8 @@ async function previewUpgrade() {
     model.value = { ...model.value, ...result.configuration, error: null };
     upgradeFields.value = result.fields;
   } catch (e) {
+    if (model.value !== draft) return;
+    failedUpgrade.value = true;
     error.value = errorText(e);
   } finally {
     upgrading.value = false;
@@ -121,25 +156,13 @@ function cancelUpgrade() {
   upgradeFields.value = [];
   targetVersion.value = "";
 }
-function defaults(schema: Config): Config {
-  const result: Config = {};
-  for (const [key, rule] of Object.entries(
-    (schema.properties ?? {}) as Record<string, Config>,
-  )) {
-    if (rule["x-sensitive"]) continue;
-    if (rule.default !== undefined) result[key] = cloneJson(rule.default);
-    else if (rule.type === "object") {
-      const nested = defaults(rule);
-      if (Object.keys(nested).length) result[key] = nested;
-    }
-  }
-  return result;
-}
 watch(
   () => [choice.value, model.value.key, model.value, props.stage, retry.value],
   async () => {
     const current = ++epoch;
-    rawDefinition.value = undefined;
+    failedChoice.value = "";
+    failedUpgrade.value = false;
+    definition.value = undefined;
     emit("ready", false);
     error.value = "";
     loading.value = false;
@@ -157,19 +180,18 @@ watch(
             : undefined
           : value;
       if (!description?.configSchema) throw new Error("Unsupported stage");
-      rawDefinition.value = description;
+      definition.value = {
+        ...description,
+        defaultLocale: value.defaultLocale,
+        messages: value.messages,
+      };
       if (
         (props.stage === "access" || props.stage === "upload") &&
         model.value.enabledParams === undefined
       )
         model.value.enabledParams = Object.keys(
-          rawDefinition.value.paramsSchema?.properties ?? {},
+          definition.value.paramsSchema?.properties ?? {},
         );
-      if (!model.value.key)
-        model.value.config = {
-          ...defaults(description.configSchema),
-          ...model.value.config,
-        };
       model.value.secretEdits ??= {};
       for (const path of sensitivePaths(description.configSchema))
         model.value.secretEdits[path] ??= { action: "preserve" };
@@ -188,7 +210,7 @@ watch(
     <label class="field"
       >{{ label
       }}<select
-        :disabled="locked || upgrading || !!model.upgrade"
+        :disabled="locked || selecting || upgrading || !!model.upgrade"
         v-model="choice"
         :aria-label="label"
         class="native-select"
@@ -283,10 +305,12 @@ watch(
         }}
       </label>
     </div>
-    <p v-if="loading" class="subtle" role="status">{{ t("ui.loading") }}</p>
+    <p v-if="loading || selecting" class="subtle" role="status">
+      {{ t("ui.loading") }}
+    </p>
     <div v-if="error" role="alert" class="error-box">
       {{ error
-      }}<Button type="button" variant="ghost" size="sm" @click="retry++">{{
+      }}<Button type="button" variant="ghost" size="sm" @click="retryLoad">{{
         t("ui.retry")
       }}</Button>
     </div>
@@ -295,7 +319,9 @@ watch(
     </p>
     <fieldset
       v-if="
-        (stage === 'access' || stage === 'upload') && definition?.paramsSchema
+        (stage === 'access' || stage === 'upload') &&
+        definition?.paramsSchema &&
+        Object.keys(definition.paramsSchema.properties ?? {}).length
       "
       class="space-y-3 py-2"
     >
@@ -305,7 +331,7 @@ watch(
       <label
         v-for="(rule, key) in definition.paramsSchema.properties as Record<
           string,
-          Config
+          ParameterSchema
         >"
         :key="key"
         class="mr-4 inline-flex items-center gap-2 text-sm"
@@ -316,16 +342,15 @@ watch(
           :value="key"
           :aria-label="t('plugins.enableParameter', { name: key })"
         />
-        {{ rule.title ?? key }}
+        {{ fieldText(definition, locale, rule["x-ui"]).label ?? key }}
         <span class="text-xs text-muted-foreground">({{ key }})</span>
       </label>
     </fieldset>
-    <SchemaField
+    <PluginField
       v-if="definition"
       :schema="definition.configSchema"
       :config="model.config"
-      path=""
-      :hints="definition.uiHints"
+      :localization="definition"
       :edits="model.secretEdits ?? {}"
       :secret-presence="model.secretPresence ?? {}"
       :editing="!!model.key && !model.upgrade"

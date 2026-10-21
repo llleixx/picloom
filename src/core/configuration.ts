@@ -10,7 +10,6 @@ import { AppError, Conflict, requireValue } from "./errors";
 import { prefix } from "../infra/files";
 import type {
   AccessParameterGroup,
-  Config,
   GroupView,
   ProfileView,
   PipelineStep,
@@ -28,6 +27,27 @@ const name = (value: unknown) => {
 const version = (value: unknown, current: number) => {
   if (value !== current) throw new Conflict("配置已被修改，请重新读取");
 };
+function validateProfileSettings(
+  input: Pick<
+    ProfileInput,
+    "enabled" | "allowGuestUpload" | "maxUploadBytes" | "allowedMimeTypes"
+  >,
+) {
+  if (
+    typeof input.enabled !== "boolean" ||
+    (input.allowGuestUpload !== undefined &&
+      typeof input.allowGuestUpload !== "boolean") ||
+    (input.maxUploadBytes !== null &&
+      (!Number.isSafeInteger(input.maxUploadBytes) ||
+        input.maxUploadBytes <= 0)) ||
+    !Array.isArray(input.allowedMimeTypes) ||
+    !input.allowedMimeTypes.length ||
+    input.allowedMimeTypes.some(
+      (t) => typeof t !== "string" || !/^image\/[\w.+-]+$/.test(t),
+    )
+  )
+    throw new AppError("INVALID_INPUT", "上传限制无效");
+}
 export class Configuration {
   constructor(
     private db: Persistence,
@@ -45,38 +65,40 @@ export class Configuration {
         );
         const descriptor = this.plugins.descriptor(instance);
         const definition = this.plugins.definition(instance);
-        const properties = (descriptor.paramsSchema?.properties ??
-          {}) as Record<string, Config>;
+        const properties = descriptor.paramsSchema?.properties ?? {};
         const exposed = Object.fromEntries(
           step.enabled_params
             .filter((key) => properties[key])
             .map((key) => [key, properties[key]!]),
         );
         if (!Object.keys(exposed).length) continue;
+        const keys = new Set(
+          Object.values(exposed).flatMap((node) => {
+            const ui = node["x-ui"];
+            return [
+              ui?.labelKey,
+              ui?.descriptionKey,
+              ui?.groupKey,
+              ...(ui?.enumKeys ?? []),
+            ].filter((key): key is string => !!key);
+          }),
+        );
+        keys.add(definition.nameKey);
         result.push({
           id: instance.id,
           plugin: {
             id: definition.id,
-            defaultLocale: definition.defaultLocale,
-            content: definition.content,
           },
-          defaultLocale: descriptor.defaultLocale,
+          defaultLocale: definition.defaultLocale,
+          nameKey: definition.nameKey,
           paramsSchema: { type: "object", properties: exposed },
-          content: Object.fromEntries(
-            Object.entries(descriptor.content).map(([locale, value]) => {
-              return [
-                locale,
-                {
-                  paramsSchema: Object.fromEntries(
-                    Object.entries(value?.paramsSchema ?? {}).filter(([path]) =>
-                      Object.keys(exposed).some(
-                        (key) => path === "/properties/" + pointer(key),
-                      ),
-                    ),
-                  ),
-                },
-              ];
-            }),
+          messages: Object.fromEntries(
+            Object.entries(definition.messages).map(([locale, dictionary]) => [
+              locale,
+              Object.fromEntries(
+                Object.entries(dictionary).filter(([key]) => keys.has(key)),
+              ),
+            ]),
           ),
         });
       }
@@ -243,20 +265,7 @@ export class Configuration {
     const result = await this.plugins.exclusive(async () => {
       const old = id ? await this.profile(id) : null;
       if (old) version(input.expectedVersion, old.configVersion);
-      if (
-        typeof input.enabled !== "boolean" ||
-        (input.allowGuestUpload !== undefined &&
-          typeof input.allowGuestUpload !== "boolean") ||
-        (input.maxUploadBytes !== null &&
-          (!Number.isSafeInteger(input.maxUploadBytes) ||
-            input.maxUploadBytes <= 0)) ||
-        !Array.isArray(input.allowedMimeTypes) ||
-        !input.allowedMimeTypes.length ||
-        input.allowedMimeTypes.some(
-          (t) => typeof t !== "string" || !/^image\/[\w.+-]+$/.test(t),
-        )
-      )
-        throw new AppError("INVALID_INPUT", "上传限制无效");
+      validateProfileSettings(input);
       if (this.files.profileClosing.has(id ?? ""))
         throw new Conflict("上传配置正在删除");
       const label = name(input.name),
@@ -601,20 +610,7 @@ export class Configuration {
     });
   }
   async saveProfile(input: ProfileInput, id?: string) {
-    if (
-      typeof input.enabled !== "boolean" ||
-      (input.allowGuestUpload !== undefined &&
-        typeof input.allowGuestUpload !== "boolean") ||
-      (input.maxUploadBytes !== null &&
-        (!Number.isSafeInteger(input.maxUploadBytes) ||
-          input.maxUploadBytes <= 0)) ||
-      !Array.isArray(input.allowedMimeTypes) ||
-      !input.allowedMimeTypes.length ||
-      input.allowedMimeTypes.some(
-        (t) => typeof t !== "string" || !/^image\/[\w.+-]+$/.test(t),
-      )
-    )
-      throw new AppError("INVALID_INPUT", "上传限制无效");
+    validateProfileSettings(input);
     if (this.files.profileClosing.has(id ?? ""))
       throw new Conflict("上传配置正在删除");
     const result = await this.db.transaction((r) =>

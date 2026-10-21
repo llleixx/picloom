@@ -56,7 +56,7 @@ test("NodeImage storage: upload, redirect, processing stream, uncertain writes a
       name: "NodeImage test",
       pluginId: "builtin.nodeimage",
       version: "1.0.0",
-      config: {},
+      config: { redirect: true, timeoutMs: 30000 },
       secretEdits: { "/apiKey": { action: "replace", value: "test-key" } },
     });
     expect(response.status).toBe(201);

@@ -23,7 +23,7 @@ test("production HTTP serves slow originals and transforms beyond Bun's default 
       pluginId: "builtin.webdav",
       version: "1.0.0",
       name: "Slow test storage",
-      config: { endpoint: upstream.url.href },
+      config: { keyPrefix: "", timeoutMs: 30000, endpoint: upstream.url.href },
       secretEdits: {
         "/username": { action: "replace", value: "test" },
         "/password": { action: "replace", value: "test" },

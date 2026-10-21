@@ -33,6 +33,8 @@ for (const multipart of [false, true])
         version: "1.0.0",
         name: "S3 integration",
         config: {
+          forcePathStyle: true,
+          signedUrlSeconds: 300,
           endpoint: process.env.S3_TEST_ENDPOINT!,
           region: process.env.S3_TEST_REGION ?? "us-east-1",
           bucket: process.env.S3_TEST_BUCKET!,
@@ -189,6 +191,10 @@ for (const multipart of [false, true])
         version: "1.0.0",
         name: "Live import",
         config: {
+          multipartThresholdMiB: 64,
+          partSizeMiB: 16,
+          partConcurrency: 3,
+          signedUrlSeconds: 300,
           endpoint: process.env.S3_TEST_ENDPOINT!,
           region: process.env.S3_TEST_REGION ?? "us-east-1",
           bucket: Bucket,

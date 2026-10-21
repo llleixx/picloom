@@ -53,6 +53,11 @@ toolingTest(
       expect(Bun.which("npm", { PATH: bin })).toBeNull();
       const run = (cmd: string[], cwd: string, success = true) =>
         runCommand(cmd, cwd, success, bin);
+      await mkdir(join(repository, "plugin-sdk/dist"), { recursive: true });
+      await writeFile(
+        join(repository, "plugin-sdk/dist/removed-module.d.ts"),
+        "export {};\n",
+      );
       await run(["bun", "run", "build:plugin-sdk"], repository);
       const pack = async (directory: string) => {
         const output = join(root, directory.replaceAll("/", "-") + ".tgz");
@@ -79,6 +84,7 @@ toolingTest(
           false,
         );
         expect(entries).toContain("package/package.json");
+        expect(entries).not.toContain("package/dist/removed-module.d.ts");
         return output;
       };
       const sdk = await pack("plugin-sdk");
@@ -240,6 +246,80 @@ toolingTest(
       expect(mismatch.stderr).toContain("does not match");
     } finally {
       await f.close();
+      await rm(root, { recursive: true, force: true });
+    }
+  },
+  180_000,
+);
+
+toolingTest(
+  "theme SDK type-checks in an independent project without host or plugin SDK",
+  async () => {
+    const root = await mkdtemp(join(tmpdir(), "picloom-theme-sdk-"));
+    try {
+      const path = process.env.PATH!;
+      const archive = join(root, "theme-sdk.tgz");
+      await runCommand(
+        [
+          "bun",
+          "pm",
+          "pack",
+          "--ignore-scripts",
+          "--filename",
+          archive,
+          "--quiet",
+        ],
+        join(repository, "theme-sdk"),
+        true,
+        path,
+      );
+      await writeFile(
+        join(root, "package.json"),
+        JSON.stringify({
+          private: true,
+          type: "module",
+          devDependencies: {
+            "@picloom/theme-sdk": "file:./theme-sdk.tgz",
+            typescript: "5.9.3",
+          },
+        }),
+      );
+      await runCommand(["bun", "install"], root, true, path);
+      await writeFile(
+        join(root, "index.ts"),
+        `
+import type { Manifest, ThemeModule, ThemeContext } from "@picloom/theme-sdk";
+const manifest: Manifest = { id:"standalone", version:"1", apiVersion:1, defaultLocale:"en-US", supportedLocales:["en-US"], nameKey:"name", messages:{"en-US":{name:"Standalone"}}, pages:{home:{entry:"entry.js"}}, configSchema:{type:"object",properties:{heading:{type:"string","x-localized":true}}} };
+export const module: ThemeModule = { mount(element: HTMLElement, ctx: ThemeContext) { const stop=ctx.subscribe(snapshot=>{element.textContent=ctx.t(manifest.nameKey)+ctx.localized(ctx.config.heading)+snapshot.locale}); return {dispose:stop}; } };
+`,
+      );
+      await runCommand(
+        [
+          "bun",
+          "run",
+          "--bun",
+          "tsc",
+          "--noEmit",
+          "--strict",
+          "--moduleResolution",
+          "bundler",
+          "--module",
+          "esnext",
+          "--target",
+          "es2022",
+          "index.ts",
+        ],
+        root,
+        true,
+        path,
+      );
+      const text = await readFile(
+        join(root, "node_modules/@picloom/theme-sdk/index.ts"),
+        "utf8",
+      );
+      expect(text).not.toContain("../shared");
+      expect(text).not.toContain("plugin-sdk");
+    } finally {
       await rm(root, { recursive: true, force: true });
     }
   },

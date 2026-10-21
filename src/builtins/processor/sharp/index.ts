@@ -4,6 +4,8 @@ import {
   PluginError,
   type Definition,
   type Config,
+  type FieldSchema,
+  type ParameterSchema,
   type Parameters,
   type ProcessorPlugin,
   type CheckInput,
@@ -11,23 +13,39 @@ import {
   type AccessCheckInput,
   type AccessProcessorInput,
 } from "../../../../plugin-sdk";
-const transformProperties: Config = {
-  w: { type: "integer", minimum: 1 },
-  h: { type: "integer", minimum: 1 },
+const transformProperties: Record<string, ParameterSchema> = {
+  w: { "x-ui": { labelKey: "params.w.label" }, type: "integer", minimum: 1 },
+  h: { "x-ui": { labelKey: "params.h.label" }, type: "integer", minimum: 1 },
   fit: {
+    "x-ui": {
+      labelKey: "params.fit.label",
+      enumKeys: [
+        "params.fit.options.inside",
+        "params.fit.options.cover",
+        "params.fit.options.contain",
+        "params.fit.options.fill",
+      ],
+    },
     type: "string",
 
     enum: ["inside", "cover", "contain", "fill"],
   },
-  q: { type: "integer", minimum: 1, maximum: 100 },
+  q: {
+    "x-ui": { labelKey: "params.q.label" },
+    type: "integer",
+    minimum: 1,
+    maximum: 100,
+  },
   format: {
+    "x-ui": { labelKey: "params.format.label" },
     type: "string",
 
     enum: ["jpeg", "png", "webp"],
   },
 };
-const settings: Config = {
+const settings: Record<string, FieldSchema> = {
   allowEnlargement: {
+    "x-ui": { labelKey: "settings.allowEnlargement.label" },
     type: "boolean",
 
     default: false,
@@ -131,14 +149,36 @@ function runtime(
 }
 export const sharpProcessor: Definition<"processor"> = {
   defaultLocale: "en-US",
-  content: {
+  nameKey: "package.name",
+  descriptionKey: "package.description",
+  messages: {
     "en-US": {
-      name: "Image Processing",
-      description: "Resize images and adjust format and quality.",
+      "package.name": "Image Processing",
+      "package.description": "Resize images and adjust format and quality.",
+      "params.w.label": "Width",
+      "params.h.label": "Height",
+      "params.fit.label": "Fit",
+      "params.q.label": "Quality",
+      "params.format.label": "Output format",
+      "settings.allowEnlargement.label": "Allow enlargement",
+      "params.fit.options.inside": "inside",
+      "params.fit.options.cover": "cover",
+      "params.fit.options.contain": "contain",
+      "params.fit.options.fill": "fill",
     },
     "zh-CN": {
-      name: "图片处理",
-      description: "调整图片尺寸、格式和质量。",
+      "package.name": "图片处理",
+      "package.description": "调整图片尺寸、格式和质量。",
+      "params.w.label": "宽度",
+      "params.h.label": "高度",
+      "params.fit.label": "适配方式",
+      "params.q.label": "质量",
+      "params.format.label": "输出格式",
+      "settings.allowEnlargement.label": "允许放大",
+      "params.fit.options.inside": "限制在框内",
+      "params.fit.options.cover": "覆盖（裁剪）",
+      "params.fit.options.contain": "完整包含",
+      "params.fit.options.fill": "填充（拉伸）",
     },
   },
 
@@ -149,78 +189,6 @@ export const sharpProcessor: Definition<"processor"> = {
   apiVersion: 1,
   stages: {
     upload: {
-      defaultLocale: "en-US",
-      content: {
-        "en-US": {
-          configSchema: {
-            "/properties/w": { title: "Width" },
-            "/properties/h": { title: "Height" },
-            "/properties/fit": { title: "Fit" },
-            "/properties/q": { title: "Quality" },
-            "/properties/format": { title: "Output format" },
-            "/properties/allowEnlargement": { title: "Allow enlargement" },
-          },
-          paramsSchema: {
-            "/properties/w": { title: "Width" },
-            "/properties/h": { title: "Height" },
-            "/properties/fit": { title: "Fit" },
-            "/properties/q": { title: "Quality" },
-            "/properties/format": { title: "Output format" },
-          },
-        },
-        "zh-CN": {
-          configSchema: {
-            "/properties/w": {
-              title: "宽度",
-            },
-            "/properties/h": {
-              title: "高度",
-            },
-            "/properties/fit": {
-              title: "适配方式",
-              enumLabels: [
-                "限制在框内",
-                "覆盖（裁剪）",
-                "完整包含",
-                "填充（拉伸）",
-              ],
-            },
-            "/properties/q": {
-              title: "质量",
-            },
-            "/properties/format": {
-              title: "输出格式",
-            },
-            "/properties/allowEnlargement": {
-              title: "允许放大",
-            },
-          },
-          paramsSchema: {
-            "/properties/w": {
-              title: "宽度",
-            },
-            "/properties/h": {
-              title: "高度",
-            },
-            "/properties/fit": {
-              title: "适配方式",
-              enumLabels: [
-                "限制在框内",
-                "覆盖（裁剪）",
-                "完整包含",
-                "填充（拉伸）",
-              ],
-            },
-            "/properties/q": {
-              title: "质量",
-            },
-            "/properties/format": {
-              title: "输出格式",
-            },
-          },
-        },
-      },
-
       paramsSchema: {
         type: "object",
         properties: transformProperties,
@@ -229,11 +197,17 @@ export const sharpProcessor: Definition<"processor"> = {
       configSchemaVersion: 1,
       configSchema: {
         type: "object",
-        properties: { ...transformProperties, ...settings },
+        properties: {
+          ...transformProperties,
+          allowEnlargement: {
+            ...settings.allowEnlargement!,
+            "x-ui": {
+              labelKey: "settings.allowEnlargement.label",
+              advanced: true,
+            },
+          },
+        },
         additionalProperties: false,
-      },
-      uiHints: {
-        "/allowEnlargement": { advanced: true },
       },
       async validateConfig(config) {
         return config.fit && !config.w && !config.h
@@ -245,52 +219,6 @@ export const sharpProcessor: Definition<"processor"> = {
       },
     },
     access: {
-      defaultLocale: "en-US",
-      content: {
-        "en-US": {
-          configSchema: {
-            "/properties/allowEnlargement": { title: "Allow enlargement" },
-          },
-          paramsSchema: {
-            "/properties/w": { title: "Width" },
-            "/properties/h": { title: "Height" },
-            "/properties/fit": { title: "Fit" },
-            "/properties/q": { title: "Quality" },
-            "/properties/format": { title: "Output format" },
-          },
-        },
-        "zh-CN": {
-          configSchema: {
-            "/properties/allowEnlargement": {
-              title: "允许放大",
-            },
-          },
-          paramsSchema: {
-            "/properties/w": {
-              title: "宽度",
-            },
-            "/properties/h": {
-              title: "高度",
-            },
-            "/properties/fit": {
-              title: "适配方式",
-              enumLabels: [
-                "限制在框内",
-                "覆盖（裁剪）",
-                "完整包含",
-                "填充（拉伸）",
-              ],
-            },
-            "/properties/q": {
-              title: "质量",
-            },
-            "/properties/format": {
-              title: "输出格式",
-            },
-          },
-        },
-      },
-
       configSchemaVersion: 1,
       configSchema: {
         type: "object",

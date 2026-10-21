@@ -7,15 +7,39 @@ import {
 
 export const telegramNotification: Definition<"processor"> = {
   defaultLocale: "en-US",
-  content: {
+  nameKey: "package.name",
+  descriptionKey: "package.description",
+  messages: {
     "en-US": {
-      name: "Telegram Notification",
-      description:
+      "package.name": "Telegram Notification",
+      "package.description":
         "Send a text notification for selected accumulated pipeline statuses.",
+      "settings.botToken.label": "Bot token",
+      "settings.chatId.label": "Chat ID",
+      "settings.chatId.description":
+        "Numeric ID of a chat where the bot can send messages.",
+      "settings.statuses.label": "Notify on statuses",
+      "settings.statuses.description":
+        "Matches the accumulated status when this step runs. Place this step last.",
+      "settings.includeDetails.label": "Include previous step details",
+      "settings.includeDetails.description":
+        "Send previous plugins' details to this chat. Long messages are truncated.",
+      "settings.timeoutMs.label": "Timeout (ms)",
     },
     "zh-CN": {
-      name: "Telegram 通知",
-      description: "按流水线当前累计状态发送文字通知。",
+      "package.name": "Telegram 通知",
+      "package.description": "按流水线当前累计状态发送文字通知。",
+      "settings.botToken.label": "机器人令牌",
+      "settings.chatId.label": "聊天 ID",
+      "settings.chatId.description":
+        "填写数字聊天 ID，机器人需有发送消息的权限。",
+      "settings.statuses.label": "通知状态",
+      "settings.statuses.description":
+        "匹配执行到此步骤时的累计状态，建议将此步骤放在最后。",
+      "settings.includeDetails.label": "附带前序步骤详情",
+      "settings.includeDetails.description":
+        "将前序插件的 details 发送到此聊天，消息过长时截断。",
+      "settings.timeoutMs.label": "超时（毫秒）",
     },
   },
 
@@ -26,67 +50,31 @@ export const telegramNotification: Definition<"processor"> = {
   apiVersion: 1,
   stages: {
     post_save: {
-      defaultLocale: "en-US",
-      content: {
-        "en-US": {
-          configSchema: {
-            "/properties/botToken": { title: "Bot token" },
-            "/properties/chatId": {
-              title: "Chat ID",
-              description:
-                "Numeric ID of a chat where the bot can send messages.",
-            },
-            "/properties/statuses": {
-              title: "Notify on statuses",
-              description:
-                "Matches the accumulated status when this step runs. Place this step last.",
-            },
-            "/properties/includeDetails": {
-              title: "Include previous step details",
-              description:
-                "Send previous plugins' details to this chat. Long messages are truncated.",
-            },
-            "/properties/timeoutMs": { title: "Timeout (ms)" },
-          },
-        },
-        "zh-CN": {
-          configSchema: {
-            "/properties/botToken": { title: "机器人令牌" },
-            "/properties/chatId": {
-              title: "聊天 ID",
-              description: "填写数字聊天 ID，机器人需有发送消息的权限。",
-            },
-            "/properties/statuses": {
-              title: "通知状态",
-              description:
-                "匹配执行到此步骤时的累计状态，建议将此步骤放在最后。",
-            },
-            "/properties/includeDetails": {
-              title: "附带前序步骤详情",
-              description:
-                "将前序插件的 details 发送到此聊天，消息过长时截断。",
-            },
-            "/properties/timeoutMs": { title: "超时（毫秒）" },
-          },
-        },
-      },
-
       configSchemaVersion: 1,
       configSchema: {
         type: "object",
         properties: {
           botToken: {
+            "x-ui": { labelKey: "settings.botToken.label" },
             type: "string",
 
             minLength: 1,
             "x-sensitive": true,
           },
           chatId: {
+            "x-ui": {
+              labelKey: "settings.chatId.label",
+              descriptionKey: "settings.chatId.description",
+            },
             type: "string",
 
             pattern: "^-?[0-9]+$",
           },
           statuses: {
+            "x-ui": {
+              labelKey: "settings.statuses.label",
+              descriptionKey: "settings.statuses.description",
+            },
             type: "array",
 
             uniqueItems: true,
@@ -96,11 +84,16 @@ export const telegramNotification: Definition<"processor"> = {
             default: ["block", "delete"],
           },
           includeDetails: {
+            "x-ui": {
+              labelKey: "settings.includeDetails.label",
+              descriptionKey: "settings.includeDetails.description",
+            },
             type: "boolean",
 
             default: false,
           },
           timeoutMs: {
+            "x-ui": { labelKey: "settings.timeoutMs.label", advanced: true },
             type: "integer",
 
             minimum: 100,
@@ -117,7 +110,6 @@ export const telegramNotification: Definition<"processor"> = {
         ],
         additionalProperties: false,
       },
-      uiHints: { "/timeoutMs": { advanced: true } },
 
       async createInstance({ config, services }) {
         return {

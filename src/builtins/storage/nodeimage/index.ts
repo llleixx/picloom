@@ -35,26 +35,24 @@ function imageUrl(value: unknown): string {
 }
 export const nodeImageStorage: Definition<"storage"> = {
   defaultLocale: "en-US",
-  content: {
+  nameKey: "package.name",
+  descriptionKey: "package.description",
+  messages: {
     "en-US": {
-      name: "NodeImage Storage",
-      description:
+      "package.name": "NodeImage Storage",
+      "package.description":
         "Store images on NodeImage. Unsupported API deletion completes local cleanup; remote images may remain.",
-      configSchema: {
-        "/properties/apiKey": { title: "API key" },
-        "/properties/redirect": { title: "Redirect reads (302)" },
-        "/properties/timeoutMs": { title: "Timeout (ms)" },
-      },
+      "settings.apiKey.label": "API key",
+      "settings.redirect.label": "Redirect reads (302)",
+      "settings.timeoutMs.label": "Timeout (ms)",
     },
     "zh-CN": {
-      name: "NodeImage 存储",
-      description:
+      "package.name": "NodeImage 存储",
+      "package.description":
         "使用 NodeImage 存储图片。API 不支持删除时仅完成本地清理，远端图片可能保留。",
-      configSchema: {
-        "/properties/apiKey": { title: "API 密钥" },
-        "/properties/redirect": { title: "302 重定向" },
-        "/properties/timeoutMs": { title: "超时（毫秒）" },
-      },
+      "settings.apiKey.label": "API 密钥",
+      "settings.redirect.label": "302 重定向",
+      "settings.timeoutMs.label": "超时（毫秒）",
     },
   },
 
@@ -68,17 +66,20 @@ export const nodeImageStorage: Definition<"storage"> = {
     type: "object",
     properties: {
       apiKey: {
+        "x-ui": { labelKey: "settings.apiKey.label" },
         type: "string",
 
         minLength: 1,
         "x-sensitive": true,
       },
       redirect: {
+        "x-ui": { labelKey: "settings.redirect.label" },
         type: "boolean",
 
         default: true,
       },
       timeoutMs: {
+        "x-ui": { labelKey: "settings.timeoutMs.label", advanced: true },
         type: "integer",
 
         minimum: 100,
@@ -86,17 +87,13 @@ export const nodeImageStorage: Definition<"storage"> = {
         default: 30000,
       },
     },
-    required: ["apiKey"],
+    required: ["apiKey", "timeoutMs"],
     additionalProperties: false,
   },
-  uiHints: { "/timeoutMs": { advanced: true } },
 
   async createInstance({ config, services }) {
     const signalFor = (signal: AbortSignal) =>
-      AbortSignal.any([
-        signal,
-        AbortSignal.timeout(Number(config.timeoutMs ?? 30000)),
-      ]);
+      AbortSignal.any([signal, AbortSignal.timeout(Number(config.timeoutMs))]);
     async function request(
       path: string,
       init: RequestInit,

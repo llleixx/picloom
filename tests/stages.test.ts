@@ -1,3 +1,4 @@
+import type { ParamsSchema } from "../plugin-sdk/schema";
 import { test, expect, spyOn } from "bun:test";
 import sharp from "sharp";
 import { fixture } from "./helpers";
@@ -9,7 +10,7 @@ import { assertParamsSchema } from "../shared/params-schema";
 const plugin = {
   pluginId: "builtin.sharp",
   version: "1.0.0",
-  config: {},
+  config: { allowEnlargement: false },
   onNotApplicable: "abort" as const,
 };
 
@@ -35,7 +36,15 @@ test("stage definitions filter support; upload Sharp transforms the stored origi
             {
               pluginId: "builtin.tencent-moderation",
               version: "1.0.0",
-              config: {},
+              config: {
+                region: "ap-guangzhou",
+                submissionMode: "content",
+                maxContentMiB: 5,
+                blockAction: "block",
+                timeoutMs: 30000,
+                interval: 5,
+                maxFrames: 5,
+              },
               onNotApplicable: "abort",
             },
           ],
@@ -158,7 +167,7 @@ test("access settings and enabled query selection are independent and survive re
 });
 
 test("core parses declared scalars only and query permissions participate in cache identity", async () => {
-  const schema = {
+  const schema: ParamsSchema = {
     type: "object",
     properties: {
       flag: { type: "boolean" },
