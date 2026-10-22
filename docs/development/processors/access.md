@@ -28,7 +28,7 @@ export default {
 } satisfies Definition<"processor">;
 ```
 
-<<< ../../../examples/access/index.ts#implementation
+<<< ../../../examples/access/src/index.ts#implementation
 
 `getFile()` 延迟读取原图；`output.write()` 完成后返回 `replace`。取消时销毁 Sharp 处理资源。
 

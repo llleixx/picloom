@@ -2,7 +2,7 @@ import { AppError } from "../core/errors";
 import { readFile, writeFile, rename, rm, mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import type { DeliverySettings } from "../../shared/api";
-import type { Config } from "../../theme-sdk";
+import type { Config } from "@picloom/theme-sdk";
 export interface ThemeState {
   drafts: Record<string, Config>;
   draftLanguages?: Record<

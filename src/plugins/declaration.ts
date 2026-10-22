@@ -1,5 +1,5 @@
 import { AppError } from "../core/errors";
-import type { PluginLocalization } from "../../plugin-sdk/config";
+import type { PluginLocalization } from "@picloom/plugin-sdk";
 import { DeclarationError } from "../../shared/config";
 import type { Schema } from "../../shared/field-schema";
 import {

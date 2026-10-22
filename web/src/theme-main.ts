@@ -1,5 +1,5 @@
 import { createThemeRuntime } from "./themes/context";
-import type { Page, ThemeModule, ThemeView } from "../../theme-sdk";
+import type { Page, ThemeModule, ThemeView } from "@picloom/theme-sdk";
 import { api, ApiError, errorText } from "./lib/api";
 import { t } from "./lib/i18n";
 import defaultStyles from "../../themes/default/src/style.css?url";

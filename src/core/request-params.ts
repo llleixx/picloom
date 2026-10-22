@@ -1,4 +1,4 @@
-import type { ParamsSchema } from "../../plugin-sdk/schema";
+import type { ParamsSchema } from "@picloom/plugin-sdk";
 import { compileSchema } from "./schema-validation";
 import { AppError } from "./errors";
 import type { Parameters, Query } from "../plugins/api";

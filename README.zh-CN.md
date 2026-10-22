@@ -42,9 +42,11 @@ flowchart TD
 
 | 类型 | 插件 |
 | --- | --- |
-| 存储 | [本地](src/builtins/storage/local/README.zh-CN.md)、[S3](src/builtins/storage/s3/README.zh-CN.md)、[WebDAV](src/builtins/storage/webdav/README.zh-CN.md)、[OpenList](src/builtins/storage/openlist/README.zh-CN.md)、[NodeImage](src/builtins/storage/nodeimage/README.zh-CN.md)、[Telegram](src/builtins/storage/telegram/README.zh-CN.md) |
+| 存储 | [本地](src/builtins/storage/local/README.zh-CN.md)、[S3](src/builtins/storage/s3/README.zh-CN.md)、[WebDAV](src/builtins/storage/webdav/README.zh-CN.md) |
 | 路径 | [随机路径](src/builtins/path/random-path/README.zh-CN.md)、[日期路径](src/builtins/path/date-path/README.zh-CN.md) |
-| 处理 | [图片处理](src/builtins/processor/sharp/README.zh-CN.md)、[水印](src/builtins/processor/watermark/README.zh-CN.md)、[腾讯云内容审核](src/builtins/processor/tencent-moderation/README.zh-CN.md)、[Telegram 通知](src/builtins/processor/telegram-notification/README.zh-CN.md) |
+| 处理 | [图片处理](src/builtins/processor/sharp/README.zh-CN.md)、[水印](src/builtins/processor/watermark/README.zh-CN.md)、[Telegram 通知](src/builtins/processor/telegram-notification/README.zh-CN.md) |
+
+OpenList、NodeImage、Telegram 存储、腾讯云审核和 Horizon 由独立的 `picloom-extensions` 仓库维护，通过插件／主题管理安装 ZIP，不再随主程序内置。扩展仓库及首个 Release 正在准备发布。
 
 各插件的 README 说明配置与限制；删除、导入等能力因存储后端而异。
 
@@ -67,17 +69,20 @@ flowchart TD
 - [核心开发](https://llleixx.github.io/picloom/development/contributing.html)
 - [插件开发](https://llleixx.github.io/picloom/development/plugin-tooling.html)
 
-使用已发布的 npm 包，在独立项目中开发插件与主题：
+在独立项目中开发插件与主题：
 
-- 插件：[`@picloom/plugin-sdk`](plugin-sdk/README.md) 与 [`@picloom/create-plugin`](tools/create-plugin/README.md)。
-- 主题：[`@picloom/theme-sdk`](theme-sdk/README.md) 与 [`@picloom/create-theme`](tools/create-theme/README.md)，参见[主题开发](https://llleixx.github.io/picloom/development/theme-tooling.html)。
+- 插件：[`@picloom/plugin-sdk`](https://github.com/llleixx/picloom-tooling/blob/main/plugin-sdk/README.md) 提供协议和运行时辅助函数，[`@picloom/plugin-tools`](https://github.com/llleixx/picloom-tooling/blob/main/tools/plugin-tools/README.md) 负责构建 ZIP，[`@picloom/create-plugin`](https://github.com/llleixx/picloom-tooling/blob/main/tools/create-plugin/README.md) 负责生成项目。
+- 主题：[`@picloom/theme-sdk`](https://github.com/llleixx/picloom-tooling/blob/main/theme-sdk/README.md)、[`@picloom/theme-tools`](https://github.com/llleixx/picloom-tooling/blob/main/tools/theme-tools/README.md) 和 [`@picloom/create-theme`](https://github.com/llleixx/picloom-tooling/blob/main/tools/create-theme/README.md) 分别维护协议、开发工具和项目生成。
 
-```sh
-bun create @picloom/plugin@0.1.0 ./my-plugin
-bun create @picloom/theme@0.1.0 ./my-theme
-```
+开发工具通过 npm 安装精确版本：插件 SDK 0.1.0、主题 SDK 0.1.1、公共规则和两个工具包 0.1.0、两个脚手架 0.1.1。
 
 
 ## 许可证
 
 [MIT](LICENSE)
+
+### 三仓本地开发
+
+主仓库保留应用、内置实现、默认主题与协议集成示例；SDK、工具和脚手架由相邻的 `picloom-tooling` 独立维护，官方可选扩展位于 `picloom-extensions`。
+
+主仓库与官方扩展直接引用 npm 精确版本，分别执行 `bun install --frozen-lockfile` 即可，无需工具链仓库或本地压缩包。工具链源码开发的可选联调方式见[工具链本地联调](https://github.com/llleixx/picloom-tooling/blob/main/README.zh-CN.md)。

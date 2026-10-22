@@ -21,7 +21,7 @@ import {
 import { readFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
-import type { ConfigSchema, ParamsSchema } from "../../plugin-sdk/schema";
+import type { ConfigSchema, ParamsSchema } from "@picloom/plugin-sdk";
 import { AppError, Conflict, requireValue } from "../core/errors";
 import { Mutex } from "../core/concurrency";
 import { Secrets } from "../infra/secrets";

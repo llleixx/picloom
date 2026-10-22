@@ -2,6 +2,10 @@
 
 Picloom 的核心负责决定文件如何上传、访问和清理，插件负责执行路径生成、存储和图片处理。数据库记录文件、副本与任务的状态，图片内容由存储插件保存；前端通过 HTTP API 操作这些能力。
 
+## 仓库边界
+
+`picloom` 维护应用、内置实现、默认主题和宿主集成示例；`picloom-tooling` 维护公共 SDK、规则、工具及脚手架；`picloom-extensions` 维护官方可选插件和主题。主程序和扩展通过包入口依赖工具链，不通过跨仓相对路径读取源码。主题模板独立维护，不在构建时读取宿主默认主题。
+
 ## 应用如何启动
 
 ```mermaid
@@ -64,7 +68,7 @@ flowchart TD
 | `src/persistence` | 数据访问接口、查询与初始化 | 核心通过接口访问数据；两种数据库共用查询实现 |
 | `src/plugins` | 安装包、配置验证、实例创建与释放 | 插件调用期间持有实例租约 |
 | `src/builtins` | 内置插件实现 | 遵循与外部插件相同的公共协议 |
-| `plugin-sdk` | 插件类型、宿主服务协议和辅助函数 | 协议变更需同步示例与开发文档 |
+| `picloom-tooling/plugin-sdk`（独立仓库） | 插件类型、宿主服务协议和辅助函数 | 协议变更需同步示例与开发文档 |
 | `src/infra` | 文件、临时空间、图片、密钥和备份等基础能力 | 外部资源不随数据库事务回滚 |
 | `shared` | 前后端共用的类型、校验和设置定义 | 不放入只属于服务端的依赖 |
 | `web` | Vue 上传与管理界面 | 通过 API 读取和修改状态 |
@@ -84,6 +88,6 @@ flowchart TD
 
 ## 包配置与文案
 
-插件与主题共用 `shared/package-localization.ts` 解析字典和字段文案；`shared/field-schema.ts` 与 `src/core/schema-validation.ts` 负责公共字段规则。插件声明入口为 `src/plugins/declaration.ts`，主题入口为 `src/themes/schema.ts`，分别限制允许的扩展和编辑行为。
+`@picloom/package-rules` 仅统一宿主与主题工具应保持一致的资源路径规则、作者文案回退和草稿默认值生成。语言注册、字段文案组装及声明校验留在宿主的 `shared/` 中。`shared/field-schema.ts` 与 `src/core/schema-validation.ts` 负责公共字段规则。插件声明入口为 `src/plugins/declaration.ts`，主题入口为 `src/themes/schema.ts`，分别限制允许的扩展和编辑行为。
 
 作者文案通过 `fieldText()` 解析，管理员配置值不经过文案回退。两个 SDK 独立发布协议类型，不依赖宿主模块；主题通过注入的 `ctx.t()` 使用字典。

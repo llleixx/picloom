@@ -1,6 +1,6 @@
 import { test, expect } from "bun:test";
 import { fixture } from "./helpers";
-import { PluginError } from "../plugin-sdk";
+import { PluginError } from "@picloom/plugin-sdk";
 
 test("manual retry persists across restart, counts attempts cumulatively and never schedules an automatic retry", async () => {
   let retryable = false;

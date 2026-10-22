@@ -1,4 +1,4 @@
-import { PluginError, type Definition } from "../../../../plugin-sdk";
+import { PluginError, type Definition } from "@picloom/plugin-sdk";
 
 const extensions = new Map([
   ["image/jpeg", "jpg"],

@@ -7,8 +7,8 @@ import {
 } from "../shared/config";
 import { PluginManager } from "../src/plugins/manager";
 import { Secrets } from "../src/infra/secrets";
-import type { ConfigSchema, ParamsSchema } from "../plugin-sdk/schema";
-import type { Definition } from "../plugin-sdk/api";
+import type { ConfigSchema, ParamsSchema } from "@picloom/plugin-sdk";
+import type { Definition } from "@picloom/plugin-sdk";
 import type { Instance, Persistence } from "../src/persistence/port";
 import { configuration, manifest, validateField } from "../src/themes/schema";
 import { requestParameters } from "../src/core/request-params";
@@ -103,7 +103,7 @@ test("omitted plugin schemas normalize to closed empty objects without changing 
         pluginId: view.id,
         version: view.version,
         name: "Empty",
-        stage: stage as import("../plugin-sdk/api").Stage | undefined,
+        stage: stage as import("@picloom/plugin-sdk").Stage | undefined,
       };
       expect(
         (await manager.prepare({ ...input, config: {} })).record.config_json,
@@ -586,7 +586,7 @@ test("theme draft validation preserves dictionaries while complete constraints r
       },
     },
     required: ["rows"],
-  } as import("../theme-sdk").Field;
+  } as import("@picloom/theme-sdk").Field;
   validateField(schema);
   const draft = { rows: [{ title: { "en-US": "Link", "zh-CN": "文字" } }] };
   const original = structuredClone(draft);
@@ -746,7 +746,7 @@ test("declaration checks do not normalize invalid constraints and theme projecti
 });
 
 test("explicit theme initialization uses root defaults without creating absent empty groups", () => {
-  const schema: import("../theme-sdk").Field = {
+  const schema: import("@picloom/theme-sdk").Field = {
     type: "object",
     default: { title: "Root" },
     properties: {
@@ -791,7 +791,7 @@ test("composition enums constrain the full static object without closing partial
 });
 
 test("themes use shared property names and nesting while keeping language and unsafe-key checks", () => {
-  let field: import("../theme-sdk").Field = {
+  let field: import("@picloom/theme-sdk").Field = {
     type: "string",
     "x-localized": true,
   };

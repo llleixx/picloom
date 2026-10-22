@@ -300,8 +300,7 @@ async function remove() {
               )?.name ?? item.pluginId
             }}
             · v{{ item.version }}
-            ·
-            {{ item.ready ? t("ui.ready") : t("ui.unavailable") }}
+            <span v-if="!item.ready">· {{ t("ui.unavailable") }}</span>
             ·
             {{
               t("configuration.references", {

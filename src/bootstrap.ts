@@ -20,13 +20,9 @@ import { sharpProcessor } from "./builtins/processor/sharp/index";
 import { Auth } from "./core/auth";
 import { Files, type Faults } from "./core/files";
 import { entity, type Persistence } from "./persistence/port";
-import { nodeImageStorage } from "./builtins/storage/nodeimage/index";
 import { telegramNotification } from "./builtins/processor/telegram-notification/index";
-import { telegramStorage } from "./builtins/storage/telegram/index";
 import { webdavStorage } from "./builtins/storage/webdav/index";
-import { openListStorage } from "./builtins/storage/openlist/index";
 import { s3Storage } from "./builtins/storage/s3/index";
-import { tencentModeration } from "./builtins/processor/tencent-moderation/index";
 import { Configuration } from "./core/configuration";
 import { PluginPackages } from "./plugins/packages";
 export async function bootstrap(
@@ -73,12 +69,8 @@ export async function bootstrap(
     plugins.register(sharpProcessor);
     plugins.register(watermark);
     plugins.register(s3Storage);
-    plugins.register(nodeImageStorage);
-    plugins.register(telegramStorage);
     plugins.register(telegramNotification);
     plugins.register(webdavStorage);
-    plugins.register(openListStorage);
-    plugins.register(tencentModeration);
     const packages = new PluginPackages(
       join(config.root, "plugins"),
       plugins,

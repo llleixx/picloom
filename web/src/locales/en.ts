@@ -632,8 +632,7 @@ export const en = {
   "ui.zipOnlyUpTo20Mb512":
     "ZIP only. Up to 20 MB, 512 entries, and 50 MB unpacked. Bundle all dependencies.",
   "ui.noPluginsInstalled": "No plugins installed.",
-  "ui.builtInProtected": "Built-in · Protected",
-  "ui.external": "External",
+  "ui.builtIn": "Built-in",
   "ui.loaded": "Loaded",
   "ui.loadFailed": "Load failed",
   "ui.removeAllUsesBeforeUninstalling":
@@ -656,7 +655,6 @@ export const en = {
   "ui.uninstallPlugin2": "Uninstall plugin",
   "ui.pluginDetails": "Plugin details",
   "ui.statusAndUsage": "Status and usage.",
-  "ui.externalPlugin": "External plugin",
   "ui.notInUse": "Not in use.",
   "ui.fileIsEmptyOrExceedsTheUpload":
     "File is empty or exceeds the upload limit.",

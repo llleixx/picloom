@@ -1,4 +1,5 @@
-import type { ParamsSchema } from "../plugin-sdk/schema";
+import { postSaveFixture } from "./post-save-fixture";
+import type { ParamsSchema } from "@picloom/plugin-sdk";
 import { test, expect, spyOn } from "bun:test";
 import sharp from "sharp";
 import { fixture } from "./helpers";
@@ -17,10 +18,11 @@ const plugin = {
 test("stage definitions filter support; upload Sharp transforms the stored original", async () => {
   const f = await fixture();
   try {
+    f.app.plugins.register(postSaveFixture, "external");
     const summaries = await (await f.request("/api/plugins")).json();
-    expect(
-      summaries.find((p: any) => p.id === "builtin.tencent-moderation"),
-    ).toMatchObject({ kind: "processor", supportedStages: ["post_save"] });
+    expect(summaries.find((p: any) => p.id === "test.post-save")).toMatchObject(
+      { kind: "processor", supportedStages: ["post_save"] },
+    );
     const view = await (
       await f.request("/api/plugins/builtin.sharp/versions/1.0.0")
     ).json();
@@ -34,17 +36,9 @@ test("stage definitions filter support; upload Sharp transforms the stored origi
           kind: "upload",
           steps: [
             {
-              pluginId: "builtin.tencent-moderation",
+              pluginId: "test.post-save",
               version: "1.0.0",
-              config: {
-                region: "ap-guangzhou",
-                submissionMode: "content",
-                maxContentMiB: 5,
-                blockAction: "block",
-                timeoutMs: 30000,
-                interval: 5,
-                maxFrames: 5,
-              },
+              config: {},
               onNotApplicable: "abort",
             },
           ],

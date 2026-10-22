@@ -308,16 +308,15 @@ async function uninstall() {
               <div
                 class="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground"
               >
+                <span class="break-all">{{ p.id }}</span>
                 <span class="font-medium text-foreground"
                   >v{{ p.version }}</span
                 >
-                <span>{{
-                  p.source === "builtin"
-                    ? t("ui.builtInProtected")
-                    : t("ui.external")
+                <span v-if="p.source === 'builtin'">{{
+                  t("ui.builtIn")
                 }}</span>
-                <span :class="p.status === 'failed' && 'text-destructive'">{{
-                  p.status === "loaded" ? t("ui.loaded") : t("ui.loadFailed")
+                <span v-if="p.status === 'failed'" class="text-destructive">{{
+                  t("ui.loadFailed")
                 }}</span>
                 <span>{{
                   t("plugins.usageCount", { count: p.instances.length })
@@ -448,12 +447,10 @@ async function uninstall() {
         <div v-if="details" class="space-y-3 text-sm">
           <p>{{ details.name }} · {{ details.id }}@{{ details.version }}</p>
           <p>
-            {{
-              details.source === "builtin"
-                ? t("ui.builtInProtected")
-                : t("ui.externalPlugin")
-            }}
-            ·
+            <span v-if="details.source === 'builtin' || details.author">
+              {{ details.source === "builtin" ? t("ui.builtIn") : details.author }}
+              ·
+            </span>
             {{
               details.status === "loaded" ? t("ui.loaded") : t("ui.loadFailed")
             }}

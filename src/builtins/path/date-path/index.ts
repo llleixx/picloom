@@ -1,4 +1,4 @@
-import type { Definition } from "../../../../plugin-sdk";
+import type { Definition } from "@picloom/plugin-sdk";
 export const datePath: Definition<"path"> = {
   defaultLocale: "en-US",
   nameKey: "package.name",

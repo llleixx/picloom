@@ -7,7 +7,7 @@ import type {
   Snapshot,
   ThemeContext,
   ThemeView,
-} from "../../../theme-sdk";
+} from "@picloom/theme-sdk";
 import type {
   ClientSettings,
   UploadDefaults,

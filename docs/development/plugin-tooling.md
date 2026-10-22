@@ -15,7 +15,7 @@ SDK 不包含宿主服务。当前 Docker 镜像也尚未发布；没有测试�
 ## 2. 创建项目
 
 ```sh
-bun create @picloom/plugin@0.1.0 ./my-plugin
+bun create @picloom/plugin@0.1.1 ./my-plugin
 cd my-plugin
 bun install
 ```
@@ -27,7 +27,6 @@ bun install
 my-plugin/
 ├── plugin.json           # 插件身份和版本
 ├── src/index.ts          # 配置与业务实现
-├── scripts/build.ts     # 类型检查之后的 ZIP 构建
 ├── package.json         # 开发依赖和命令
 ├── tsconfig.json
 └── README.md
@@ -69,7 +68,7 @@ return { logicalKey: `albums/${date}/${fileId}.${extension}` };
 bun run build
 ```
 
-构建先检查类型，再把 JavaScript 与依赖合并、检查清单和默认导出的一致性，输出：
+类型检查单独执行 `bun run typecheck`。构建由 `@picloom/plugin-tools` 把 JavaScript 与依赖合并、检查清单和默认导出的一致性，输出：
 
 ```text
 dist/example.my-date-path-0.1.0.zip
@@ -99,22 +98,25 @@ dist/example.my-date-path-0.1.0.zip
 
 ## 本地压缩包
 
-需要验证本地开发版本时，向维护者获取 `picloom-plugin-sdk-0.1.0.tgz` 和
-`picloom-create-plugin-0.1.0.tgz`。把它们放在任意目录，替换下面的绝对路径：
+需要验证本地开发版本时，向维护者获取 `picloom-plugin-sdk-0.1.0.tgz`、`picloom-plugin-tools-0.1.0.tgz` 和
+`picloom-create-plugin-0.1.1.tgz`。把它们放在任意目录，替换下面的绝对路径：
 
 ```sh
 mkdir plugin-tools
 cd plugin-tools
-bun add --dev /absolute/path/picloom-create-plugin-0.1.0.tgz
+bun add --dev /absolute/path/picloom-create-plugin-0.1.1.tgz
 bun create @picloom/plugin ../my-plugin
 cd ../my-plugin
 ```
 
-将生成项目 `package.json` 中现有 SDK 开发依赖的值改为（其他依赖保持不变）：
+将生成项目 `package.json` 中现有 SDK 和工具开发依赖的值改为（其他依赖保持不变）：
 
 ```json
-"@picloom/plugin-sdk": "file:/absolute/path/picloom-plugin-sdk-0.1.0.tgz"
+"@picloom/plugin-sdk": "file:/absolute/path/picloom-plugin-sdk-0.1.0.tgz",
+"@picloom/plugin-tools": "file:/absolute/path/picloom-plugin-tools-0.1.0.tgz"
 ```
 
 执行 `bun install`，然后继续本文[修改插件](#_3-修改插件)。验证完成后可切回精确 registry
 版本并更新锁文件。维护者如何生成这些文件见[插件工具维护](./plugin-tooling-maintenance.md#本地打包)。
+
+常规开发使用 npm 上的脚手架 0.1.1、工具 0.1.0 和 SDK 0.1.0；本地压缩包仅用于验证源码修改。单入口 `src/index.ts` → `index.js` 是工具工程约定，不是宿主协议限制。

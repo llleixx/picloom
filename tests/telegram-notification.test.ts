@@ -1,7 +1,7 @@
 import { expect, spyOn, test } from "bun:test";
 import { fixture } from "./helpers";
 import { pipelineData } from "../src/core/pipeline-data";
-import type { PostSavePlugin, PostSaveStatus } from "../plugin-sdk";
+import type { PostSavePlugin, PostSaveStatus } from "@picloom/plugin-sdk";
 
 const input = (
   currentStatus: PostSaveStatus,

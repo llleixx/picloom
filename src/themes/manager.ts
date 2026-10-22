@@ -14,7 +14,7 @@ import type {
   Manifest,
   ThemeView,
   InstalledTheme,
-} from "../../theme-sdk";
+} from "@picloom/theme-sdk";
 import { archiveFiles, PACKAGE_LIMIT } from "../infra/archive";
 import { safePath } from "../infra/files";
 import { AppError } from "../core/errors";

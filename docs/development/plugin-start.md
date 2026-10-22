@@ -69,6 +69,8 @@ import { PluginError, type Definition } from "@picloom/plugin-sdk";
 | `apiVersion` | `1`                                  | 是   | 当前支持的宿主接口版本                                                                                        |
 | `entry`      | `string`                             | 是   | 包内 JavaScript 相对路径，例如 `index.js`；不能越出包目录                                                     |
 
+清单可选填写 `author`（非空字符串，最多 200 字符），用于插件列表与详情展示作者；未填写时不显示作者。
+
 入口默认导出的 `id/version/kind/apiVersion` 必须与清单一致。清单只用于定位和检查包，安装确认显示 ID 和版本；名称在入口的 `messages` 中定义，加载成功后按界面语言显示。
 
 ## 代码默认导出什么

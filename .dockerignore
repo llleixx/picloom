@@ -8,8 +8,6 @@
 !src/**
 !shared/
 !shared/**
-!plugin-sdk/
-!plugin-sdk/**
 !themes/
 !themes/default/
 !themes/default/**

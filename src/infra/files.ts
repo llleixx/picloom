@@ -1,5 +1,5 @@
-import * as sdkFiles from "../../plugin-sdk/files";
-import { isPluginError } from "../../plugin-sdk/api";
+import * as sdkFiles from "@picloom/plugin-sdk";
+import { isPluginError } from "@picloom/plugin-sdk";
 import { reservedPrefix } from "../../shared/web-routes";
 import { mkdir, open, readFile } from "node:fs/promises";
 import { join } from "node:path";

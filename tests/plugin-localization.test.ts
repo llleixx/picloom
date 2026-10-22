@@ -310,27 +310,8 @@ test("access parameter APIs use a single package catalog", async () => {
   }
 });
 
-test("builtin submission options and watermark request labels keep their authored translations", async () => {
-  const { tencentModeration } =
-    await import("../src/builtins/processor/tencent-moderation");
+test("watermark request labels keep their authored translations", async () => {
   const { watermark } = await import("../src/builtins/processor/watermark");
-  const moderation = localizePlugin(
-    {
-      ...tencentModeration.stages.post_save!,
-      ...{
-        defaultLocale: tencentModeration.defaultLocale,
-        messages: tencentModeration.messages,
-      },
-    },
-    "en-US",
-  );
-  expect(
-    fieldText(
-      moderation,
-      "en-US",
-      (moderation.configSchema!.properties as any).submissionMode["x-ui"],
-    ).enumLabels,
-  ).toEqual(["File content", "Public URL"]);
   for (const [locale, label] of [
     ["en-US", "Watermark"],
     ["zh-CN", "水印"],

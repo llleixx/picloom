@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import { join } from "node:path";
 import { fixture } from "./helpers";
-import { PluginError } from "../plugin-sdk";
+import { PluginError } from "@picloom/plugin-sdk";
 import { handler } from "../src/http/app";
 
 test("list and detail distinguish retrying deletion from failure, and retry only unfinished cleanup", async () => {

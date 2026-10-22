@@ -1,4 +1,4 @@
-import { normalizePluginErrorCode } from "../../plugin-sdk/errors";
+import { normalizePluginErrorCode } from "@picloom/plugin-sdk";
 
 export function pluginErrorCode(code: string) {
   return `PLUGIN_${normalizePluginErrorCode(code)}`;

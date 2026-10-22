@@ -44,7 +44,7 @@ DOCS_BASE=/picloom/ bun run docs:preview
 接口字段、配置名称和默认值以代码为准。优先引用仓库中可运行的示例，如在 `docs/development/` 的页面引用路径插件：
 
 ```md
-<<< ../../examples/path/index.ts
+<<< ../../examples/path/src/index.ts
 ```
 
 引用会随源码更新，但仍需解释输入、输出和调用时机。修改插件示例时执行：
@@ -69,7 +69,7 @@ flowchart LR
 
 先将 `.github/workflows/docs.yml` 提交到仓库，并在 **Settings → Pages → Build and deployment** 将 Source 设为 **GitHub Actions**。
 
-工作流在文档、插件示例、SDK 或工作流文件变更时触发：PR 只构建，`main` 分支构建后发布，也支持手动触发。默认站点路径为 `/<仓库名>/`，本仓库为 `/picloom/`。
+工作流在文档、插件示例、内置插件或工作流文件变更时触发：PR 只构建，`main` 分支构建后发布，也支持手动触发。默认站点路径为 `/<仓库名>/`，本仓库为 `/picloom/`。
 
 独立域名或 `<用户>.github.io` 仓库应在 Actions variables 中设置 `DOCS_BASE=/`。独立域名还需在 Pages 设置中完成域名与 DNS 配置；本地验证时使用同样的 `DOCS_BASE`。
 
@@ -89,6 +89,8 @@ flowchart LR
 
 每段回答一个开发问题，先说明怎么做，再补必要限制。保留单位、调用时机、返回结果影响、取消、重试和资源生命周期；不逐项复述类型签名，不保留未发布版本的兼容历史。
 
-示例使用代码区域引用，例如 `<<< ../../examples/path/index.ts#implementation`。独立项目外层代码明确 SDK 导入、清单读取及片段插入位置，避免维护第二份实现。示例字段文案同时提供中英文。
+示例使用代码区域引用，例如 `<<< ../../examples/path/src/index.ts#implementation`。独立项目外层代码明确 SDK 导入、清单读取及片段插入位置，避免维护第二份实现。示例字段文案同时提供中英文。
 
 拆页时更新正文、导航和 README 的链接；旧标题锚点保留简短的新位置说明。构建检查页面链接，另外检查锚点和代码引用。纯文字修改只验证文档，示例变化才运行相应检查。
+
+SDK 和工具链位于独立仓库，其修改不会直接触发本仓库文档 CI；协议变化时应同步修改这里的开发文档。

@@ -1,7 +1,7 @@
 import { expect, test, spyOn } from "bun:test";
 import { join } from "node:path";
 import { fixture } from "./helpers";
-import { PluginError } from "../plugin-sdk";
+import { PluginError } from "@picloom/plugin-sdk";
 
 async function redundant() {
   const f = await fixture();

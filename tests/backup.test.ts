@@ -17,7 +17,7 @@ import { startRuntime } from "../src/runtime";
 import { initializeDevelopment } from "../src/bootstrap";
 import { Secrets } from "../src/infra/secrets";
 import { workLock } from "../src/infra/files";
-import { externalBuiltin } from "./package-fixtures";
+import { bundledPackage, externalBuiltin } from "./package-fixtures";
 const password = "sixsix";
 async function setup(parent: string, name = "data", key = "ab".repeat(32)) {
   const root = join(parent, name);
@@ -213,23 +213,21 @@ test("backup restores images, external local roots, settings and encrypted crede
       name: "external",
       config: { root: external },
     });
+    const fixturePackage = await bundledPackage(
+      "test.post-save",
+      "processor",
+      `import {postSaveFixture} from ${JSON.stringify(new URL("./post-save-fixture.ts", import.meta.url).pathname)}; export default postSaveFixture;`,
+    );
+    const fixtureTicket =
+      await source.runtime.app.packages.inspect(fixturePackage);
+    await source.runtime.app.packages.install(fixtureTicket.ticket, true);
     const moderation = await source.runtime.app.plugins.save({
-      pluginId: "builtin.tencent-moderation",
+      pluginId: "test.post-save",
       version: "1.0.0",
       name: "secret",
       stage: "post_save",
-      config: {
-        region: "ap-guangzhou",
-        submissionMode: "content",
-        maxContentMiB: 5,
-        blockAction: "block",
-        timeoutMs: 30000,
-        interval: 5,
-        maxFrames: 5,
-        bizType: "test",
-      },
+      config: {},
       secretEdits: {
-        "/secretId": { action: "replace", value: "test-id" },
         "/secretKey": { action: "replace", value: "kept-secret" },
       },
     });

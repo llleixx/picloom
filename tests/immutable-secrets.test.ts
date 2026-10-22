@@ -1,8 +1,8 @@
 import { expect, test } from "bun:test";
 import { PluginManager } from "../src/plugins/manager";
 import { Secrets } from "../src/infra/secrets";
-import type { ConfigSchema, FieldSchema } from "../plugin-sdk/schema";
-import type { Definition } from "../plugin-sdk/api";
+import type { ConfigSchema, FieldSchema } from "@picloom/plugin-sdk";
+import type { Definition } from "@picloom/plugin-sdk";
 import type { Instance, Persistence } from "../src/persistence/port";
 
 function fixture(schema: ConfigSchema) {

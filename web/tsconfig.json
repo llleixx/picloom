@@ -6,13 +6,20 @@
     "strict": true,
     "noUncheckedIndexedAccess": true,
     "noEmit": true,
-    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "lib": [
+      "ES2022",
+      "DOM",
+      "DOM.Iterable"
+    ],
     "skipLibCheck": true,
-    "types": ["vite/client"],
+    "types": [
+      "vite/client"
+    ],
     "baseUrl": ".",
     "paths": {
-      "@/*": ["src/*"],
-      "@picloom/theme-sdk": ["../theme-sdk/index.ts"]
+      "@/*": [
+        "src/*"
+      ]
     }
   },
   "include": [

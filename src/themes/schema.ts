@@ -16,7 +16,7 @@ import {
   schemaEntries,
 } from "../../shared/package-localization";
 import { isLocale, supportedLocales } from "../../shared/locales";
-import type { Config, Field, Json, Manifest } from "../../theme-sdk";
+import type { Config, Field, Json, Manifest } from "@picloom/theme-sdk";
 import { AppError } from "../core/errors";
 export const invalid = (message = "Invalid theme package or configuration") =>
   new AppError("INVALID_INPUT", message);
@@ -221,6 +221,10 @@ export function manifest(input: unknown): Manifest {
     !safeName(input.version) ||
     "name" in input ||
     input.apiVersion !== 1 ||
+    (input.author !== undefined &&
+      (typeof input.author !== "string" ||
+        !input.author.trim() ||
+        input.author.length > 200)) ||
     !isLocale(input.defaultLocale) ||
     !Array.isArray(input.supportedLocales) ||
     !input.supportedLocales.length ||
@@ -283,5 +287,9 @@ export function manifest(input: unknown): Manifest {
   )
     throw invalid("Unsupported message language");
   configuration(configSchema, undefined, true, false);
-  return structuredClone({ ...input, configSchema }) as Manifest;
+  return structuredClone({
+    ...input,
+    ...(input.author !== undefined ? { author: input.author.trim() } : {}),
+    configSchema,
+  }) as Manifest;
 }

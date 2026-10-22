@@ -29,8 +29,8 @@ test("frontend endpoints expose public safe limits and protected profile options
       enabledLocales: ["zh-CN", "en-US"],
       defaultLocale: "en-US",
       content: {
-        "en-US": { name: "Picloom", description: "Upload. Copy. Share." },
-        "zh-CN": { name: "Picloom", description: "上传、复制、分享。" },
+        "en-US": { name: "Picloom", description: "Capture the moment. Share what you see." },
+        "zh-CN": { name: "Picloom", description: "记录此刻，分享所见。" },
       },
       siteLogoUrl: "/assets/picloom.svg",
       siteFaviconUrl: "/assets/picloom.svg",

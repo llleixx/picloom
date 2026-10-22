@@ -572,8 +572,7 @@ export const zhCN = {
   "ui.zipOnlyUpTo20Mb512":
     "仅支持 ZIP，最大 20 MB、512 个条目，解压后不超过 50 MB。请包含全部依赖。",
   "ui.noPluginsInstalled": "暂无已安装插件。",
-  "ui.builtInProtected": "内置 · 受保护",
-  "ui.external": "外部",
+  "ui.builtIn": "内置",
   "ui.loaded": "已加载",
   "ui.loadFailed": "加载失败",
   "ui.removeAllUsesBeforeUninstalling": "请先移除所有引用再卸载。",
@@ -595,7 +594,6 @@ export const zhCN = {
   "ui.uninstallPlugin2": "卸载插件",
   "ui.pluginDetails": "插件详情",
   "ui.statusAndUsage": "状态与使用情况。",
-  "ui.externalPlugin": "外部插件",
   "ui.notInUse": "未使用。",
   "ui.fileIsEmptyOrExceedsTheUpload": "文件为空或超过上传大小上限。",
   "ui.connectionLostCheckImagesBeforeUploadingAgain":

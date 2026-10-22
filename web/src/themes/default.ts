@@ -2,7 +2,7 @@ import { createApp } from "vue";
 import DefaultPage from "../../../themes/default/src/Page.vue";
 import manifest from "../../../themes/default/theme.json";
 import { messageText } from "../../../shared/package-localization";
-import type { ThemeContext } from "../../../theme-sdk";
+import type { ThemeContext } from "@picloom/theme-sdk";
 export function mount(container: HTMLElement, context: ThemeContext) {
   const app = createApp(DefaultPage, {
     context: {

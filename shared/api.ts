@@ -11,7 +11,7 @@ export type FileStatus =
   | "deleting"
   | "delete_failed"
   | "deleted";
-export type ProcessingResult = import("../plugin-sdk/api").PostSaveStepResult;
+export type ProcessingResult = import("@picloom/plugin-sdk").PostSaveStepResult;
 export interface FileView {
   id: string;
   ownerId: string | null;

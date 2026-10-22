@@ -3,7 +3,7 @@ import {
   PluginError,
   type Definition,
   type PostSaveResult,
-} from "../../../../plugin-sdk";
+} from "@picloom/plugin-sdk";
 
 export const telegramNotification: Definition<"processor"> = {
   defaultLocale: "en-US",

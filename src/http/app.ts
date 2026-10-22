@@ -2,7 +2,7 @@ import { themeRequest } from "./themes";
 import { pluginErrorCode } from "../core/errors";
 import { maxDirectUploadBytes } from "../../shared/runtime-settings";
 import { normalizeGuestIp } from "./guest-ip";
-import { isPluginError } from "../../plugin-sdk/api";
+import { isPluginError } from "@picloom/plugin-sdk";
 import { downloadImage } from "../infra/remote-image";
 import { isWebRequest } from "../../shared/web-routes";
 import { isSiteAdmin } from "../../shared/roles";

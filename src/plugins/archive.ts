@@ -25,6 +25,7 @@ export interface Manifest {
   kind: "path" | "storage" | "processor";
   apiVersion: 1;
   entry: string;
+  author?: string;
 }
 export function parseManifest(value: unknown): Manifest {
   if (!value || typeof value !== "object" || Array.isArray(value))
@@ -38,6 +39,8 @@ export function parseManifest(value: unknown): Manifest {
     !/^[0-9][a-zA-Z0-9.+-]{0,63}$/.test(m.version) ||
     m.apiVersion !== 1 ||
     !["path", "storage", "processor"].includes(m.kind) ||
+    (m.author !== undefined &&
+      (typeof m.author !== "string" || !m.author.trim() || m.author.length > 200)) ||
     typeof m.entry !== "string" ||
     !m.entry.endsWith(".js") ||
     m.entry.startsWith("/") ||
@@ -51,5 +54,6 @@ export function parseManifest(value: unknown): Manifest {
     kind: m.kind,
     apiVersion: 1,
     entry: m.entry,
+    ...(m.author !== undefined ? { author: m.author.trim() } : {}),
   };
 }

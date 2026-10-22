@@ -23,7 +23,7 @@ export default {
 } satisfies Definition<"path">;
 ```
 
-<<< ../../examples/path/index.ts#implementation
+<<< ../../examples/path/src/index.ts#implementation
 
 `generate` 返回 `logicalKey`；未提供 `storageKey` 时，存储使用同一相对键。
 

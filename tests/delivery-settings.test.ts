@@ -363,8 +363,8 @@ test("initial branding is persisted once and explicit empty values survive resta
   try {
     const initial = f.app.delivery.get();
     expect(initial.content).toEqual({
-      "zh-CN": { name: "Picloom", description: "上传、复制、分享。" },
-      "en-US": { name: "Picloom", description: "Upload. Copy. Share." },
+      "zh-CN": { name: "Picloom", description: "记录此刻，分享所见。" },
+      "en-US": { name: "Picloom", description: "Capture the moment. Share what you see." },
     });
     expect(initial.siteLogoUrl).toBe("/assets/picloom.svg");
     expect(initial.siteFaviconUrl).toBe("/assets/picloom.svg");

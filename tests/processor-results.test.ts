@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { fixture } from "./helpers";
-import type { ProcessorPlugin, ProcessorInput } from "../plugin-sdk";
+import type { ProcessorPlugin, ProcessorInput } from "@picloom/plugin-sdk";
 
 for (const stage of ["upload", "access"] as const) {
   test(`${stage} rejects malformed processor results before continuing the pipeline`, async () => {

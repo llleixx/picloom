@@ -1,6 +1,6 @@
 import { checkStorageCapacity, storageHasCapacity } from "./storage-capacity";
 import { TemporarySpace } from "../infra/temporary-space";
-import { isPluginError } from "../../plugin-sdk/api";
+import { isPluginError } from "@picloom/plugin-sdk";
 import { isSiteAdmin } from "../../shared/roles";
 import { DerivedImages } from "./derived-images";
 import { imageMimeFromKey } from "../../shared/import";

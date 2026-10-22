@@ -1,4 +1,4 @@
-import { retainStream } from "../../../../plugin-sdk/files";
+import { retainStream } from "@picloom/plugin-sdk";
 import { scanScope, decodeCursor, encodeCursor } from "../shared/enumeration";
 import { mkdir, open, readFile, link, readdir, lstat } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
@@ -8,12 +8,12 @@ import {
   remove,
   writeStream,
   logicalKey as validateKey,
-} from "../../../../plugin-sdk";
+} from "@picloom/plugin-sdk";
 import {
   PluginError,
   type Definition,
   type Locator,
-} from "../../../../plugin-sdk";
+} from "@picloom/plugin-sdk";
 export const localStorage: Definition<"storage"> = {
   defaultLocale: "en-US",
   nameKey: "package.name",

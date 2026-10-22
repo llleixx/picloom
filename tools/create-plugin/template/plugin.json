@@ -1,7 +1,0 @@
-{
-  "id": "example.my-plugin",
-  "version": "0.1.0",
-  "kind": "path",
-  "apiVersion": 1,
-  "entry": "index.js"
-}

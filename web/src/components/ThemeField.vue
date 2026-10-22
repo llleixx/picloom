@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { Field, Json, Manifest } from "../../../theme-sdk";
+import type { Field, Json, Manifest } from "@picloom/theme-sdk";
 import type { Config } from "../../../shared/config";
 import type { Schema } from "../../../shared/field-schema";
 import { computed, ref, shallowRef } from "vue";

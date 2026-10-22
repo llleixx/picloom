@@ -2,7 +2,7 @@ import { messageText } from "../../shared/package-localization";
 import { checkStorageCapacity } from "./storage-capacity";
 import { pluginErrorCode } from "./errors";
 import type { TemporarySpace } from "../infra/temporary-space";
-import { isPluginError } from "../../plugin-sdk/api";
+import { isPluginError } from "@picloom/plugin-sdk";
 import type { ProcessingResult } from "../../shared/api";
 import { assertJson, pipelineData } from "./pipeline-data";
 import { join } from "node:path";

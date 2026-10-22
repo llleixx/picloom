@@ -1,5 +1,5 @@
 import { Readable } from "node:stream";
-import { retainStream, withAbortSignal } from "../../../../plugin-sdk/files";
+import { retainStream, withAbortSignal } from "@picloom/plugin-sdk";
 import {
   PluginError,
   type Definition,
@@ -12,7 +12,7 @@ import {
   type ProcessorInput,
   type AccessCheckInput,
   type AccessProcessorInput,
-} from "../../../../plugin-sdk";
+} from "@picloom/plugin-sdk";
 const transformProperties: Record<string, ParameterSchema> = {
   w: { "x-ui": { labelKey: "params.w.label" }, type: "integer", minimum: 1 },
   h: { "x-ui": { labelKey: "params.h.label" }, type: "integer", minimum: 1 },

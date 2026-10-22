@@ -13,7 +13,10 @@ import { join, resolve } from "node:path";
 import { archiveFiles } from "../src/infra/archive";
 import { handler } from "../src/http/app";
 import { fixture } from "./helpers";
-const repository = resolve(import.meta.dir, "..");
+const repository = resolve(
+  process.env.PICLOOM_TOOLING_DIR ??
+    resolve(import.meta.dir, "../../picloom-tooling"),
+);
 const toolingTest =
   process.env.PICLOOM_TEST_THEME_TOOLING === "1" ? test : test.skip;
 toolingTest(
@@ -66,7 +69,9 @@ toolingTest(
         );
         return file;
       }
+      await run(["bun", "run", "build:theme-tools"], repository);
       const sdk = await pack("theme-sdk", "sdk");
+      const themeTools = await pack("tools/theme-tools", "tools");
       const creator = await pack("tools/create-theme", "creator");
       const launcher = join(root, "launcher");
       await mkdir(launcher);
@@ -97,8 +102,21 @@ toolingTest(
       const pkgPath = join(project, "package.json");
       const pkg = JSON.parse(await readFile(pkgPath, "utf8"));
       pkg.devDependencies["@picloom/theme-sdk"] = "file:" + sdk;
+      pkg.devDependencies["@picloom/theme-tools"] = "file:" + themeTools;
+      expect(await Bun.file(join(project, "scripts/build.ts")).exists()).toBe(
+        false,
+      );
+      expect(await Bun.file(join(project, "dev/context.ts")).exists()).toBe(
+        false,
+      );
       await writeFile(pkgPath, JSON.stringify(pkg));
       await run(["bun", "install"], project);
+      const installedSdk = await Bun.file(
+        join(project, "node_modules/@picloom/theme-sdk/package.json"),
+      ).json();
+      expect(installedSdk.bin).toBeUndefined();
+      expect(installedSdk.exports["./dev"]).toBeUndefined();
+      expect(installedSdk.files).toEqual(["index.ts", "README.md", "LICENSE"]);
       // Configuration defaults are written once, including localized and list defaults.
       manifest.configSchema = {
         type: "object",
@@ -419,7 +437,7 @@ export async function mount(container: HTMLElement, context: ThemeContext) {
       await downloaded.arrayBuffer();
       await mkdir(join(project, "public/assets"), { recursive: true });
       await symlink(manifestPath, join(project, "public/assets/linked.json"));
-      const rejected = await run(["bun", "scripts/build.ts"], project, false);
+      const rejected = await run(["bun", "run", "build"], project, false);
       expect(rejected.code).not.toBe(0);
       expect(rejected.err).toContain("symbolic links");
       expect(
@@ -429,23 +447,36 @@ export async function mount(container: HTMLElement, context: ThemeContext) {
       ).toBe(false);
       await rm(join(project, "public/assets/linked.json"));
       await writeFile(join(assets, "invalid name.css"), "body {}");
-      const invalidPath = await run(
-        ["bun", "scripts/build.ts"],
-        project,
-        false,
-      );
+      const invalidPath = await run(["bun", "run", "build"], project, false);
       expect(invalidPath.code).not.toBe(0);
       expect(invalidPath.err).toContain("Not a distributable theme asset");
       await rm(join(assets, "invalid name.css"));
       manifest.styles = [];
       await writeFile(manifestPath, JSON.stringify(manifest));
-      const missingStyle = await run(
-        ["bun", "scripts/build.ts"],
-        project,
-        false,
-      );
+      const missingStyle = await run(["bun", "run", "build"], project, false);
       expect(missingStyle.code).not.toBe(0);
       expect(missingStyle.err).toContain("declare it in theme.json styles");
+      // A valid identity must remove stale output even when the remaining manifest is invalid.
+      const archive = join(
+        project,
+        "dist",
+        `${manifest.id}-${manifest.version}.zip`,
+      );
+      for (const patch of [
+        { author: " " },
+        { pages: {} },
+        { supportedLocales: [] },
+      ]) {
+        await writeFile(archive, "stale ZIP");
+        await writeFile(
+          manifestPath,
+          JSON.stringify({ ...manifest, ...patch }),
+        );
+        const invalid = await run(["bun", "run", "build"], project, false);
+        expect(invalid.code).not.toBe(0);
+        expect(invalid.err).toContain("Invalid theme.json");
+        expect(await Bun.file(archive).exists()).toBe(false);
+      }
       expect(errors).toEqual([]);
     } finally {
       dev?.kill("SIGTERM");

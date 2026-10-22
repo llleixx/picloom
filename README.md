@@ -42,9 +42,11 @@ Access processing can generate thumbnails without replacing the stored image. Se
 
 | Type | Plugins |
 | --- | --- |
-| Storage | [Local](src/builtins/storage/local/README.md), [S3](src/builtins/storage/s3/README.md), [WebDAV](src/builtins/storage/webdav/README.md), [OpenList](src/builtins/storage/openlist/README.md), [NodeImage](src/builtins/storage/nodeimage/README.md), [Telegram](src/builtins/storage/telegram/README.md) |
+| Storage | [Local](src/builtins/storage/local/README.md), [S3](src/builtins/storage/s3/README.md), [WebDAV](src/builtins/storage/webdav/README.md) |
 | Paths | [Random](src/builtins/path/random-path/README.md), [Date](src/builtins/path/date-path/README.md) |
-| Processing | [Image Processing](src/builtins/processor/sharp/README.md), [Watermark](src/builtins/processor/watermark/README.md), [Tencent Cloud Moderation](src/builtins/processor/tencent-moderation/README.md), [Telegram Notification](src/builtins/processor/telegram-notification/README.md) |
+| Processing | [Image Processing](src/builtins/processor/sharp/README.md), [Watermark](src/builtins/processor/watermark/README.md), [Telegram Notification](src/builtins/processor/telegram-notification/README.md) |
+
+Optional official extensions (OpenList, NodeImage, Telegram storage, Tencent moderation and Horizon) are maintained in the separate `picloom-extensions` repository. Install their ZIPs through plugin/theme management; they are no longer bundled. The repository and its first Release are being prepared.
 
 Each plugin's README covers its configuration and limitations. Storage capabilities, including deletion and import, vary by backend.
 
@@ -67,17 +69,20 @@ Built with Bun, TypeScript and Vue; supports SQLite and PostgreSQL.
 - [Core development (中文)](https://llleixx.github.io/picloom/development/contributing.html)
 - [Plugin development (中文)](https://llleixx.github.io/picloom/development/plugin-tooling.html)
 
-Develop plugins and themes in standalone projects using the published npm packages:
+Develop plugins and themes in standalone projects:
 
-- Plugins: [`@picloom/plugin-sdk`](plugin-sdk/README.md) and [`@picloom/create-plugin`](tools/create-plugin/README.md).
-- Themes: [`@picloom/theme-sdk`](theme-sdk/README.md) and [`@picloom/create-theme`](tools/create-theme/README.md). See [theme development (中文)](https://llleixx.github.io/picloom/development/theme-tooling.html).
+- Plugins: [`@picloom/plugin-sdk`](https://github.com/llleixx/picloom-tooling/blob/main/plugin-sdk/README.md) supplies protocols and runtime helpers, [`@picloom/plugin-tools`](https://github.com/llleixx/picloom-tooling/blob/main/tools/plugin-tools/README.md) builds ZIPs, and [`@picloom/create-plugin`](https://github.com/llleixx/picloom-tooling/blob/main/tools/create-plugin/README.md) generates projects.
+- Themes: [`@picloom/theme-sdk`](https://github.com/llleixx/picloom-tooling/blob/main/theme-sdk/README.md), [`@picloom/theme-tools`](https://github.com/llleixx/picloom-tooling/blob/main/tools/theme-tools/README.md), and [`@picloom/create-theme`](https://github.com/llleixx/picloom-tooling/blob/main/tools/create-theme/README.md) separate protocols, tools and project generation.
 
-```sh
-bun create @picloom/plugin@0.1.0 ./my-plugin
-bun create @picloom/theme@0.1.0 ./my-theme
-```
+Install exact npm versions: plugin SDK 0.1.0, theme SDK 0.1.1, package-rules and both tool packages 0.1.0, and both creators 0.1.1.
 
 
 ## License
 
 [MIT](LICENSE)
+
+### Local development across three repositories
+
+This repository owns the application, built-ins, default theme and protocol integration examples. SDKs, tools and generators live in the sibling `picloom-tooling` repository; optional official extensions live in `picloom-extensions`.
+
+The application and official extensions use exact npm versions. Run `bun install --frozen-lockfile` in each repository; no tooling checkout or local tarballs are needed. For optional source development, see [local integration](https://github.com/llleixx/picloom-tooling/blob/main/README.md).

@@ -4,7 +4,7 @@
 
 ## 准备环境
 
-需要 Git、Bun；当前 Docker 与文档 CI 使用 Bun `1.4.3`，本地建议保持一致。构建插件示例还需要 `zip`。
+需要 Git、Bun；当前 Docker 与文档 CI 使用 Bun `1.4.3`，本地建议保持一致。插件和主题工具使用 JavaScript ZIP 库，不需要系统 `zip`。
 
 ```sh
 git clone https://github.com/llleixx/picloom.git
@@ -12,6 +12,8 @@ cd picloom
 bun install --frozen-lockfile
 cp .env.example .env
 ```
+
+主程序依赖 npm 精确版本，不需要工具链仓库或本地压缩包。仅在验证工具链源码修改时，从相邻的 `picloom-tooling` 执行 `bun run dev:sync -- ../picloom`；验证结束后切回 registry 版本并更新锁文件。详见[插件工具维护](./plugin-tooling-maintenance.md)。
 
 这里使用仓库根目录的 `.env.example`，Docker 使用 `docker/.env.example`。
 

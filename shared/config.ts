@@ -1,7 +1,7 @@
-import type { ConfigSchema, ParamsSchema } from "../plugin-sdk/schema";
-import type { PluginLocalization } from "../plugin-sdk/config";
-import type { Json, Config, FieldHint } from "../plugin-sdk/config";
-export type { Json, Config, FieldHint } from "../plugin-sdk/config";
+import type { ConfigSchema, ParamsSchema } from "@picloom/plugin-sdk";
+import type { PluginLocalization } from "@picloom/plugin-sdk";
+import type { Json, Config, FieldHint } from "@picloom/plugin-sdk";
+export type { Json, Config, FieldHint } from "@picloom/plugin-sdk";
 export type PluginKind = "path" | "storage" | "processor";
 export interface StageView {
   configSchemaVersion: number;
@@ -31,6 +31,7 @@ export type PluginSummary = PluginIdentity & {
   supportedStages?: PipelineKind[];
 };
 export interface PackageView extends PluginSummary {
+  author?: string;
   source: "builtin" | "external";
   status: "loaded" | "failed";
   error: string | null;

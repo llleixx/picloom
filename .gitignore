@@ -11,3 +11,6 @@ docs/.vitepress/cache/
 docs/.vitepress/dist/
 /postgres/
 backups/
+
+# Local packed tooling dependencies (regenerated with picloom-tooling dev:sync).
+.local-packages/

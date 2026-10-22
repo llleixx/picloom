@@ -11,7 +11,6 @@
     "build:web": "bun --bun vite build --config web/vite.config.ts",
     "test": "bun test ./tests",
     "test:web": "playwright test",
-    "test:tencent": "TENCENT_LIVE=1 bun test tests/tencent-live.test.ts",
     "test:s3": "bun test tests/s3-live.test.ts",
     "typecheck": "tsc --noEmit && vue-tsc --noEmit -p web/tsconfig.json",
     "typecheck:web": "vue-tsc --noEmit -p web/tsconfig.json",
@@ -19,19 +18,13 @@
     "reset-owner-password": "bun src/cli.ts reset-owner-password",
     "init-admin": "bun src/cli.ts init-admin",
     "init-dev": "bun src/cli.ts init-dev",
-    "test:nodeimage": "bun test tests/nodeimage-live.test.ts",
-    "test:telegram": "TELEGRAM_LIVE=1 bun test tests/telegram-live.test.ts",
-    "test:openlist": "OPENLIST_LIVE=1 bun test tests/openlist-live.test.ts",
     "test:postgres": "REQUIRE_POSTGRES_TEST=1 bun test tests/postgres.test.ts",
-    "build:plugin-sdk": "bun run --cwd plugin-sdk build",
     "test:plugin-tooling": "PICLOOM_TEST_PLUGIN_TOOLING=1 bun test tests/plugin-tooling.test.ts",
     "build:examples": "bun examples/build.ts",
     "test:docker": "bun docker/smoke.ts",
     "docs:dev": "bun run --cwd docs dev",
     "docs:build": "bun run --cwd docs build",
     "docs:preview": "bun run --cwd docs preview",
-    "build:themes": "bun examples/themes/build.ts",
-    "build:create-theme": "bun run --cwd tools/create-theme build",
     "test:theme-tooling": "PICLOOM_TEST_THEME_TOOLING=1 bun test tests/theme-tooling.test.ts"
   },
   "dependencies": {
@@ -45,7 +38,9 @@
     "pg": "8.23.1",
     "saxes": "6.0.0",
     "sharp": "0.34.5",
-    "tar": "7.5.11"
+    "tar": "7.5.11",
+    "@picloom/plugin-sdk": "0.1.0",
+    "@picloom/package-rules": "0.1.0"
   },
   "devDependencies": {
     "@playwright/test": "1.64.1",
@@ -67,6 +62,8 @@
     "vite": "8.3.4",
     "vue": "3.5.44",
     "vue-router": "5.4.0",
-    "vue-tsc": "3.3.13"
+    "vue-tsc": "3.3.13",
+    "@picloom/theme-sdk": "0.1.1",
+    "@picloom/plugin-tools": "0.1.0"
   }
 }

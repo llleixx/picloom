@@ -7,7 +7,7 @@ import type { Settings } from "../src/config";
 import { fixture } from "./helpers";
 import { handler } from "../src/http/app";
 import { ImageCache } from "../src/core/cache";
-import { PluginError } from "../plugin-sdk";
+import { PluginError } from "@picloom/plugin-sdk";
 const bytes = (size: number) => new Blob([new Uint8Array(size)]).stream();
 
 test("temporary writes enforce shared budget before disk writes and release failed/cancelled allocations", async () => {

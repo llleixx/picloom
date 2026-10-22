@@ -13,7 +13,7 @@
 
 Docker 使用 `docker/.env.example`，源码开发使用根目录的 `.env.example`。Compose 旁的 `.env` 用于替换 Compose 变量，不会自动把所有变量传入容器；额外变量需加入 Compose 的 `environment`。
 
-首次创建站点配置时写入中英文名称 `Picloom`、简介“上传、复制、分享。”／“Upload. Copy. Share.”，以及 Logo、favicon 地址 `/assets/picloom.svg`。已有配置不补写；用户清空后的值保持为空。
+首次创建站点配置时写入中英文名称 `Picloom`、简介“记录此刻，分享所见。”／“Capture the moment. Share what you see.”，以及 Logo、favicon 地址 `/assets/picloom.svg`。已有配置不补写；用户清空后的值保持为空。
 
 ## 部署参数
 
@@ -113,6 +113,6 @@ Docker 使用 `docker/.env.example`，源码开发使用根目录的 `.env.examp
 
 字段只读取当前语言的实际值，不使用基础语言、站点默认语言或内置文案填补。上述示例在英文界面的网站名称为空。默认名称、简介和图标只在新站点初始化时保存；主动清空后不会重新补入。停用语言不会删除其内容。后台的内容语言选择仅决定编辑哪份内容，不改变界面语言。
 
-开发者新增语言时，在 `shared/locales.ts` 注册语言及匹配规则，并在 `web/src/lib/i18n.ts` 注册对应文案资源；业务页面通过 `t()` 获取文案，不添加语言分支。
+开发者新增语言时，在 `shared/locales.ts` 注册语言与匹配规则，并在 `web/src/lib/i18n.ts` 注册对应文案资源；业务页面通过 `t()` 获取文案，不添加语言分支。独立主题工具的预览语言示例在 `picloom-tooling/tools/theme-tools/src/locales.ts` 维护，随目标宿主版本同步检查，不作为 SDK 的固定语言范围。
 
 主题清单的 `defaultLocale` 仅用于包内名称、字段标签和功能字典回退，与这里的站点默认语言职责不同，也不会让管理员填写的配置值回退。详见[主题开发](../development/themes.md)。

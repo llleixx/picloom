@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, shallowRef, onMounted, computed } from "vue";
-import type { Config, InstalledTheme, Manifest } from "../../../theme-sdk";
+import type { Config, InstalledTheme, Manifest } from "@picloom/theme-sdk";
 import { api, ApiError, errorText, notify, queryClient } from "../lib/api";
 import { t, locale } from "../lib/i18n";
 import { messageText } from "../../../shared/package-localization";
@@ -141,6 +141,9 @@ onMounted(() => run(load));
     <div v-if="inspected" class="panel space-y-4 p-4">
       <p>
         {{ themeName(inspected.manifest) }} · {{ inspected.manifest.version }}
+        <span v-if="inspected.manifest.author">
+          · {{ inspected.manifest.author }}</span
+        >
       </p>
       <label class="flex gap-2"
         ><input type="checkbox" v-model="confirmed" />{{
@@ -179,7 +182,12 @@ onMounted(() => run(load));
           {{ themeName(theme.manifest) }} · {{ theme.manifest.version }}
           <span v-if="theme.active">✓ {{ t("themes.active") }}</span>
         </h2>
-        <p class="subtle">{{ theme.manifest.id }}</p>
+        <p class="subtle">
+          {{ theme.manifest.id }}
+          <span v-if="theme.manifest.author">
+            · {{ theme.manifest.author }}</span
+          >
+        </p>
         <p v-if="!theme.compatible" class="error-box">
           {{ t("themes.incompatible") }}
         </p>

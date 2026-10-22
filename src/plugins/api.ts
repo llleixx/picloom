@@ -1,1 +1,1 @@
-export * from "../../plugin-sdk/api";
+export * from "@picloom/plugin-sdk";

@@ -1,36 +1,35 @@
 import { test, expect } from "bun:test";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import sharp from "sharp";
 import { fixture } from "./helpers";
-import { zip } from "./package-fixtures";
-import datePath from "../examples/path";
+import datePath from "../examples/path/src";
 
 async function installExamples(
   f: Awaited<ReturnType<typeof fixture>>,
   names: string[],
 ) {
   for (const name of names) {
-    const build = await Bun.build({
-      entrypoints: [`examples/${name}/index.ts`],
-      target: "bun",
-      format: "esm",
-    });
-    expect(build.success).toBe(true);
-    const form = new FormData();
-    form.set(
-      "file",
-      new File(
-        [
-          zip({
-            "plugin.json": await Bun.file(
-              `examples/${name}/plugin.json`,
-            ).text(),
-            "index.js": await build.outputs[0]!.text(),
-          }),
-        ],
-        `${name}.zip`,
-      ),
+    const directory = resolve(import.meta.dir, "../examples", name);
+    const build = Bun.spawn(
+      [
+        process.execPath,
+        resolve(import.meta.dir, "../node_modules/@picloom/plugin-tools/dist/cli.js"),
+        "build",
+      ],
+      { cwd: directory, stdout: "pipe", stderr: "pipe" },
     );
+    const [out, err, code] = await Promise.all([
+      new Response(build.stdout).text(),
+      new Response(build.stderr).text(),
+      build.exited,
+    ]);
+    if (code) throw Error(out + err);
+    const manifest = await Bun.file(join(directory, "plugin.json")).json();
+    const bytes = await Bun.file(
+      join(directory, "dist", `${manifest.id}-${manifest.version}.zip`),
+    ).bytes();
+    const form = new FormData();
+    form.set("file", new File([bytes], `${name}.zip`));
     const inspected = await f.request("/api/plugins/inspect", "POST", form);
     expect(inspected.status).toBe(200);
     const installed = await f.request("/api/plugins/install", "POST", {

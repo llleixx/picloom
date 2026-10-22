@@ -1,5 +1,5 @@
-import { logicalKey } from "../../../../plugin-sdk";
-import { PluginError } from "../../../../plugin-sdk";
+import { logicalKey } from "@picloom/plugin-sdk";
+import { PluginError } from "@picloom/plugin-sdk";
 export function scanScope(value = "") {
   const scope = value.replace(/\/$/, "");
   if (value) logicalKey(scope);

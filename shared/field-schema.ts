@@ -1,5 +1,7 @@
-import type { Json, Config } from "../plugin-sdk/config";
-import type { FieldSchema } from "../plugin-sdk/schema";
+import { initialValue } from "@picloom/package-rules";
+export { initialValue } from "@picloom/package-rules";
+import type { Json, Config } from "@picloom/plugin-sdk";
+import type { FieldSchema } from "@picloom/plugin-sdk";
 /** Host representation for static fields and constraint branches in either SDK. */
 export interface Schema extends Omit<
   Partial<FieldSchema>,
@@ -35,9 +37,6 @@ export function schemaOrEmpty<T>(schema: T | undefined) {
       }
     : schema;
 }
-export function cloneJson<T>(value: T): T {
-  return JSON.parse(JSON.stringify(value)) as T;
-}
 /** JSON object member order is not part of value equality. */
 export function equalJson(a: Json | undefined, b: Json | undefined): boolean {
   if (a === b) return true;
@@ -63,9 +62,6 @@ export function equalJson(a: Json | undefined, b: Json | undefined): boolean {
       (key) => Object.hasOwn(right, key) && equalJson(left[key], right[key]),
     )
   );
-}
-export function pointer(key: string) {
-  return key.replace(/~/g, "~0").replace(/\//g, "~1");
 }
 export function readPointer(value: Config, path: string): Json | undefined {
   if (path === "") return value;
@@ -106,18 +102,6 @@ export function writePointer(
   if (item === undefined) delete current[keys.at(-1)!];
   else current[keys.at(-1)!] = item;
 }
-export function sensitivePaths(schema: Schema, path = ""): string[] {
-  if (
-    schema["x-sensitive"] === true ||
-    (schema.type === "array" &&
-      schema.items &&
-      sensitivePaths(schema.items!).length > 0)
-  )
-    return [path];
-  return Object.entries(schema.properties ?? {}).flatMap(([key, rule]) =>
-    sensitivePaths(rule, path + "/" + pointer(key)),
-  );
-}
 const keywords = new Set([
   "$schema",
   "type",
@@ -154,40 +138,6 @@ const keywords = new Set([
 ]);
 export class DeclarationError extends Error {}
 
-/** Defaults are draft data, never a save/read-time fallback. */
-export function initialValue(schema: Schema, value?: Json): Json | undefined {
-  if (
-    schema["x-sensitive"] === true ||
-    (schema.type === "array" && sensitivePaths(schema).length)
-  )
-    return undefined;
-  const seed = value === undefined ? schema.default : value;
-  if (schema.type === "object") {
-    if (
-      seed !== undefined &&
-      (!seed || typeof seed !== "object" || Array.isArray(seed))
-    )
-      return cloneJson(seed);
-    const result = seed === undefined ? {} : (cloneJson(seed) as Config);
-    for (const [key, rule] of Object.entries(schema.properties ?? {})) {
-      const child = initialValue(
-        rule,
-        Object.hasOwn(result, key) ? result[key] : undefined,
-      );
-      if (child !== undefined) result[key] = child;
-      else delete result[key];
-    }
-    return seed !== undefined || Object.keys(result).length
-      ? result
-      : undefined;
-  }
-  if (schema.type === "array" && Array.isArray(seed))
-    return seed.map((item) => initialValue(schema.items!, item) ?? null);
-  return seed === undefined ? undefined : cloneJson(seed);
-}
-export function initialConfig(schema: Schema): Config {
-  return (initialValue(schema) ?? {}) as Config;
-}
 function containsSensitiveValue(
   schema: Schema,
   value: Json | undefined,
@@ -430,4 +380,27 @@ function assertSerializable(value: unknown): void {
   )
     throw new Error("Description must be JSON data");
   for (const child of Object.values(value)) assertSerializable(child);
+}
+
+export function cloneJson<T>(value: T): T {
+  return JSON.parse(JSON.stringify(value)) as T;
+}
+export function pointer(key: string) {
+  return key.replace(/~/g, "~0").replace(/\//g, "~1");
+}
+export function sensitivePaths(schema: Schema, path = ""): string[] {
+  if (
+    schema["x-sensitive"] === true ||
+    (schema.type === "array" &&
+      schema.items &&
+      sensitivePaths(schema.items!).length > 0)
+  )
+    return [path];
+  return Object.entries(schema.properties ?? {}).flatMap(([key, rule]) =>
+    sensitivePaths(rule, path + "/" + pointer(key)),
+  );
+}
+
+export function initialConfig(schema: Schema): Config {
+  return (initialValue(schema) ?? {}) as Config;
 }

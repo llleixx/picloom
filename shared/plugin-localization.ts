@@ -1,6 +1,6 @@
 import { messageText } from "./package-localization";
-import type { PluginLocalization } from "../plugin-sdk/config";
-export type { PluginLocalization } from "../plugin-sdk/config";
+import type { PluginLocalization } from "@picloom/plugin-sdk";
+export type { PluginLocalization } from "@picloom/plugin-sdk";
 export type LocalizedPlugin<T> = T & { name: string; description: string };
 export function localizePlugin<
   T extends PluginLocalization & {

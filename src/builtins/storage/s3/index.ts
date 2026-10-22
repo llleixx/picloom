@@ -1,5 +1,5 @@
 import { multipartWrite } from "./multipart";
-import { isPluginError, retainStream } from "../../../../plugin-sdk";
+import { isPluginError, retainStream } from "@picloom/plugin-sdk";
 import { scanScope, decodeCursor, encodeCursor } from "../shared/enumeration";
 import {
   S3Client,
@@ -15,8 +15,8 @@ import {
   PluginError,
   type Definition,
   type Locator,
-} from "../../../../plugin-sdk";
-import { logicalKey as storageKey } from "../../../../plugin-sdk";
+} from "@picloom/plugin-sdk";
+import { logicalKey as storageKey } from "@picloom/plugin-sdk";
 function failureCode(error: unknown) {
   const status = (error as { $metadata?: { httpStatusCode?: number } })
     ?.$metadata?.httpStatusCode;

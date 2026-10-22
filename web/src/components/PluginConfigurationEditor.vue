@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import type { ParameterSchema } from "../../../plugin-sdk/schema";
-import type { PluginLocalization } from "../../../plugin-sdk/config";
+import type { ParameterSchema } from "@picloom/plugin-sdk";
+import type { PluginLocalization } from "@picloom/plugin-sdk";
 import { t, locale } from "@/lib/i18n";
 import { computed, onScopeDispose, ref, watch } from "vue";
 import { Button } from "@/components/ui/button";

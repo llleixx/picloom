@@ -6,8 +6,8 @@ import type {
   ParameterSchema,
   ParameterConstraint,
   SchemaConstraint,
-} from "../plugin-sdk";
-import type { Field, Constraint, Manifest } from "../theme-sdk";
+} from "@picloom/plugin-sdk";
+import type { Field, Constraint, Manifest } from "@picloom/theme-sdk";
 
 function schemaDeclarations() {
   const config = {

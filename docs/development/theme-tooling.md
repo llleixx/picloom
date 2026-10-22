@@ -1,12 +1,12 @@
 # 主题快速开始
 
-使用 Bun 1.4.3+ 创建独立 Vue 3 主题，默认模板与宿主内置默认主题共用源码。
+使用 Bun 1.4.3+ 创建独立 Vue 3 主题，默认模板由独立的 `picloom-tooling` 仓库维护。
 无需 clone 主仓库、Node/npm CLI 或系统 `zip`。完整协议见[主题协议](./themes.md)。
 
 ## 创建与开发
 
 ```sh
-bun create @picloom/theme@0.1.0 ./my-theme
+bun create @picloom/theme@0.1.1 ./my-theme
 cd my-theme
 bun install
 bun run dev
@@ -72,7 +72,7 @@ bun run dev --port 5174
 静态图片放入 `public/assets/background.webp`，通过 `context.asset("assets/background.webp")`
 读取。入口导入的样式统一构建为 `style.css`，必须在清单全局 `styles` 中保留。
 其他页面专属样式放入 `public/assets/`，通过对应页面的 `styles` 引用；源码与生产预览均随切页加载和卸载。
-不要引用宿主组件、共享 Vue 实例或仓库相对路径。SDK 仅提供类型，运行时由宿主注入。
+不要引用宿主组件、共享 Vue 实例或仓库相对路径。SDK 根入口仅提供类型，运行时由宿主注入；本地预览和 ZIP 构建由 `@picloom/theme-tools` 统一提供。
 
 ## 构建、安装与验证
 
@@ -82,7 +82,7 @@ bun run build
 bun run preview
 ```
 
-构建先检查类型，随后将 Vue 和依赖合并成浏览器模块，输出 `dist/package/` 与
+类型检查使用独立命令 `bun run typecheck`。构建将 Vue 和依赖合并成浏览器模块，输出 `dist/package/` 与
 `dist/<主题ID>-<版本>.zip`。`preview` 使用同一模拟宿主加载已构建 JavaScript 和样式，
 不使用主题源码热更新；修改源码后须重新构建。工具只做基本声明、资源与产物检查，
 宿主安装负责完整清单与配置校验。
@@ -97,23 +97,28 @@ ZIP 根目录直接包含 `theme.json`。上限为 20 MiB 压缩、50 MiB 解压
 
 ## 本地压缩包
 
-需要验证本地开发版本时，向维护者获取 `picloom-theme-sdk-0.1.0.tgz` 与 `picloom-create-theme-0.1.0.tgz`：
+需要验证本地开发版本时，向维护者获取 `picloom-theme-sdk-0.1.1.tgz`、`picloom-theme-tools-0.1.0.tgz` 与 `picloom-create-theme-0.1.1.tgz`：
 
 ```sh
 mkdir theme-tools
 cd theme-tools
-bun add --dev /absolute/path/picloom-create-theme-0.1.0.tgz
+bun add --dev /absolute/path/picloom-create-theme-0.1.1.tgz
 bun create @picloom/theme ../my-theme
 cd ../my-theme
 ```
 
-将生成项目现有 SDK 依赖改为：
+将生成项目现有 SDK 和开发工具依赖改为：
 
 ```json
-"@picloom/theme-sdk": "file:/absolute/path/picloom-theme-sdk-0.1.0.tgz"
+"@picloom/theme-sdk": "file:/absolute/path/picloom-theme-sdk-0.1.1.tgz",
+"@picloom/theme-tools": "file:/absolute/path/picloom-theme-tools-0.1.0.tgz"
 ```
 
 然后执行 `bun install`、`bun run dev`。验证完成后可切回经过验证的精确 registry 版本并更新锁文件。
 
 <span id="工具维护"></span>
 仓库构建和发布准备见[主题工具维护](./theme-tooling-maintenance.md)。
+
+常规开发使用 npm 上的 SDK 0.1.1、脚手架 0.1.1 和工具 0.1.0；上述本地 `.tgz` 方式仅用于验证源码修改。
+
+SDK 只提供协议类型；开发工具支持 `src/entry.ts` → `dist/package/entry.js` 的标准工程布局，这不是宿主协议对所有主题的要求。框架插件仍由主题自己的 Vite 配置决定。

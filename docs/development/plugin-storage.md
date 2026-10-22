@@ -31,7 +31,7 @@ export default {
 } satisfies Definition<"storage">;
 ```
 
-<<< ../../examples/storage/index.ts#implementation
+<<< ../../examples/storage/src/index.ts#implementation
 
 `safePath` 校验路径；临时文件和硬链接用于发布完整内容且不覆盖已有文件。写入完成后才返回。
 

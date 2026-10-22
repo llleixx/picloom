@@ -2,7 +2,7 @@ import { writePointer } from "../../../shared/config";
 import { Database } from "bun:sqlite";
 import { readFileSync } from "node:fs";
 import { createHash } from "node:crypto";
-import { logicalKey } from "../../../plugin-sdk/files";
+import { logicalKey } from "@picloom/plugin-sdk";
 import { Secrets } from "../../infra/secrets";
 import { AppError } from "../../core/errors";
 

@@ -3,7 +3,7 @@ import sharp from "sharp";
 import { fixture } from "./helpers";
 import { identify, thumbnail } from "../src/infra/images";
 import { sharpProcessor } from "../src/builtins/processor/sharp/index";
-import type { InstanceServices } from "../plugin-sdk";
+import type { InstanceServices } from "@picloom/plugin-sdk";
 import { pipelineData } from "../src/core/pipeline-data";
 import { join } from "node:path";
 

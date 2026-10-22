@@ -1,5 +1,5 @@
 import sharp from "sharp";
-import { withAbortSignal } from "../../plugin-sdk/files";
+import { withAbortSignal } from "@picloom/plugin-sdk";
 import { AppError } from "../core/errors";
 import type { Metadata } from "../plugins/api";
 // Temporary inputs must not remain open in libvips' operation cache on Windows.

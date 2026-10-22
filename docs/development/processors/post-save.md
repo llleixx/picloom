@@ -23,7 +23,7 @@ export default {
 } satisfies Definition<"processor">;
 ```
 
-<<< ../../../examples/post-save/index.ts#implementation
+<<< ../../../examples/post-save/src/index.ts#implementation
 
 `execute` 读取元数据，返回 `pass` 或 `block`，并用 `details` 记录宽度和阈值。
 
@@ -113,7 +113,7 @@ execute(input: {
 
 `previousResults` 按执行顺序排列，只包含本次尝试中已完成的步骤，不包含当前步骤。没有详情的步骤也会记录，只是省略 `details`。`completedAt` 使用 Unix 毫秒时间戳。
 
-这是独立快照，修改它不会改变核心记录。完整实现可参考 [腾讯审核](https://github.com/llleixx/picloom/blob/main/src/builtins/processor/tencent-moderation/index.ts) 和 [Telegram 通知](https://github.com/llleixx/picloom/blob/main/src/builtins/processor/telegram-notification/index.ts)：前者给出处置，后者根据当前累计状态决定是否通知。
+这是独立快照，修改它不会改变核心记录。完整实现可参考 扩展仓库中的腾讯审核（`picloom-extensions/plugins/tencent-moderation`） 和 [Telegram 通知](https://github.com/llleixx/picloom/blob/main/src/builtins/processor/telegram-notification/index.ts)：前者给出处置，后者根据当前累计状态决定是否通知。
 
 ### 如何形成累计处置
 

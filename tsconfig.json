@@ -9,18 +9,18 @@
     "allowImportingTsExtensions": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
-    "types": ["bun"]
+    "types": [
+      "bun"
+    ]
   },
   "include": [
     "src/**/*.ts",
-    "plugin-sdk/**/*.ts",
     "tests/**/*.ts",
     "shared/**/*.ts",
     "e2e/**/*.ts",
     "playwright.config.ts",
     "web/vite.config.ts",
     "examples/**/*.ts",
-    "docker/**/*.ts",
-    "theme-sdk/**/*.ts"
+    "docker/**/*.ts"
   ]
 }

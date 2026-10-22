@@ -1,11 +1,11 @@
 import { scanScope, decodeCursor, encodeCursor } from "../shared/enumeration";
 import { readDirectory, type DirectoryEntry } from "./enumeration";
-import { logicalKey as storageKey, retainStream } from "../../../../plugin-sdk";
+import { logicalKey as storageKey, retainStream } from "@picloom/plugin-sdk";
 import {
   PluginError,
   type Definition,
   type Locator,
-} from "../../../../plugin-sdk";
+} from "@picloom/plugin-sdk";
 
 function endpoint(value: string) {
   const url = new URL(value);

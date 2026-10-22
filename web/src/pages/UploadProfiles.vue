@@ -22,7 +22,6 @@ import {
   api,
   copy,
   ApiError,
-  errorMessage,
   errorText,
   errorValue,
   notify,
@@ -237,11 +236,11 @@ async function remove() {
           </h2>
 
           <p class="mt-1 break-words text-sm text-muted-foreground">
-            {{ item.publicPrefix }} ·
-            {{ item.available ? t("ui.ready") : errorMessage(item.reasonCode) }}
+            {{ item.publicPrefix }}
+            <span v-if="!item.enabled">· {{ t("ui.disabled") }}</span>
           </p>
         </div>
-        <div class="flex shrink-0 flex-wrap gap-2 sm:max-w-72 sm:justify-end">
+        <div class="flex shrink-0 flex-wrap gap-2 sm:justify-end">
           <Button
             size="sm"
             variant="ghost"

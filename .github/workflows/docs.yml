@@ -4,10 +4,10 @@ on:
   push:
     branches: [main]
     paths:
-      ["docs/**", "src/builtins/**", "examples/**", "plugin-sdk/**", ".github/workflows/docs.yml"]
+      ["docs/**", "src/builtins/**", "examples/**", ".github/workflows/docs.yml"]
   pull_request:
     paths:
-      ["docs/**", "src/builtins/**", "examples/**", "plugin-sdk/**", ".github/workflows/docs.yml"]
+      ["docs/**", "src/builtins/**", "examples/**", ".github/workflows/docs.yml"]
   workflow_dispatch:
 
 permissions:

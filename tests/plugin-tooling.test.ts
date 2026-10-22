@@ -7,13 +7,17 @@ import {
   symlink,
   writeFile,
 } from "node:fs/promises";
+import { randomBytes } from "node:crypto";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { archiveFiles } from "../src/plugins/archive";
 import { fixture } from "./helpers";
 import { list } from "tar";
 
-const repository = resolve(import.meta.dir, "..");
+const repository = resolve(
+  process.env.PICLOOM_TOOLING_DIR ??
+    resolve(import.meta.dir, "../../picloom-tooling"),
+);
 async function runCommand(
   cmd: string[],
   cwd: string,
@@ -51,6 +55,7 @@ toolingTest(
       await symlink(process.execPath, join(bin, "bunx"));
       expect(Bun.which("node", { PATH: bin })).toBeNull();
       expect(Bun.which("npm", { PATH: bin })).toBeNull();
+      expect(Bun.which("zip", { PATH: bin })).toBeNull();
       const run = (cmd: string[], cwd: string, success = true) =>
         runCommand(cmd, cwd, success, bin);
       await mkdir(join(repository, "plugin-sdk/dist"), { recursive: true });
@@ -87,7 +92,9 @@ toolingTest(
         expect(entries).not.toContain("package/dist/removed-module.d.ts");
         return output;
       };
+      await run(["bun", "run", "build:plugin-tools"], repository);
       const sdk = await pack("plugin-sdk");
+      const tools = await pack("tools/plugin-tools");
       const creator = await pack("tools/create-plugin");
       const launcher = join(root, "launcher");
       await mkdir(launcher);
@@ -111,12 +118,17 @@ toolingTest(
         originalManifest,
       );
       expect((await run([cli, "--unknown"], root, false)).code).not.toBe(0);
-      // Substitute a real local tarball because the SDK is deliberately not published yet.
+      // Verify the actual local SDK and tool packages outside the repository.
       const packagePath = join(project, "package.json");
       const pkg = await Bun.file(packagePath).json();
       pkg.devDependencies["@picloom/plugin-sdk"] = `file:${sdk}`;
+      pkg.devDependencies["@picloom/plugin-tools"] = `file:${tools}`;
+      expect(await Bun.file(join(project, "scripts/build.ts")).exists()).toBe(
+        false,
+      );
       await Bun.write(packagePath, JSON.stringify(pkg));
       await run(["bun", "install", "--ignore-scripts"], project);
+      await run(["bun", "run", "typecheck"], project);
       await run(["bun", "run", "build"], project);
       const manifest = JSON.parse(originalManifest);
       const artifact = () =>
@@ -173,6 +185,7 @@ toolingTest(
         sourcePath,
         pathSource.replace("`${date}/${fileId}", "`updated/${date}/${fileId}"),
       );
+      await run(["bun", "run", "typecheck"], project);
       await run(["bun", "run", "build"], project);
       await install();
       const beforeUpgrade = await f.app.configuration.profileEditor(
@@ -203,9 +216,13 @@ toolingTest(
       manifest.version = "1.0.0";
       await Bun.write(join(project, "plugin.json"), JSON.stringify(manifest));
       const processor = (
-        await readFile(join(repository, "examples/processor/index.ts"), "utf8")
-      ).replace('"../../plugin-sdk"', '"@picloom/plugin-sdk"');
+        await readFile(
+          resolve(import.meta.dir, "../examples/processor/src/index.ts"),
+          "utf8",
+        )
+      ).replace('"@picloom/plugin-sdk"', '"@picloom/plugin-sdk"');
       await Bun.write(join(project, "src/index.ts"), processor);
+      await run(["bun", "run", "typecheck"], project);
       await run(["bun", "run", "build"], project);
       await install();
       const pipeline = await f.app.configuration.savePipeline({
@@ -244,6 +261,47 @@ toolingTest(
       const mismatch = await run(["bun", "run", "build"], project, false);
       expect(mismatch.code).not.toBe(0);
       expect(mismatch.stderr).toContain("does not match");
+      manifest.version = "1.0.0";
+      async function rejectBuild(
+        message: string,
+        source = processor,
+        patch = {},
+      ) {
+        await Bun.write(
+          join(project, "plugin.json"),
+          JSON.stringify({ ...manifest, ...patch }),
+        );
+        await Bun.write(sourcePath, source);
+        await Bun.write(artifact(), "stale archive");
+        const result = await run(["bun", "run", "build"], project, false);
+        expect(result.code).not.toBe(0);
+        expect(result.stderr).toContain(message);
+        expect(await Bun.file(artifact()).exists()).toBe(false);
+      }
+      await rejectBuild(
+        "does not match",
+        processor.replace('version: "1.0.0"', 'version: "2.0.0"'),
+      );
+      await rejectBuild("Invalid plugin.json", processor, {
+        entry: "../index.js",
+      });
+      await rejectBuild("tool convention", processor, { entry: "other.js" });
+      await rejectBuild("Invalid plugin.json", processor, { author: " " });
+      await rejectBuild(
+        "do not import the Sharp runtime",
+        'import sharp from "sharp"; console.log(sharp);' + processor,
+      );
+      await rejectBuild(
+        "Could not resolve",
+        'import missing from "picloom-test-missing-dependency"; console.log(missing);' +
+          processor,
+      );
+      await rejectBuild("50 MiB", processor, {
+        padding: "x".repeat(51 * 1024 * 1024),
+      });
+      await rejectBuild("20 MiB", processor, {
+        padding: randomBytes(22 * 1024 * 1024).toString("base64"),
+      });
     } finally {
       await f.close();
       await rm(root, { recursive: true, force: true });

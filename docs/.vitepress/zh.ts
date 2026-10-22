@@ -91,7 +91,7 @@ const reference = [
       { text: "设置与环境变量", link: "/reference/settings" },
       { text: "HTTP API", link: "/reference/http-api" },
       {
-        text: "内置插件",
+        text: "官方插件",
         link: "/reference/plugins",
         collapsed: true,
         items: [

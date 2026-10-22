@@ -1,5 +1,5 @@
 import { isAbsolute } from "node:path";
-import type { Config, Definition, FieldSchema } from "../../plugin-sdk";
+import type { Config, Definition, FieldSchema } from "@picloom/plugin-sdk";
 import { readPointer } from "../../shared/config";
 
 export function validConfigPath(path: unknown): path is string {

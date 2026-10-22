@@ -1,4 +1,4 @@
-import type { ConfigSchema, ParamsSchema } from "../plugin-sdk/schema";
+import type { ConfigSchema, ParamsSchema } from "@picloom/plugin-sdk";
 import { test, expect } from "bun:test";
 import { pipelineData } from "../src/core/pipeline-data";
 import { fixture } from "./helpers";

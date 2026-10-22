@@ -1,10 +1,11 @@
 import { test, expect } from "bun:test";
 import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import sharp from "sharp";
 import { fixture } from "./helpers";
 import { externalBuiltin, bundledPackage } from "./package-fixtures";
-import { PluginError, isPluginError } from "../plugin-sdk";
+import { PluginError, isPluginError } from "@picloom/plugin-sdk";
 import { assertLocalDirectory } from "../src/plugins/local-directory";
 import { localStorage } from "../src/builtins/storage/local/index";
 
@@ -147,7 +148,7 @@ test("bundled local and Sharp plugins install and run without application import
 test("an independently bundled SDK error preserves retry and write outcome", async () => {
   const f = await fixture();
   try {
-    const sdk = new URL("../plugin-sdk/index.ts", import.meta.url).pathname;
+    const sdk = fileURLToPath(import.meta.resolve("@picloom/plugin-sdk"));
     await install(
       f,
       await bundledPackage(
@@ -210,8 +211,8 @@ test("an independently bundled SDK error preserves retry and write outcome", asy
   }
 });
 
-test("SDK and builtins stay within the public dependency boundary; directory declarations are validated", async () => {
-  for (const folder of ["plugin-sdk", "theme-sdk", "src/builtins"]) {
+test("builtins stay within the public dependency boundary; directory declarations are validated", async () => {
+  for (const folder of ["src/builtins"]) {
     const root = new URL("../" + folder + "/", import.meta.url);
     for (const name of await readdir(root, { recursive: true })) {
       if (!name.endsWith(".ts")) continue;
@@ -220,12 +221,7 @@ test("SDK and builtins stay within the public dependency boundary; directory dec
         /(?:from\s+|import\s*\()["'](\.[^"']+)["']/g,
       )) {
         const target = new URL(match[1]!, new URL(name, root)).pathname;
-        expect(
-          target.includes(`/${folder}/`) ||
-            (folder === "src/builtins" &&
-              (target.includes("/plugin-sdk/") ||
-                target.endsWith("/plugin-sdk"))),
-        ).toBe(true);
+        expect(target.includes(`/${folder}/`)).toBe(true);
       }
     }
   }

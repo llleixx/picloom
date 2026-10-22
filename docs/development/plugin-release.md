@@ -100,4 +100,4 @@ async migrateConfig({ from, config }) {
 插件可以通过 Release 附件等方式分发 ZIP，无需把自己的插件发布到 npm。
 仓库示例的构建与验证命令见[插件工具维护](./plugin-tooling-maintenance.md#仓库示例)。
 
-接口类型以 [SDK](https://github.com/llleixx/picloom/blob/main/plugin-sdk/api.ts) 为准。插件说明应写清支持的阶段、配置项、请求参数及外部服务要求。
+接口类型以 [SDK](https://github.com/llleixx/picloom-tooling/blob/main/plugin-sdk/api.ts) 为准。插件说明应写清支持的阶段、配置项、请求参数及外部服务要求。

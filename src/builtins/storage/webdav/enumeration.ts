@@ -1,5 +1,5 @@
 import { SaxesParser } from "saxes";
-import { PluginError, isPluginError, logicalKey } from "../../../../plugin-sdk";
+import { PluginError, isPluginError, logicalKey } from "@picloom/plugin-sdk";
 
 type Node = { name: string; text: string; children: Node[] };
 export type DirectoryEntry = {

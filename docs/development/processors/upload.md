@@ -28,7 +28,7 @@ export default {
 } satisfies Definition<"processor">;
 ```
 
-<<< ../../../examples/processor/index.ts#implementation
+<<< ../../../examples/processor/src/index.ts#implementation
 
 `check` 判断格式，`process` 通过宿主 Sharp 缩放，再写入本次输出。示例将输入读入内存，不放大小图。
 

@@ -7,7 +7,7 @@ import {
   type CreateMultipartUploadCommandInput,
   type CompletedPart,
 } from "@aws-sdk/client-s3";
-import { PluginError, type FileInput, type Context } from "../../../../plugin-sdk";
+import { PluginError, type FileInput, type Context } from "@picloom/plugin-sdk";
 
 // Keep only one batch of parts in memory; no durable multipart session is needed.
 export async function multipartWrite(

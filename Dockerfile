@@ -29,7 +29,6 @@ COPY --from=production-dependencies /app/node_modules ./node_modules
 COPY package.json LICENSE ./
 COPY src ./src
 COPY shared ./shared
-COPY plugin-sdk ./plugin-sdk
 COPY docker/healthcheck.ts ./docker/healthcheck.ts
 COPY --from=frontend /app/dist/web ./dist/web
 ENV LD_PRELOAD=libjemalloc.so.2 VIPS_CONCURRENCY=1

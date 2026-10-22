@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { ParameterSchema } from "../../../plugin-sdk/schema";
+import type { ParameterSchema } from "@picloom/plugin-sdk";
 import { computed, onUnmounted, reactive, ref, watch } from "vue";
 import { useQuery } from "@tanstack/vue-query";
 import { Link, Plus, X, ExternalLink, LoaderCircle } from "lucide-vue-next";
