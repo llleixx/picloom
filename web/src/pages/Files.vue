@@ -657,6 +657,7 @@ async function navigate(direction: -1 | 1) {
         >
           <ImagePreview
             v-if="file.status === 'ready'"
+            thumbnail
             :src="`/api/files/${encodeURIComponent(file.id)}/thumbnail`"
             :alt="file.logicalKey"
           />
