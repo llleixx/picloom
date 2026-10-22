@@ -105,7 +105,7 @@ test("processed validators follow the cache generation and pipeline configuratio
     const pipeline = (await f.app.configuration.pipelines()).find(
       (p) => p.kind === "access",
     )!;
-    pipeline.steps[0]!.config.allowEnlargement = true;
+    pipeline.steps[0]!.enabledParams = ["w"];
     await f.app.configuration.savePipeline(
       { ...pipeline, expectedVersion: pipeline.configVersion },
       pipeline.id,

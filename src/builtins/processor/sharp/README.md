@@ -12,7 +12,7 @@ Resize images or change format and quality during upload or access.
 
 Defaults initialize new drafts only; saving does not fill missing values. Required fields must be present in the submitted configuration.
 
-Upload instances accept all fields below. Access instances configure only `allowEnlargement`. Both stages accept `w`, `h`, `fit`, `q` and `format` as request parameters, with the same constraints; explicitly enable them on the pipeline step.
+Upload instances accept all fields below. Access instances use `{}` as configuration. Both stages accept `w`, `h`, `fit`, `q` and `format` as request parameters, with the same constraints; explicitly enable them on the pipeline step.
 
 | Field | Meaning | Required | Default | Constraints |
 | --- | --- | --- | --- | --- |
@@ -21,7 +21,6 @@ Upload instances accept all fields below. Access instances configure only `allow
 | `fit` | Fit | No | — | `inside`, `cover`, `contain`, `fill` |
 | `q` | Quality | No | — | ≥ 1; ≤ 100 |
 | `format` | Output format | No | — | `jpeg`, `png`, `webp` |
-| `allowEnlargement` | Allow enlargement | No | `false` | — |
 
 ## Usage example
 
@@ -29,7 +28,6 @@ Upload stage: use the configuration below, add the instance to an upload pipelin
 
 ```json
 {
-  "allowEnlargement": false,
   "w": 1280,
   "format": "webp",
   "q": 80
@@ -38,7 +36,7 @@ Upload stage: use the configuration below, add the instance to an upload pipelin
 
 ## Behavior and limitations
 
-Only static JPEG, PNG and WebP are supported; converting an image with transparency to JPEG is unsupported. Upload request parameters override matching fixed settings; access transforms are specified only through request parameters. No transform parameters means no operation; success returns `replace`. `fit` requires at least one dimension and defaults to `inside` when omitted. Enlargement is disabled by default and an omitted format preserves the input format. JPEG/WebP quality defaults to 80; setting PNG quality enables palette encoding.
+Only static JPEG, PNG and WebP are supported; converting an image with transparency to JPEG is unsupported. Upload request parameters override matching fixed settings; access transforms are specified only through request parameters. No transform parameters means no operation; success returns `replace`. `fit` requires at least one dimension and defaults to `inside` when omitted. An omitted format preserves the input format. JPEG/WebP quality defaults to 80; setting PNG quality enables palette encoding.
 
 ### Resize examples
 

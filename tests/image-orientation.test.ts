@@ -81,7 +81,6 @@ test("upload transform applies orientation before cover cropping and persists ou
           pluginId: "builtin.sharp",
           version: "1.0.0",
           config: {
-            allowEnlargement: false,
             w: 20,
             h: 30,
             fit: "cover",

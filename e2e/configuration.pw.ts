@@ -394,9 +394,6 @@ test("processor forms use stage settings and persist request parameter permissio
   await expect(page.getByLabel("Width", { exact: true })).toHaveCount(0);
   await page.getByLabel("Enable q", { exact: true }).uncheck();
   await page
-    .getByLabel("Allow enlargement", { exact: true })
-    .selectOption("true");
-  await page
     .getByRole("dialog")
     .getByRole("button", { name: "Save", exact: true })
     .click();
@@ -412,7 +409,7 @@ test("processor forms use stage settings and persist request parameter permissio
     values.find((p: any) => p.kind === "upload").steps[0].enabledParams,
   ).not.toContain("q");
   const step = values.find((p: any) => p.kind === "access").steps[0];
-  expect(step.config.allowEnlargement).toBe(true);
+  expect(step.config).toEqual({});
   expect(step.enabledParams).not.toContain("q");
   expect(step.enabledParams).toContain("w");
   await page
@@ -422,9 +419,6 @@ test("processor forms use stage settings and persist request parameter permissio
     .getByRole("button", { name: "Edit", exact: true })
     .click();
   await expect(page.getByLabel("Enable q", { exact: true })).not.toBeChecked();
-  await expect(
-    page.getByLabel("Allow enlargement", { exact: true }),
-  ).toHaveValue("true");
 });
 
 test("pipeline errors identify the step and submissions keep the drawer open", async ({

@@ -158,7 +158,7 @@ PUBLISH_ADDRESS=127.0.0.1
         {
           pluginId: "builtin.sharp",
           version: "1.0.0",
-          config: { allowEnlargement: false },
+          config: {},
           onNotApplicable: "abort",
           enabledParams: ["w", "h", "fit", "q", "format"],
         },

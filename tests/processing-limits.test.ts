@@ -1,4 +1,5 @@
 import { test, expect, spyOn } from "bun:test";
+import sharp from "sharp";
 import { fixture } from "./helpers";
 import { handler } from "../src/http/app";
 import { readdir } from "node:fs/promises";
@@ -59,13 +60,13 @@ test("upload limits leave historical originals, cached and uncached transforms r
     expect(response.status).toBe(200);
     await response.arrayBuffer();
     const chain = await f.app.configuration.savePipeline({
-      name: "Enlarge",
+      name: "PNG encoding",
       kind: "upload",
       steps: [
         {
           pluginId: "builtin.sharp",
           version: "1.0.0",
-          config: { w: 200, h: 100, allowEnlargement: true },
+          config: { format: "png" },
           onNotApplicable: "abort",
         },
       ],
@@ -79,11 +80,12 @@ test("upload limits leave historical originals, cached and uncached transforms r
       },
       profile.id,
     );
+    const webp = await sharp(f.png).webp().toBuffer();
     await f.request("/api/settings", "PUT", {
       ...settings,
-      maxUploadBytes: f.png.length,
+      maxUploadBytes: webp.length,
     });
-    expect((await f.upload()).status).toBe(413);
+    expect((await f.upload(undefined, webp, "image.webp")).status).toBe(413);
   } finally {
     await f.close();
   }

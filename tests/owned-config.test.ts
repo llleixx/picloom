@@ -8,7 +8,7 @@ const path = () => ({
 const processor = () => ({
   pluginId: "builtin.sharp",
   version: "1.0.0",
-  config: { allowEnlargement: false },
+  config: {},
   onNotApplicable: "abort" as const,
 });
 test("pipelines own encrypted settings, share references, duplicate independently and reject stale or invalid edits", async () => {
@@ -229,7 +229,7 @@ test("initialization failures keep owner configuration; retrying save recovers a
     access = await f.app.configuration.savePipeline(
       {
         ...access,
-        steps: [{ ...processor(), config: { allowEnlargement: false } }],
+        steps: [processor()],
         expectedVersion: access.configVersion,
       },
       access.id,
@@ -249,7 +249,7 @@ test("initialization failures keep owner configuration; retrying save recovers a
     access = await f.app.configuration.savePipeline(
       {
         ...access,
-        steps: [{ ...access.steps[0]!, config: { allowEnlargement: true } }],
+        steps: [{ ...access.steps[0]!, enabledParams: ["w"] }],
         expectedVersion: access.configVersion,
       },
       access.id,

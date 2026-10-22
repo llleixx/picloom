@@ -4,7 +4,6 @@ import {
   PluginError,
   type Definition,
   type Config,
-  type FieldSchema,
   type ParameterSchema,
   type Parameters,
   type ProcessorPlugin,
@@ -41,14 +40,6 @@ const transformProperties: Record<string, ParameterSchema> = {
     type: "string",
 
     enum: ["jpeg", "png", "webp"],
-  },
-};
-const settings: Record<string, FieldSchema> = {
-  allowEnlargement: {
-    "x-ui": { labelKey: "settings.allowEnlargement.label" },
-    type: "boolean",
-
-    default: false,
   },
 };
 function runtime(
@@ -127,7 +118,6 @@ function runtime(
             width: p.w as number | undefined,
             height: p.h as number | undefined,
             fit: (p.fit ?? "inside") as "inside" | "cover" | "contain" | "fill",
-            withoutEnlargement: !config.allowEnlargement,
           });
         const format = p.format ?? file.metadata.mimeType!.slice(6);
         if (format === "png")
@@ -160,7 +150,6 @@ export const sharpProcessor: Definition<"processor"> = {
       "params.fit.label": "Fit",
       "params.q.label": "Quality",
       "params.format.label": "Output format",
-      "settings.allowEnlargement.label": "Allow enlargement",
       "params.fit.options.inside": "inside",
       "params.fit.options.cover": "cover",
       "params.fit.options.contain": "contain",
@@ -174,7 +163,6 @@ export const sharpProcessor: Definition<"processor"> = {
       "params.fit.label": "适配方式",
       "params.q.label": "质量",
       "params.format.label": "输出格式",
-      "settings.allowEnlargement.label": "允许放大",
       "params.fit.options.inside": "限制在框内",
       "params.fit.options.cover": "覆盖（裁剪）",
       "params.fit.options.contain": "完整包含",
@@ -197,16 +185,7 @@ export const sharpProcessor: Definition<"processor"> = {
       configSchemaVersion: 1,
       configSchema: {
         type: "object",
-        properties: {
-          ...transformProperties,
-          allowEnlargement: {
-            ...settings.allowEnlargement!,
-            "x-ui": {
-              labelKey: "settings.allowEnlargement.label",
-              advanced: true,
-            },
-          },
-        },
+        properties: transformProperties,
         additionalProperties: false,
       },
       async validateConfig(config) {
@@ -222,7 +201,7 @@ export const sharpProcessor: Definition<"processor"> = {
       configSchemaVersion: 1,
       configSchema: {
         type: "object",
-        properties: settings,
+        properties: {},
         additionalProperties: false,
       },
       paramsSchema: {

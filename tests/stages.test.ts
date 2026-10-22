@@ -11,7 +11,7 @@ import { assertParamsSchema } from "../shared/params-schema";
 const plugin = {
   pluginId: "builtin.sharp",
   version: "1.0.0",
-  config: { allowEnlargement: false },
+  config: {},
   onNotApplicable: "abort" as const,
 };
 
@@ -78,7 +78,7 @@ test("stage definitions filter support; upload Sharp transforms the stored origi
   }
 });
 
-test("access settings and enabled query selection are independent and survive restart", async () => {
+test("access query selection survives restart", async () => {
   const f = await fixture();
   try {
     let access = (await f.app.configuration.pipelines()).find(
@@ -91,7 +91,7 @@ test("access settings and enabled query selection are independent and survive re
         steps: [
           {
             ...access.steps[0]!,
-            config: { allowEnlargement: true },
+            config: {},
             enabledParams: ["w"],
           },
         ],
@@ -113,9 +113,9 @@ test("access settings and enabled query selection are independent and survive re
       expect(r.status).toBe(200);
       return sharp(Buffer.from(await r.arrayBuffer())).metadata();
     };
-    expect((await get("?w=80&q=bad&q=duplicate")).width).toBe(80);
+    expect((await get("?w=20&q=bad&q=duplicate")).width).toBe(20);
     expect(read).toHaveBeenCalledTimes(1);
-    expect((await get("?w=080&unrelated=other")).width).toBe(80);
+    expect((await get("?w=020&unrelated=other")).width).toBe(20);
     expect(read).toHaveBeenCalledTimes(1);
     read.mockRestore();
     expect((await f.request(path + "?w=bad")).status).toBe(400);
@@ -129,21 +129,7 @@ test("access settings and enabled query selection are independent and survive re
         })
       ).status,
     ).toBe(400);
-    access = await f.app.configuration.savePipeline(
-      {
-        ...access,
-        expectedVersion: access.configVersion,
-        steps: [
-          {
-            ...access.steps[0]!,
-            config: { allowEnlargement: false },
-            enabledParams: ["w"],
-          },
-        ],
-      },
-      access.id,
-    );
-    expect((await get("?w=80&q=bad&q=duplicate")).width).toBe(40);
+    expect((await get("?w=80&q=bad&q=duplicate")).width).toBe(80);
     access = await f.app.configuration.savePipeline(
       {
         ...access,
@@ -256,8 +242,8 @@ test("multipart params override enabled upload settings only; malformed requests
       expect(metadata.format).toBe("webp");
     };
     await check(undefined, 16);
-    await check('{"w":8,"format":"png","allowEnlargement":true}', 8);
-    await check('{"w":80,"allowEnlargement":true}', 40);
+    await check('{"w":8,"format":"png"}', 8);
+    await check('{"w":80}', 80);
     const count = async () =>
       (await (await f.request("/api/files")).json()).length;
     const before = await count();
