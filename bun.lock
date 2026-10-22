@@ -8,7 +8,7 @@
         "@aws-sdk/client-s3": "3.1151.0",
         "@aws-sdk/s3-request-presigner": "3.1151.0",
         "@picloom/package-rules": "0.1.0",
-        "@picloom/plugin-sdk": "0.1.0",
+        "@picloom/plugin-sdk": "0.1.1",
         "ajv": "8.17.1",
         "ajv-formats": "3.0.1",
         "hash-wasm": "4.12.0",
@@ -20,8 +20,8 @@
         "tar": "7.5.11",
       },
       "devDependencies": {
-        "@picloom/plugin-tools": "0.1.0",
-        "@picloom/theme-sdk": "0.1.1",
+        "@picloom/plugin-tools": "0.1.1",
+        "@picloom/theme-sdk": "0.1.2",
         "@playwright/test": "1.64.1",
         "@tailwindcss/vite": "4.3.3",
         "@tanstack/vue-query": "5.104.2",
@@ -172,11 +172,11 @@
 
     "@picloom/package-rules": ["@picloom/package-rules@0.1.0", "", {}, "sha512-naNrxVQvPKPm92DfJozoHvq8DxqWFjTe2yZ62r/DbZJ/yiuGCYVNGAnV6I43iq6MssASMILJmhFw8APhnNRZXg=="],
 
-    "@picloom/plugin-sdk": ["@picloom/plugin-sdk@0.1.0", "", { "peerDependencies": { "sharp": "^0.34.5" }, "optionalPeers": ["sharp"] }, "sha512-fe+Wtdt7GAcHIf/7G1Sl4lWMdzzTmpb5w/mashajgdD5a4uE85TL4T16fXmzzR/rWO9iHwjkl848WS+6tJm1Mg=="],
+    "@picloom/plugin-sdk": ["@picloom/plugin-sdk@0.1.1", "", { "peerDependencies": { "sharp": "^0.34.5" }, "optionalPeers": ["sharp"] }, "sha512-U6q/9N78sQ0DgoBhLgrsIShJsY1/Xrjufp2WfzU28pQDUsC/eWJW9fdpD5IErVYy4HrIKmEPBYOY5Ed+K08L8A=="],
 
-    "@picloom/plugin-tools": ["@picloom/plugin-tools@0.1.0", "", { "bin": { "picloom-plugin": "dist/cli.js" } }, "sha512-ZyFFVLEAPESH21r4iz4jPGfVdAg6lylKK3nTYPfTF0iFtc9EgAG0I1hUA0d5SKzi9CTgJFIk7/q9pZ5ShgZCOw=="],
+    "@picloom/plugin-tools": ["@picloom/plugin-tools@0.1.1", "", { "bin": { "picloom-plugin": "dist/cli.js" } }, "sha512-UzZ7CvI3Kjeaz0De8uQOSjphLhRGkqAs8qsdoz3yxuA1jMvi6s2rYjmab+1Mi2kKcDOLQlQr5pfTTAG/6rjSUg=="],
 
-    "@picloom/theme-sdk": ["@picloom/theme-sdk@0.1.1", "", {}, "sha512-XbbEi1OZqB3W+yCh8lQqE19go1JG6H0174nxEoLimr16rn6flaYo2c5R157svWPsjqtE46nJhL+7nWnQoljl8A=="],
+    "@picloom/theme-sdk": ["@picloom/theme-sdk@0.1.2", "", {}, "sha512-nrlBUrNEBe3CnAg1r/Qvr8bQXgr6ShWN8KP+J6H78cr/iYqazh3u5RnYlAmQZT2pUpYJE/dOT4Kw6CH6cVztgw=="],
 
     "@playwright/test": ["@playwright/test@1.64.1", "", { "dependencies": { "playwright": "1.64.1" }, "bin": { "playwright": "cli.js" } }, "sha512-IaYGml/nSOiZWROfPtuIL7neuu9qDOZ3TNvNljUIrhDMxiGTgPjzj/g9p9RxpS2tSepPDRY+UwAaEeiKtUvIAg=="],
 
