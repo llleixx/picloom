@@ -7,10 +7,8 @@
 
 - Bun 1.4.3+：创建、安装依赖、类型检查和打包均使用 Bun，不需要 Node.js 或 npm CLI。
 - 一个可用的 Picloom 测试实例与 Owner 账号，用于安装插件和验证上传。
-- 当前 SDK 0.1.0 对应 API 1，适配 Picloom 0.1.0 开发源码，不保证任意旧开发构建兼容。
 
-SDK 不包含宿主服务。当前 Docker 镜像也尚未发布；没有测试实例时，可以请维护者提供
-部署，或参考[本地开发](./contributing.md)搭建宿主。插件项目本身不需要宿主源码。
+SDK 不包含宿主服务。没有测试实例时，可按[Docker 快速开始](../guide/quick-start.md)部署隔离实例，或参考[本地开发](./contributing.md)从源码启动。插件项目本身不需要宿主源码。
 
 ## 2. 创建项目
 
@@ -21,7 +19,6 @@ bun install
 ```
 
 创建工具只复制文件，不自动安装依赖。目标目录必须不存在，父目录必须存在。
-首次安装后，将生成的 `bun.lock` 提交到自己的插件仓库。
 
 ```text
 my-plugin/
@@ -65,6 +62,7 @@ return { logicalKey: `albums/${date}/${fileId}.${extension}` };
 ## 4. 构建 ZIP
 
 ```sh
+bun run typecheck
 bun run build
 ```
 
@@ -74,7 +72,6 @@ bun run build
 dist/example.my-date-path-0.1.0.zip
 ```
 
-无需系统 `zip` 命令。单独检查类型可运行 `bun run typecheck`。
 构建会加载自己的插件入口，因此不要在模块顶层执行网络请求等副作用。
 依赖、额外资源和大小限制见[打包与升级](./plugin-release.md)。
 
@@ -95,28 +92,3 @@ dist/example.my-date-path-0.1.0.zip
 按需求选择[路径](./plugin-path.md)、[存储](./plugin-storage.md)、[上传处理](./processors/upload.md)、[访问处理](./processors/access.md)或[保存后处理](./processors/post-save.md)。
 
 每篇提供独立项目的完整导入和清单外层，以及从仓库示例引用的实现片段。按页面指定的 `kind` 更新清单，用实现片段替换外层代码的注释行即可；ID 和版本由清单读取。配置字段及运行方法与仓库示例使用同一来源。
-
-## 本地压缩包
-
-需要验证本地开发版本时，向维护者获取 `picloom-plugin-sdk-0.1.0.tgz`、`picloom-plugin-tools-0.1.0.tgz` 和
-`picloom-create-plugin-0.1.1.tgz`。把它们放在任意目录，替换下面的绝对路径：
-
-```sh
-mkdir plugin-tools
-cd plugin-tools
-bun add --dev /absolute/path/picloom-create-plugin-0.1.1.tgz
-bun create @picloom/plugin ../my-plugin
-cd ../my-plugin
-```
-
-将生成项目 `package.json` 中现有 SDK 和工具开发依赖的值改为（其他依赖保持不变）：
-
-```json
-"@picloom/plugin-sdk": "file:/absolute/path/picloom-plugin-sdk-0.1.0.tgz",
-"@picloom/plugin-tools": "file:/absolute/path/picloom-plugin-tools-0.1.0.tgz"
-```
-
-执行 `bun install`，然后继续本文[修改插件](#_3-修改插件)。验证完成后可切回精确 registry
-版本并更新锁文件。维护者如何生成这些文件见[插件工具维护](./plugin-tooling-maintenance.md#本地打包)。
-
-常规开发使用 npm 上的脚手架 0.1.1、工具 0.1.0 和 SDK 0.1.0；本地压缩包仅用于验证源码修改。单入口 `src/index.ts` → `index.js` 是工具工程约定，不是宿主协议限制。

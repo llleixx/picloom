@@ -14,7 +14,9 @@ flowchart LR
 
 ## 配置 Picloom
 
-修改部署目录中的 `.env`：
+已有部署先在 **设置** 中将站点域名设为 `https://pic.example.com` 并保存。即使从未在 Web 点击过保存，首次启动也已经将运行设置写入 `site-settings.json`，之后修改 `.env` 的 `PUBLIC_ORIGIN` 不会覆盖它。
+
+首次启动前，可在部署目录的 `.env` 中设置站点域名；同时限制宿主机端口只供本机代理访问：
 
 ```dotenv
 PUBLIC_ORIGIN=https://pic.example.com
@@ -30,7 +32,7 @@ HTTP_PORT=3000
 docker compose up -d
 ```
 
-如果已在 Web 保存过设置，应在 **设置** 页面修改站点域名；已保存的值会覆盖环境默认值。站点域名设为 HTTPS 后，登录 Cookie 会启用 `Secure` 属性。
+站点域名设为 HTTPS 后，登录 Cookie 会启用 `Secure` 属性。已有部署保存后应通过 HTTPS 重新登录。`PUBLISH_ADDRESS` 和 `HTTP_PORT` 属于部署参数，修改后仍需重建容器应用。
 
 ## 配置 Nginx
 

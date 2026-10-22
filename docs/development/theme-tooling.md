@@ -12,8 +12,7 @@ bun install
 bun run dev
 ```
 
-目标目录必须不存在，父目录必须存在。创建工具不安装依赖、不初始化 Git、不发布代码。
-首次安装后将 `bun.lock` 提交到自己的主题仓库。
+目标目录必须不存在，父目录必须存在。
 
 | 路径 | 用途 |
 | --- | --- |
@@ -21,8 +20,9 @@ bun run dev
 | `src/entry.ts` | 公开 `mount` 入口；卸载时返回并调用 `dispose` |
 | `src/Page.vue`、`src/style.css` | 默认首页、登录页和自包含样式 |
 | `public/assets/` | 通过 `context.asset()` 读取的包内静态资源 |
-| `dev/` | 模拟宿主、预览面板和自动初始化的本地 `config.json` |
-| `scripts/` | 开发服务器与 ZIP 构建 |
+| `dev/config.json` | 首次启动预览时自动生成的本地配置 |
+| `vite.config.ts` | 主题自己的 Vite 与框架插件配置 |
+| `package.json` | 调用 `@picloom/theme-tools` 的开发、构建和预览命令 |
 
 先修改 ID 和 `messages` 中的显示名称。主题版本以 `theme.json.version` 为准，
 `package.json.version` 不决定安装版本。默认模板没有自定义配置字段，配置为 `{}`。
@@ -38,7 +38,7 @@ bun run dev --port 5174
 右下角可收起面板提供首页／登录页、语言、外观、身份及加载中、上传中、成功、失败、
 无方案、登录失败等场景。它通过公共 `ThemeContext` 挂载主题，与主题样式隔离。
 文件只生成模拟记录，不上传；模拟登录不保存密码；复制使用浏览器剪贴板。
-首版不提供真实实例代理，模拟成功不等于真实业务验证。
+预览不连接 Picloom 实例。
 
 组件与 CSS 使用热更新；入口、清单或配置变化重新挂载或刷新。
 首次启动时将 Schema 默认值写入缺失的 `dev/config.json`，之后读取实际值，不补回清空的内容。
@@ -94,31 +94,3 @@ ZIP 根目录直接包含 `theme.json`。上限为 20 MiB 压缩、50 MiB 解压
 
 将 ZIP 上传至隔离测试实例，确认信任并安装，预览后应用。分别验证真实上传、登录、权限和移动布局。
 修改分发内容时增加主题版本；同 ID、同版本不能覆盖。
-
-## 本地压缩包
-
-需要验证本地开发版本时，向维护者获取 `picloom-theme-sdk-0.1.1.tgz`、`picloom-theme-tools-0.1.0.tgz` 与 `picloom-create-theme-0.1.1.tgz`：
-
-```sh
-mkdir theme-tools
-cd theme-tools
-bun add --dev /absolute/path/picloom-create-theme-0.1.1.tgz
-bun create @picloom/theme ../my-theme
-cd ../my-theme
-```
-
-将生成项目现有 SDK 和开发工具依赖改为：
-
-```json
-"@picloom/theme-sdk": "file:/absolute/path/picloom-theme-sdk-0.1.1.tgz",
-"@picloom/theme-tools": "file:/absolute/path/picloom-theme-tools-0.1.0.tgz"
-```
-
-然后执行 `bun install`、`bun run dev`。验证完成后可切回经过验证的精确 registry 版本并更新锁文件。
-
-<span id="工具维护"></span>
-仓库构建和发布准备见[主题工具维护](./theme-tooling-maintenance.md)。
-
-常规开发使用 npm 上的 SDK 0.1.1、脚手架 0.1.1 和工具 0.1.0；上述本地 `.tgz` 方式仅用于验证源码修改。
-
-SDK 只提供协议类型；开发工具支持 `src/entry.ts` → `dist/package/entry.js` 的标准工程布局，这不是宿主协议对所有主题的要求。框架插件仍由主题自己的 Vite 配置决定。

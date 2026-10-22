@@ -15,6 +15,7 @@ const guide = [
       { text: "流水线", link: "/guide/pipelines" },
       { text: "图片管理", link: "/guide/files" },
       { text: "用户、游客与令牌", link: "/guide/access" },
+      { text: "安装与使用插件", link: "/guide/plugins" },
       { text: "安装与使用主题", link: "/guide/themes" },
       { text: "常见场景", link: "/guide/recipes" },
     ],
@@ -155,7 +156,7 @@ export const zh: LocaleSpecificConfig<DefaultTheme.Config> = {
     skipToContentLabel: "跳至正文",
     footer: {
       message:
-        "文档对应 main 分支的 0.1.0 开发版本；部署其他版本前请核对差异。",
+        "文档随 main 分支维护；部署与升级请核对产物版本及兼容说明。",
     },
   },
 };

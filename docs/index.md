@@ -39,6 +39,7 @@ Docker 部署后，默认配置即可上传图片并获取链接。需要不同�
 | --- | --- |
 | 了解配置与使用流程 | [理解 Picloom](./guide/concepts.md) |
 | 配置多副本、缩略图、水印或审核 | [常见场景](./guide/recipes.md) |
+| 安装官方插件或替换首页主题 | [安装插件](./guide/plugins.md) · [使用主题](./guide/themes.md) |
 | 部署服务、配置域名和备份 | [部署运维](./operations/deploy.md) |
 | 编写自己的插件 | [插件开发](./development/plugin-tooling.md) |
 | 修改 Picloom 核心代码 | [本地开发](./development/contributing.md) |

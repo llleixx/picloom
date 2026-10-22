@@ -27,17 +27,4 @@ bun run dev:sync -- ../picloom ../picloom-extensions
 
 ## 官方外部主题
 
-进入独立扩展仓库运行：
-
-```sh
-cd picloom-extensions
-bun run build themes/horizon
-```
-
-使用 JavaScript ZIP 库。生成 `dist/picloom.horizon-<version>.zip`，在隔离的开发站点安装并预览即可。独立项目请使用[主题开发脚手架](./theme-tooling.md)，模板在工具链仓库独立维护。开发工具打包使用 JavaScript ZIP 库，不需要系统 `zip`。
-
-扩展仓库中的 `themes/horizon` 是「Horizon · 远空」完整主题：内置四张二次元风景插画、全屏淡入淡出轮换、半透明上传与登录面板、移动布局和双语文案。后台可配置标题、说明、轮换间隔、遮罩与可增删、排序的背景图片列表（图片地址、双语名称和配色），详见该目录的 README。
-
-修改示例后重新构建，使用新的 `version` 安装；同 ID、同版本不能覆盖，避免不可变资源缓存返回旧文件。开发时也可卸载未启用的测试版本后重新安装，但不要以相同版本替换已对外分发的不同内容。
-
-示例入口自行打包 Vue；不要引用 `web/src`、宿主组件或共享 Vue 实例。独立主题安装固定版本的 `@picloom/theme-sdk` 并从包根入口导入类型。SDK 根入口只提供类型，运行时能力由宿主注入；`@picloom/theme-tools` 提供模拟预览和构建，不打入主题产物。
+Horizon 的配置、开发命令和素材来源见[主题说明](https://github.com/llleixx/picloom-extensions/blob/main/themes/horizon/README.md)。独立项目从[主题快速开始](./theme-tooling.md)创建。

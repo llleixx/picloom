@@ -117,7 +117,7 @@ export function mount(container: HTMLElement, ctx: ThemeContext) {
 安装、草稿、应用及语言设置见[使用主题](../guide/themes.md)。
 
 <span id="构建示例"></span>
-独立项目见[主题快速开始](./theme-tooling.md)，仓库示例构建见[工具维护](./theme-tooling-maintenance.md#仓库示例)。
+独立项目见[主题快速开始](./theme-tooling.md)，官方主题构建见[工具维护](./theme-tooling-maintenance.md#官方外部主题)。
 
 <span id="恢复与备份"></span>
 恢复入口见[恢复默认页面](../guide/themes.md#恢复默认页面)，备份见[主题数据](../operations/data.md#主题数据)。
