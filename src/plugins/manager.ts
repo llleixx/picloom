@@ -116,7 +116,7 @@ export function mergeConfig(a: Config, b: Config): Config {
 }
 export class PluginManager {
   private definitions = new Map<string, LoadedDefinition>();
-  private builtins = new Set<string>();
+  private builtins = new Map<string, string>();
   private slots = new Map<string, Slot>();
   private retired = new Set<Slot>();
   private mutex = new Mutex();
@@ -230,8 +230,10 @@ export class PluginManager {
     const k = def.id + "@" + def.version;
     if (this.definitions.has(k))
       throw new Conflict("Plugin version already loaded");
+    if (source === "builtin" && this.builtins.has(def.id))
+      throw new Conflict("Built-in plugin already loaded");
     this.definitions.set(k, def as LoadedDefinition);
-    if (source === "builtin") this.builtins.add(k);
+    if (source === "builtin") this.builtins.set(def.id, def.version);
   }
   async loadPackage(directory: string) {
     const manifest = parseManifest(
@@ -262,7 +264,7 @@ export class PluginManager {
         await this.initialize(instance);
   }
   isBuiltin(id: string, version: string) {
-    return this.builtins.has(id + "@" + version);
+    return this.builtins.get(id) === version;
   }
   async assertPackageUnused(id: string, version: string) {
     if (this.isBuiltin(id, version))
@@ -432,8 +434,115 @@ export class PluginManager {
     }
   }
   async start() {
+    await this.migrateBuiltins();
     for (const record of await this.db.read((x) => x.instances()))
       await this.initialize(record);
+  }
+  private async migrateBuiltins() {
+    for (const old of await this.db.read((r) => r.instances())) {
+      const version = this.builtins.get(old.plugin_id);
+      if (version === undefined) continue;
+      const target = this.descriptor({ ...old, plugin_version: version });
+      if (target.kind !== old.kind)
+        throw new AppError("CONFIG_INVALID", "Plugin kind cannot change");
+      if (old.config_schema_version > target.configSchemaVersion)
+        throw new AppError("PLUGIN_VERSION", "Cannot downgrade configuration");
+      if (
+        old.plugin_version === version &&
+        old.config_schema_version === target.configSchemaVersion
+      )
+        continue;
+      const previous = this.cacheConfiguration(old);
+      const full =
+        old.config_schema_version < target.configSchemaVersion
+          ? await this.migrateConfiguration(
+              old,
+              target,
+              structuredClone(previous),
+            )
+          : structuredClone(previous);
+      const validate = compileSchema(target.configSchema);
+      if (!validate(full))
+        throw new AppError(
+          "CONFIG_INVALID",
+          "Configuration does not match plugin schema",
+          400,
+          schemaErrors(validate.errors),
+        );
+      if (target.validateConfig) {
+        try {
+          const errors = await target.validateConfig(
+            freeze(structuredClone(full)),
+          );
+          if (errors.length) throw new Error();
+        } catch {
+          throw new AppError("CONFIG_INVALID", "Plugin rejected configuration");
+        }
+      }
+      const checkImmutable = (rule: Schema, path: string) => {
+        if (
+          rule["x-immutable"] &&
+          readPointer(previous, path) !== undefined &&
+          !equalJson(readPointer(previous, path), readPointer(full, path))
+        )
+          throw new AppError(
+            "NEW_INSTANCE_REQUIRED",
+            "Storage target changes require a new instance",
+          );
+        for (const [key, child] of Object.entries(rule.properties ?? {}))
+          checkImmutable(child, path + "/" + pointer(key));
+      };
+      checkImmutable(target.configSchema, "");
+      if ("localDirectory" in target && target.localDirectory)
+        directoryRoot(full, target.localDirectory.configPath);
+      const parts = split(full, target.configSchema);
+      await this.db.transaction(async (r) => {
+        const current = requireValue(await r.instance(old.id));
+        if (current.secrets_version !== old.secrets_version)
+          throw new Conflict();
+        await r.saveInstance(
+          {
+            ...current,
+            plugin_version: version,
+            config_schema_version: target.configSchemaVersion,
+            config_json: parts.config,
+            config_version: old.config_version + 1,
+            secrets_encrypted: this.secrets.encrypt(parts.secrets, old.id),
+            secrets_version: old.secrets_version + 1,
+            last_init_error: null,
+            updated_at: Date.now(),
+          },
+          old.config_version,
+        );
+      });
+    }
+  }
+  private async migrateConfiguration(
+    old: Instance,
+    target: Descriptor<Runtime>,
+    config: Config,
+  ): Promise<Config> {
+    try {
+      const migrated = target.migrateConfig
+        ? await target.migrateConfig({
+            from: {
+              pluginVersion: old.plugin_version,
+              configSchemaVersion: old.config_schema_version,
+            },
+            apiVersion: 1,
+            config,
+          })
+        : config;
+      if (!migrated || typeof migrated !== "object" || Array.isArray(migrated))
+        throw new Error();
+      return JSON.parse(JSON.stringify(migrated));
+    } catch {
+      throw new AppError(
+        "PLUGIN_MIGRATION_FAILED",
+        "Configuration migration failed",
+        400,
+      );
+    }
   }
   private upgradeTarget(old: Instance, version: string) {
     if (
@@ -460,28 +569,7 @@ export class PluginManager {
     const secrets = this.secrets.decrypt(old.secrets_encrypted, id);
     for (const path of sensitivePaths(this.descriptor(old).configSchema))
       writePointer(full, path, readPointer(secrets, path));
-    let migrated: Config;
-    try {
-      migrated = target.migrateConfig
-        ? await target.migrateConfig({
-            from: {
-              pluginVersion: old.plugin_version,
-              configSchemaVersion: old.config_schema_version,
-            },
-            apiVersion: 1,
-            config: full,
-          })
-        : full;
-      if (!migrated || typeof migrated !== "object" || Array.isArray(migrated))
-        throw new Error();
-      migrated = JSON.parse(JSON.stringify(migrated));
-    } catch {
-      throw new AppError(
-        "PLUGIN_MIGRATION_FAILED",
-        "Configuration migration failed",
-        400,
-      );
-    }
+    const migrated = await this.migrateConfiguration(old, target, full);
     const validate = compileSchema(target.configSchema);
     validate(migrated);
     const fields = schemaErrors(validate.errors);
