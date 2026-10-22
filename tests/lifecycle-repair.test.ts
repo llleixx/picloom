@@ -213,13 +213,31 @@ test("unknown cleanup uses bounded tasks, does not block healthy deletion, and c
     )!;
     expect(replica.status).toBe("write_unknown");
     expect(recover).toHaveBeenCalledTimes(1);
+    const failed = await f.app.db.read((r) => r.file(image.id));
+    expect(
+      (await f.app.db.read((r) => r.filesNeedingCleanup())).some(
+        (file) => file.id === image.id,
+      ),
+    ).toBe(false);
     await f.app.files.sweep();
     expect(recover).toHaveBeenCalledTimes(1);
+    expect(await f.app.db.read((r) => r.file(image.id))).toEqual(failed);
+    const unrelated = await (await f.upload()).json();
+    await f.app.files.delete(unrelated.id);
     await f.app.files.ignoreReplica(image.id, replica.id);
+    // Ignoring one replica must not run cleanup for unrelated files.
+    expect(
+      (await f.app.db.read((r) => r.tasks(unrelated.id))).some(
+        (task) => task.kind === "delete",
+      ),
+    ).toBe(false);
     expect((await f.app.db.read((r) => r.file(image.id)))?.status).toBe(
       "deleted",
     );
-    expect(await f.app.db.read((r) => r.storageUsedBytes(source.id))).toBe(0);
+    // Only the unrelated upload still reserves capacity on this source.
+    expect(await f.app.db.read((r) => r.storageUsedBytes(source.id))).toBe(
+      f.png.length,
+    );
   } finally {
     write.mockRestore();
     recover.mockRestore();

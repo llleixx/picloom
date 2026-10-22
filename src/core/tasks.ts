@@ -108,11 +108,11 @@ export class TaskExecutor {
     };
   }
   async ignoreReplica(fileId: string, replicaId: string) {
-    await this.cleanupMutex.run(() =>
+    const deleted = await this.cleanupMutex.run(() =>
       this.mutex.run(async () => {
         if (this.forgetting.has(fileId))
           throw new Conflict("File cleanup is in progress");
-        await this.db.transaction(async (r) => {
+        return this.db.transaction(async (r) => {
           const replica = requireValue(await r.replica(replicaId));
           if (replica.file_id !== fileId)
             throw new AppError("NOT_FOUND", "Replica not found", 404);
@@ -132,10 +132,15 @@ export class TaskExecutor {
           )
             throw new Conflict("Replica has a running task");
           await r.removeReplica(replicaId);
+          const file = requireValue(await r.file(fileId));
+          // Active deletion still needs its normal cleanup (tasks and temporary source).
+          return file.status === "delete_failed"
+            ? this.finishDeletion(r, fileId)
+            : false;
         });
       }),
     );
-    await this.cleanupPending();
+    if (deleted) await this.cache.remove(fileId);
   }
   async retryError(
     r: Repositories,
@@ -289,23 +294,28 @@ export class TaskExecutor {
       });
     }
     await this.releaseTemporary(file.id);
-    let deleted = false;
-    await this.db.transaction(async (r) => {
-      const current = requireValue(await r.file(file.id));
-      if (!["deleting", "delete_failed"].includes(current.status)) return;
-      const tasks = await r.tasks(file.id);
-      if (tasks.some((t) => !terminal(t))) return;
-      const unresolved = (await r.replicas(file.id)).some(
-        (x) => x.status !== "deleted",
-      );
-      const previous = current.status;
-      current.status = unresolved ? "delete_failed" : "deleted";
-      current.last_error = unresolved ? "DELETE_FAILED" : null;
-      if (!unresolved) current.deleted_at = Date.now();
-      await r.saveFile(current, previous);
-      deleted = !unresolved;
-    });
+    const deleted = await this.db.transaction((r) =>
+      this.finishDeletion(r, file.id),
+    );
     if (deleted) await this.cache.remove(file.id);
+  }
+  private async finishDeletion(r: Repositories, fileId: string) {
+    const current = requireValue(await r.file(fileId));
+    if (!["deleting", "delete_failed"].includes(current.status)) return false;
+    const tasks = await r.tasks(fileId);
+    if (tasks.some((t) => !terminal(t))) return false;
+    const unresolved = (await r.replicas(fileId)).some(
+      (x) => x.status !== "deleted",
+    );
+    const status = unresolved ? "delete_failed" : "deleted";
+    const error = unresolved ? "DELETE_FAILED" : null;
+    if (current.status === status && current.last_error === error) return false;
+    const previous = current.status;
+    current.status = status;
+    current.last_error = error;
+    if (!unresolved) current.deleted_at = Date.now();
+    await r.saveFile(current, previous);
+    return !unresolved;
   }
   private async run(id: string) {
     if (this.stopping) return;

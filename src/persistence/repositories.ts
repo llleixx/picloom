@@ -1071,7 +1071,7 @@ export class SqlRepositories implements Repositories {
         .selectAll()
         .where((eb) =>
           eb.or([
-            eb("status", "in", ["failed", "deleting", "delete_failed"]),
+            eb("status", "in", ["failed", "deleting"]),
             eb.and([
               eb("status", "in", ["ready", "blocked"]),
               eb("temp_path", "is not", null),
