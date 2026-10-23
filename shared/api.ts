@@ -157,3 +157,44 @@ export interface UploadDefaults {
   userDefaultProfileId: string | null;
   siteDefaultProfileId: string | null;
 }
+
+export interface CleanupJobView {
+  id: string;
+  source_id: string;
+  mode: "delete" | "detach";
+  include_last: boolean;
+  status: "active" | "finished";
+  created_at: number;
+  updated_at: number;
+}
+export interface CleanupPreview {
+  total: number;
+  withoutOtherReady: number;
+  groups: Array<{ type: string; id: string; name: string }>;
+}
+export interface CleanupDetail {
+  job: CleanupJobView;
+  counts: Record<"pending" | "running" | "success" | "kept" | "failed", number>;
+  items: Array<{
+    id: string;
+    file_id: string;
+    replica_id: string;
+    status: "pending" | "running" | "success" | "kept" | "failed";
+    error: string | null;
+    whole_file: boolean;
+  }>;
+  remaining: number;
+  groups: CleanupPreview["groups"];
+}
+export interface RemovalInput {
+  confirm: true;
+  includeLast?: boolean;
+}
+export interface BatchRemovalInput extends RemovalInput {
+  ids: string[];
+  sourceId?: string;
+}
+export interface SourceCleanupInput {
+  mode?: "delete" | "detach";
+  includeLast?: boolean;
+}

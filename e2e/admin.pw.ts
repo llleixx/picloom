@@ -113,7 +113,7 @@ test("upload, preview, copy, transform, deletion and restart use the real backen
     .getByRole("button", { name: "Confirm delete", exact: true })
     .click();
   await expect(
-    page.locator("dd").filter({ hasText: /^Deleted$/ }),
+    page.locator("dd").filter({ hasText: /^Removed$/ }),
   ).toBeVisible();
   expect((await page.request.get(originalUrl)).status()).toBe(404);
   await page.getByRole("button", { name: "Close", exact: true }).click();
@@ -366,7 +366,7 @@ test.describe("upload queue", () => {
 
 test.describe("deletion failure", () => {
   test.use({ scenario: "delete-failure" });
-  test("failed cleanup can terminate with task history retained and capacity released", async ({
+  test("failed cleanup can detach with task history retained and capacity released", async ({
     page,
     service,
   }) => {
@@ -465,19 +465,26 @@ test.describe("deletion failure", () => {
     await expect(capacityBar).toHaveAttribute("aria-valuenow", "50");
     await expect(capacityBar.locator(":scope > div")).toHaveCount(1);
     await row
-      .getByRole("button", { name: "Mark as Deleted", exact: true })
+      .getByRole("button", { name: "Delete Replica", exact: true })
       .click();
     const confirmation = page.getByRole("dialog", {
-      name: "Mark as Deleted",
-      exact: true,
+      name: /^(Delete|Detach) replica\?$/,
     });
+    await expect(confirmation).toHaveAccessibleName("Delete replica?");
+    const confirmRemoval = confirmation.getByRole("button", {
+      name: /^Confirm (delete|detach)$/,
+    });
+    await expect(confirmRemoval).toBeDisabled();
     await expect(confirmation).toContainText(
-      "Replica and task history are kept. Remote deletion is not guaranteed",
+      "Use Retry for failed deletion tasks",
     );
-    await confirmation
-      .getByRole("button", { name: "Mark as Deleted", exact: true })
-      .click();
-    await expect(row).toContainText("Deleted");
+    await confirmation.getByLabel("Operation").selectOption("detach");
+    await expect(confirmation).toHaveAccessibleName("Detach replica?");
+    await expect(confirmRemoval).toHaveText("Confirm detach");
+    await expect(confirmRemoval).toBeEnabled();
+    await expect(confirmation).toContainText("Keep storage files");
+    await confirmRemoval.click();
+    await expect(row).toContainText("Removed");
     await expect(
       row.getByRole("button", { name: "Retry", exact: true }),
     ).toHaveCount(0);
@@ -488,7 +495,7 @@ test.describe("deletion failure", () => {
     expect(after.tasks).toHaveLength(before.tasks.length);
     expect(
       after.tasks.find((task: any) => task.id === failedTask.id).status,
-    ).toBe("failed");
+    ).toBe("cancelled");
     expect(
       (
         await page.request.post(

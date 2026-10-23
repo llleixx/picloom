@@ -123,6 +123,86 @@ export class TaskExecutor {
         console.info(JSON.stringify({ event: event.slice(0, 120) })),
     };
   }
+  // Share admission with dispatch and recovery, including tasks admitted before DB claim.
+  async manage<T>(fileId: string, operation: (r: Repositories) => Promise<T>) {
+    return this.cleanupMutex.run(() =>
+      this.mutex.run(async () => {
+        if ([...this.running.values()].some((task) => task.fileId === fileId))
+          throw new AppError(
+            "BUSY",
+            "File has a running task; retry later",
+            409,
+          );
+        return this.db.transaction(async (r) => {
+          const file = requireValue(await r.file(fileId));
+          if (
+            file.status === "preparing" ||
+            (await r.replicas(fileId)).some(
+              (replica) => replica.status === "writing",
+            ) ||
+            (await r.tasks(fileId)).some((task) => task.status === "running")
+          )
+            throw new AppError(
+              "BUSY",
+              "File has a running operation; retry later",
+              409,
+            );
+          return operation(r);
+        });
+      }),
+    );
+  }
+  async detach(fileId: string, replicaId?: string, includeLast = true) {
+    const whole = await this.manage(fileId, async (r) => {
+      const file = requireValue(await r.file(fileId));
+      const replicas = await r.replicas(fileId);
+      const target = replicaId
+        ? requireValue(await r.replica(replicaId))
+        : undefined;
+      if (target && target.file_id !== fileId)
+        throw new AppError("NOT_FOUND", "Replica not found", 404);
+      if (target?.status === "deleted") return false;
+      const whole =
+        !target ||
+        !replicas.some(
+          (replica) => replica.id !== target.id && replica.status === "ready",
+        );
+      if (whole && target && !includeLast)
+        throw new AppError("LAST_REPLICA", "No other available replica", 409);
+      for (const task of await r.tasks(fileId)) {
+        if (
+          (!whole && task.replica_id !== replicaId) ||
+          !["pending", "failed"].includes(task.status)
+        )
+          continue;
+        task.status = "cancelled";
+        task.next_run_at = null;
+        await r.saveTask(task);
+      }
+      for (const replica of replicas) {
+        if (
+          (!whole && replica.id !== replicaId) ||
+          replica.status === "deleted"
+        )
+          continue;
+        replica.status = "deleted";
+        await r.saveReplica(replica);
+      }
+      if (whole && file.status !== "deleted") {
+        const previous = file.status;
+        file.status = "deleted";
+        file.deleted_at = Date.now();
+        file.last_error = null;
+        await r.saveFile(file, previous);
+      }
+      return whole;
+    });
+    if (whole) {
+      await this.releaseTemporary(fileId);
+      await this.cache.remove(fileId);
+    }
+    return { whole };
+  }
   async terminateReplica(fileId: string, replicaId: string) {
     const deleted = await this.cleanupMutex.run(() =>
       this.mutex.run(() =>

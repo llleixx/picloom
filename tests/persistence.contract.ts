@@ -473,6 +473,95 @@ export function persistenceContract(
           await r.insertReplica(replica);
           await r.insertTask(task);
         });
+        const cleanupJob = {
+          ...entity(),
+          source_id: storage.id,
+          mode: "detach" as const,
+          include_last: true,
+          status: "active" as const,
+        };
+        const cleanupItem = {
+          ...entity(),
+          job_id: cleanupJob.id,
+          file_id: file.id,
+          replica_id: replica.id,
+          status: "failed" as const,
+          whole_file: false,
+          error: "BUSY",
+        };
+        await f.db.transaction(async (r) => {
+          await r.insertCleanupJob(cleanupJob);
+          await r.insertCleanupItem(cleanupItem);
+        });
+        expect(await f.db.read((r) => r.cleanupPreview(storage.id))).toEqual({
+          total: 1,
+          withoutOtherReady: 1,
+        });
+        expect(
+          await f.db.read((r) => r.cleanupJob(cleanupJob.id)),
+        ).toMatchObject({ include_last: true, mode: "detach" });
+        expect(
+          (await f.db.read((r) => r.cleanupItems(cleanupJob.id, 1, 0)))[0],
+        ).toMatchObject({ whole_file: false, error: "BUSY" });
+        await expect(
+          f.db.transaction((r) =>
+            r.insertCleanupJob({ ...cleanupJob, ...entity() }),
+          ),
+        ).rejects.toBeInstanceOf(Conflict);
+        await expect(
+          f.db.transaction((r) =>
+            r.insertCleanupItem({ ...cleanupItem, ...entity() }),
+          ),
+        ).rejects.toBeInstanceOf(Conflict);
+        await f.db.transaction((r) => r.retryCleanupItems(cleanupJob.id));
+        expect(
+          (await f.db.read((r) => r.cleanupCounts(cleanupJob.id))).pending,
+        ).toBe(1);
+        expect(
+          await f.db.read((r) => r.cleanupItems(cleanupJob.id, 1, 1)),
+        ).toHaveLength(0);
+        await f.db.transaction(async (r) => {
+          await r.saveCleanupItem({
+            ...cleanupItem,
+            status: "success",
+            error: null,
+          });
+          await r.saveCleanupJob({ ...cleanupJob, status: "finished" });
+        });
+        expect(await f.db.read((r) => r.activeCleanups())).toHaveLength(0);
+        const newerFinished = {
+          ...cleanupJob,
+          ...entity(),
+          created_at: cleanupJob.created_at + 1,
+          status: "finished" as const,
+        };
+        await f.db.transaction(async (r) => {
+          await r.insertCleanupJob(newerFinished);
+          await r.saveCleanupJob(cleanupJob);
+        });
+        expect((await f.db.read((r) => r.latestCleanup(storage.id)))!.id).toBe(
+          cleanupJob.id,
+        );
+        await f.db.transaction((r) =>
+          r.saveCleanupJob({ ...cleanupJob, status: "finished" }),
+        );
+        const mismatch = {
+          ...file,
+          ...entity(),
+          logical_key: "mismatched-cleanup.png",
+        };
+        await f.db.transaction((r) => r.insertFile(mismatch));
+        await expect(
+          f.db.transaction((r) =>
+            r.insertCleanupItem({
+              ...cleanupItem,
+              ...entity(),
+              job_id: newerFinished.id,
+              file_id: mismatch.id,
+            }),
+          ),
+        ).rejects.toBeInstanceOf(Conflict);
+
         await f.db.transaction((r) =>
           r.fillFileMetadata(file.id, {
             mime_type: "image/webp",

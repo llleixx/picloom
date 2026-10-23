@@ -1,3 +1,4 @@
+import { SourceCleanups } from "./core/source-cleanups";
 import { initialConfig } from "../shared/config";
 import { Themes } from "./themes/manager";
 import { reservedPrefix } from "../shared/web-routes";
@@ -119,6 +120,7 @@ export async function bootstrap(
       auth,
       files,
       uploads,
+      cleanups: new SourceCleanups(db, files),
       configuration,
       imports: new Imports(db, plugins),
       async close() {

@@ -1098,9 +1098,40 @@ export class Files {
     await this.tasks.terminateReplica(fileId, replicaId);
   }
 
-  async deleteReplica(fileId: string, replicaId: string, includeLast = false) {
+  async detach(id: string, replicaId?: string, includeLast = true) {
+    return this.tasks.detach(id, replicaId, includeLast);
+  }
+  async detachMany(
+    ids: string[],
+    identity?: Identity,
+    scope?: { sourceId: string; includeLast: boolean },
+  ) {
+    if (identity) this.auth.requireAdmin(identity);
+    const results: import("../../shared/api").BatchDeleteResult["results"] = [];
+    for (const id of ids) {
+      try {
+        const replica = scope
+          ? requireValue(
+              (await this.db.read((r) => r.replicas(id))).find(
+                (r) => r.storage_instance_id === scope.sourceId,
+              ),
+            )
+          : undefined;
+        await this.detach(id, replica?.id, scope?.includeLast);
+        results.push({ id, accepted: true });
+      } catch (error) {
+        results.push({
+          id,
+          accepted: false,
+          error: error instanceof AppError ? error.code : "INTERNAL",
+        });
+      }
+    }
+    return { results };
+  }
+  async deleteReplica(fileId: string, replicaId: string, includeLast = true) {
     let deletingFile = false;
-    await this.db.transaction(async (r) => {
+    await this.tasks.manage(fileId, async (r) => {
       const file = requireValue(await r.file(fileId));
       const replica = requireValue(await r.replica(replicaId));
       if (replica.file_id !== fileId)
@@ -1166,6 +1197,7 @@ export class Files {
       await r.saveReplica(replica);
     });
     if (deletingFile) this.tasks.cancel(fileId);
+    return { whole: deletingFile };
   }
   async replace(
     id: string,

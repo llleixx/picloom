@@ -5,6 +5,8 @@ import { sql, type Kysely } from "kysely";
 import { Conflict } from "../core/errors";
 import type {
   Repositories,
+  CleanupJob,
+  CleanupItem,
   User,
   Credential,
   Instance,
@@ -53,6 +55,8 @@ type Stored<T> = {
         : T[K];
 };
 export interface Schema {
+  source_cleanup_jobs: Stored<CleanupJob>;
+  source_cleanup_items: Stored<CleanupItem>;
   daily_upload_usage: { subject: string; day: string; upload_count: number };
   users: Stored<User>;
   sessions: Stored<
@@ -122,6 +126,8 @@ function decode<T>(row: unknown): T {
     if (typeof result[key] === "number" && key !== "weight")
       result[key] = integer(result[key]);
     if (
+      key === "include_last" ||
+      key === "whole_file" ||
       key === "is_default" ||
       key === "enabled" ||
       key === "allow_guest_upload" ||
@@ -505,6 +511,129 @@ export class SqlRepositories implements Repositories {
     let query = this.db.selectFrom("plugin_instances").selectAll();
     if (ids) query = query.where("id", "in", ids);
     return this.rows<Instance>(query);
+  }
+  async cleanupTargets(sourceId: string) {
+    return this.rows<Replica>(
+      this.db
+        .selectFrom("file_replicas")
+        .selectAll()
+        .where("storage_instance_id", "=", sourceId)
+        .where("status", "!=", "deleted")
+        .orderBy("id"),
+    );
+  }
+  async cleanupPreview(sourceId: string) {
+    const rows = await this.db
+      .selectFrom("file_replicas as target")
+      .select("target.id")
+      .select((eb) =>
+        eb
+          .exists(
+            eb
+              .selectFrom("file_replicas as other")
+              .select("other.id")
+              .whereRef("other.file_id", "=", "target.file_id")
+              .whereRef("other.id", "!=", "target.id")
+              .where("other.status", "=", "ready"),
+          )
+          .as("other_ready"),
+      )
+      .where("target.storage_instance_id", "=", sourceId)
+      .where("target.status", "!=", "deleted")
+      .execute();
+    return {
+      total: rows.length,
+      withoutOtherReady: rows.filter((row) => !row.other_ready).length,
+    };
+  }
+  async cleanupJob(id: string) {
+    return this.first<CleanupJob>(
+      this.db
+        .selectFrom("source_cleanup_jobs")
+        .selectAll()
+        .where("id", "=", id),
+    );
+  }
+  async latestCleanup(sourceId: string) {
+    return this.first<CleanupJob>(
+      this.db
+        .selectFrom("source_cleanup_jobs")
+        .selectAll()
+        .where("source_id", "=", sourceId)
+        .orderBy(sql`case when status = 'active' then 0 else 1 end`, "asc")
+        .orderBy("created_at", "desc")
+        .orderBy("id", "desc"),
+    );
+  }
+  async activeCleanups() {
+    return this.rows<CleanupJob>(
+      this.db
+        .selectFrom("source_cleanup_jobs")
+        .selectAll()
+        .where("status", "=", "active")
+        .orderBy("created_at"),
+    );
+  }
+  async insertCleanupJob(value: CleanupJob) {
+    await this.db
+      .insertInto("source_cleanup_jobs")
+      .values(encode(value))
+      .execute();
+  }
+  async saveCleanupJob(value: CleanupJob) {
+    await this.db
+      .updateTable("source_cleanup_jobs")
+      .set(encode({ ...value, updated_at: Date.now() }))
+      .where("id", "=", value.id)
+      .execute();
+  }
+  async cleanupItems(
+    jobId: string,
+    limit: number,
+    offset: number,
+    states?: CleanupItem["status"][],
+  ) {
+    let query = this.db
+      .selectFrom("source_cleanup_items")
+      .selectAll()
+      .where("job_id", "=", jobId);
+    if (states) query = query.where("status", "in", states);
+    return this.rows<CleanupItem>(
+      query.orderBy("created_at").orderBy("id").limit(limit).offset(offset),
+    );
+  }
+  async cleanupCounts(jobId: string) {
+    const counts = { pending: 0, running: 0, success: 0, kept: 0, failed: 0 };
+    const rows = await this.db
+      .selectFrom("source_cleanup_items")
+      .select("status")
+      .select((eb) => eb.fn.countAll<string | number>().as("n"))
+      .where("job_id", "=", jobId)
+      .groupBy("status")
+      .execute();
+    for (const row of rows) counts[row.status] = integer(row.n);
+    return counts;
+  }
+  async insertCleanupItem(value: CleanupItem) {
+    await this.db
+      .insertInto("source_cleanup_items")
+      .values(encode(value))
+      .execute();
+  }
+  async saveCleanupItem(value: CleanupItem) {
+    await this.db
+      .updateTable("source_cleanup_items")
+      .set(encode({ ...value, updated_at: Date.now() }))
+      .where("id", "=", value.id)
+      .execute();
+  }
+  async retryCleanupItems(jobId: string) {
+    await this.db
+      .updateTable("source_cleanup_items")
+      .set({ status: "pending", error: null, updated_at: Date.now() })
+      .where("job_id", "=", jobId)
+      .where("status", "=", "failed")
+      .execute();
   }
   async instanceReferences(id: string) {
     return (await this.referencesForInstances([id])).get(id) ?? [];

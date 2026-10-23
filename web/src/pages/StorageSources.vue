@@ -20,6 +20,7 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { api, ApiError, errorText, notify, queryClient } from "@/lib/api";
+import SourceCleanup from "@/components/SourceCleanup.vue";
 import ImportSheet from "@/components/ImportSheet.vue";
 import { createPluginDraft } from "@/lib/plugin-draft";
 import PluginConfigurationEditor from "@/components/PluginConfigurationEditor.vue";
@@ -47,6 +48,7 @@ const conflict = ref(false),
   busy = ref(false),
   error = ref(""),
   deleting = ref("");
+const cleanupSource = ref<InstanceView>();
 const fieldErrors = ref<Array<{ path: string; message: string }>>([]);
 async function refresh() {
   await Promise.all(
@@ -344,6 +346,9 @@ async function remove() {
             :disabled="busy"
             @click="initialize(item.id)"
             ><RefreshCw />{{ t("ui.retryInitialization") }}</Button
+          ><Button size="sm" variant="outline" @click="cleanupSource = item">{{
+            t("cleanup.title")
+          }}</Button
           ><Button size="sm" variant="outline" @click="edit(item.id)">{{
             t("ui.edit")
           }}</Button
@@ -362,6 +367,30 @@ async function remove() {
     <p v-if="error && !open && !deleting" role="alert" class="error-box mt-4">
       {{ error }}
     </p>
+    <Sheet
+      :open="!!cleanupSource"
+      @update:open="
+        (value) => {
+          if (!value) cleanupSource = undefined;
+        }
+      "
+    >
+      <SheetContent v-if="cleanupSource" class="overflow-y-auto">
+        <SheetTitle
+          >{{ t("cleanup.title") }} · {{ cleanupSource.name }}</SheetTitle
+        >
+        <SheetDescription>{{ t("cleanup.scopeNote") }}</SheetDescription>
+        <SourceCleanup
+          :source-id="cleanupSource.id"
+          class="mt-5"
+          @remove="
+            deleting = cleanupSource.id;
+            cleanupSource = undefined;
+            error = '';
+          "
+        />
+      </SheetContent>
+    </Sheet>
     <ImportSheet
       v-if="importSource"
       :key="importSource.id"
@@ -479,7 +508,7 @@ async function remove() {
         }
       "
       ><DialogContent :busy="busy"
-        ><DialogTitle>{{ t("ui.deleteConfiguration") }}</DialogTitle
+        ><DialogTitle>{{ t("storage.deleteSourceTitle") }}</DialogTitle
         ><DialogDescription>{{
           t("storage.deleteConfigurationHint")
         }}</DialogDescription>

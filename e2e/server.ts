@@ -333,13 +333,18 @@ if (scenario === "seed" && !(await app.db.read((r) => r.countFiles()))) {
   }
 }
 let sweeping: Promise<unknown> | undefined;
-const timer = setInterval(() => {
-  if (sweeping) return;
-  sweeping = app.files
-    .sweep()
-    .catch(() => {})
-    .finally(() => (sweeping = undefined));
-}, 200);
+const timer = setInterval(
+  () => {
+    if (sweeping) return;
+    sweeping = app.cleanups
+      .tick()
+      .then(() => app.files.sweep())
+      .then(() => app.cleanups.tick())
+      .catch(() => {})
+      .finally(() => (sweeping = undefined));
+  },
+  scenario === "cleanup-restore" ? 5000 : 200,
+);
 console.log(JSON.stringify({ ready: server.url.origin }));
 // Stdin shutdown is portable on Windows and lets the test await graceful cleanup.
 for await (const _ of Bun.stdin.stream()) break;

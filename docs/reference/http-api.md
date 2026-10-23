@@ -196,6 +196,36 @@ curl --fail-with-body "$PICLOOM_URL/api/files/$PICLOOM_FILE_ID" \
 
 删除是异步操作，`202` 不代表远端内容已清理。查询详情可跟踪状态；不支持远端删除的存储行为见对应 [插件说明](./plugins.md)。
 
+### 删除与解除关联的范围
+
+`POST /api/files/batch-delete` 接收 `ids`（1–100 个不同文件 ID），可选管理员参数 `sourceId`、`includeLast`（默认 `true`）。未指定 `sourceId` 时删除整张图片，普通成员只能删除自己的图片。响应为 `{"results":[{"id":"…","accepted":true},{"id":"…","accepted":false,"error":"BUSY"}]}`，逐项返回结果。
+
+管理员解除关联使用以下接口，JSON 必须包含 `"confirm":true`，返回 `{"ok":true}`；批量接口返回上述逐项结果：
+
+| 请求 | JSON 参数 |
+| --- | --- |
+| `POST /api/files/:id/detach` | `confirm` |
+| `POST /api/files/:id/replicas/:replicaId/detach` | `confirm`，可选 `includeLast`（默认 `true`） |
+| `POST /api/files/batch-detach` | `confirm`、`ids`（1–100 个不同 ID），可选 `sourceId`、`includeLast`（默认 `true`） |
+
+解除关联不调用存储插件，不删除存储文件；会结束管理、取消关联的非运行任务、释放容量，保留记录与历史。按源或副本处理时，有其他 `ready` 副本就只处理目标；否则 `includeLast:true` 处理整张图片及其他失败副本，`false` 返回 `LAST_REPLICA`。上传、写入或相关任务运行期间返回 `BUSY`（409），可稍后重试。删除使用异步任务，成功接收不等于远端删除成功。
+
+### 存储源清理任务
+
+以下接口要求管理员会话：
+
+| 请求 | 参数与结果 |
+| --- | --- |
+| `GET /api/storage-sources/:id/cleanup-preview` | 返回 `total`、`withoutOtherReady` 与阻挡提交的存储组 `groups` |
+| `POST /api/storage-sources/:id/cleanups` | JSON 可选 `mode:"delete"` 或 `"detach"`、`includeLast:true`，均为默认值；202 返回任务 |
+| `GET /api/storage-sources/:id/cleanups/latest` | 返回最新任务，无任务时为 `null` |
+| `GET /api/storage-sources/:id/cleanups/:jobId` | `limit` 默认 25、范围 1–100，`offset` 默认 0；返回 `job`、`counts`、分页 `items`、当前 `remaining` 引用数与 `groups` |
+| `POST /api/storage-sources/:id/cleanups/:jobId/retry` | 202；只重试原任务的失败项 |
+
+提交要求此源不再被存储组引用，否则返回 `SOURCE_IN_USE`（409）。每源同时只有一个活动任务，重复提交返回现有任务。提交事务固定当前未终结副本，不扫描未登记对象；后续新增引用和配置变化不影响固定范围。任务持久化并在重启后继续，状态为 `active` 或 `finished`；项目状态为 `pending`、`running`、`success`、`kept`、`failed`。只有管理结束才计为成功，整图操作需等待所有副本结束；保留条件在逐项开始时检查。删除重试复用原删除任务，不创建新的自动重试预算。
+
+任务结束不代表此源当前无引用。删除源配置仍需满足原配置引用、副本和运行调用条件，并单独调用 `DELETE /api/storage-sources/:id`。切换操作方式需在当前任务结束后提交新任务；其他清理活动期间重试旧任务返回 409。
+
 ### 其他管理入口
 
 | 请求 | 用途 |
@@ -203,7 +233,7 @@ curl --fail-with-body "$PICLOOM_URL/api/files/$PICLOOM_FILE_ID" \
 | `GET /api/files/:id` | 文件详情 |
 | `POST /api/files/:id/replace` | 用已上传的新图替换，保留公开链接；仅会话认证 |
 | `GET /api/files/:id/operations` | 管理员查看副本和后台任务 |
-| `DELETE /api/files/:id/replicas/:replicaId` | 管理员删除单个副本 |
+| `DELETE /api/files/:id/replicas/:replicaId` | 管理员删除副本；`?includeLast=false` 保留没有其他可用副本的图片，默认 `true` |
 | `POST /api/files/:id/unblock` | 管理员解除屏蔽 |
 | `POST /api/files/:id/replicas/:replicaId/terminate` | 管理员将删除失败的副本人工标记为已删除，JSON：`{"confirm":true}`，返回 `{"ok":true}` |
 | `POST /api/tasks/:id/retry` | 管理员重试符合条件的失败任务 |

@@ -217,3 +217,30 @@ CREATE TABLE daily_upload_usage (
   PRIMARY KEY(subject,day)
 );
 CREATE INDEX daily_upload_day ON daily_upload_usage(day);
+
+
+CREATE TABLE source_cleanup_jobs (
+  id TEXT PRIMARY KEY NOT NULL,
+  created_at BIGINT NOT NULL,
+  updated_at BIGINT NOT NULL,
+  source_id TEXT NOT NULL,
+  mode TEXT NOT NULL CHECK(mode IN ('delete','detach')),
+  include_last INTEGER NOT NULL CHECK(include_last IN (0,1)),
+  status TEXT NOT NULL CHECK(status IN ('active','finished'))
+);
+CREATE UNIQUE INDEX active_source_cleanup ON source_cleanup_jobs(source_id) WHERE status='active';
+CREATE INDEX source_cleanup_latest ON source_cleanup_jobs(source_id,created_at,id);
+CREATE TABLE source_cleanup_items (
+  id TEXT PRIMARY KEY NOT NULL,
+  created_at BIGINT NOT NULL,
+  updated_at BIGINT NOT NULL,
+  job_id TEXT NOT NULL REFERENCES source_cleanup_jobs(id),
+  file_id TEXT NOT NULL REFERENCES files(id),
+  replica_id TEXT NOT NULL,
+  status TEXT NOT NULL CHECK(status IN ('pending','running','success','kept','failed')),
+  whole_file INTEGER NOT NULL CHECK(whole_file IN (0,1)),
+  error TEXT,
+  UNIQUE(job_id,replica_id),
+  FOREIGN KEY(replica_id,file_id) REFERENCES file_replicas(id,file_id)
+);
+CREATE INDEX cleanup_item_status ON source_cleanup_items(job_id,status,created_at,id);

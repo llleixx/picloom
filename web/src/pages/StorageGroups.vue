@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { t } from "@/lib/i18n";
-import { computed, ref } from "vue";
+import { computed, ref, watch } from "vue";
+import { useRoute } from "vue-router";
 import { useQuery } from "@tanstack/vue-query";
 import { Plus } from "lucide-vue-next";
 import { Button } from "@/components/ui/button";
@@ -69,6 +70,14 @@ async function edit(id?: string) {
     busy.value = false;
   }
 }
+const route = useRoute();
+watch(
+  () => route.query.edit,
+  (id) => {
+    if (typeof id === "string" && id) void edit(id);
+  },
+  { immediate: true },
+);
 async function save() {
   if (busy.value) return;
   error.value = "";

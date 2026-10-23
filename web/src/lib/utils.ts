@@ -33,7 +33,7 @@ export const statuses = {
     return t("ui.deleteFailed");
   },
   get deleted() {
-    return t("ui.deleted");
+    return t("removal.removed");
   },
 };
 

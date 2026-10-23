@@ -1,5 +1,53 @@
 // UI copy lives here. Keep keys stable when editing English wording.
 export const en = {
+  "images.detachedReplicasSummary":
+    "Replicas detached: {accepted}. Kept: {kept}. Failed: {failed}.",
+  "images.detachedImagesSummary":
+    "Images detached: {accepted}. Kept: {kept}. Failed: {failed}.",
+  "images.deletedReplicasSummary":
+    "Replica deletion requested: {accepted}. Kept: {kept}. Failed: {failed}.",
+  "images.deletedImagesSummary":
+    "Image deletion requested: {accepted}. Kept: {kept}. Failed: {failed}.",
+  "images.detachReplicasTitle": "Detach {count} replicas?",
+  "images.detachImagesTitle": "Detach {count} images?",
+  "images.deleteReplicasTitle": "Delete {count} replicas?",
+  "images.deleteImagesTitle": "Delete {count} images?",
+  "images.deleteSelectedReplicas": "Delete selected replicas",
+  "storage.deleteSourceTitle": "Delete storage source?",
+  "cleanup.result": "Cleanup result",
+  "cleanup.scopeNote":
+    "Clean up current images in the background. Later uploads and imports are excluded.",
+  "removal.removed": "Removed",
+  "removal.detaching": "Detaching…",
+  "removal.deleteReplicaTitle": "Delete replica?",
+  "removal.detachReplicaTitle": "Detach replica?",
+  "removal.detachImageTitle": "Detach image?",
+  "removal.confirmDetach": "Confirm detach",
+  "removal.retryHint": "Use Retry for failed deletion tasks, or choose detach.",
+  "removal.mode": "Operation",
+  "removal.delete": "Delete files and release references",
+  "removal.detach": "Detach only, keep files",
+  "removal.deleteHint":
+    "Delete storage files",
+  "removal.detachHint":
+    "Keep storage files",
+  "removal.preserveLast": "Keep images with no other available replica",
+  "cleanup.title": "Clean up images",
+  "cleanup.preview":
+    "{total} replicas; {last} have no other available replica.",
+  "cleanup.groups":
+    "Remove this source from these Storage Groups before starting:",
+  "cleanup.start": "Start cleanup",
+  "cleanup.active": "Cleanup in progress",
+  "cleanup.finished": "Cleanup job finished",
+  "cleanup.pending": "Pending",
+  "cleanup.running": "Running",
+  "cleanup.success": "Completed",
+  "cleanup.kept": "Kept",
+  "cleanup.failed": "Failed",
+  "cleanup.remaining": "Remaining source references: {count}",
+  "cleanup.retry": "Retry failed items",
+  "cleanup.removeSource": "Delete source configuration…",
   "ui.moveItemUp": "Move item up",
   "ui.moveItemDown": "Move item down",
   "ui.newItem": "New item",
@@ -55,7 +103,7 @@ export const en = {
   "storage.usageLimited": "Used {used} / {limit} · {percent}%",
   "storage.usageUnlimited": "Used {used} · Unlimited",
   "storage.deleteConfigurationHint":
-    "Deleting removes this configuration and keeps image, replica and task history. Unterminated replicas and active references must be cleared first.",
+    "Remove this source configuration. Storage files remain.",
   "storage.full": "Capacity full",
   "images.replicaError": "Replica issues",
   "storage.capacity": "Total capacity limit (GiB)",
@@ -168,25 +216,14 @@ export const en = {
   "settings.siteFaviconUrl": "Favicon URL",
   "settings.siteLogoHint": "Recommended: 128 × 128 px, transparent background.",
   "settings.siteFaviconHint": "Recommended: 32 × 32 or 48 × 48 px.",
-  "replicas.lastError":
-    "Kept: no other available replica. Select whole-image deletion to remove it.",
+  "replicas.lastError": "Kept: no other available replica.",
   "replicas.source": "Storage Source",
   "replicas.allSources": "All Storage Sources",
-  "replicas.scope": "Delete From",
+  "replicas.scope": "Scope",
   "replicas.onlySource": "Selected storage source only",
-  "replicas.wholeImage": "All storage sources (delete image)",
-  "replicas.includeLast": "Also delete images with no other available replica",
-  "replicas.keepLast":
-    "Images with no other available replica are kept unless selected below.",
-  "replicas.terminate": "Mark as Deleted",
-  "replicas.terminateConfirm":
-    "Mark this replica as deleted, stop managing it, and release its accounted capacity. Replica and task history are kept. Remote deletion is not guaranteed.",
+  "replicas.wholeImage": "All storage sources",
   "replicas.instanceDeleted": "Deleted storage source · {id}",
   "replicas.delete": "Delete Replica",
-  "replicas.confirm":
-    "The selected replica will be removed. Other replicas and the public URL are kept.",
-  "replicas.last":
-    "This is the last available replica. Deleting it will delete the image and disable its public URL.",
 
   "processingResults.title": "Processing Results",
   "processingResults.hint":
@@ -310,9 +347,6 @@ export const en = {
     "Links can only be copied when all selected images are ready.",
   "images.deleteSelected": "Delete selected",
   "images.clearSelection": "Clear selection",
-  "images.confirmBatchDelete":
-    "Delete {count} images? Public access stops immediately; storage cleanup runs in the background.",
-  "images.deleteSummary": "Deletion requested: {accepted}. Failed: {failed}.",
   "images.previousImage": "Previous image",
   "images.nextImage": "Next image",
   "settings.cache": "Cache",
@@ -773,8 +807,6 @@ export const en = {
   "ui.noBackgroundTasks": "No background tasks.",
   "ui.retryTask": "Retry task",
   "ui.deleteImage2": "Delete image?",
-  "ui.thePublicUrlStopsWorkingImmediatelyThis":
-    "The public URL stops working immediately. This cannot be undone.",
   "ui.submitting": "Submitting…",
   "ui.selectAPlugin": "Select a plugin",
   "ui.notLoaded": " (not loaded)",

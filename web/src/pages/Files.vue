@@ -62,7 +62,8 @@ const sourceId = computed(() =>
     : "",
 );
 const deleteWhole = ref(false),
-  includeLast = ref(false);
+  includeLast = ref(true),
+  removalMode = ref<"delete" | "detach">("delete");
 const pageSize = 24;
 const route = useRoute(),
   router = useRouter(),
@@ -176,7 +177,49 @@ const checked = ref(new Map<string, FileView>()),
   bulkBusy = ref(false),
   confirmDelete = ref(false);
 const failures = ref<Array<{ id: string; name: string; error: string }>>([]),
-  acceptedCount = ref<number | null>(null);
+  acceptedCount = ref<number | null>(null),
+  keptCount = ref(0);
+const resultScope = ref({
+  mode: "delete" as "delete" | "detach",
+  replica: false,
+  count: 0,
+});
+const bulkReplica = computed(() => !!sourceId.value && !deleteWhole.value);
+const bulkTitle = computed(() => {
+  const selection = bulkBusy.value
+    ? resultScope.value
+    : {
+        mode: removalMode.value,
+        replica: bulkReplica.value,
+        count: checked.value.size,
+      };
+  return t(
+    selection.mode === "detach"
+      ? selection.replica
+        ? "images.detachReplicasTitle"
+        : "images.detachImagesTitle"
+      : selection.replica
+        ? "images.deleteReplicasTitle"
+        : "images.deleteImagesTitle",
+    { count: selection.count },
+  );
+});
+const resultSummary = computed(() =>
+  t(
+    resultScope.value.mode === "detach"
+      ? resultScope.value.replica
+        ? "images.detachedReplicasSummary"
+        : "images.detachedImagesSummary"
+      : resultScope.value.replica
+        ? "images.deletedReplicasSummary"
+        : "images.deletedImagesSummary",
+    {
+      accepted: acceptedCount.value ?? 0,
+      kept: keptCount.value,
+      failed: failures.value.length,
+    },
+  ),
+);
 const selectable = computed(
   () =>
     files.data.value?.items.filter(
@@ -248,19 +291,36 @@ async function deleteSelected() {
   bulkBusy.value = true;
   failures.value = [];
   acceptedCount.value = 0;
+  keptCount.value = 0;
+  const submission = {
+    mode: removalMode.value,
+    sourceId: sourceId.value && !deleteWhole.value ? sourceId.value : "",
+    includeLast: includeLast.value,
+  };
+  resultScope.value = {
+    mode: submission.mode,
+    replica: !!submission.sourceId,
+    count: checked.value.size,
+  };
   const targets = [...checked.value.values()];
   try {
     for (let i = 0; i < targets.length; i += 100) {
       const chunk = targets.slice(i, i + 100);
       try {
         const { results } = await api<BatchDeleteResult>(
-          "/api/files/batch-delete",
+          submission.mode === "detach"
+            ? "/api/files/batch-detach"
+            : "/api/files/batch-delete",
           {
             method: "POST",
             body: JSON.stringify({
               ids: chunk.map((f) => f.id),
-              ...(sourceId.value && !deleteWhole.value
-                ? { sourceId: sourceId.value, includeLast: includeLast.value }
+              confirm: true,
+              ...(submission.sourceId
+                ? {
+                    sourceId: submission.sourceId,
+                    includeLast: submission.includeLast,
+                  }
                 : {}),
             }),
           },
@@ -271,6 +331,12 @@ async function deleteSelected() {
             checked.value.delete(result.id);
             if (selected.value === result.id)
               update({ file: undefined, page: String(page.value) });
+          } else if (
+            submission.sourceId &&
+            !submission.includeLast &&
+            result.error === "LAST_REPLICA"
+          ) {
+            keptCount.value++;
           } else
             failures.value.push({
               id: result.id,
@@ -498,10 +564,17 @@ async function navigate(direction: -1 | 1) {
           :disabled="bulkBusy"
           @click="
             deleteWhole = false;
-            includeLast = false;
+            includeLast = true;
+            removalMode = 'delete';
             confirmDelete = true;
           "
-          >{{ t("images.deleteSelected") }}</Button
+          >{{
+            t(
+              sourceId
+                ? "images.deleteSelectedReplicas"
+                : "images.deleteSelected",
+            )
+          }}</Button
         >
         <Button variant="ghost" :disabled="bulkBusy" @click="checked.clear()">{{
           t("images.clearSelection")
@@ -575,12 +648,7 @@ async function navigate(direction: -1 | 1) {
     </div>
     <div v-if="acceptedCount !== null" class="mb-4 space-y-2" role="status">
       <p class="subtle">
-        {{
-          t("images.deleteSummary", {
-            accepted: acceptedCount,
-            failed: failures.length,
-          })
-        }}
+        {{ resultSummary }}
       </p>
       <ul v-if="failures.length" class="space-y-1 text-sm">
         <li v-for="failure in failures" :key="failure.id" class="break-all">
@@ -759,15 +827,24 @@ async function navigate(direction: -1 | 1) {
       "
     >
       <DialogContent :busy="bulkBusy"
-        ><DialogTitle>{{ t("images.deleteSelected") }}</DialogTitle
-        ><DialogDescription>{{
-          t("images.confirmBatchDelete", { count: checked.size })
+        ><DialogTitle>{{ bulkTitle }}</DialogTitle
+        ><DialogDescription class="sr-only">{{
+          t(
+            removalMode === "detach"
+              ? "removal.detachHint"
+              : "removal.deleteHint",
+          )
         }}</DialogDescription>
         <DeleteScope
-          v-if="sourceId"
+          v-if="isAdmin"
+          :scoped="!!sourceId"
+          :allow-whole="!!sourceId"
+          v-model:mode="removalMode"
           v-model:whole="deleteWhole"
           v-model:include-last="includeLast"
+          :disabled="bulkBusy"
         />
+        <p v-if="!isAdmin" class="subtle">{{ t("removal.deleteHint") }}</p>
         <div class="mt-4 flex justify-end gap-2">
           <Button
             variant="outline"
@@ -778,7 +855,19 @@ async function navigate(direction: -1 | 1) {
             variant="destructive"
             :loading="bulkBusy"
             @click="deleteSelected"
-            >{{ t("images.deleteSelected") }}</Button
+            >{{
+              bulkBusy
+                ? t(
+                    removalMode === "detach"
+                      ? "removal.detaching"
+                      : "ui.deletingNow",
+                  )
+                : t(
+                    removalMode === "detach"
+                      ? "removal.confirmDetach"
+                      : "ui.confirmDelete",
+                  )
+            }}</Button
           >
         </div>
       </DialogContent>

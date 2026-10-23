@@ -20,6 +20,7 @@ export async function configurationRequest(
   path: string,
   method: string,
   body: () => Promise<Record<string, unknown>>,
+  query = new URLSearchParams(),
 ): Promise<Response | null> {
   if (path === "/api/plugins" && method === "GET")
     return json(
@@ -90,6 +91,50 @@ export async function configurationRequest(
     return json({
       value: await app.plugins.revealSecret(reveal[1]!, b.path as string),
     });
+  }
+  const cleanup = path.match(
+    /^\/api\/storage-sources\/([^/]+)\/(cleanup-preview|cleanups)(?:\/([^/]+))?(?:\/(retry))?$/,
+  );
+  if (cleanup) {
+    const [, sourceId, action, jobId, retry] = cleanup;
+    if (action === "cleanup-preview" && !jobId && method === "GET")
+      return json(await app.cleanups.preview(sourceId!));
+    if (action === "cleanups" && !jobId && method === "POST") {
+      const value = await body();
+      if (
+        (value.mode !== undefined &&
+          (typeof value.mode !== "string" ||
+            !["delete", "detach"].includes(value.mode))) ||
+        (value.includeLast !== undefined &&
+          typeof value.includeLast !== "boolean")
+      )
+        throw new AppError("INVALID_INPUT", "Invalid cleanup mode");
+      return json(
+        await app.cleanups.submit(
+          sourceId!,
+          value.mode as "delete" | "detach" | undefined,
+          value.includeLast !== false,
+        ),
+        202,
+      );
+    }
+    if (jobId === "latest" && method === "GET")
+      return json(await app.cleanups.latest(sourceId!));
+    if (jobId && retry && method === "POST")
+      return json(await app.cleanups.retry(sourceId!, jobId), 202);
+    if (jobId && !retry && method === "GET") {
+      const limit = Number(query.get("limit") ?? 25),
+        offset = Number(query.get("offset") ?? 0);
+      if (
+        !Number.isInteger(limit) ||
+        limit < 1 ||
+        limit > 100 ||
+        !Number.isInteger(offset) ||
+        offset < 0
+      )
+        throw new AppError("INVALID_INPUT", "Invalid pagination");
+      return json(await app.cleanups.detail(sourceId!, jobId, limit, offset));
+    }
   }
   const instances = path.match(
     /^\/api\/storage-sources(?:\/([^/]+))?(?:\/(reinitialize))?$/,

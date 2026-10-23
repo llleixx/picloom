@@ -104,7 +104,7 @@ test("source filtering survives group changes; deleting a replica preserves URL 
     await f.close();
   }
 });
-test("concurrent replica deletions preserve one ready copy; source batch requires explicit whole-file opt-in", async () => {
+test("explicit preserve-last concurrent deletion keeps one copy; source batch defaults to whole-file removal", async () => {
   const { f } = await setup();
   try {
     const image = await (await f.upload()).json();
@@ -112,7 +112,10 @@ test("concurrent replica deletions preserve one ready copy; source batch require
     const replicas = await f.app.db.read((r) => r.replicas(image.id));
     const responses = await Promise.all(
       replicas.map((r) =>
-        f.request(`/api/files/${image.id}/replicas/${r.id}`, "DELETE"),
+        f.request(
+          `/api/files/${image.id}/replicas/${r.id}?includeLast=false`,
+          "DELETE",
+        ),
       ),
     );
     expect(responses.map((r) => r.status).sort()).toEqual([200, 409]);
@@ -121,7 +124,10 @@ test("concurrent replica deletions preserve one ready copy; source batch require
     )!;
     const input = { ids: [image.id], sourceId: remaining.storage_instance_id };
     const result = await (
-      await f.request("/api/files/batch-delete", "POST", input)
+      await f.request("/api/files/batch-delete", "POST", {
+        ...input,
+        includeLast: false,
+      })
     ).json();
     expect(result.results[0].error).toBe("LAST_REPLICA");
     expect((await f.app.db.read((r) => r.file(image.id)))!.status).toBe(
@@ -132,7 +138,6 @@ test("concurrent replica deletions preserve one ready copy; source batch require
         await (
           await f.request("/api/files/batch-delete", "POST", {
             ...input,
-            includeLast: true,
           })
         ).json()
       ).results[0].accepted,

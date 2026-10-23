@@ -66,6 +66,7 @@ const messages: Record<string, MessageKey> = {
   BACKUP_SOURCE: "backup.source",
   BACKUP_LIMIT: "backup.limit",
   MAINTENANCE: "backup.maintenance",
+  SOURCE_IN_USE: "cleanup.groups",
   LAST_REPLICA: "replicas.lastError",
   REMOTE_IMAGE_FAILED: "errors.remoteImageFailed",
   REMOTE_IMAGE_HTTP: "errors.remoteImageHttp",

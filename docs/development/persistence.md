@@ -13,6 +13,7 @@
 | 文件记录 | 保存公开路径、图片元数据和文件状态 |
 | 副本记录 | 关联文件与存储实例，记录存储路径和读写状态 |
 | 任务记录 | 关联文件，记录后台写入、保存后处理或删除的进度 |
+| 源清理任务与项目 | `source_cleanup_jobs` 保存固定操作与源标识；`source_cleanup_items` 保存提交时的副本快照、整图范围、状态和错误 |
 
 访问流水线是全局配置。完整类型和数据访问方法位于 `src/persistence/port.ts`。
 
@@ -88,3 +89,9 @@ TEST_POSTGRES_URL=postgresql://picloom:password@127.0.0.1:5432/picloom_test bun 
 ```
 
 测试会创建隔离 schema 并清理。`tests/persistence.contract.ts` 提供两种数据库共用的行为契约；新增通用数据访问能力时优先在这里补充测试，再运行受影响的业务测试。
+
+## 源清理持久化
+
+初始 SQLite 与 PostgreSQL 定义均包含 `source_cleanup_jobs`、`source_cleanup_items`。前者用部分唯一索引限制每个源只有一个 `active` 任务；后者以 `(job_id, replica_id)` 唯一标识固定目标，以 `(replica_id, file_id)` 外键保证副本归属。源标识不关联可删除的插件配置，历史在源配置删除后保留。布尔字段沿用 0/1 编码。
+
+`SourceCleanups` 通过异步仓储接口原子检查存储组引用并保存快照，维护周期每批处理最多 50 个待处理项和 50 个运行项，轮转运行项分页。删除调用共享副本删除能力并复用任务重试；解除关联通过 `TaskExecutor` 现有调度与清理锁准入，在同一事务结束副本和关联非运行任务。重启后的运行项按副本与整图状态继续核对，目标副本结束不代表整图其他副本已结束。

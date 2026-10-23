@@ -476,7 +476,13 @@ export function handler(app: Application) {
             ),
           );
         const configuration = isSiteAdmin(auth.user.role)
-          ? await configurationRequest(app, path, method, () => body(req))
+          ? await configurationRequest(
+              app,
+              path,
+              method,
+              () => body(req),
+              url.searchParams,
+            )
           : null;
         if (configuration) return configuration;
         if (path === "/api/system/status" && method === "GET")
@@ -649,8 +655,22 @@ export function handler(app: Application) {
             "X-Total-Count": String(result.total),
           });
         }
-        if (path === "/api/files/batch-delete" && method === "POST") {
-          const { ids, sourceId, includeLast } = await body(req);
+        if (
+          ["/api/files/batch-delete", "/api/files/batch-detach"].includes(
+            path,
+          ) &&
+          method === "POST"
+        ) {
+          const detach = path.endsWith("batch-detach");
+          const { ids, sourceId, includeLast, confirm } = await body(req);
+          if (detach) {
+            app.auth.requireAdmin(auth);
+            if (confirm !== true)
+              throw new AppError(
+                "INVALID_INPUT",
+                "Detach confirmation required",
+              );
+          }
           if (
             !Array.isArray(ids) ||
             !ids.length ||
@@ -664,27 +684,48 @@ export function handler(app: Application) {
               "INVALID_INPUT",
               "Expected 1 to 100 distinct file IDs",
             );
+          if (includeLast !== undefined && typeof includeLast !== "boolean")
+            throw new AppError("INVALID_INPUT", "Invalid includeLast");
           if (sourceId !== undefined) {
             app.auth.requireAdmin(auth);
-            if (
-              typeof sourceId !== "string" ||
-              !sourceId ||
-              (includeLast !== undefined && typeof includeLast !== "boolean")
-            )
+            if (typeof sourceId !== "string" || !sourceId.trim())
               throw new AppError("INVALID_INPUT", "Invalid deletion scope");
           }
           return json(
-            await app.files.deleteMany(
+            await (
+              detach
+                ? app.files.detachMany.bind(app.files)
+                : app.files.deleteMany.bind(app.files)
+            )(
               ids as string[],
               auth,
               sourceId
                 ? {
                     sourceId: sourceId as string,
-                    includeLast: includeLast === true,
+                    includeLast: includeLast !== false,
                   }
                 : undefined,
             ),
           );
+        }
+        const detachRoute = path.match(
+          /^\/api\/files\/([^/]+)(?:\/replicas\/([^/]+))?\/detach$/,
+        );
+        if (detachRoute && method === "POST") {
+          app.auth.requireAdmin(auth);
+          const value = await body(req);
+          if (
+            value.confirm !== true ||
+            (value.includeLast !== undefined &&
+              typeof value.includeLast !== "boolean")
+          )
+            throw new AppError("INVALID_INPUT", "Detach confirmation required");
+          await app.files.detach(
+            detachRoute[1]!,
+            detachRoute[2],
+            value.includeLast !== false,
+          );
+          return json({ ok: true });
         }
         const replicaTerminate = path.match(
           /^\/api\/files\/([^/]+)\/replicas\/([^/]+)\/terminate$/,
@@ -707,7 +748,14 @@ export function handler(app: Application) {
         );
         if (replicaDelete && method === "DELETE") {
           app.auth.requireAdmin(auth);
-          await app.files.deleteReplica(replicaDelete[1]!, replicaDelete[2]!);
+          const includeLast = url.searchParams.get("includeLast");
+          if (includeLast !== null && !["true", "false"].includes(includeLast))
+            throw new AppError("INVALID_INPUT", "Invalid includeLast");
+          await app.files.deleteReplica(
+            replicaDelete[1]!,
+            replicaDelete[2]!,
+            includeLast !== "false",
+          );
           return json({ ok: true });
         }
         const moderation = path.match(

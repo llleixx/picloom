@@ -157,7 +157,40 @@ export interface UploadSession extends Entity {
   file_id: string;
   expires_at: number;
 }
+export interface CleanupJob extends Entity {
+  source_id: string;
+  mode: "delete" | "detach";
+  include_last: boolean;
+  status: "active" | "finished";
+}
+export interface CleanupItem extends Entity {
+  job_id: string;
+  file_id: string;
+  replica_id: string;
+  status: "pending" | "running" | "success" | "kept" | "failed";
+  whole_file: boolean;
+  error: string | null;
+}
 export interface Repositories {
+  cleanupPreview(
+    sourceId: string,
+  ): Promise<{ total: number; withoutOtherReady: number }>;
+  cleanupTargets(sourceId: string): Promise<Replica[]>;
+  cleanupJob(id: string): Promise<CleanupJob | null>;
+  latestCleanup(sourceId: string): Promise<CleanupJob | null>;
+  activeCleanups(): Promise<CleanupJob[]>;
+  insertCleanupJob(value: CleanupJob): Promise<void>;
+  saveCleanupJob(value: CleanupJob): Promise<void>;
+  cleanupItems(
+    jobId: string,
+    limit: number,
+    offset: number,
+    states?: CleanupItem["status"][],
+  ): Promise<CleanupItem[]>;
+  cleanupCounts(jobId: string): Promise<Record<CleanupItem["status"], number>>;
+  insertCleanupItem(value: CleanupItem): Promise<void>;
+  saveCleanupItem(value: CleanupItem): Promise<void>;
+  retryCleanupItems(jobId: string): Promise<void>;
   dailyUploadCount(subject: string, day: string): Promise<number>;
   consumeDailyUpload(
     subject: string,
