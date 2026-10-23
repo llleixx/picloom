@@ -205,7 +205,7 @@ curl --fail-with-body "$PICLOOM_URL/api/files/$PICLOOM_FILE_ID" \
 | `GET /api/files/:id/operations` | 管理员查看副本和后台任务 |
 | `DELETE /api/files/:id/replicas/:replicaId` | 管理员删除单个副本 |
 | `POST /api/files/:id/unblock` | 管理员解除屏蔽 |
-| `POST /api/files/:id/replicas/:replicaId/terminate` | 管理员人工终结删除失败副本，JSON：`{"confirm":true}`，返回 `{"ok":true}` |
+| `POST /api/files/:id/replicas/:replicaId/terminate` | 管理员将删除失败的副本人工标记为已删除，JSON：`{"confirm":true}`，返回 `{"ok":true}` |
 | `POST /api/tasks/:id/retry` | 管理员重试符合条件的失败任务 |
 | `GET /api/settings`、`PUT /api/settings` | 读取、保存全套运行设置 |
 | `GET /api/system/status` | 管理员查看系统运行状态 |
@@ -215,7 +215,7 @@ curl --fail-with-body "$PICLOOM_URL/api/files/$PICLOOM_FILE_ID" \
 
 存储组的 `replicaCount` 表示总副本数，范围为 `1` 到成员数量。副本详情按存储源和状态展示。
 
-人工终结要求副本为 `delete_failed` 且无关联运行任务，已为 `deleted` 时重复请求成功。此操作保留历史并结束管理，不保证远端删除；终结后的失败任务不可重试。副本响应的 `instanceDeleted` 表示存储源配置已删除，`instanceId` 保留原标识；配置不存在时 `name` 回退为该标识。存储源的 `usedStorageBytes` 按全部未终结副本统计，`replicaCount` 表示未终结副本数量。
+人工标记要求副本为 `delete_failed` 且无关联运行任务，已为 `deleted` 时重复请求成功。此操作保留历史并结束管理，不保证远端删除；标记后的失败任务不可重试。副本响应的 `instanceDeleted` 表示存储源配置已删除，`instanceId` 保留原标识；配置不存在时 `name` 回退为该标识。存储源的 `usedStorageBytes` 按全部未终结副本统计，`replicaCount` 表示未终结副本数量。
 
 配置修改使用接口要求的 `expectedVersion` 防止覆盖并发更新；遇到 `CONFLICT` 先重新读取。`PUT /api/settings` 接收完整设置对象，不是局部补丁，可先 GET 后修改对应字段再提交。
 

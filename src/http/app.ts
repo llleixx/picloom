@@ -694,7 +694,7 @@ export function handler(app: Application) {
           if ((await body(req)).confirm !== true)
             throw new AppError(
               "INVALID_INPUT",
-              "Confirm termination of replica management",
+              "Confirm marking this replica as deleted",
             );
           await app.files.terminateReplica(
             replicaTerminate[1]!,

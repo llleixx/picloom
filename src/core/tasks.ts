@@ -132,7 +132,7 @@ export class TaskExecutor {
             throw new AppError("NOT_FOUND", "Replica not found", 404);
           if (!["delete_failed", "deleted"].includes(replica.status))
             throw new Conflict(
-              "Only deletion-failed replicas can be terminated",
+              "Only deletion-failed replicas can be marked as deleted",
             );
           const tasks = (await r.tasks(fileId)).filter(
             (t) => t.replica_id === replicaId,

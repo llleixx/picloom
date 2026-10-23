@@ -32,6 +32,6 @@ Create a storage source, add it to a storage group, and select that group in an 
 
 Supports streamed reads and writes, deletion and enumeration. Relative paths resolve against the application working directory. The root must be readable and writable and cannot be changed after instance creation. `.picloom/` stores operation records used to recognize repeated writes; do not remove it as cache. Enumeration skips symlinks, internal metadata and `.part` files.
 
-Deletion uses the object location saved after a successful write or import. Without a confirmed location, deletion fails; manually terminate the replica to end its management.
+Deletion uses the object location saved after a successful write or import. Without a confirmed location, deletion fails; manually mark the replica as deleted to end its management.
 
 Import preserves the full storage key as the public path by default. “Public path strip depth” removes leading directories: stripping two levels maps `ab/cd/photo.jpg` to `photo.jpg`. Scan scope does not change the starting point, and the storage key stays unchanged. Too few directories fail; public path collisions are not overwritten, and registered storage objects are skipped.

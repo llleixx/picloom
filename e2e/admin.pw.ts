@@ -465,17 +465,17 @@ test.describe("deletion failure", () => {
     await expect(capacityBar).toHaveAttribute("aria-valuenow", "50");
     await expect(capacityBar.locator(":scope > div")).toHaveCount(1);
     await row
-      .getByRole("button", { name: "Terminate Replica", exact: true })
+      .getByRole("button", { name: "Mark as Deleted", exact: true })
       .click();
     const confirmation = page.getByRole("dialog", {
-      name: "Terminate Replica",
+      name: "Mark as Deleted",
       exact: true,
     });
     await expect(confirmation).toContainText(
       "Replica and task history are kept. Remote deletion is not guaranteed",
     );
     await confirmation
-      .getByRole("button", { name: "Terminate Replica", exact: true })
+      .getByRole("button", { name: "Mark as Deleted", exact: true })
       .click();
     await expect(row).toContainText("Deleted");
     await expect(

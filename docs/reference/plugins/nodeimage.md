@@ -30,6 +30,6 @@
 
 使用固定服务 `https://api.nodeimage.com`，默认跳转到远端图片地址；关闭 `redirect` 后由 Picloom 转发内容。不支持导入已有图片。上传中断或超时后可能已经保存，重试会重新写入，可能产生重复对象。
 
-不支持远端删除，执行删除会显示删除失败。可在图片详情中人工终结副本，保留历史，**NodeImage 上的图片可能仍然存在**。
+不支持远端删除，执行删除会显示删除失败。可在图片详情中将副本人工标记为已删除，保留历史，**NodeImage 上的图片可能仍然存在**。
 
 [扩展源码](https://github.com/llleixx/picloom-extensions/tree/main/plugins/nodeimage)

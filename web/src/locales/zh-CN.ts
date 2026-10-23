@@ -146,9 +146,9 @@ export const zhCN = {
   "replicas.wholeImage": "全部存储源（删除图片）",
   "replicas.includeLast": "同时删除没有其他可用副本的图片",
   "replicas.keepLast": "没有其他可用副本的图片将被保留，除非下方另行选择。",
-  "replicas.terminate": "终结副本",
+  "replicas.terminate": "人工标记（删除）",
   "replicas.terminateConfirm":
-    "结束对此副本的管理并释放账面容量，保留副本和任务历史，不保证远端对象已删除。",
+    "将副本标记为已删除，结束管理并释放账面容量。保留副本和任务历史，不保证远端对象已删除。",
   "replicas.instanceDeleted": "存储源已删除 · {id}",
   "replicas.delete": "删除副本",
   "replicas.confirm": "将移除所选副本，其他副本和公开链接保持可用。",

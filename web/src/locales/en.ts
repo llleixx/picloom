@@ -178,9 +178,9 @@ export const en = {
   "replicas.includeLast": "Also delete images with no other available replica",
   "replicas.keepLast":
     "Images with no other available replica are kept unless selected below.",
-  "replicas.terminate": "Terminate Replica",
+  "replicas.terminate": "Mark as Deleted",
   "replicas.terminateConfirm":
-    "Stop managing this replica and release its accounted capacity. Replica and task history are kept. Remote deletion is not guaranteed.",
+    "Mark this replica as deleted, stop managing it, and release its accounted capacity. Replica and task history are kept. Remote deletion is not guaranteed.",
   "replicas.instanceDeleted": "Deleted storage source · {id}",
   "replicas.delete": "Delete Replica",
   "replicas.confirm":
