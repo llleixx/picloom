@@ -49,7 +49,12 @@ test("execution data copies JSON values and enforces a total size limit", () => 
 });
 
 test("all stages share data within an attempt; failed actions release sources and retained steps keep identity", async () => {
-  const f = await fixture();
+  let pauseBeforePublish = false;
+  const f = await fixture({
+    beforePublish: async () => {
+      if (pauseBeforePublish) await f.app.files.tasks.pause();
+    },
+  });
   let fail = true;
   const calls: string[] = [];
   const schema: ConfigSchema = {
@@ -194,13 +199,17 @@ test("all stages share data within an attempt; failed actions release sources an
     const path = new URL(file.url).pathname;
     await (await f.request(path + "?run=true")).arrayBuffer();
     await f.app.files.sweep();
-    const tasks = await f.app.db.read((r) => r.tasks(file.id));
+    const tasks = (await f.app.db.read((r) => r.tasks(file.id))).filter(
+      (t) => t.kind === "action",
+    );
     expect(tasks).toHaveLength(1);
     expect(tasks[0]!.status).toBe("failed");
     const operations = await (
       await f.request(`/api/files/${file.id}/operations`)
     ).json();
-    expect(operations.tasks[0]).toMatchObject({
+    expect(
+      operations.tasks.find((t: { kind: string }) => t.kind === "action"),
+    ).toMatchObject({
       error: "PLUGIN_FAILED",
       failedStep: { id: before[1]!.id, name: "Data" },
     });
@@ -208,17 +217,22 @@ test("all stages share data within an attempt; failed actions release sources an
     fail = false;
     await f.app.files.tasks.retry(tasks[0]!.id);
     await f.app.files.sweep();
-    expect(calls).toEqual([
+    expect(calls.filter((call) => call.startsWith("upload:"))).toEqual([
       "upload:produce",
       "upload:consume",
+    ]);
+    expect(calls.filter((call) => call.startsWith("access:"))).toEqual([
       "access:produce",
       "access:consume",
+    ]);
+    expect(calls.filter((call) => call.startsWith("post_save:"))).toEqual([
       "post_save:produce",
       "post_save:consume",
       "post_save:produce",
       "post_save:consume",
     ]);
     expect((await f.app.db.read((r) => r.file(file.id)))!.temp_path).toBeNull();
+    pauseBeforePublish = true;
     const another = await (await f.upload()).json();
     await f.app.configuration.saveProfileEditor(
       {
@@ -229,9 +243,12 @@ test("all stages share data within an attempt; failed actions release sources an
       profile.id,
     );
     await f.app.configuration.deletePipeline(post.id);
+    f.app.files.tasks.resume();
     await f.app.files.sweep();
     expect(
-      (await f.app.db.read((r) => r.tasks(another.id)))[0]?.last_error,
+      (await f.app.db.read((r) => r.tasks(another.id))).find(
+        (t) => t.kind === "action",
+      )?.last_error,
     ).toBe("PIPELINE_MISSING");
   } finally {
     await f.close();

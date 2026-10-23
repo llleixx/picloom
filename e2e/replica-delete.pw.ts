@@ -41,7 +41,7 @@ test("source filter, replica deletion and explicit last-copy deletion", async ({
         data: {
           ...group,
           members: [...group.members, { instanceId: source.id, weight: 1 }],
-          redundancyCount: 1,
+          replicaCount: 2,
           expectedVersion: group.configVersion,
         },
       })

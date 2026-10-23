@@ -231,7 +231,6 @@ export async function configurationRequest(
             name:
               (await r.instance(x.storage_instance_id))?.name ??
               x.storage_instance_id,
-            role: x.role,
             status: x.status,
           })),
         ),

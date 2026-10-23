@@ -23,7 +23,6 @@ import {
   entity,
   type Persistence,
   type FileRecord,
-  type Replica,
   type Step,
   type Task,
 } from "../persistence/port";
@@ -108,6 +107,7 @@ export class Files {
       this.temporary,
       (file, path, signal) => this.download(file, path, signal),
       faults.beforeDelete,
+      faults,
     );
   }
   private context(
@@ -328,16 +328,15 @@ export class Files {
             weight: m.weight,
           });
       }
-      if (eligible.length < g.redundancy_count + 1)
+      if (eligible.length < g.replica_count)
         throw new AppError(
           "STORAGE_UNAVAILABLE",
-          "可用存储实例不足，无法满足冗余数",
+          "可用存储实例不足，无法满足副本数",
           503,
         );
-      const first = selectStorage(eligible, g.selection_strategy, this.random);
-      const remaining = eligible.filter((m) => m.id !== first.id),
+      const remaining = [...eligible],
         targets: string[] = [];
-      for (let n = 0; n < g.redundancy_count; n++) {
+      for (let n = 0; n < g.replica_count; n++) {
         const selected = selectStorage(
           remaining,
           g.selection_strategy,
@@ -348,7 +347,6 @@ export class Files {
       }
       return {
         profile: p,
-        storage: first.id,
         targets,
         steps: p.upload_pipeline_id ? await r.steps(p.upload_pipeline_id) : [],
         actions: p.post_save_pipeline_id
@@ -364,7 +362,8 @@ export class Files {
     const leases: Array<{ release(): Promise<void> }> = [];
     try {
       leases.push(this.plugins.acquire(plan.profile.path_instance_id, "path"));
-      leases.push(this.plugins.acquire(plan.storage, "storage"));
+      for (const id of plan.targets)
+        leases.push(this.plugins.acquire(id, "storage"));
       for (const action of plan.actions)
         leases.push(
           this.plugins.acquire(action.plugin_instance_id, "post_save"),
@@ -395,7 +394,7 @@ export class Files {
             e instanceof AppError && e.code === "DISABLED"
               ? "上传配置已禁用"
               : e instanceof AppError && e.code === "STORAGE_UNAVAILABLE"
-                ? "可用存储源不足，无法满足冗余数"
+                ? "可用存储源不足，无法满足副本数"
                 : "配置关联的资源或插件实例不可用";
         }
         return {
@@ -512,14 +511,11 @@ export class Files {
       prepared.adopted = true;
     }
     let record: FileRecord | undefined;
-    let replica: Replica | undefined;
-    let written = false;
     let published = false;
-    const redundant = plan.targets.map((id) => ({
+    const replicas = plan.targets.map((id) => ({
       ...entity(),
       file_id: base.id,
       storage_instance_id: id,
-      role: "redundant" as const,
       status: "pending" as const,
       locator_json: null,
     }));
@@ -529,7 +525,6 @@ export class Files {
           release: () => Promise<void>;
         }
       | undefined;
-    let storageLease: ReturnType<PluginManager["acquire"]> | undefined;
     let chain: ReturnType<Files["acquireSteps"]> = [];
     const ctx = this.context(signal);
     try {
@@ -543,9 +538,6 @@ export class Files {
           "body",
         ),
       );
-      storageLease = this.plugins.acquire(plan.storage, "storage");
-      const storage =
-        storageLease.runtime as import("../plugins/api").StoragePlugin;
       const temp = prepared?.path ?? this.temp();
       owned.add(temp);
       if (!prepared) {
@@ -609,49 +601,43 @@ export class Files {
         deleted_at: null,
         processing_results_json: null,
       };
-      replica = {
-        ...entity(),
-        file_id: base.id,
-        storage_instance_id: plan.storage,
-        role: "primary",
-        status: "writing",
-        locator_json: null,
-      };
+      signal.throwIfAborted();
       await this.db.transaction(async (r) => {
         await this.auth.authorizeUpload(identity, profileId, r);
         prefix(record!.public_prefix);
-        for (const id of [plan.storage, ...plan.targets])
+        for (const id of plan.targets)
           await checkStorageCapacity(r, id, record!.byte_size!);
         await r.insertFile(record!);
-        await r.insertReplica(replica!);
-        for (const item of redundant) await r.insertReplica(item);
+        for (const replica of replicas) {
+          await r.insertReplica(replica);
+          await r.insertTask({
+            ...entity(),
+            kind: "write",
+            file_id: base.id,
+            replica_id: replica.id,
+            pipeline_id: null,
+            status: "pending",
+            attempts: 0,
+            next_run_at: Date.now(),
+            last_error: null,
+          });
+        }
       });
       owned.delete(current.path);
-      await this.faults.beforeWrite?.();
-      const inputScope = scopedInput(
-        fileInput(current.path, current.metadata),
-        signal,
-      );
-      try {
-        const result = await storage.write(
-          {
-            operationId: `initial:${replica.id}`,
-            fileId: base.id,
-            storageKey,
-            file: inputScope.file,
-          },
-          ctx,
-        );
-        written = true;
-        replica.locator_json = result.locator ?? null;
-        replica.status = "ready";
-      } finally {
-        await inputScope.close();
-      }
-      await this.faults.afterWrite?.();
+      await this.tasks.waitForFirstWrite(base.id, signal);
       await this.faults.beforePublish?.();
       signal.throwIfAborted();
       await this.db.transaction(async (r) => {
+        signal.throwIfAborted();
+        const file = requireValue(await r.file(base.id));
+        if (file.status !== "preparing")
+          throw new Conflict("Upload is no longer preparing");
+        if (
+          !(await r.replicas(base.id)).some(
+            (replica) => replica.status === "ready",
+          )
+        )
+          throw new AppError("UPLOAD_FAILED", "No available copy", 502);
         await this.auth.authorizeUpload(identity, profileId, r);
         const p = requireValue(await r.profile(plan.profile.id));
         if (!p.enabled || p.config_version !== plan.profile.config_version)
@@ -670,21 +656,8 @@ export class Files {
             );
         }
         await this.auth.checkUploadQuota(identity, blob.size, guestIp, r, true);
-        await r.saveReplica(replica!);
         record!.status = "ready";
         await r.saveFile(record!, "preparing");
-        for (const item of redundant)
-          await r.insertTask({
-            ...entity(),
-            kind: "write",
-            file_id: base.id,
-            replica_id: item.id,
-            pipeline_id: null,
-            status: "pending",
-            attempts: 0,
-            next_run_at: Date.now(),
-            last_error: null,
-          });
         if (plan.actions.length)
           await r.insertTask({
             ...entity(),
@@ -699,15 +672,10 @@ export class Files {
           });
       });
       published = true;
-      if (!redundant.length && !plan.actions.length) {
-        await this.temporary.remove(current.path);
-        await this.db.transaction(async (r) => {
-          const f = requireValue(await r.file(base.id));
-          f.temp_path = null;
-          f.temp_status = "cleaned";
-          await r.saveFile(f, "ready");
-        });
-      }
+      // Publication unlocks retries and post-save work. Existing writes keep running.
+      void this.tasks.dispatch().catch(() => {
+        console.error(JSON.stringify({ event: "task_dispatch_failed" }));
+      });
       return {
         id: base.id,
         url: this.config.imageOrigin + publicPath(record.public_prefix, key),
@@ -717,19 +685,12 @@ export class Files {
         await this.db.transaction(async (r) => {
           const f = await r.file(base.id);
           if (!f) return;
-          const previous = f.status;
-          if (f.status !== "deleting") f.status = "failed";
+          if (f.status !== "preparing") return;
+          f.status = "failed";
           f.last_error = e instanceof AppError ? e.code : "UPLOAD_FAILED";
-          await r.saveFile(f, previous);
-          if (replica) {
-            replica.status = written
-              ? "ready"
-              : isPluginError(e) && e.outcome === "notApplied"
-                ? "write_failed"
-                : "write_unknown";
-            await r.saveReplica(replica);
-          }
+          await r.saveFile(f, "preparing");
         });
+        this.tasks.cancel(base.id);
       }
       if (published)
         return {
@@ -750,7 +711,6 @@ export class Files {
           );
         await Promise.all([
           pathLease?.release(),
-          storageLease?.release(),
           ...chain.map((step) => step.release()),
         ]);
       } finally {

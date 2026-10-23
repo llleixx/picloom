@@ -67,7 +67,7 @@ test("historical reads use current group weights, removed members default to one
       {
         ...original,
         members: [...original.members, { instanceId: second.id, weight: 3 }],
-        redundancyCount: 1,
+        replicaCount: 2,
         expectedVersion: original.configVersion,
       },
       original.id,
@@ -104,7 +104,7 @@ test("historical reads use current group weights, removed members default to one
       name: "Other",
       members: original.members.map((m) => ({ ...m, weight: 7 })),
       selectionStrategy: "priority",
-      redundancyCount: 0,
+      replicaCount: 1,
     });
     expect(other.members[0]!.weight).toBe(7);
     for (const bad of [0, -1, Infinity])
@@ -113,7 +113,7 @@ test("historical reads use current group weights, removed members default to one
           {
             ...group,
             members: [{ instanceId: second.id, weight: bad }],
-            redundancyCount: 0,
+            replicaCount: 1,
             expectedVersion: group.configVersion,
           },
           group.id,
@@ -152,7 +152,7 @@ test("historical reads use current group weights, removed members default to one
           { instanceId: ordered[1]!, weight: 9 },
           { instanceId: third.id, weight: 1000 },
         ],
-        redundancyCount: 0,
+        replicaCount: 1,
         expectedVersion: group.configVersion,
       },
       group.id,
@@ -193,7 +193,7 @@ test("configuration API enforces type, concurrency, references, prefixes and ato
         name: "Mixed",
         members: [base, { instanceId: second.id, weight: 3 }],
         selectionStrategy: "priority",
-        redundancyCount: 1,
+        replicaCount: 2,
       }),
     );
     expect(
@@ -313,7 +313,7 @@ test("redundancy uses temporary results, publishes tasks atomically, runs post-s
       {
         ...g,
         members: [...g.members, { instanceId: second.id, weight: 3 }],
-        redundancyCount: 1,
+        replicaCount: 2,
         expectedVersion: g.configVersion,
       },
       g.id,
@@ -341,7 +341,7 @@ test("redundancy uses temporary results, publishes tasks atomically, runs post-s
       (await f.app.db.read((r) => r.tasks(result.id)))
         .map((t) => t.kind)
         .sort(),
-    ).toEqual(["action", "write"]);
+    ).toEqual(["action", "write", "write"]);
     await f.app.files.sweep();
     expect(
       (await f.app.db.read((r) => r.replicas(result.id))).every(
@@ -437,7 +437,9 @@ test("post-save retry restarts the whole pipeline with stable operation IDs", as
     const result = await upload(f);
     await f.app.files.sweep();
     await f.app.files.sweep();
-    const tasks = await f.app.db.read((r) => r.tasks(result.id));
+    const tasks = (await f.app.db.read((r) => r.tasks(result.id))).filter(
+      (t) => t.kind === "action",
+    );
     expect(tasks).toHaveLength(1);
     expect(tasks[0]!.status).toBe("pending");
     expect(calls).toEqual(["/first", "/second"]);
@@ -520,14 +522,16 @@ test("unknown redundant writes recover with task ID without writing twice", asyn
       {
         ...g,
         members: [...g.members, { instanceId: storage.id, weight: 1 }],
-        redundancyCount: 1,
+        replicaCount: 2,
         expectedVersion: g.configVersion,
       },
       g.id,
     );
     const result = await upload(f);
     await f.app.files.sweep();
-    const task = (await f.app.db.read((r) => r.tasks(result.id)))[0]!;
+    const task = (await f.app.db.read((r) => r.tasks(result.id))).find(
+      (t) => t.id === operation,
+    )!;
     expect(task.id).toBe(operation);
     expect(task.status).toBe("pending");
     expect((await f.app.db.read((r) => r.file(result.id)))?.temp_status).toBe(
@@ -569,13 +573,14 @@ test("restart restores pending redundant work and profile deletion waits for exi
       {
         ...g,
         members: [...g.members, { instanceId: second.id, weight: 3 }],
-        redundancyCount: 1,
+        replicaCount: 2,
         expectedVersion: g.configVersion,
       },
       g.id,
     );
-    const result = await upload(f),
-      pending = (await f.app.db.read((r) => r.tasks(result.id)))[0]!;
+    const result = await upload(f);
+    await f.app.files.tasks.drain();
+    const pending = (await f.app.db.read((r) => r.tasks(result.id)))[0]!;
     await f.app.db.transaction(async (r) => {
       const replica = (await r.replica(pending.replica_id!))!;
       replica.status = "writing";
@@ -802,7 +807,9 @@ test("background tasks refill a free slot after failure while another task remai
       ids.push(image.id);
       // Establish an explicit due order without depending on clock resolution.
       await f.app.db.transaction(async (r) => {
-        const task = (await r.tasks(image.id))[0]!;
+        const task = (await r.tasks(image.id)).find(
+          (t) => t.kind === "action",
+        )!;
         task.next_run_at = i;
         await r.saveTask(task);
       });
@@ -820,12 +827,16 @@ test("background tasks refill a free slot after failure while another task remai
     expect(started).toEqual(ids);
     expect(active).toBe(2);
     expect(peak).toBe(2);
-    expect((await f.app.db.read((r) => r.tasks(ids[0]!)))[0]!.status).toBe(
-      "running",
-    );
-    expect((await f.app.db.read((r) => r.tasks(ids[1]!)))[0]!.status).toBe(
-      "failed",
-    );
+    expect(
+      (await f.app.db.read((r) => r.tasks(ids[0]!))).find(
+        (t) => t.kind === "action",
+      )!.status,
+    ).toBe("running");
+    expect(
+      (await f.app.db.read((r) => r.tasks(ids[1]!))).find(
+        (t) => t.kind === "action",
+      )!.status,
+    ).toBe("failed");
     release();
     await sweep;
     expect(f.app.files.temporary.bytes).toBe(0);

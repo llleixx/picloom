@@ -61,7 +61,7 @@ CREATE TABLE storage_groups (
   updated_at INTEGER NOT NULL,
   name TEXT NOT NULL,
   selection_strategy TEXT NOT NULL CHECK(selection_strategy IN ('priority','weighted_random')),
-  redundancy_count INTEGER NOT NULL CHECK(redundancy_count>=0),
+  replica_count INTEGER NOT NULL CHECK(replica_count>=1),
   config_version INTEGER NOT NULL CHECK(config_version>0)
 );
 CREATE TABLE storage_group_members (
@@ -143,7 +143,6 @@ CREATE TABLE file_replicas (
   updated_at INTEGER NOT NULL,
   file_id TEXT NOT NULL REFERENCES files(id),
   storage_instance_id TEXT NOT NULL REFERENCES plugin_instances(id),
-  role TEXT NOT NULL CHECK(role IN ('primary','redundant')),
   status TEXT NOT NULL CHECK(status IN ('pending','writing','ready','write_failed','write_unknown','delete_pending','deleting','delete_failed','delete_unknown','deleted')),
   locator_json TEXT CHECK(locator_json IS NULL OR (json_valid(locator_json) AND json_type(locator_json) IN ('text','object'))),
   UNIQUE(file_id,storage_instance_id),
@@ -166,7 +165,6 @@ CREATE TABLE tasks (
   CHECK((kind='action' AND replica_id IS NULL) OR (kind<>'action' AND pipeline_id IS NULL AND replica_id IS NOT NULL)),
   CHECK(status<>'pending' OR next_run_at IS NOT NULL)
 );
-CREATE UNIQUE INDEX primary_replica ON file_replicas(file_id) WHERE role='primary';
 CREATE UNIQUE INDEX active_replica_task ON tasks(replica_id) WHERE replica_id IS NOT NULL AND status IN ('pending','running','failed');
 CREATE UNIQUE INDEX file_action ON tasks(file_id) WHERE kind='action';
 CREATE UNIQUE INDEX files_public_path ON files(public_path);

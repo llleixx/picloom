@@ -108,7 +108,7 @@ test("first startup creates Owner once and only prints generated passwords", asy
     });
     expect(defaults.groups[0]).toMatchObject({
       name: "Default",
-      redundancy_count: 0,
+      replica_count: 1,
     });
     expect(defaults.instances.find((x) => x.kind === "storage")).toMatchObject({
       name: "Default",
@@ -343,12 +343,15 @@ test("backup restores retained temporary files and resumes replication retries i
       {
         ...group,
         expectedVersion: group.configVersion,
-        redundancyCount: 1,
+        replicaCount: 2,
         members: [...group.members, { instanceId: extra.id, weight: 1 }],
       },
       group.id,
     );
-    await app.files.tasks.pause();
+    const lease = app.plugins.acquire(extra.id, "storage");
+    const failure = spyOn(lease.runtime, "write").mockRejectedValue(
+      new Error("Temporary storage failure"),
+    );
     const content =
       '<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"></svg>';
     const form = new FormData();
@@ -357,27 +360,23 @@ test("backup restores retained temporary files and resumes replication retries i
       "file",
       new File([content], "test.svg", { type: "image/svg+xml" }),
     );
-    const uploaded = await source.request("/api/files", "POST", form);
-    expect(uploaded.status).toBe(201);
-    const id = uploaded.json().id;
-    const task = (await app.db.read((r) => r.tasks(id))).find(
-      (t) => t.kind === "write",
-    )!;
-    const replica = (await app.db.read((r) => r.replicas(id))).find(
-      (r) => r.id === task.replica_id,
-    )!;
-    const lease = app.plugins.acquire(replica.storage_instance_id, "storage");
-    const failure = spyOn(lease.runtime, "write").mockRejectedValue(
-      new Error("Temporary storage failure"),
-    );
+    let id: string;
     try {
-      app.files.tasks.resume();
+      const uploaded = await source.request("/api/files", "POST", form);
+      expect(uploaded.status).toBe(201);
+      id = uploaded.json().id;
       await app.files.tasks.drain();
       await app.files.tasks.pause();
     } finally {
       failure.mockRestore();
       await lease.release();
     }
+    const replica = (await app.db.read((r) => r.replicas(id))).find(
+      (r) => r.storage_instance_id === extra.id,
+    )!;
+    const task = (await app.db.read((r) => r.tasks(id))).find(
+      (t) => t.replica_id === replica.id && t.kind === "write",
+    )!;
     const retry = (await app.db.read((r) => r.task(task.id)))!;
     expect(retry).toMatchObject({ status: "pending", attempts: 1 });
     await app.db.transaction((r) =>
@@ -759,3 +758,72 @@ test("backup pauses automatic refill before draining tasks and resumes after pre
     await rm(parent, { recursive: true, force: true });
   }
 });
+
+test("backup lets admitted uploads finish queued first writes before pausing tasks", async () => {
+  const parent = await mkdtemp(join(tmpdir(), "picloom-backup-upload-"));
+  const f = await setup(parent);
+  let release!: () => void, entered!: () => void;
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const started = new Promise<void>((resolve) => {
+    entered = resolve;
+  });
+  const app = f.runtime.app;
+  app.config.taskConcurrency = 1;
+  const profile = await initializeDevelopment(app);
+  const source = (await app.plugins.storageViews())[0]!;
+  const lease = app.plugins.acquire(source.id, "storage");
+  const original = lease.runtime.write.bind(lease.runtime);
+  let calls = 0;
+  const write = spyOn(lease.runtime, "write").mockImplementation(
+    async (input, ctx) => {
+      if (++calls === 1) {
+        entered();
+        await gate;
+      }
+      return original(input, ctx);
+    },
+  );
+  const uploads: Array<ReturnType<typeof f.request>> = [];
+  let backup: ReturnType<typeof f.request> | undefined;
+  try {
+    for (let i = 0; i < 2; i++) {
+      const form = new FormData();
+      form.set("profileId", profile);
+      form.set(
+        "file",
+        new File(
+          [
+            '<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"></svg>',
+          ],
+          "queued.svg",
+          { type: "image/svg+xml" },
+        ),
+      );
+      uploads.push(f.request("/api/files", "POST", form));
+    }
+    await started;
+    backup = f.request("/api/system/backups", "POST");
+    const deadline = Date.now() + 2000;
+    while ((await f.request("/api/client-settings")).status !== 503) {
+      if (Date.now() > deadline) throw new Error("Maintenance did not start");
+      await Bun.sleep(1);
+    }
+    release();
+    for (const response of await Promise.all(uploads))
+      expect(response.status).toBe(201);
+    write.mockRestore();
+    await lease.release();
+    expect((await backup).status).toBe(201);
+    expect(calls).toBe(2);
+  } finally {
+    release();
+    write.mockRestore();
+    await lease.release();
+    await Promise.allSettled(uploads);
+    await backup;
+    await f.runtime.close();
+    await rm(parent, { recursive: true, force: true });
+  }
+}, 15000);

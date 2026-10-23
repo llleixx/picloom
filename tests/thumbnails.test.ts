@@ -157,6 +157,7 @@ test("thumbnail decode limits reject oversized sources without caching", async (
   const f = await fixture();
   try {
     const uploaded = await (await f.upload()).json();
+    await f.app.files.sweep();
     f.app.config.maxPixels = 1;
     expect(
       (await f.request(`/api/files/${uploaded.id}/thumbnail`)).status,

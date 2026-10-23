@@ -422,10 +422,6 @@ async function remove() {
             class="rounded-lg border p-3 text-sm"
           >
             {{ replica.name }} ·
-            {{
-              replica.role === "primary" ? t("ui.primary") : t("ui.redundant")
-            }}
-            ·
             {{ operationStatuses[replica.status] ?? replica.status }}
             <Button
               v-if="

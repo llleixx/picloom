@@ -71,7 +71,12 @@ async function pipeline(
 }
 
 test("block continues the chain, denies cached public access, preserves copies and allows admin recovery", async () => {
-  const f = await fixture();
+  const f = await fixture({
+    afterWrite: async () => {
+      await f.app.files.tasks.pause();
+    },
+  });
+  f.app.config.taskConcurrency = 1;
   try {
     const following = await pipeline(f, async () => ({
       status: "block",
@@ -89,7 +94,7 @@ test("block continues the chain, denies cached public access, preserves copies a
       {
         ...group,
         expectedVersion: group.configVersion,
-        redundancyCount: 1,
+        replicaCount: 2,
         members: [...group.members, { instanceId: source.id, weight: 1 }],
       },
       group.id,
@@ -121,11 +126,12 @@ test("block continues the chain, denies cached public access, preserves copies a
     const path = new URL(uploaded.url).pathname;
     await (await f.request(path + "?w=20")).arrayBuffer();
     const write = (await f.app.db.read((r) => r.tasks(uploaded.id))).find(
-      (t) => t.kind === "write",
+      (t) => t.kind === "write" && t.status === "pending",
     )!;
     await f.app.db.transaction((r) =>
       r.saveTask({ ...write, next_run_at: Date.now() + 60000 }),
     );
+    f.app.files.tasks.resume();
     await f.app.files.sweep();
     expect((await f.app.db.read((r) => r.file(uploaded.id)))!.status).toBe(
       "blocked",
@@ -303,7 +309,9 @@ test("execution errors retry, pass continues, and an interrupted decision never 
     });
     const uploaded = await (await f.upload()).json();
     await f.app.files.sweep();
-    const task = (await f.app.db.read((r) => r.tasks(uploaded.id)))[0]!;
+    const task = (await f.app.db.read((r) => r.tasks(uploaded.id))).find(
+      (t) => t.kind === "action",
+    )!;
     expect(task.status).toBe("pending");
     expect((await f.app.db.read((r) => r.file(uploaded.id)))!.status).toBe(
       "ready",
@@ -438,7 +446,9 @@ test("Post-save summaries survive later failures and invalid results fail withou
     invalid = true;
     const oversized = await (await f.upload()).json();
     await f.app.files.sweep();
-    const failed = (await f.app.db.read((r) => r.tasks(oversized.id)))[0]!;
+    const failed = (await f.app.db.read((r) => r.tasks(oversized.id))).find(
+      (t) => t.kind === "action",
+    )!;
     expect(failed.status).toBe("failed");
     expect(failed.last_error).toContain("PROCESSING_RESULT_INVALID");
     expect(
@@ -526,7 +536,7 @@ test("later execution or invalid-result failures preserve block/delete and do no
           invalid ? "PLUGIN_RESULT" : "ACTION_FAILED",
         );
         const file = (await f.app.db.read((r) => r.file(image.id)))!;
-        expect(file.status).toBe(status === "block" ? "blocked" : "deleting");
+        expect(file.status).toBe(status === "block" ? "blocked" : "deleted");
         expect(file.processing_results_json).toHaveLength(1);
         expect(file.processing_results_json![0]!.status).toBe(status);
         await f.restart();

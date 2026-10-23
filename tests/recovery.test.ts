@@ -72,6 +72,17 @@ test("delete racing with upload prevents publication and retains cleanup locator
     await f.app.files.delete(file.id);
     release();
     expect((await pending).status).toBe(409);
+    await f.app.files.tasks.drain();
+    expect(
+      (await f.app.db.read((r) => r.tasks(file.id))).find(
+        (task) => task.kind === "write",
+      ),
+    ).toMatchObject({
+      status: "success",
+      attempts: 1,
+      last_error: null,
+      next_run_at: null,
+    });
     await f.app.files.sweep();
     expect((await f.app.db.read((r) => r.file(file.id)))!.status).toBe(
       "deleted",

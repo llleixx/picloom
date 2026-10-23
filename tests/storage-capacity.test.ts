@@ -144,7 +144,7 @@ test("full sources are skipped and background writes obey a lowered limit", asyn
       {
         ...group,
         selectionStrategy: "priority",
-        redundancyCount: 1,
+        replicaCount: 2,
         members: [
           { instanceId: first.id, weight: 1 },
           { instanceId: second.id, weight: 1 },
@@ -156,25 +156,43 @@ test("full sources are skipped and background writes obey a lowered limit", asyn
     const response = await f.upload();
     expect(response.ok).toBe(true);
     const file = await response.json();
+    await f.app.files.tasks.drain();
+    // Stage another write explicitly; uploads now start all copies immediately.
+    await f.app.files.tasks.pause();
+    await f.app.db.transaction(async (r) => {
+      const replica = (await r.replicas(file.id)).find(
+        (r) => r.storage_instance_id === second.id,
+      )!;
+      const task = (await r.tasks(file.id)).find(
+        (t) => t.replica_id === replica.id,
+      )!;
+      await r.saveReplica({ ...replica, status: "pending" });
+      await r.saveTask({ ...task, status: "pending", next_run_at: Date.now() });
+    });
     const edited = await f.request(`/api/storage-sources/${second.id}`, "PUT", {
       ...second,
       maxStorageBytes: 1,
       expectedVersion: second.configVersion,
     });
     expect(edited.ok).toBe(true);
+    f.app.files.tasks.resume();
     await f.app.files.sweep();
     const replicas = await f.app.db.read((r) => r.replicas(file.id));
     expect(
       replicas.find((r) => r.storage_instance_id === second.id)?.status,
     ).toBe("write_failed");
     const tasks = await f.app.db.read((r) => r.tasks(file.id));
-    expect(tasks.find((t) => t.kind === "write")?.last_error).toBe(
-      "STORAGE_CAPACITY_EXCEEDED",
-    );
+    expect(
+      tasks.find(
+        (t) =>
+          t.replica_id ===
+          replicas.find((r) => r.storage_instance_id === second.id)!.id,
+      )?.last_error,
+    ).toBe("STORAGE_CAPACITY_EXCEEDED");
     await f.app.configuration.saveGroup(
       {
         ...group,
-        redundancyCount: 0,
+        replicaCount: 1,
         members: [
           { instanceId: second.id, weight: 1 },
           { instanceId: first.id, weight: 1 },

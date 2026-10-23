@@ -56,7 +56,7 @@ curl --fail-with-body "$PICLOOM_URL/api/files" \
 }
 ```
 
-`url` 用于分享，`id` 用于管理。主副本此时已写入，后台冗余与保存后处理可能仍在执行。
+`url` 用于分享，`id` 用于管理。至少一份副本此时已写入并完成发布，其他副本写入与保存后处理可能仍在执行。
 
 普通上传文件上限为 20 MiB，并同时受全局、用户和上传配置限制。提高全局上限不会解除普通上传上限，大文件需使用分片接口。
 
@@ -212,6 +212,8 @@ curl --fail-with-body "$PICLOOM_URL/api/files/$PICLOOM_FILE_ID" \
 | `POST /api/storage-sources/:id/import` | 管理员分页导入，JSON：`publicPrefix`、`mimeTypes`，可选 `scope`、`cursor`、`stripDirectories`（默认 `0`，非负整数） |
 | `/api/storage-sources`、`/api/storage-groups` | 管理存储源和存储组 |
 | `/api/upload-profiles`、`/api/pipelines` | 管理上传配置与流水线 |
+
+存储组的 `replicaCount` 表示总副本数，范围为 `1` 到成员数量。副本详情按存储源和状态展示。
 
 配置修改使用接口要求的 `expectedVersion` 防止覆盖并发更新；遇到 `CONFLICT` 先重新读取。`PUT /api/settings` 接收完整设置对象，不是局部补丁，可先 GET 后修改对应字段再提交。
 

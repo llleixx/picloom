@@ -45,7 +45,7 @@ export interface Instance extends Entity {
 export interface Group extends Entity {
   name: string;
   selection_strategy: "priority" | "weighted_random";
-  redundancy_count: number;
+  replica_count: number;
   config_version: number;
 }
 export interface Pipeline extends Entity {
@@ -115,7 +115,6 @@ export type ReplicaStatus =
 export interface Replica extends Entity {
   file_id: string;
   storage_instance_id: string;
-  role: "primary" | "redundant";
   status: ReplicaStatus;
   locator_json: Locator;
 }
@@ -343,6 +342,7 @@ export interface Repositories {
       limit: number;
       excludedFiles: string[];
       excludedTasks: string[];
+      activeFiles?: string[];
     },
   ): Promise<Task[]>;
   recoverTasks(retryLimit: number): Promise<void>;

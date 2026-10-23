@@ -129,7 +129,7 @@ export interface GroupView {
   id: string;
   name: string;
   selectionStrategy: "priority" | "weighted_random";
-  redundancyCount: number;
+  replicaCount: number;
   configVersion: number;
   members: Array<{ instanceId: string; weight: number }>;
 }
@@ -158,7 +158,6 @@ export interface OperationsView {
     id: string;
     instanceId: string;
     name: string;
-    role: string;
     status: string;
   }>;
   tasks: Array<{

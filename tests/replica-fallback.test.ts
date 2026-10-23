@@ -6,6 +6,7 @@ import { handler } from "../src/http/app";
 async function setup() {
   const f = await fixture();
   const uploaded = await (await f.upload()).json();
+  await f.app.files.sweep();
   const file = (await f.app.db.read((r) => r.file(uploaded.id)))!;
   const replica = (await f.app.db.read((r) => r.replicas(file.id)))[0]!;
   const original = (await f.app.db.read((r) =>
@@ -18,7 +19,6 @@ async function setup() {
       ...replica,
       ...entity(),
       storage_instance_id: copy.id,
-      role: "redundant",
     });
   });
   await f.app.plugins.activate(copy.id);

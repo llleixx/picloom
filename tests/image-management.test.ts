@@ -109,7 +109,6 @@ test("replica issue filter matches the selected source and keeps counts consiste
       ...primary,
       id: crypto.randomUUID(),
       storage_instance_id: source.id,
-      role: "redundant" as const,
     };
     await f.app.db.transaction((r) => r.insertReplica(replica));
     for (const status of [

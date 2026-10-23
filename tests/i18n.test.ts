@@ -24,7 +24,7 @@ test("API error codes select English copy instead of backend display text", () =
     },
     503,
   );
-  expect(error.message).toContain("redundancy");
+  expect(error.message).toContain("copies");
   expect(error.requestId).toBe("request-1");
   expect(errorMessage("PIPELINE_MISSING")).toContain("deleted");
   expect(
@@ -55,7 +55,7 @@ test("Chinese catalog covers every message and preserves interpolation placehold
   expect(t("processing.integerRange", { field: "w", max: 8192 })).toBe(
     "w 必须是 1 到 8192 之间的整数。",
   );
-  expect(errorMessage("STORAGE_UNAVAILABLE")).toContain("冗余");
+  expect(errorMessage("STORAGE_UNAVAILABLE")).toContain("副本");
   expect(errorMessage("FUTURE_ERROR")).toBe("请求失败，请重试。");
 });
 

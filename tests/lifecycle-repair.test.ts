@@ -20,7 +20,7 @@ async function redundant() {
       ...group,
       selectionStrategy: "priority",
       members: [...group.members, { instanceId: source.id, weight: 1 }],
-      redundancyCount: 1,
+      replicaCount: 2,
       expectedVersion: group.configVersion,
     },
     group.id,
@@ -60,13 +60,19 @@ test("deletion exhausts one budget, survives restart, and resumes only on explic
     expect((await f.app.db.read((r) => r.file(image.id)))?.status).toBe(
       "delete_failed",
     );
-    const [task] = await f.app.db.read((r) => r.tasks(image.id));
+    const task = (await f.app.db.read((r) => r.tasks(image.id))).find(
+      (t) => t.status === "failed",
+    );
     expect(task).toMatchObject({ status: "failed", attempts: 2 });
     await f.app.files.sweep();
     await f.restart();
     await f.app.files.sweep();
     expect(calls).toBe(2);
-    expect(await f.app.db.read((r) => r.tasks(image.id))).toHaveLength(1);
+    expect(
+      (await f.app.db.read((r) => r.tasks(image.id))).filter(
+        (t) => t.kind === "delete",
+      ),
+    ).toHaveLength(1);
     failing = false;
     expect(
       (await f.request(`/api/tasks/${task!.id}/retry`, "POST")).status,
@@ -94,7 +100,9 @@ test("repair reads another replica after temp cleanup, respects capacity, and re
     );
     const image = await (await f.upload()).json();
     await f.app.files.sweep();
-    const [task] = await f.app.db.read((r) => r.tasks(image.id));
+    const task = (await f.app.db.read((r) => r.tasks(image.id))).find(
+      (t) => t.status === "failed",
+    );
     const file = (await f.app.db.read((r) => r.file(image.id)))!;
     expect(file.temp_path).toBeNull();
     expect(f.app.files.temporary.bytes).toBe(0);
@@ -155,7 +163,9 @@ test("unknown write is verified without rewriting; missing repair source is repo
     );
     const image = await (await f.upload()).json();
     await f.app.files.sweep();
-    const [task] = await f.app.db.read((r) => r.tasks(image.id));
+    const task = (await f.app.db.read((r) => r.tasks(image.id))).find(
+      (t) => t.status === "failed",
+    );
     await f.app.db.transaction(async (r) => {
       const other = (await r.replicas(image.id)).find(
         (x) => x.storage_instance_id !== source.id,
@@ -181,7 +191,10 @@ test("unknown write is verified without rewriting; missing repair source is repo
     const operations = await (
       await f.request(`/api/files/${image.id}/operations`)
     ).json();
-    expect(operations.tasks[0].retryError).toBe("REPAIR_SOURCE_MISSING");
+    expect(
+      operations.tasks.find((t: { id: string }) => t.id === task!.id)
+        .retryError,
+    ).toBe("REPAIR_SOURCE_MISSING");
   } finally {
     write.mockRestore();
     recover.mockRestore();
@@ -250,6 +263,7 @@ test("restart converts interrupted writes to unknown without resetting an exhaus
   const { f } = await redundant();
   try {
     const image = await (await f.upload()).json();
+    await f.app.files.tasks.drain();
     const [task] = await f.app.db.read((r) => r.tasks(image.id));
     await f.app.db.transaction(async (r) => {
       await r.saveTask({
@@ -303,7 +317,7 @@ test("a failed verification never turns an earlier unknown write into an absent 
     const image = await (await f.upload()).json();
     await f.app.files.sweep();
     const task = (await f.app.db.read((r) => r.tasks(image.id))).find(
-      (t) => t.kind === "write",
+      (t) => t.kind === "write" && t.status === "failed",
     )!;
     const file = (await f.app.db.read((r) => r.file(image.id)))!;
     expect(
@@ -337,6 +351,7 @@ test("restart makes exhausted tasks recoverable even before their replica operat
   const { f } = await redundant();
   try {
     const image = await (await f.upload()).json();
+    await f.app.files.tasks.drain();
     const [write] = await f.app.db.read((r) => r.tasks(image.id));
     await f.app.db.transaction(async (r) => {
       await r.saveTask({
@@ -344,6 +359,8 @@ test("restart makes exhausted tasks recoverable even before their replica operat
         status: "running",
         attempts: f.app.config.retryLimit,
       });
+      const replica = (await r.replica(write!.replica_id!))!;
+      await r.saveReplica({ ...replica, status: "pending" });
     });
     await f.restart();
     expect(

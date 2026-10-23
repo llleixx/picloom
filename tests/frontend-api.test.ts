@@ -29,7 +29,10 @@ test("frontend endpoints expose public safe limits and protected profile options
       enabledLocales: ["zh-CN", "en-US"],
       defaultLocale: "en-US",
       content: {
-        "en-US": { name: "Picloom", description: "Capture the moment. Share what you see." },
+        "en-US": {
+          name: "Picloom",
+          description: "Capture the moment. Share what you see.",
+        },
         "zh-CN": { name: "Picloom", description: "记录此刻，分享所见。" },
       },
       siteLogoUrl: "/assets/picloom.svg",
@@ -116,7 +119,7 @@ test("frontend endpoints expose public safe limits and protected profile options
     const group = (await f.app.db.read((r) =>
       r.group(original!.storage_group_id),
     ))!;
-    const unsupportedGroup = { ...group, ...entity(), redundancy_count: 1 };
+    const unsupportedGroup = { ...group, ...entity(), replica_count: 2 };
     await f.app.db.transaction(async (r) => {
       await r.insertGroup(unsupportedGroup);
       await r.insertProfile({
@@ -131,7 +134,7 @@ test("frontend endpoints expose public safe limits and protected profile options
     const unsupported = await (await f.request("/api/upload-profiles")).json();
     expect(
       unsupported.find((p: any) => p.name === "Unsupported group").reason,
-    ).toContain("冗余数");
+    ).toContain("副本数");
     f.app.plugins.register({
       defaultLocale: "en-US",
       nameKey: "package.name",

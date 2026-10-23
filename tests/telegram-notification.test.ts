@@ -247,7 +247,7 @@ test("moderation followed by Telegram preserves block/delete even when delivery 
           ? "ready"
           : current === "block"
             ? "blocked"
-            : "deleting",
+            : "deleted",
       );
       if (current === "pass") expect(texts).toHaveLength(0);
       else expect(texts.at(-1)).toContain(`"suggestion": "${current}"`);

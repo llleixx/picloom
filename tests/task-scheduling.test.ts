@@ -59,7 +59,9 @@ test("dispatch fills idle slots beside a slow task, enforces capacity and drains
   try {
     f.app.config.taskConcurrency = 2;
     const a = await upload(f),
-      b = await upload(f);
+      b = await upload(f),
+      c = await upload(f),
+      queued = await upload(f);
     lease = f.app.plugins.acquire(a.replica.storage_instance_id, "storage");
     const entered = new Set<string>();
     let active = 0,
@@ -93,7 +95,6 @@ test("dispatch fills idle slots beside a slow task, enforces capacity and drains
       f.app.files.tasks.dispatch(),
     ]);
     await until(() => entered.size === 2);
-    const c = await upload(f);
     await queueDelete(f, c.file, c.replica);
     expect(await f.app.files.tasks.dispatch()).toEqual([]);
     fast.release();
@@ -109,7 +110,6 @@ test("dispatch fills idle slots beside a slow task, enforces capacity and drains
     expect((await f.app.db.read((r) => r.replica(a.replica.id)))!.status).toBe(
       "deleting",
     );
-    const queued = await upload(f);
     await queueDelete(f, queued.file, queued.replica);
     let closed = false;
     const closing = f.app.files.tasks.close().then(() => {
@@ -123,7 +123,9 @@ test("dispatch fills idle slots beside a slow task, enforces capacity and drains
     await closing;
     expect(closed).toBe(true);
     expect(
-      (await f.app.db.read((r) => r.tasks(queued.file.id)))[0]!.attempts,
+      (await f.app.db.read((r) => r.tasks(queued.file.id))).find(
+        (t) => t.kind === "delete",
+      )!.attempts,
     ).toBe(0);
   } finally {
     slow.release();
@@ -166,10 +168,23 @@ test("recovery runs as a bounded task while unrelated tasks continue", async () 
       ...a.replica,
       ...entity(),
       storage_instance_id: source.id,
-      role: "redundant",
+
       status: "write_unknown",
     };
-    await f.app.db.transaction((r) => r.insertReplica(uncertain));
+    await f.app.db.transaction(async (r) => {
+      await r.insertReplica(uncertain);
+      await r.insertTask({
+        ...entity(),
+        kind: "write",
+        file_id: a.file.id,
+        replica_id: uncertain.id,
+        pipeline_id: null,
+        status: "failed",
+        attempts: 1,
+        next_run_at: null,
+        last_error: "WRITE_UNKNOWN",
+      });
+    });
     lease = f.app.plugins.acquire(a.replica.storage_instance_id, "storage");
     let recovering = false;
     recovery = spyOn(recoveryLease.runtime, "recoverWrite").mockImplementation(
@@ -199,14 +214,14 @@ test("recovery runs as a bounded task while unrelated tasks continue", async () 
     await until(() => recovering && deleted.includes(b.file.storage_key));
     expect(
       (await f.app.db.read((r) => r.tasks(a.file.id))).find(
-        (t) => t.replica_id === uncertain.id,
+        (t) => t.replica_id === uncertain.id && t.kind === "delete",
       )?.status,
     ).toBe("running");
     blocked.release();
     await f.app.files.tasks.drain();
     await f.app.db.transaction(async (r) => {
       const task = (await r.tasks(a.file.id)).find(
-        (t) => t.replica_id === a.replica.id,
+        (t) => t.replica_id === a.replica.id && t.kind === "delete",
       )!;
       await r.saveTask({ ...task, next_run_at: Date.now() });
     });
@@ -233,7 +248,9 @@ test("one dispatch drains a fast backlog and skips tasks whose files no longer a
     f.app.config.taskConcurrency = 1;
     const stale = await upload(f);
     await queueDelete(f, stale.file, stale.replica);
-    const pending = (await f.app.db.read((r) => r.tasks(stale.file.id)))[0]!;
+    const pending = (await f.app.db.read((r) => r.tasks(stale.file.id))).find(
+      (t) => t.kind === "delete",
+    )!;
     await f.app.db.transaction(async (r) => {
       pending.kind = "write";
       pending.next_run_at = 0;
@@ -251,7 +268,9 @@ test("one dispatch drains a fast backlog and skips tasks whose files no longer a
     await f.app.files.tasks.drain();
     for (const item of healthy)
       expect(
-        (await f.app.db.read((r) => r.tasks(item.file.id)))[0]!.status,
+        (await f.app.db.read((r) => r.tasks(item.file.id))).find(
+          (t) => t.kind === "delete",
+        )!.status,
       ).toBe("success");
     expect((await f.app.db.read((r) => r.task(pending.id)))!.attempts).toBe(0);
   } finally {
@@ -264,6 +283,9 @@ test("pause fences an in-progress admission query and resume restarts the backlo
   const queried = gate(),
     release = gate();
   const { SqlRepositories } = await import("../src/persistence/repositories");
+  const item = await upload(f);
+  await f.app.files.tasks.drain();
+  await queueDelete(f, item.file, item.replica);
   const original = SqlRepositories.prototype.dueTasks;
   const query = spyOn(SqlRepositories.prototype, "dueTasks").mockImplementation(
     async function (this: InstanceType<typeof SqlRepositories>, ...args) {
@@ -274,8 +296,6 @@ test("pause fences an in-progress admission query and resume restarts the backlo
     },
   );
   try {
-    const item = await upload(f);
-    await queueDelete(f, item.file, item.replica);
     const dispatch = f.app.files.tasks.dispatch();
     await queried.promise;
     const paused = f.app.files.tasks.pause();
@@ -283,15 +303,19 @@ test("pause fences an in-progress admission query and resume restarts the backlo
     await Promise.all([dispatch, paused]);
     await f.app.files.tasks.drain();
     expect(
-      (await f.app.db.read((r) => r.tasks(item.file.id)))[0]!.attempts,
+      (await f.app.db.read((r) => r.tasks(item.file.id))).find(
+        (t) => t.kind === "delete",
+      )!.attempts,
     ).toBe(0);
     expect(await f.app.files.tasks.dispatch()).toEqual([]);
     query.mockRestore();
     f.app.files.tasks.resume();
     await f.app.files.tasks.drain();
-    expect((await f.app.db.read((r) => r.tasks(item.file.id)))[0]!.status).toBe(
-      "success",
-    );
+    expect(
+      (await f.app.db.read((r) => r.tasks(item.file.id))).find(
+        (t) => t.kind === "delete",
+      )!.status,
+    ).toBe("success");
   } finally {
     release.release();
     query.mockRestore();

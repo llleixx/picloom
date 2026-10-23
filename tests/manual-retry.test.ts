@@ -18,7 +18,9 @@ test("manual retry persists across restart, counts attempts cumulatively and nev
     const image = await (await f.upload()).json();
     await f.app.files.delete(image.id);
     await f.app.files.sweep();
-    let task = (await f.app.db.read((r) => r.tasks(image.id)))[0]!;
+    let task = (await f.app.db.read((r) => r.tasks(image.id))).find(
+      (t) => t.kind === "delete",
+    )!;
     expect(task.attempts).toBe(1);
     retryable = true;
     await f.app.files.tasks.retry(task.id);

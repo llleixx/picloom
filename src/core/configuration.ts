@@ -521,7 +521,7 @@ export class Configuration {
       id: g.id,
       name: g.name,
       selectionStrategy: g.selection_strategy,
-      redundancyCount: g.redundancy_count,
+      replicaCount: g.replica_count,
       configVersion: g.config_version,
       members: (members.get(g.id) ?? []).map((m) => ({
         instanceId: m.storage_instance_id,
@@ -549,11 +549,11 @@ export class Configuration {
       );
     if (
       !["priority", "weighted_random"].includes(input.selectionStrategy) ||
-      !Number.isInteger(input.redundancyCount) ||
-      input.redundancyCount < 0 ||
-      input.redundancyCount >= input.members.length
+      !Number.isInteger(input.replicaCount) ||
+      input.replicaCount < 1 ||
+      input.replicaCount > input.members.length
     )
-      throw new AppError("INVALID_INPUT", "存储选择策略或冗余数无效");
+      throw new AppError("INVALID_INPUT", "存储选择策略或副本数无效");
     const result = await this.db.transaction(async (r) => {
       const old = id ? requireValue(await r.group(id)) : null,
         existing = old
@@ -571,7 +571,7 @@ export class Configuration {
         ...(old ?? entity()),
         name: name(input.name),
         selection_strategy: input.selectionStrategy,
-        redundancy_count: input.redundancyCount,
+        replica_count: input.replicaCount,
         config_version: (old?.config_version ?? 0) + 1,
         updated_at: Date.now(),
       };

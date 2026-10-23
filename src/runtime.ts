@@ -105,8 +105,9 @@ export async function startRuntime(
     const finish = maintenanceFlight.enter("maintenance");
     let closed = false;
     try {
-      await app.files.tasks.pause();
+      // Existing uploads need the task executor to reach their first stored copy.
       await active.drain();
+      await app.files.tasks.pause();
       await app.files.tasks.drain();
       const sources = await app.db.read((r) => r.instances());
       const snapshot: BackupSnapshot = {
@@ -261,10 +262,9 @@ export async function startRuntime(
     async close() {
       stopped = true;
       clearInterval(timer);
-      await app.files.tasks.pause();
       await maintenanceFlight.drain();
-      await app.files.tasks.pause();
       await active.drain();
+      await app.files.tasks.pause();
       await app.close();
       await unlock();
     },

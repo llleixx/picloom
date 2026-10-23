@@ -37,6 +37,7 @@ export class TaskExecutor {
     string,
     { fileId: string; promise: Promise<void> }
   >();
+  private waiters = new Map<string, Set<(error?: unknown) => void>>();
   private controllers = new Map<
     string,
     { fileId: string; kind: Task["kind"]; controller: AbortController }
@@ -54,8 +55,63 @@ export class TaskExecutor {
       signal: AbortSignal,
     ) => Promise<void>,
     private beforeDelete?: () => Promise<void>,
+    private writeFaults: {
+      beforeWrite?(): Promise<void>;
+      afterWrite?(): Promise<void>;
+    } = {},
   ) {}
+  private notify(fileId: string, error?: unknown) {
+    for (const wake of this.waiters.get(fileId) ?? []) wake(error);
+  }
+  async waitForFirstWrite(fileId: string, signal: AbortSignal) {
+    let dispatch = true;
+    for (;;) {
+      // Subscribe before reading state so a committed result cannot be missed.
+      let wake!: (error?: unknown) => void;
+      const changed = new Promise<unknown>((resolve) => {
+        wake = resolve;
+      });
+      const listeners = this.waiters.get(fileId) ?? new Set();
+      listeners.add(wake);
+      this.waiters.set(fileId, listeners);
+      const abort = () => wake(signal.reason);
+      signal.addEventListener("abort", abort, { once: true });
+      try {
+        signal.throwIfAborted();
+        if (this.stopping)
+          throw new AppError("UNAVAILABLE", "Service stopping", 503);
+        if (dispatch) {
+          dispatch = false;
+          void this.dispatch().catch(wake);
+        }
+        const state = await this.db.read(async (r) => ({
+          file: requireValue(await r.file(fileId)),
+          replicas: await r.replicas(fileId),
+          tasks: await r.tasks(fileId),
+        }));
+        if (state.file.status !== "preparing")
+          throw new Conflict("Upload is no longer preparing");
+        if (state.replicas.some((replica) => replica.status === "ready"))
+          return;
+        const unfinished = state.tasks.some(
+          (task) =>
+            task.kind === "write" &&
+            (task.status === "running" ||
+              (task.status === "pending" && task.attempts === 0)),
+        );
+        if (!unfinished)
+          throw new AppError("UPLOAD_FAILED", "All storage writes failed", 502);
+        const error = await changed;
+        if (error) throw error;
+      } finally {
+        signal.removeEventListener("abort", abort);
+        listeners.delete(wake);
+        if (!listeners.size) this.waiters.delete(fileId);
+      }
+    }
+  }
   cancel(fileId: string) {
+    this.notify(fileId);
     for (const item of this.controllers.values())
       if (item.fileId === fileId && item.kind !== "delete")
         item.controller.abort();
@@ -329,7 +385,10 @@ export class TaskExecutor {
         task.kind === "delete"
           ? !["ready", "blocked", "failed", "deleting"].includes(file.status)
           : task.kind === "write"
-            ? !["ready", "blocked"].includes(file.status)
+            ? !(
+                ["ready", "blocked"].includes(file.status) ||
+                (file.status === "preparing" && task.attempts === 0)
+              )
             : file.status !== "ready"
       )
         return null;
@@ -375,6 +434,7 @@ export class TaskExecutor {
     let activeStep: { id: string; name: string } | undefined;
     let decision: "pass" | "block" | "delete" = "pass";
     const results: ProcessingResult[] = [];
+    let writeCompleted = false;
     let writeAttempted = false,
       previousWriteUnknown =
         !!replica && ["writing", "write_unknown"].includes(replica.status);
@@ -517,6 +577,7 @@ export class TaskExecutor {
             if (result.status === "stored") {
               replica!.locator_json = result.locator ?? null;
               stored = true;
+              writeCompleted = true;
             }
             if (result.status === "notStored") previousWriteUnknown = false;
           }
@@ -524,6 +585,13 @@ export class TaskExecutor {
             const path = await sourcePath();
             replica!.status = "writing";
             await this.db.transaction(async (r) => {
+              const current = requireValue(await r.file(file.id));
+              if (!["preparing", "ready", "blocked"].includes(current.status))
+                throw new AppError(
+                  "FILE_DELETING",
+                  "File no longer accepts writes",
+                  409,
+                );
               await checkStorageCapacity(
                 r,
                 replica!.storage_instance_id,
@@ -542,6 +610,8 @@ export class TaskExecutor {
               controller.signal,
             );
             try {
+              if (file.status === "preparing")
+                await this.writeFaults.beforeWrite?.();
               controller.signal.throwIfAborted();
               writeAttempted = true;
               const result = await storage.write(
@@ -554,9 +624,12 @@ export class TaskExecutor {
                 ctx,
               );
               replica!.locator_json = result.locator ?? null;
+              writeCompleted = true;
             } finally {
               await scope.close();
             }
+            if (file.status === "preparing")
+              await this.writeFaults.afterWrite?.();
           }
           replica!.status = "ready";
         } else {
@@ -567,7 +640,7 @@ export class TaskExecutor {
             ).find((t) => t.kind === "write" && t.replica_id === replica!.id);
             const recovered = await storage.recoverWrite?.(
               {
-                operationId: writeTask?.id ?? `initial:${replica!.id}`,
+                operationId: requireValue(writeTask, "Write task missing").id,
                 fileId: file.id,
                 storageKey: file.storage_key,
                 expectedSize: file.byte_size!,
@@ -607,7 +680,8 @@ export class TaskExecutor {
           replica!.status = "deleted";
         }
       }
-      controller.signal.throwIfAborted();
+      // Cancellation cannot undo a confirmed write. Publication is checked separately.
+      if (!writeCompleted) controller.signal.throwIfAborted();
       await this.db.transaction(async (r) => {
         const current = requireValue(await r.task(id));
         if (current.status !== "running") throw new Conflict();
@@ -632,6 +706,17 @@ export class TaskExecutor {
         const t = requireValue(await r.task(id)),
           f = requireValue(await r.file(file.id));
         if (t.status !== "running") return;
+        // Input cleanup or persistence may fail after storage has confirmed success.
+        // Keep that result atomic with task completion; it must never become a retry.
+        if (writeCompleted && replica) {
+          replica.status = "ready";
+          t.status = "success";
+          t.next_run_at = null;
+          t.last_error = null;
+          await r.saveReplica(replica);
+          await r.saveTask(t, "running");
+          return;
+        }
         const cancelled = t.kind === "action" && f.status === "deleting";
         // Never overwrite a concurrent user deletion. Keep completed decisions even
         // when a later plugin throws, times out or returns an invalid result.
@@ -719,6 +804,7 @@ export class TaskExecutor {
         } finally {
           this.controllers.delete(id);
           end();
+          this.notify(file.id);
         }
       }
     }
@@ -753,15 +839,27 @@ export class TaskExecutor {
       if (this.paused || this.stopping) return [];
       const capacity = this.config.taskConcurrency - this.running.size;
       if (capacity <= 0) return [];
-      const due = await this.db.read((r) =>
-        r.dueTasks(Date.now(), {
-          limit: capacity,
-          excludedFiles: [...this.cleaning, ...this.forgetting],
-          excludedTasks: [...this.running.keys()],
-        }),
-      );
-      if (this.paused || this.stopping) return [];
-      for (const task of due) {
+      const started: string[] = [];
+      while (
+        !this.paused &&
+        !this.stopping &&
+        this.running.size < this.config.taskConcurrency
+      ) {
+        const [task] = await this.db.read((r) =>
+          r.dueTasks(Date.now(), {
+            limit: 1,
+            excludedFiles: [...this.cleaning, ...this.forgetting],
+            excludedTasks: [...this.running.keys()],
+            activeFiles: [...this.running.values()].map((task) => task.fileId),
+          }),
+        );
+        if (
+          !task ||
+          this.paused ||
+          this.stopping ||
+          this.running.size >= this.config.taskConcurrency
+        )
+          break;
         let completed = false;
         const promise = Promise.resolve()
           .then(() => this.run(task.id))
@@ -769,6 +867,10 @@ export class TaskExecutor {
             completed = true;
           })
           .catch(() => {
+            this.notify(
+              task.file_id,
+              new AppError("UPLOAD_FAILED", "Task execution failed", 500),
+            );
             console.error(
               JSON.stringify({
                 event: "task_execution_failed",
@@ -782,8 +884,9 @@ export class TaskExecutor {
             if (completed) this.refill();
           });
         this.running.set(task.id, { fileId: task.file_id, promise });
+        started.push(task.id);
       }
-      return due.map((task) => task.id);
+      return started;
     });
   }
   async pause() {
@@ -836,13 +939,19 @@ export class TaskExecutor {
   }
   // Explicit startup/manual sweep keeps its await-until-finished semantics.
   async sweep() {
-    await this.cleanupPending();
-    await this.dispatch();
-    await this.drain();
-    await this.cleanupPending();
+    for (;;) {
+      const inFlight = this.running.size > 0 || !!this.dispatching;
+      await this.cleanupPending();
+      const started = await this.dispatch();
+      await this.drain();
+      // A completed write/action may have made deletion or temporary cleanup eligible.
+      if (!inFlight && !started.length) break;
+    }
   }
   async close() {
     this.stopping = true;
+    for (const fileId of this.waiters.keys())
+      this.notify(fileId, new AppError("UNAVAILABLE", "Service stopping", 503));
     await this.pause();
     for (const item of this.controllers.values()) item.controller.abort();
     await this.drain();

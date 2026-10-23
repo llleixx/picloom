@@ -242,7 +242,7 @@ export function persistenceContract(
           ...entity(),
           name: "group",
           selection_strategy: "priority" as const,
-          redundancy_count: 0,
+          replica_count: 1,
           config_version: 1,
         };
         const file: FileRecord = {
@@ -269,7 +269,7 @@ export function persistenceContract(
           ...entity(),
           file_id: file.id,
           storage_instance_id: storage.id,
-          role: "redundant" as const,
+
           status: "pending" as const,
           locator_json: null,
         };
@@ -725,7 +725,7 @@ export function persistenceContract(
           ...entity(),
           name: "group",
           selection_strategy: "priority" as const,
-          redundancy_count: 0,
+          replica_count: 1,
           config_version: 1,
         };
         const profile = {

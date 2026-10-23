@@ -279,7 +279,7 @@ export const en = {
   "settings.maxPixels": "Maximum image size (megapixels)",
   "settings.processingConcurrency": "Concurrent image processing",
   "settings.processingQueue": "Image processing queue",
-  "settings.taskConcurrency": "Concurrent background tasks",
+  "settings.taskConcurrency": "Concurrent tasks",
   "settings.retryLimit": "Maximum task attempts",
   "settings.showAdvanced": "Show advanced",
   "settings.hideAdvanced": "Hide advanced",
@@ -465,7 +465,7 @@ export const en = {
   "configuration.empty": "No configurations yet.",
   "configuration.references": "References: {count}",
   "configuration.members": "Members: {count}",
-  "configuration.redundancy": "Redundant copies: {count}",
+  "configuration.replicaCount": "Copies: {count}",
   "plugins.usageCount": "References: {count}",
   "plugins.archiveSize": "Files: {count} · {size} KB unpacked",
   "tasks.attempts": "Attempts: {count}",
@@ -515,8 +515,8 @@ export const en = {
   "ui.uploadProfiles": "Upload Profiles",
   "ui.accessPipeline": "Access Pipeline",
   "ui.configureStorageConnections": "Configure storage connections.",
-  "ui.chooseStorageTargetsAndRedundancy":
-    "Choose storage targets and redundancy.",
+  "ui.chooseStorageTargetsAndCopies":
+    "Choose storage targets and number of copies.",
   "ui.setPathsStorageProcessingAndActions":
     "Set paths, storage, processing, and actions.",
   "ui.appliesToFutureImageProcessingRequestsSite":
@@ -559,7 +559,7 @@ export const en = {
   "ui.selectionStrategy": "Storage selection strategy",
   "ui.priority": "Priority",
   "ui.weightedRandom": "Weighted random",
-  "ui.redundantCopies": "Additional copies",
+  "ui.replicaCount": "Number of copies",
   "ui.memberOrder": "Member order",
   "ui.unavailable2": " · Unavailable",
   "ui.readAndUploadWeight": "Read and upload weight",
@@ -773,8 +773,6 @@ export const en = {
   "ui.copyProcessedMarkdown": "Copy processed Markdown",
   "ui.deleteImage": "Delete image",
   "ui.replicas": "Replicas",
-  "ui.primary": "Primary",
-  "ui.redundant": "Redundant",
   "ui.backgroundOperations": "Background operations",
   "ui.noBackgroundTasks": "No background tasks.",
   "ui.retryTask": "Retry task",
@@ -842,7 +840,7 @@ export const en = {
   "errors.profile_closing": "Profile is being deleted.",
   "errors.rejected": "Image rejected by the upload pipeline.",
   "errors.storage_unavailable":
-    "Not enough storage sources for the requested redundancy.",
+    "Not enough storage sources for the requested number of copies.",
   "errors.repairSourceMissing":
     "Cannot retry: the temporary file is gone and no available replica can supply the file.",
   "errors.temp_missing": "Temporary file missing.",

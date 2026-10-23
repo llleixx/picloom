@@ -12,7 +12,7 @@ A self-hosted image hosting service with multiple storage backends and configura
 
 ## Features
 
-- **Multiple storage backends and replicas.** Connect local directories, S3-compatible storage, WebDAV, OpenList and more. Use storage groups to select primary storage and keep redundant copies.
+- **Multiple storage backends and replicas.** Connect local directories, S3-compatible storage, WebDAV, OpenList and more. Choose storage targets and the number of copies through storage groups. Writes run concurrently; uploads return after the first copy is saved.
 - **Separate public and storage paths.** Organize files in sharded directories while keeping public URLs flat. Replicas share one public path.
 - **Processing at three stages.** Resize or watermark images before saving, generate variants on access, and run moderation or notifications after saving. Combine steps into reusable pipelines.
 - **Import existing images in place.** Scan local, S3, OpenList or WebDAV storage without uploading again. Preserve existing links by matching the domain and public paths.

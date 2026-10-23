@@ -36,13 +36,14 @@ flowchart TD
   intake --> temporary[接收内容到临时缓存]
   temporary --> processing[上传处理流水线]
   processing --> path[路径插件生成存储路径]
-  path --> write[存储插件写入主副本]
-  write --> publish[事务发布文件并登记后台任务]
+  path --> register[事务登记文件、副本与写入任务]
+  register --> write[任务执行器并发写入副本]
+  write --> publish[首份成功后由上传流程事务发布文件]
   publish --> response[返回图片链接]
-  publish --> tasks[后台冗余写入与保存后处理]
+  publish --> tasks[其他副本继续写入与保存后处理]
 ```
 
-分片会话由 `core/uploads.ts` 管理，合并后的内容进入文件上传流程。`core/files.ts` 负责上传编排、流水线和文件操作；返回成功时不要求后台冗余与保存后处理全部完成。
+分片会话由 `core/uploads.ts` 管理，合并后的内容进入文件上传流程。`core/files.ts` 负责上传编排、流水线和文件操作；返回成功时不要求所有副本写入与保存后处理全部完成。
 
 ## 一次图片访问经过哪里
 

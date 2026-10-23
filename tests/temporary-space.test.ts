@@ -127,6 +127,7 @@ test("concurrent chunk writes stay parallel, reject excess parts and hand off th
         .status,
     ).toBe(200);
     expect(sameInode).toBe(true);
+    await f.app.files.sweep();
     expect(f.app.files.temporary.bytes).toBe(0);
     expect(await readdir(join(f.root, "uploads"))).toEqual([]);
     expect(await readdir(join(f.root, "temp"))).toEqual([]);
@@ -186,7 +187,9 @@ test("automatic retries retain sources only until exhausted; pending sessions su
     await f.app.files.sweep();
     expect(f.app.files.temporary.bytes).toBe(f.png.length);
     const uploaded = (await f.app.db.read((r) => r.files(10, 0)))[0]!;
-    const task = (await f.app.db.read((r) => r.tasks(uploaded.id)))[0]!;
+    const task = (await f.app.db.read((r) => r.tasks(uploaded.id))).find(
+      (t) => t.kind === "action",
+    )!;
     expect(task.status).toBe("pending");
     await f.app.db.transaction(async (r) => {
       task.next_run_at = Date.now();
@@ -270,6 +273,7 @@ test("upload admission rejects full capacity before consuming multipart and rele
     await body.cancel();
     f.app.config.uploadTempBytes = 1024 ** 3;
     expect((await f.upload()).status).toBe(201);
+    await f.app.files.sweep();
     const leave1 = f.app.files.temporary.enterUpload();
     const leave2 = f.app.files.temporary.enterUpload();
     try {
@@ -376,6 +380,7 @@ test("oversized and unwritable caches do not prevent serving generated images", 
   const f = await fixture();
   try {
     const item = await (await f.upload()).json();
+    await f.app.files.sweep();
     f.app.files.cache.configure(1, 60000);
     const thumbnail = await f.request("/api/files/" + item.id + "/thumbnail");
     expect(thumbnail.status).toBe(200);
@@ -532,9 +537,11 @@ test("task timeout cancels execution and retains its source until the reader exi
     expect(f.app.files.temporary.bytes).toBe(f.png.length);
     release();
     await sweeping;
-    expect((await f.app.db.read((r) => r.tasks(uploaded.id)))[0]!.status).toBe(
-      "failed",
-    );
+    expect(
+      (await f.app.db.read((r) => r.tasks(uploaded.id))).find(
+        (t) => t.kind === "action",
+      )!.status,
+    ).toBe("failed");
     expect(f.app.files.temporary.bytes).toBe(0);
   } finally {
     release();

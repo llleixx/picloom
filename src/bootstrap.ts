@@ -121,6 +121,7 @@ export async function bootstrap(
         await system.close();
         await delivery.close();
         await themes.close();
+        await files.tasks.close();
         await uploads.close();
         await files.close();
         await plugins.close();
@@ -206,7 +207,7 @@ export async function initializeUploadDefaults(
       ...entity(),
       name: development ? "Local" : "Default",
       selection_strategy: "priority" as const,
-      redundancy_count: 0,
+      replica_count: 1,
       config_version: 1,
     };
     await r.insertGroup(group);

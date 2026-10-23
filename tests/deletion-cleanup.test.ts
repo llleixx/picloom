@@ -23,7 +23,9 @@ test("list and detail distinguish retrying deletion from failure, and retry only
     expect(list.find((x: { id: string }) => x.id === image.id).error).toBe(
       detail.error,
     );
-    const [task] = await f.app.db.read((r) => r.tasks(image.id));
+    const task = (await f.app.db.read((r) => r.tasks(image.id))).find(
+      (t) => t.kind === "delete",
+    );
     expect(task!.status).toBe("failed");
     await f.app.files.tasks.retry(task!.id);
     expect(

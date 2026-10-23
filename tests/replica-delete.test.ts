@@ -20,7 +20,7 @@ async function setup() {
     {
       ...original,
       members: [...original.members, { instanceId: source.id, weight: 1 }],
-      redundancyCount: 1,
+      replicaCount: 2,
       expectedVersion: original.configVersion,
     },
     original.id,
@@ -36,7 +36,7 @@ test("source filtering survives group changes; deleting a replica preserves URL 
       {
         ...group,
         members: original.members,
-        redundancyCount: 0,
+        replicaCount: 1,
         expectedVersion: group.configVersion,
       },
       group.id,
@@ -189,24 +189,20 @@ test("replica deletion failure can retry while file stays ready; upload tokens c
 });
 
 test("exhausted uncertain replica writes release local source without losing remote state", async () => {
-  const { f } = await setup();
+  const { f, source } = await setup();
+  const lease = f.app.plugins.acquire(source.id, "storage");
+  const write = spyOn(lease.runtime, "write").mockRejectedValue(
+    new PluginError("FAILED", "Uncertain write", false, "unknown"),
+  );
   try {
     const image = await (await f.upload()).json();
-    const task = (await f.app.db.read((r) => r.tasks(image.id))).find(
-      (t) => t.kind === "write",
+    await f.app.files.sweep();
+    const replica = (await f.app.db.read((r) => r.replicas(image.id))).find(
+      (r) => r.storage_instance_id === source.id,
     )!;
-    const replica = (await f.app.db.read((r) => r.replica(task.replica_id!)))!;
-    const lease = f.app.plugins.acquire(replica.storage_instance_id, "storage");
-    const original = lease.runtime.write;
-    try {
-      lease.runtime.write = async () => {
-        throw new PluginError("FAILED", "Uncertain write", false, "unknown");
-      };
-      await f.app.files.sweep();
-    } finally {
-      lease.runtime.write = original;
-      await lease.release();
-    }
+    const task = (await f.app.db.read((r) => r.tasks(image.id))).find(
+      (t) => t.replica_id === replica.id,
+    )!;
     expect((await f.app.db.read((r) => r.task(task.id)))!.status).toBe(
       "failed",
     );
@@ -221,6 +217,8 @@ test("exhausted uncertain replica writes release local source without losing rem
     expect(response.status).toBe(200);
     await response.arrayBuffer();
   } finally {
+    write.mockRestore();
+    await lease.release();
     await f.close();
   }
 });

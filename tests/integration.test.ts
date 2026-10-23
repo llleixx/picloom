@@ -43,9 +43,11 @@ test("HTTP upload, transform, cache, restart and durable deletion", async () => 
     const row = await f.app.db.read((r) => r.file(value.id));
     expect(row?.status).toBe("deleted");
     expect(row?.temp_status).toBe("cleaned");
-    expect((await f.app.db.read((r) => r.tasks(value.id)))[0]?.status).toBe(
-      "success",
-    );
+    expect(
+      (await f.app.db.read((r) => r.tasks(value.id))).find(
+        (t) => t.kind === "delete",
+      )?.status,
+    ).toBe("success");
   } finally {
     await f.close();
   }
@@ -155,12 +157,14 @@ test("failed deletion remains pending and succeeds on retry", async () => {
     expect((await f.app.db.read((r) => r.file(value.id)))?.status).toBe(
       "deleting",
     );
-    expect((await f.app.db.read((r) => r.tasks(value.id)))[0]?.status).toBe(
-      "pending",
-    );
+    expect(
+      (await f.app.db.read((r) => r.tasks(value.id))).find(
+        (t) => t.kind === "delete",
+      )?.status,
+    ).toBe("pending");
     fail = false;
     await f.app.db.transaction(async (r) => {
-      const t = (await r.tasks(value.id))[0]!;
+      const t = (await r.tasks(value.id)).find((t) => t.kind === "delete")!;
       t.next_run_at = 0;
       await r.saveTask(t);
     });

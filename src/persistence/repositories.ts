@@ -1188,6 +1188,7 @@ export class SqlRepositories implements Repositories {
       limit: number;
       excludedFiles: string[];
       excludedTasks: string[];
+      activeFiles?: string[];
     },
   ) {
     let query = this.db
@@ -1205,7 +1206,13 @@ export class SqlRepositories implements Repositories {
               eb.or([
                 eb.and([
                   eb("tasks.kind", "=", "write"),
-                  eb("files.status", "in", ["ready", "blocked"]),
+                  eb.or([
+                    eb("files.status", "in", ["ready", "blocked"]),
+                    eb.and([
+                      eb("files.status", "=", "preparing"),
+                      eb("tasks.attempts", "=", 0),
+                    ]),
+                  ]),
                 ]),
                 eb.and([
                   eb("tasks.kind", "=", "action"),
@@ -1228,6 +1235,17 @@ export class SqlRepositories implements Repositories {
       query = query.where("file_id", "not in", options.excludedFiles);
     if (options?.excludedTasks.length)
       query = query.where("id", "not in", options.excludedTasks);
+    // Count admitted tasks too: some have not claimed their database row yet.
+    if (options?.activeFiles?.length) {
+      const counts = new Map<string, number>();
+      for (const id of options.activeFiles)
+        counts.set(id, (counts.get(id) ?? 0) + 1);
+      query = query.orderBy(sql<number>`case ${sql.ref("tasks.file_id")}
+        ${sql.join(
+          [...counts].map(([id, count]) => sql`when ${id} then ${count}`),
+          sql` `,
+        )} else 0 end`);
+    }
     return this.rows<Task>(
       query
         .orderBy("next_run_at")

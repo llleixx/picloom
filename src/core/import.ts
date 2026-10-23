@@ -178,7 +178,7 @@ export class Imports {
             ...entity(),
             file_id: file.id,
             storage_instance_id: sourceId,
-            role: "primary",
+
             status: "ready",
             locator_json: locator,
           });

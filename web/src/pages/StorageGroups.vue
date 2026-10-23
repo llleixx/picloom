@@ -59,7 +59,7 @@ async function edit(id?: string) {
           id: "",
           name: "",
           selectionStrategy: "priority",
-          redundancyCount: 0,
+          replicaCount: 1,
           configVersion: 0,
           members: [],
         };
@@ -125,7 +125,7 @@ async function remove() {
       <div>
         <h1 class="page-heading">{{ t("ui.storageGroups") }}</h1>
         <p class="mt-2 subtle">
-          {{ t("ui.chooseStorageTargetsAndRedundancy") }}
+          {{ t("ui.chooseStorageTargetsAndCopies") }}
         </p>
       </div>
       <Button @click="edit()"><Plus />{{ t("ui.create") }}</Button>
@@ -155,8 +155,8 @@ async function remove() {
             }}
             ·
             {{
-              t("configuration.redundancy", {
-                count: item.redundancyCount,
+              t("configuration.replicaCount", {
+                count: item.replicaCount,
               })
             }}
           </p>
@@ -213,12 +213,12 @@ async function remove() {
                   </option>
                 </select></label
               ><label class="field"
-                >{{ t("ui.redundantCopies")
+                >{{ t("ui.replicaCount")
                 }}<Input
-                  v-model="group.redundancyCount"
+                  v-model="group.replicaCount"
                   type="number"
-                  min="0"
-                  :max="Math.max(0, group.members.length - 1)"
+                  min="1"
+                  :max="Math.max(1, group.members.length)"
                   required
               /></label>
               <div class="space-y-3">

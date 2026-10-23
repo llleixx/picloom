@@ -1,7 +1,7 @@
 import { test, expect, login } from "./fixtures";
 import { mkdir } from "node:fs/promises";
 test.use({ scenario: "configuration" });
-test("manage instances, groups, profiles and chains, then upload redundant files and execute actions", async ({
+test("manage instances, groups, profiles and chains, then upload multiple copies and execute actions", async ({
   page,
   service,
 }) => {
@@ -44,13 +44,14 @@ test("manage instances, groups, profiles and chains, then upload redundant files
     .selectOption("weighted_random");
   await page.getByLabel("Member 1 weight", { exact: true }).fill("1");
   await page.getByLabel("Member 2 weight", { exact: true }).fill("3");
-  await page.getByRole("spinbutton", { name: /^Additional copies/ }).fill("1");
+  await page.getByRole("spinbutton", { name: /^Number of copies/ }).fill("2");
   await page.getByRole("button", { name: "Save", exact: true }).click();
   await expect(page.getByRole("dialog")).toHaveCount(0);
   const group = (
     await (await page.request.get(service.url + "/api/storage-groups")).json()
   ).find((g: any) => g.name === "Managed group");
   expect(group.members.map((m: any) => m.weight)).toEqual([1, 3]);
+  expect(group.replicaCount).toBe(2);
   await page
     .getByRole("link", { name: "Upload Profiles", exact: true })
     .click();
@@ -160,7 +161,7 @@ test("manage instances, groups, profiles and chains, then upload redundant files
   expect(url).toContain("/managed/");
   await expect(
     page.getByText("Replication · Completed", { exact: true }),
-  ).toBeVisible();
+  ).toHaveCount(2);
   await expect(
     page.getByText("Post-Save Pipeline · Completed", { exact: true }),
   ).toBeVisible();
