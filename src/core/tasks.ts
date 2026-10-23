@@ -34,7 +34,7 @@ export class TaskExecutor {
   private cleaning = new Set<string>();
   private running = new Map<
     string,
-    { fileId: string; promise: Promise<void> }
+    { fileId: string; kind: Task["kind"]; promise: Promise<void> }
   >();
   private waiters = new Map<string, Set<(error?: unknown) => void>>();
   private controllers = new Map<
@@ -320,9 +320,8 @@ export class TaskExecutor {
     await r.saveFile(current, previous);
     return !unresolved;
   }
-  private async run(id: string) {
-    if (this.stopping) return;
-    const state = await this.db.transaction(async (r) => {
+  private async claim(id: string) {
+    return this.db.transaction(async (r) => {
       const task = await r.task(id);
       if (!task) return null;
       if (task.status !== "pending" || task.next_run_at! > Date.now())
@@ -348,9 +347,18 @@ export class TaskExecutor {
       await r.saveTask(task, "pending");
       return { task, file, replica };
     });
-    if (!state) return;
-    if (state.task.kind === "delete") await this.flight.wait(state.file.id);
-    const { task, file, replica } = state,
+  }
+  private async run({
+    task,
+    file,
+    replica,
+  }: {
+    task: Task;
+    file: FileRecord;
+    replica: Replica | null;
+  }) {
+    if (task.kind === "delete") await this.flight.wait(file.id);
+    const id = task.id,
       controller = new AbortController(),
       end = this.flight.enter(file.id);
     this.controllers.set(id, { fileId: file.id, kind: task.kind, controller });
@@ -713,58 +721,76 @@ export class TaskExecutor {
       console.error(JSON.stringify({ event: "task_dispatch_failed" }));
     });
   }
+  private executionFailed(task: Task) {
+    this.notify(
+      task.file_id,
+      new AppError("UPLOAD_FAILED", "Task execution failed", 500),
+    );
+    console.error(
+      JSON.stringify({ event: "task_execution_failed", taskId: task.id }),
+    );
+  }
+  private concurrency(kind: Task["kind"]) {
+    return kind === "write"
+      ? this.config.writeConcurrency
+      : kind === "action"
+        ? this.config.postSaveConcurrency
+        : this.config.deleteConcurrency;
+  }
+  private runningCount(kind: Task["kind"]) {
+    return [...this.running.values()].filter((task) => task.kind === kind)
+      .length;
+  }
   // The lock protects admission only; plugin work runs outside it.
   private async dispatchOnce() {
     return this.mutex.run(async () => {
       if (this.paused || this.stopping) return [];
-      const capacity = this.config.taskConcurrency - this.running.size;
-      if (capacity <= 0) return [];
       const started: string[] = [];
-      while (
-        !this.paused &&
-        !this.stopping &&
-        this.running.size < this.config.taskConcurrency
-      ) {
-        const [task] = await this.db.read((r) =>
-          r.dueTasks(Date.now(), {
-            limit: 1,
-            excludedFiles: [...this.cleaning],
-            excludedTasks: [...this.running.keys()],
-            activeFiles: [...this.running.values()].map((task) => task.fileId),
-          }),
-        );
-        if (
-          !task ||
-          this.paused ||
-          this.stopping ||
-          this.running.size >= this.config.taskConcurrency
-        )
-          break;
-        let completed = false;
-        const promise = Promise.resolve()
-          .then(() => this.run(task.id))
-          .then(() => {
-            completed = true;
-          })
-          .catch(() => {
-            this.notify(
-              task.file_id,
-              new AppError("UPLOAD_FAILED", "Task execution failed", 500),
-            );
-            console.error(
-              JSON.stringify({
-                event: "task_execution_failed",
-                taskId: task.id,
-              }),
-            );
-          })
-          .finally(() => {
-            this.running.delete(task.id);
-            // Unexpected persistence failures must not trigger their own immediate retry.
-            if (completed) this.refill();
-          });
-        this.running.set(task.id, { fileId: task.file_id, promise });
-        started.push(task.id);
+      for (const kind of ["write", "action", "delete"] as const) {
+        // Bound each pass so fast completions cannot keep it on one queue.
+        const capacity = this.concurrency(kind) - this.runningCount(kind);
+        for (let slot = 0; slot < capacity; slot++) {
+          if (this.paused || this.stopping) return started;
+          if (this.runningCount(kind) >= this.concurrency(kind)) break;
+          const [task] = await this.db.read((r) =>
+            r.dueTasks(Date.now(), {
+              kind,
+              limit: 1,
+              excludedFiles: [...this.cleaning],
+              excludedTasks: [...this.running.keys()],
+              activeWriteFiles: [...this.running.values()]
+                .filter((task) => task.kind === "write")
+                .map((task) => task.fileId),
+            }),
+          );
+          if (this.paused || this.stopping) return started;
+          if (!task || this.runningCount(kind) >= this.concurrency(kind)) break;
+          // Claim under the existing admission lock. Concurrent claims can
+          // conflict under PostgreSQL serializable isolation even for distinct tasks.
+          let state;
+          try {
+            state = await this.claim(task.id);
+          } catch {
+            this.executionFailed(task);
+            // Leave this queue for the next external dispatch, not an immediate retry.
+            break;
+          }
+          if (!state) continue;
+          let completed = false;
+          const promise = Promise.resolve()
+            .then(() => this.run(state))
+            .then(() => {
+              completed = true;
+            })
+            .catch(() => this.executionFailed(task))
+            .finally(() => {
+              this.running.delete(task.id);
+              // Unexpected persistence failures must not trigger their own immediate retry.
+              if (completed) this.refill();
+            });
+          this.running.set(task.id, { fileId: task.file_id, kind, promise });
+          started.push(task.id);
+        }
       }
       return started;
     });

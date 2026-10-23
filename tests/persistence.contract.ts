@@ -6,6 +6,8 @@ import {
   type Instance,
   type Repositories,
   type FileRecord,
+  type Task,
+  type Replica,
 } from "../src/persistence/port";
 import { Conflict } from "../src/core/errors";
 export function persistenceContract(
@@ -13,6 +15,180 @@ export function persistenceContract(
   open: () => Promise<{ db: Persistence; close(): Promise<void> }>,
 ) {
   describe(name, () => {
+    test("task queues preserve eligibility and strict write tiers with deterministic ordering", async () => {
+      const f = await open();
+      try {
+        const pipeline = {
+          ...entity(),
+          name: "Post-save",
+          kind: "post_save" as const,
+          config_version: 1,
+        };
+        await f.db.transaction((r) => r.insertPipeline(pipeline));
+        async function add(
+          kind: Task["kind"],
+          status: FileRecord["status"],
+          due: number,
+          options: {
+            ready?: boolean;
+            attempts?: number;
+            replicaStatus?: Replica["status"];
+            created?: number;
+          } = {},
+        ) {
+          const base = entity();
+          const file: FileRecord = {
+            ...base,
+            guest_ip: null,
+            owner_id: null,
+            upload_profile_id: null,
+            storage_group_id: null,
+            public_prefix: "/i/",
+            logical_key: base.id + ".png",
+            storage_key: base.id + ".png",
+            mime_type: "image/png",
+            byte_size: 10,
+            width: 1,
+            height: 1,
+            status,
+            temp_path: null,
+            temp_status: "cleaned",
+            last_error: null,
+            deleted_at: status === "deleted" ? 1 : null,
+            processing_results_json: null,
+          };
+          const task: Task = {
+            ...entity(),
+            created_at: options.created ?? 10,
+            kind,
+            file_id: file.id,
+            replica_id: null,
+            pipeline_id: kind === "action" ? pipeline.id : null,
+            status: "pending",
+            attempts: options.attempts ?? 0,
+            next_run_at: due,
+            last_error: null,
+          };
+          await f.db.transaction(async (r) => {
+            await r.insertFile(file);
+            async function replica(status: Replica["status"]) {
+              const source = {
+                ...instance(),
+                kind: "storage" as const,
+                stage: null,
+              };
+              await r.saveInstance(source);
+              const value: Replica = {
+                ...entity(),
+                file_id: file.id,
+                storage_instance_id: source.id,
+                status,
+                locator_json: null,
+              };
+              await r.insertReplica(value);
+              return value;
+            }
+            if (kind !== "action")
+              task.replica_id = (
+                await replica(
+                  options.replicaStatus ??
+                    (kind === "write" ? "pending" : "delete_pending"),
+                )
+              ).id;
+            if (options.ready) await replica("ready");
+            await r.insertTask(task);
+          });
+          return { file, task };
+        }
+        const old = await add("write", "ready", 1);
+        const publishedCopy = await add("write", "preparing", 2, {
+          ready: true,
+        });
+        const admitted = await add("write", "preparing", 3);
+        const first: Array<{ file: FileRecord; task: Task }> = [];
+        for (let i = 0; i < 6; i++)
+          first.push(await add("write", "preparing", 20 + i));
+        const retry = await add("write", "blocked", 40, { attempts: 2 });
+        const tieLate = await add("write", "ready", 50, { created: 20 });
+        const tieA = await add("write", "ready", 50, { created: 10 });
+        const tieB = await add("write", "ready", 50, { created: 10 });
+        await add("write", "preparing", 0, { attempts: 1 });
+        await add("write", "failed", 0);
+        await add("write", "ready", 0, { replicaStatus: "deleted" });
+        await add("write", "ready", 101);
+        const a1 = await add("action", "ready", 5);
+        const a2 = await add("action", "ready", 6);
+        await add("action", "blocked", 0);
+        const d1 = await add("delete", "deleting", 7);
+        const d2 = await add("delete", "ready", 8);
+        await add("delete", "deleted", 0);
+        const options = {
+          kind: "write" as Task["kind"],
+          limit: 100,
+          excludedFiles: [] as string[],
+          excludedTasks: [] as string[],
+          activeWriteFiles: [
+            admitted.file.id,
+            admitted.file.id,
+            a1.file.id,
+            d1.file.id,
+          ],
+        };
+        const expected = [
+          ...first.map((x) => x.task.id),
+          admitted.task.id,
+          old.task.id,
+          publishedCopy.task.id,
+          retry.task.id,
+          ...[tieA.task.id, tieB.task.id].sort(),
+          tieLate.task.id,
+        ];
+        expect(
+          (await f.db.read((r) => r.dueTasks(100, options))).map((t) => t.id),
+        ).toEqual(expected);
+        // Repeated single admissions never introduce a fourth-turn fairness exception.
+        const excludedTasks: string[] = [];
+        for (const id of expected) {
+          const [next] = await f.db.read((r) =>
+            r.dueTasks(100, { ...options, limit: 1, excludedTasks }),
+          );
+          expect(next!.id).toBe(id);
+          excludedTasks.push(id);
+        }
+        const promoted = await f.db.read((r) =>
+          r.dueTasks(100, {
+            ...options,
+            activeWriteFiles: [...options.activeWriteFiles, first[0]!.file.id],
+            limit: 1,
+          }),
+        );
+        expect(promoted[0]!.id).toBe(first[1]!.task.id);
+        // Active IDs affect only writes, not FIFO selection in the other queues.
+        for (const [kind, ids] of [
+          ["action", [a1.task.id, a2.task.id]],
+          ["delete", [d1.task.id, d2.task.id]],
+        ] as const)
+          expect(
+            (await f.db.read((r) => r.dueTasks(100, { ...options, kind }))).map(
+              (t) => t.id,
+            ),
+          ).toEqual([...ids]);
+        expect(
+          (
+            await f.db.read((r) =>
+              r.dueTasks(100, {
+                ...options,
+                excludedFiles: [first[0]!.file.id],
+                excludedTasks: [first[1]!.task.id],
+                limit: 1,
+              }),
+            )
+          )[0]!.id,
+        ).toBe(first[2]!.task.id);
+      } finally {
+        await f.close();
+      }
+    });
     test("daily upload counters enforce concurrent limits, rollback, date isolation and cleanup", async () => {
       const f = await open();
       try {

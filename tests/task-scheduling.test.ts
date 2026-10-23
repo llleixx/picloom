@@ -21,6 +21,7 @@ async function until(check: () => boolean | Promise<boolean>) {
 }
 async function upload(f: Awaited<ReturnType<typeof fixture>>) {
   const result = await (await f.upload()).json();
+  await f.app.files.tasks.drain();
   const file = (await f.app.db.read((r) => r.file(result.id)))!;
   const replica = (await f.app.db.read((r) => r.replicas(result.id)))[0]!;
   return { file, replica };
@@ -57,7 +58,7 @@ test("dispatch fills idle slots beside a slow task, enforces capacity and drains
   let deletion: ReturnType<typeof spyOn> | undefined;
   let lease: ReturnType<typeof f.app.plugins.acquire<"storage">> | undefined;
   try {
-    f.app.config.taskConcurrency = 2;
+    f.app.config.deleteConcurrency = 2;
     const a = await upload(f),
       b = await upload(f),
       c = await upload(f),
@@ -149,7 +150,7 @@ test("failed-write cleanup runs as a bounded deletion while unrelated tasks cont
     | undefined;
   let cleaning: Promise<void> | undefined;
   try {
-    f.app.config.taskConcurrency = 2;
+    f.app.config.deleteConcurrency = 2;
     const a = await upload(f),
       b = await upload(f);
     await queueDelete(f, a.file, a.replica);
@@ -245,7 +246,7 @@ test("failed-write cleanup runs as a bounded deletion while unrelated tasks cont
 test("one dispatch drains a fast backlog and skips tasks whose files no longer allow execution", async () => {
   const f = await fixture();
   try {
-    f.app.config.taskConcurrency = 1;
+    f.app.config.deleteConcurrency = 1;
     const stale = await upload(f);
     await queueDelete(f, stale.file, stale.replica);
     const pending = (await f.app.db.read((r) => r.tasks(stale.file.id))).find(
@@ -319,6 +320,273 @@ test("pause fences an in-progress admission query and resume restarts the backlo
   } finally {
     release.release();
     query.mockRestore();
+    await f.close();
+  }
+});
+
+test("write, post-save and delete queues have independent live limits and pause together", async () => {
+  const f = await fixture();
+  type Kind = "write" | "action" | "delete";
+  const active = { write: 0, action: 0, delete: 0 };
+  const peak = { write: 0, action: 0, delete: 0 };
+  const entered: Record<
+    Kind,
+    Array<ReturnType<typeof gate> & { fileId: string }>
+  > = {
+    write: [],
+    action: [],
+    delete: [],
+  };
+  let finish = false;
+  async function hold<T>(
+    kind: Kind,
+    fileId: string,
+    operation: () => Promise<T>,
+  ) {
+    const barrier = gate();
+    entered[kind].push({ ...barrier, fileId });
+    peak[kind] = Math.max(peak[kind], ++active[kind]);
+    try {
+      if (!finish) await barrier.promise;
+      return await operation();
+    } finally {
+      active[kind]--;
+    }
+  }
+  const uploads: Promise<Response>[] = [];
+  let write: ReturnType<typeof spyOn> | undefined;
+  let deletion: ReturnType<typeof spyOn> | undefined;
+  let lease: ReturnType<typeof f.app.plugins.acquire<"storage">> | undefined;
+  try {
+    const seeds: Array<Awaited<ReturnType<typeof upload>>> = [];
+    for (let i = 0; i < 6; i++) seeds.push(await upload(f));
+    await f.app.files.tasks.drain();
+    f.app.plugins.register({
+      id: "test.queue-action",
+      version: "1",
+      kind: "processor",
+      apiVersion: 1,
+      defaultLocale: "en-US",
+      nameKey: "name",
+      messages: { "en-US": { name: "Queue action" } },
+      stages: {
+        post_save: {
+          configSchemaVersion: 1,
+          configSchema: { type: "object", properties: {} },
+          async createInstance() {
+            return {
+              execute: async (input) =>
+                hold("action", input.fileId, async () => ({
+                  status: "pass" as const,
+                })),
+            };
+          },
+        },
+      },
+    });
+    const pipeline = await f.app.configuration.savePipeline({
+      name: "Queue action",
+      kind: "post_save",
+      steps: [{ pluginId: "test.queue-action", version: "1", config: {} }],
+    });
+    lease = f.app.plugins.acquire(
+      seeds[0]!.replica.storage_instance_id,
+      "storage",
+    );
+    const originalWrite = lease.runtime.write.bind(lease.runtime);
+    const originalDelete = lease.runtime.delete.bind(lease.runtime);
+    write = spyOn(lease.runtime, "write").mockImplementation((input, ctx) =>
+      hold("write", input.fileId, () => originalWrite(input, ctx)),
+    );
+    deletion = spyOn(lease.runtime, "delete").mockImplementation((input, ctx) =>
+      hold(
+        "delete",
+        seeds.find((seed) => seed.file.storage_key === input.storageKey)!.file
+          .id,
+        () => originalDelete(input, ctx),
+      ),
+    );
+    await f.app.files.tasks.pause();
+    f.app.config.uploadConcurrency = 6;
+    for (let i = 0; i < 6; i++) uploads.push(f.upload());
+    await until(
+      async () =>
+        (await f.app.db.read((r) => r.filesInStates(["preparing"]))).length ===
+        6,
+    );
+    f.app.files.tasks.resume();
+    await until(() => active.write === 4);
+    // The two otherwise idle queues do not lend their slots to pending writes.
+    expect(await f.app.files.tasks.dispatch()).toEqual([]);
+    expect(entered.write).toHaveLength(4);
+    for (const seed of seeds.slice(0, 3)) {
+      await f.app.db.transaction((r) =>
+        r.insertTask({
+          ...entity(),
+          kind: "action",
+          file_id: seed.file.id,
+          replica_id: null,
+          pipeline_id: pipeline.id,
+          status: "pending",
+          attempts: 0,
+          next_run_at: Date.now(),
+          last_error: null,
+        }),
+      );
+    }
+    for (const seed of seeds.slice(3))
+      await queueDelete(f, seed.file, seed.replica);
+    await Promise.all([
+      f.app.files.tasks.dispatch(),
+      f.app.files.tasks.dispatch(),
+    ]);
+    await until(() => active.action === 2 && active.delete === 2);
+    expect(active).toEqual({ write: 4, action: 2, delete: 2 });
+    expect(peak).toEqual(active);
+    // The settings callback must wake every newly available queue without a timer tick.
+    await f.app.delivery.save({
+      ...f.app.delivery.get(),
+      writeConcurrency: 5,
+      postSaveConcurrency: 3,
+      deleteConcurrency: 3,
+    });
+    await until(
+      () => active.write === 5 && active.action === 3 && active.delete === 3,
+    );
+    await f.app.delivery.save({
+      ...f.app.delivery.get(),
+      writeConcurrency: 1,
+      postSaveConcurrency: 1,
+      deleteConcurrency: 1,
+    });
+    expect(active).toEqual({ write: 5, action: 3, delete: 3 });
+    entered.write[0]!.release();
+    await until(
+      async () =>
+        (await f.app.db.read((r) => r.file(entered.write[0]!.fileId)))!
+          .status === "ready",
+    );
+    await until(() => active.write === 4);
+    await f.app.files.tasks.dispatch();
+    expect(entered.write).toHaveLength(5);
+    await f.app.files.tasks.pause();
+    let drained = false;
+    const draining = f.app.files.tasks.drain().then(() => {
+      drained = true;
+    });
+    // Release each held operation after its commit, so this assertion measures
+    // draining all queues rather than exhausting serializable retry budgets.
+    for (let i = 1; i < entered.write.length; i++) {
+      entered.write[i]!.release();
+      await until(
+        async () =>
+          (await f.app.db.read((r) => r.file(entered.write[i]!.fileId)))!
+            .status === "ready",
+      );
+    }
+    await until(() => active.write === 0);
+    expect(drained).toBe(false);
+    for (let i = 0; i < entered.action.length; i++) {
+      entered.action[i]!.release();
+      await until(async () =>
+        (await f.app.db.read((r) => r.tasks(entered.action[i]!.fileId))).some(
+          (task) => task.kind === "action" && task.status === "success",
+        ),
+      );
+    }
+    await until(() => active.action === 0);
+    expect(drained).toBe(false);
+    for (let i = 0; i < entered.delete.length; i++) {
+      entered.delete[i]!.release();
+      await until(async () =>
+        (await f.app.db.read((r) => r.tasks(entered.delete[i]!.fileId))).some(
+          (task) => task.kind === "delete" && task.status === "success",
+        ),
+      );
+    }
+    await draining;
+    expect(entered.write).toHaveLength(5);
+    finish = true;
+    f.app.files.tasks.resume();
+    for (const response of await Promise.all(uploads))
+      expect(response.status).toBe(201);
+    await f.app.files.tasks.drain();
+    expect(entered.write).toHaveLength(6);
+    expect(peak).toEqual({ write: 5, action: 3, delete: 3 });
+  } finally {
+    finish = true;
+    for (const barriers of Object.values(entered))
+      for (const barrier of barriers) barrier.release();
+    f.app.files.tasks.resume();
+    await Promise.allSettled(uploads);
+    await f.app.files.tasks.drain();
+    write?.mockRestore();
+    deletion?.mockRestore();
+    await lease?.release();
+    await f.close();
+  }
+});
+
+test("a failed write claim does not stop deletion or immediately retry itself", async () => {
+  const f = await fixture();
+  const held = gate();
+  let claim: ReturnType<typeof spyOn> | undefined;
+  let deletion: ReturnType<typeof spyOn> | undefined;
+  let lease: ReturnType<typeof f.app.plugins.acquire<"storage">> | undefined;
+  try {
+    const a = await upload(f),
+      b = await upload(f);
+    await f.app.files.tasks.pause();
+    const task = (await f.app.db.read((r) => r.tasks(a.file.id)))[0]!;
+    await f.app.db.transaction((r) =>
+      r.saveTask({ ...task, status: "pending", next_run_at: 0 }),
+    );
+    await queueDelete(f, b.file, b.replica);
+    const { SqlRepositories } = await import("../src/persistence/repositories");
+    const original = SqlRepositories.prototype.saveTask;
+    let claims = 0,
+      deleting = false;
+    claim = spyOn(SqlRepositories.prototype, "saveTask").mockImplementation(
+      async function (
+        this: InstanceType<typeof SqlRepositories>,
+        value,
+        expected,
+      ) {
+        if (value.id === task.id && value.status === "running") {
+          claims++;
+          throw new Error("Test persistence failure");
+        }
+        return original.call(this, value, expected);
+      },
+    );
+    lease = f.app.plugins.acquire(b.replica.storage_instance_id, "storage");
+    const originalDelete = lease.runtime.delete.bind(lease.runtime);
+    deletion = spyOn(lease.runtime, "delete").mockImplementation(
+      async (input, ctx) => {
+        deleting = true;
+        await held.promise;
+        return originalDelete(input, ctx);
+      },
+    );
+    f.app.files.tasks.resume();
+    await until(() => deleting);
+    expect(claims).toBe(1);
+    const pending = await f.app.db.read((r) => r.task(task.id));
+    expect(pending!.status).toBe("pending");
+    expect(pending!.attempts).toBe(task.attempts);
+    claim.mockRestore();
+    held.release();
+    await f.app.files.tasks.drain();
+    expect((await f.app.db.read((r) => r.task(task.id)))!.status).toBe(
+      "success",
+    );
+  } finally {
+    claim?.mockRestore();
+    held.release();
+    f.app.files.tasks.resume();
+    await f.app.files.tasks.drain();
+    deletion?.mockRestore();
+    await lease?.release();
     await f.close();
   }
 });

@@ -1126,16 +1126,18 @@ export class SqlRepositories implements Repositories {
   }
   async dueTasks(
     now: number,
-    options?: {
+    options: {
+      kind: Task["kind"];
       limit: number;
       excludedFiles: string[];
       excludedTasks: string[];
-      activeFiles?: string[];
+      activeWriteFiles: string[];
     },
   ) {
     let query = this.db
       .selectFrom("tasks")
       .selectAll()
+      .where("kind", "=", options.kind)
       .where("status", "=", "pending")
       .where("next_run_at", "<=", now)
       .where((eb) =>
@@ -1185,27 +1187,29 @@ export class SqlRepositories implements Repositories {
             ),
         ),
       );
-    if (options?.excludedFiles.length)
+    if (options.excludedFiles.length)
       query = query.where("file_id", "not in", options.excludedFiles);
-    if (options?.excludedTasks.length)
+    if (options.excludedTasks.length)
       query = query.where("id", "not in", options.excludedTasks);
-    // Count admitted tasks too: some have not claimed their database row yet.
-    if (options?.activeFiles?.length) {
-      const counts = new Map<string, number>();
-      for (const id of options.activeFiles)
-        counts.set(id, (counts.get(id) ?? 0) + 1);
-      query = query.orderBy(sql<number>`case ${sql.ref("tasks.file_id")}
-        ${sql.join(
-          [...counts].map(([id, count]) => sql`when ${id} then ${count}`),
-          sql` `,
-        )} else 0 end`);
+    if (options.kind === "write") {
+      // Admission includes writes that have not claimed their database row yet.
+      const active = options.activeWriteFiles.length
+        ? sql`tasks.file_id in (${sql.join(options.activeWriteFiles)})`
+        : sql`false`;
+      query = query.orderBy(sql<number>`case
+        when exists (select 1 from files
+          where files.id = tasks.file_id and files.status = 'preparing')
+          and not exists (select 1 from file_replicas
+            where file_replicas.file_id = tasks.file_id and file_replicas.status = 'ready')
+        then case when ${active} then 1 else 0 end
+        else 2 end`);
     }
     return this.rows<Task>(
       query
         .orderBy("next_run_at")
         .orderBy("created_at")
         .orderBy("id")
-        .limit(options?.limit ?? 50),
+        .limit(options.limit),
     );
   }
   async recoverTasks(retryLimit: number) {

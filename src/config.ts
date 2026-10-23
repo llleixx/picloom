@@ -94,9 +94,17 @@ export function settings(overrides: Partial<Settings> = {}): Settings {
     cacheBytes: number("CACHE_BYTES", 1024 ** 3),
     cacheTtlMs: number("CACHE_TTL_MS", 86400_000),
     retryLimit: number("RETRY_LIMIT", runtimeDefaults.retryLimit),
-    taskConcurrency: number(
-      "TASK_CONCURRENCY",
-      runtimeDefaults.taskConcurrency,
+    writeConcurrency: number(
+      "WRITE_CONCURRENCY",
+      runtimeDefaults.writeConcurrency,
+    ),
+    postSaveConcurrency: number(
+      "POST_SAVE_CONCURRENCY",
+      runtimeDefaults.postSaveConcurrency,
+    ),
+    deleteConcurrency: number(
+      "DELETE_CONCURRENCY",
+      runtimeDefaults.deleteConcurrency,
     ),
     secureCookie: origin.startsWith("https://"),
     webRoot: resolve("dist/web"),

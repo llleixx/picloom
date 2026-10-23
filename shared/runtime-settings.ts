@@ -12,7 +12,9 @@ export const runtimeDefaults = {
   maxPixels: 40_000_000,
   processingConcurrency: 2,
   processingQueue: 16,
-  taskConcurrency: 4,
+  writeConcurrency: 4,
+  postSaveConcurrency: 2,
+  deleteConcurrency: 2,
   retryLimit: 5,
 };
 export type RuntimeSettings = typeof runtimeDefaults;
@@ -28,5 +30,7 @@ export const runtimeMaximums: Partial<RuntimeSettings> = {
   uploadConcurrency: 32,
   partConcurrency: 16,
   processingConcurrency: 128,
-  taskConcurrency: 128,
+  writeConcurrency: 128,
+  postSaveConcurrency: 128,
+  deleteConcurrency: 128,
 };

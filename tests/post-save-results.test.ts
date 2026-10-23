@@ -76,7 +76,7 @@ test("block continues the chain, denies cached public access, preserves copies a
       await f.app.files.tasks.pause();
     },
   });
-  f.app.config.taskConcurrency = 1;
+  f.app.config.writeConcurrency = 1;
   try {
     const following = await pipeline(f, async () => ({
       status: "block",

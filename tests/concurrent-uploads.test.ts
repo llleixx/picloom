@@ -320,7 +320,7 @@ test("admission shares slots across files and lowering concurrency only affects 
   });
   const uploads: Array<Promise<Response>> = [];
   try {
-    f.app.config.taskConcurrency = 2;
+    f.app.config.writeConcurrency = 2;
     await f.app.files.tasks.pause();
     uploads.push(f.upload(), f.upload());
     await until(
@@ -332,7 +332,7 @@ test("admission shares slots across files and lowering concurrency only affects 
     await until(() => entered.length === 2);
     expect(new Set(entered.map((item) => item.id)).size).toBe(2);
     expect(active).toBe(2);
-    f.app.config.taskConcurrency = 1;
+    f.app.config.writeConcurrency = 1;
     entered[0]!.release();
     await until(() => active === 1);
     await f.app.files.tasks.dispatch();

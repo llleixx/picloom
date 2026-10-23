@@ -34,6 +34,21 @@ test("web settings change chunking and browser concurrency, with advanced option
     (await page.getByLabel("Unfinished upload sessions").boundingBox())!.y,
   ).toBeGreaterThan(y);
   await page.getByLabel("Upload session lifetime (hours)").fill("2");
+  const processingSection = page.locator("section").filter({
+    has: page.getByRole("heading", { name: "Processing & tasks", exact: true }),
+  });
+  await processingSection
+    .getByRole("button", { name: "Show advanced", exact: true })
+    .click();
+  const taskLimits = [
+    ["Concurrent storage writes", "4", "3"],
+    ["Concurrent post-save tasks", "2", "1"],
+    ["Concurrent deletions", "2", "4"],
+  ] as const;
+  for (const [label, initial, changed] of taskLimits) {
+    await expect(page.getByLabel(label, { exact: true })).toHaveValue(initial);
+    await page.getByLabel(label, { exact: true }).fill(changed);
+  }
   await page.getByRole("button", { name: "Save", exact: true }).click();
   await expect(page.getByRole("status")).toHaveText("Settings saved");
   let active = 0,
@@ -91,6 +106,11 @@ test("web settings change chunking and browser concurrency, with advanced option
   await expect(
     page.getByLabel("Chunk size (MiB)", { exact: true }),
   ).toHaveValue("0.5");
+  await processingSection
+    .getByRole("button", { name: "Show advanced", exact: true })
+    .click();
+  for (const [label, , changed] of taskLimits)
+    await expect(page.getByLabel(label, { exact: true })).toHaveValue(changed);
   await page.setViewportSize({ width: 390, height: 844 });
   expect(
     await page.evaluate(

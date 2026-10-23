@@ -1,12 +1,19 @@
 import { test, expect, spyOn } from "bun:test";
 import { fixture } from "./helpers";
 import { handler } from "../src/http/app";
+import { settings } from "../src/config";
 import { Limiter } from "../src/core/concurrency";
 
 test("runtime settings apply live, preserve existing upload sessions, validate and survive restart", async () => {
   const f = await fixture();
   try {
     const current = await (await f.request("/api/settings")).json();
+    expect(current).toMatchObject({
+      writeConcurrency: 4,
+      postSaveConcurrency: 2,
+      deleteConcurrency: 2,
+    });
+    expect(current).not.toHaveProperty("taskConcurrency");
     const first = await (
       await f.request("/api/uploads", "POST", {
         profileId: f.profileId,
@@ -28,7 +35,9 @@ test("runtime settings apply live, preserve existing upload sessions, validate a
       maxPixels: 20000000,
       processingConcurrency: 3,
       processingQueue: 4,
-      taskConcurrency: 1,
+      writeConcurrency: 1,
+      postSaveConcurrency: 2,
+      deleteConcurrency: 3,
       retryLimit: 2,
     };
     expect((await f.request("/api/settings", "PUT", changed)).status).toBe(200);
@@ -70,6 +79,12 @@ test("runtime settings apply live, preserve existing upload sessions, validate a
       (await f.request(`/api/uploads/${second.id}/complete`, "POST")).status,
     ).toBe(200);
     for (const patch of [
+      ...[
+        "writeConcurrency",
+        "postSaveConcurrency",
+        "deleteConcurrency",
+      ].flatMap((key) => [0, -1, 1.5, 129].map((value) => ({ [key]: value }))),
+      { taskConcurrency: 4 },
       { partConcurrency: 0 },
       { chunkPartBytes: 65 * 1024 ** 2 },
       { uploadConcurrency: 1.5 },
@@ -204,5 +219,39 @@ test("cancelled queued work frees capacity and cancellation during handoff does 
   } finally {
     release();
     await active;
+  }
+});
+
+test("task concurrency environment settings are independent and bounded", () => {
+  const keys = [
+    "WRITE_CONCURRENCY",
+    "POST_SAVE_CONCURRENCY",
+    "DELETE_CONCURRENCY",
+  ] as const;
+  const previous = keys.map((key) => process.env[key]);
+  try {
+    keys.forEach((key, index) => {
+      process.env[key] = String(index + 5);
+    });
+    const base = { encryptionKey: "ab".repeat(32) };
+    expect(settings(base)).toMatchObject({
+      writeConcurrency: 5,
+      postSaveConcurrency: 6,
+      deleteConcurrency: 7,
+    });
+    for (const key of [
+      "writeConcurrency",
+      "postSaveConcurrency",
+      "deleteConcurrency",
+    ] as const) {
+      for (const value of [0, -1, 1.5, 129])
+        expect(() => settings({ ...base, [key]: value })).toThrow();
+      expect(settings({ ...base, [key]: 128 })[key]).toBe(128);
+    }
+  } finally {
+    keys.forEach((key, index) => {
+      if (previous[index] === undefined) delete process.env[key];
+      else process.env[key] = previous[index];
+    });
   }
 });

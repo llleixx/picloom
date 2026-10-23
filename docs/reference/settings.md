@@ -87,7 +87,9 @@ Docker 使用 `docker/.env.example`，源码开发使用根目录的 `.env.examp
 | `partConcurrency` | `PART_CONCURRENCY=2` | 单个分片会话同时接收的分片数，也提供给 Web 上传器 |
 | `processingConcurrency` | `PROCESSING_CONCURRENCY=2` | 上传流水线与派生图片处理共用的并发数 |
 | `processingQueue` | `PROCESSING_QUEUE=16` | 上述图片处理可排队的工作数，满时拒绝新工作 |
-| `taskConcurrency` | `TASK_CONCURRENCY=4` | 首次及后续副本写入、保存后处理、删除任务共用的执行名额；空位优先分配给运行任务较少的文件 |
+| `writeConcurrency` | `WRITE_CONCURRENCY=4` | 存储写入并发数，包含上传、剩余副本写入和重试；优先推进尚无成功副本的上传 |
+| `postSaveConcurrency` | `POST_SAVE_CONCURRENCY=2` | 上传后处理并发数，每条完整保存后流水线占一个名额 |
+| `deleteConcurrency` | `DELETE_CONCURRENCY=2` | 删除并发数，每次远端副本删除占一个名额 |
 | `retryLimit` | `RETRY_LIMIT=5` | 可自动重试任务的总尝试次数，包含首次执行；不强制重试不可重试的错误 |
 | `maxDimension` | `MAX_DIMENSION=8192` | 处理插件的单边尺寸上限，核心也用于校验处理输出 |
 | `maxPixels` | `MAX_PIXELS=40000000` | 图片总像素上限，限制解码和处理规模 |

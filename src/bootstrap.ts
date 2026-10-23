@@ -84,12 +84,17 @@ export async function bootstrap(
     );
     const auth = new Auth(db, config);
     const files = new Files(db, plugins, auth, config, faults);
+    let runtimeReady = false;
     const delivery = new DeliveryConfiguration(config, (value) => {
       files.cache.configure(value.cacheBytes, value.cacheTtlMs);
       files.configureProcessing(
         value.processingConcurrency,
         value.processingQueue,
       );
+      if (runtimeReady)
+        void files.tasks.dispatch().catch(() => {
+          console.error(JSON.stringify({ event: "task_dispatch_failed" }));
+        });
     });
     await delivery.load();
     const themes = new Themes(config.root, delivery.store);
@@ -100,6 +105,7 @@ export async function bootstrap(
     await files.recover();
     const uploads = new Uploads(db, files, auth, config);
     await uploads.recover();
+    runtimeReady = true;
     let closed = false;
     return {
       config,

@@ -331,11 +331,12 @@ export interface Repositories {
   saveTask(value: Task, expectedStatus?: Task["status"]): Promise<void>;
   dueTasks(
     now: number,
-    options?: {
+    options: {
+      kind: Task["kind"];
       limit: number;
       excludedFiles: string[];
       excludedTasks: string[];
-      activeFiles?: string[];
+      activeWriteFiles: string[];
     },
   ): Promise<Task[]>;
   recoverTasks(retryLimit: number): Promise<void>;

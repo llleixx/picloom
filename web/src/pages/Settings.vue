@@ -150,8 +150,20 @@ const limitGroups: Array<{
         advanced: true,
       },
       {
-        key: "taskConcurrency",
-        label: "settings.taskConcurrency",
+        key: "writeConcurrency",
+        label: "settings.writeConcurrency",
+        unit: 1,
+        advanced: true,
+      },
+      {
+        key: "postSaveConcurrency",
+        label: "settings.postSaveConcurrency",
+        unit: 1,
+        advanced: true,
+      },
+      {
+        key: "deleteConcurrency",
+        label: "settings.deleteConcurrency",
         unit: 1,
         advanced: true,
       },

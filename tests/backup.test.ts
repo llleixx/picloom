@@ -695,7 +695,7 @@ test("backup pauses automatic refill before draining tasks and resumes after pre
   let backup: ReturnType<typeof f.request> | undefined;
   try {
     const app = f.runtime.app;
-    app.config.taskConcurrency = 1;
+    app.config.deleteConcurrency = 1;
     const profile = await initializeDevelopment(app);
     const ids: string[] = [];
     for (let i = 0; i < 2; i++) {
@@ -770,7 +770,7 @@ test("backup lets admitted uploads finish queued first writes before pausing tas
     entered = resolve;
   });
   const app = f.runtime.app;
-  app.config.taskConcurrency = 1;
+  app.config.writeConcurrency = 1;
   const profile = await initializeDevelopment(app);
   const source = (await app.plugins.storageViews())[0]!;
   const lease = app.plugins.acquire(source.id, "storage");

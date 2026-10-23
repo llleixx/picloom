@@ -752,7 +752,7 @@ test("background tasks refill a free slot after failure while another task remai
   const started: string[] = [];
   const ids: string[] = [];
   try {
-    f.app.config.taskConcurrency = 2;
+    f.app.config.postSaveConcurrency = 2;
     f.app.plugins.register({
       defaultLocale: "en-US",
       nameKey: "package.name",

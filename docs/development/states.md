@@ -164,7 +164,17 @@ stateDiagram-v2
 | `action` | `ready` | 处理链与内容来源可用；重新执行整条链 |
 | `delete` | `ready/blocked/failed/deleting` | 副本为 `delete_failed`、存储实例可用；无需上传内容 |
 
-手动重试 `delete_failed` 文件的删除任务时，同一事务中将文件改回 `deleting`。各类任务共享并发预算，降低上限只影响后续派发。
+手动重试 `delete_failed` 文件的删除任务时，同一事务中将文件改回 `deleting`。写入、保存后处理、删除分别使用 `writeConcurrency`、`postSaveConcurrency`、`deleteConcurrency`，不共享或借用名额；降低上限只影响后续派发。
+
+写入领取使用三个严格优先级：
+
+1. 文件为 `preparing`、没有 `ready` 副本，也没有已领取或运行中的写入。
+2. 文件为 `preparing`、没有 `ready` 副本，但已有写入被领取或运行。
+3. 其他符合执行条件的写入，包括已有成功副本后的剩余写入和发布后的写入重试。
+
+每档内部按 `next_run_at`、`created_at`、任务 ID 升序选择。已准入但尚未将任务标记为 `running` 的写入也参与判断；只判断是否存在，不比较运行数量。已有 `ready` 副本但尚未发布时，剩余写入已经属于第三档。优先级只影响领取，不打断正在运行的任务，同一文件的多个目标仍可并发写入。
+
+保存后处理与删除不分优先级，直接按 `next_run_at`、`created_at`、任务 ID 升序选择。各类重试遵守原有退避，以本次到期时间排队，不额外插队。写入不做轮转、等待时间加权或优先级提升，持续有前两档任务时，第三档可能长时间等待。
 
 `attempts` 在领取时增加，准备阶段失败也消耗次数。自动重试要求错误允许重试、预算未耗尽，且当前不是单次手动尝试；保存后任务还要求累计处置仍为 `pass`。`retryLimit` 包含首次尝试，默认值及配置入口见[设置参考](../reference/settings.md#并发与图片处理)；退避时间为 `1000 × 2^attempts` 毫秒。
 
