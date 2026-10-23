@@ -1,6 +1,6 @@
 # 主题快速开始
 
-使用 Bun 1.4.3+ 创建独立 Vue 3 主题，默认模板由独立的 `picloom-tooling` 仓库维护。
+使用 Bun 1.4.4+ 创建独立 Vue 3 主题，默认模板由独立的 `picloom-tooling` 仓库维护。
 无需 clone 主仓库、Node/npm CLI 或系统 `zip`。完整协议见[主题协议](./themes.md)。
 
 ## 创建与开发

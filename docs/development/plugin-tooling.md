@@ -5,7 +5,7 @@
 
 ## 1. 准备环境
 
-- Bun 1.4.3+：创建、安装依赖、类型检查和打包均使用 Bun，不需要 Node.js 或 npm CLI。
+- Bun 1.4.4+：创建、安装依赖、类型检查和打包均使用 Bun，不需要 Node.js 或 npm CLI。
 - 一个可用的 Picloom 测试实例与 Owner 账号，用于安装插件和验证上传。
 
 SDK 不包含宿主服务。没有测试实例时，可按[Docker 快速开始](../guide/quick-start.md)部署隔离实例，或参考[本地开发](./contributing.md)从源码启动。插件项目本身不需要宿主源码。

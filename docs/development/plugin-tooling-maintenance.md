@@ -12,7 +12,7 @@
 | `tools/create-plugin/` | 创建入口与独立模板 | `@picloom/create-plugin` |
 | `picloom/examples/` | 各类型的完整示例，供教程引用和宿主集成验证 | 示例 ZIP |
 
-插件工具链使用 Bun 1.4.3+。主应用的 Vue 类型检查仍由 Node 执行；
+插件工具链使用 Bun 1.4.4+。主应用的 Vue 类型检查仍由 Node 执行；
 不要对主应用的 `vue-tsc` 强制使用 Bun，这不影响独立插件项目。
 
 ## 本地打包

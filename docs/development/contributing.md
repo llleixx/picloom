@@ -4,7 +4,7 @@
 
 ## 准备环境
 
-需要 Git、Bun；当前 Docker 与文档 CI 使用 Bun `1.4.3`，本地建议保持一致。插件和主题工具使用 JavaScript ZIP 库，不需要系统 `zip`。
+需要 Git、Bun；当前 Docker 与文档 CI 使用 Bun `1.4.4`，本地建议保持一致。插件和主题工具使用 JavaScript ZIP 库，不需要系统 `zip`。
 
 ```sh
 git clone https://github.com/llleixx/picloom.git
