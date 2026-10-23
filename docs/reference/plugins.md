@@ -27,7 +27,7 @@
 | [水印](./plugins/watermark.md) | `builtin.watermark` |
 | [Telegram 通知](./plugins/telegram-notification.md) | `builtin.telegram-notification` |
 
-存储插件的枚举、删除和写入恢复能力并不相同，选型前请查看对应说明。
+存储插件的枚举和删除能力并不相同，选型前请查看对应说明。
 
 ## 官方外部插件
 

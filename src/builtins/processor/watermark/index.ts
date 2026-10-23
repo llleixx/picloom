@@ -369,7 +369,6 @@ function stage(
                   "INVALID_INPUT",
                   "Watermark text exceeds the pixel limit",
                   false,
-                  "notApplied",
                 );
               overlay = sharp({
                 text: {

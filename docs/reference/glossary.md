@@ -16,6 +16,5 @@
 | 原图 / Original image | 上传处理后实际保存的图片，不一定与上传输入字节相同 |
 | 派生缓存 / Derived cache | 可从原图重新生成的访问结果 |
 | 临时缓存 / Temporary cache | 上传接收、处理中间结果及后台源文件使用的空间 |
-| 未知结果 / unknown | 无法确认远端操作结果，不等同于操作未发生 |
 
 从使用流程理解这些概念，见 [理解 Picloom](../guide/concepts.md)。

@@ -12,10 +12,10 @@
 
 例如审核正常完成但发现违规内容，应返回处置结果；审核服务超时才是执行错误。
 
-## PluginError 的四个字段
+## PluginError 的三个字段
 
 ```ts
-throw new PluginError("NETWORK", "Upload timed out", true, "unknown");
+throw new PluginError("NETWORK", "Upload timed out", true);
 ```
 
 | 字段 | 含义 | 默认值 |
@@ -23,17 +23,8 @@ throw new PluginError("NETWORK", "Upload timed out", true, "unknown");
 | `code` | 通用错误原因 | 必填 |
 | `message` | 不含敏感信息的错误说明 | 必填 |
 | `retryable` | 是否允许宿主按任务规则重试 | `false` |
-| `outcome` | 操作是否确定未生效 | `unknown` |
 
-`retryable` 和 `outcome` 独立判断：
-
-| 场景 | `retryable` | `outcome` |
-| --- | --- | --- |
-| 发出请求前发现输入无效 | `false` | `notApplied` |
-| 远端明确拒绝且没有执行操作 | 按拒绝原因判断 | `notApplied` |
-| 写入请求发出后连接中断 | 仅在可以安全重试时设为 `true` | `unknown` |
-
-超时不代表操作未生效。不能根据错误码本身推断是否允许重试，也不能将所有 HTTP 失败都当作未生效。
+失败表示未确认成功，超时或连接中断后远端操作可能已经完成。`retryable` 只控制是否允许重试，不表达远端结果。写入重试直接再次调用 `write`，可能创建重复对象；插件可以使用 `operationId` 避免重复，核心不要求提供这一保证。
 
 ## 通用错误码
 

@@ -225,14 +225,16 @@ export async function configurationRequest(
         tasks = await r.tasks(id);
       return {
         replicas: await Promise.all(
-          replicas.map(async (x) => ({
-            id: x.id,
-            instanceId: x.storage_instance_id,
-            name:
-              (await r.instance(x.storage_instance_id))?.name ??
-              x.storage_instance_id,
-            status: x.status,
-          })),
+          replicas.map(async (x) => {
+            const instance = await r.instance(x.storage_instance_id);
+            return {
+              id: x.id,
+              instanceId: x.storage_instance_id,
+              instanceDeleted: !instance,
+              name: instance?.name ?? x.storage_instance_id,
+              status: x.status,
+            };
+          }),
         ),
         tasks: await Promise.all(
           tasks.map(async (t) => {

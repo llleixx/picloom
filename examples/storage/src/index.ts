@@ -58,7 +58,7 @@ export default {
           signal.throwIfAborted();
           // A hard link publishes the complete file atomically without overwriting.
           await link(temporary, destination);
-          return { locator: null };
+          return { locator: { key: storageKey } };
         } finally {
           await remove(temporary);
         }
@@ -67,17 +67,18 @@ export default {
         signal.throwIfAborted();
         const file = Bun.file(await safePath(root, storageKey));
         if (!(await file.exists()))
-          throw new PluginError(
-            "NOT_FOUND",
-            "File not found",
-            false,
-            "notApplied",
-          );
+          throw new PluginError("NOT_FOUND", "File not found");
         return { type: "stream", stream: file.stream(), byteSize: file.size };
       },
-      async delete({ storageKey }, { signal }) {
+      async delete({ locator }, { signal }) {
         signal.throwIfAborted();
-        await remove(await safePath(root, storageKey));
+        if (
+          !locator ||
+          typeof locator !== "object" ||
+          typeof locator.key !== "string"
+        )
+          throw new PluginError("INVALID_INPUT", "Missing confirmed local locator");
+        await remove(await safePath(root, locator.key));
       },
     };
   },

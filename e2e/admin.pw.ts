@@ -58,38 +58,50 @@ test("upload, preview, copy, transform, deletion and restart use the real backen
   await expect(
     page.getByRole("heading", { name: "Image details" }),
   ).toBeVisible();
-  const originalUrl = await page.getByLabel("Original URL").inputValue();
+  const originalUrl = await page
+    .getByLabel("Access link", { exact: true })
+    .inputValue();
   await page
     .getByRole("group", { name: "Copy", exact: true })
-    .filter({ has: page.getByLabel("Original URL", { exact: true }) })
+    .filter({ has: page.getByLabel("Access link", { exact: true }) })
     .getByRole("button", { name: "Copy", exact: true })
     .click();
   await expect
     .poll(() => page.evaluate(() => navigator.clipboard.readText()))
     .toBe(originalUrl);
+  for (const parameter of ["Width", "Output format"]) {
+    await page
+      .getByRole("button", { name: "Add parameter", exact: true })
+      .click();
+    await page
+      .getByRole("button", { name: new RegExp("^" + parameter + "\\s") })
+      .click();
+  }
   await page.getByLabel("Width", { exact: true }).fill("20");
   await page.getByLabel("Output format").selectOption("webp");
   await page
     .getByRole("button", { name: "Generate preview", exact: true })
     .click();
-  await expect(page.getByLabel("Processed URL")).toHaveValue(
-    originalUrl + "?w=20&fit=inside&format=webp",
+  await expect(page.getByLabel("Access link", { exact: true })).toHaveValue(
+    originalUrl + "?w=20&format=webp",
   );
+  await expect(page.locator("img").last()).toHaveJSProperty("naturalWidth", 20);
   await page.getByLabel("Output format").selectOption("jpeg");
   await page
     .getByRole("button", { name: "Generate preview", exact: true })
     .click();
   await expect(page.getByRole("alert")).toContainText("transparency");
-  await expect(page.getByLabel("Processed URL")).toHaveCount(0);
+  await expect(page.getByLabel("Access link", { exact: true })).toHaveValue(
+    originalUrl + "?w=20&format=jpeg",
+  );
+  await expect(page.getByRole("dialog").locator("img")).toHaveCount(1);
   await page.getByLabel("Width", { exact: true }).fill("90000");
   await page
     .getByRole("button", { name: "Generate preview", exact: true })
     .click();
-  expect(
-    await page
-      .getByLabel("Width", { exact: true })
-      .evaluate((el) => (el as HTMLInputElement).validity.rangeOverflow),
-  ).toBe(true);
+  await expect(page.getByRole("alert")).toContainText(
+    "Invalid parameters or processing limit exceeded",
+  );
   await page.getByRole("button", { name: "Close", exact: true }).click();
   await service.restart();
   await page.reload();
@@ -107,9 +119,15 @@ test("upload, preview, copy, transform, deletion and restart use the real backen
   await page.getByRole("button", { name: "Close", exact: true }).click();
   await page.getByLabel("Image type").selectOption("image/svg+xml");
   await page.getByRole("button", { name: /^Open / }).click();
-  await expect(
-    page.getByText("Processing supports static", { exact: false }),
-  ).toBeVisible();
+  await page
+    .getByRole("button", { name: "Add parameter", exact: true })
+    .click();
+  await page.getByRole("button", { name: /^Width\s/ }).click();
+  await page.getByLabel("Width", { exact: true }).fill("20");
+  await page
+    .getByRole("button", { name: "Generate preview", exact: true })
+    .click();
+  await expect(page.getByRole("alert")).toContainText("Unsupported operation");
   await expect(page.locator("img").last()).toHaveJSProperty("naturalWidth", 80);
   expect(errors).toEqual([]);
 });
@@ -234,7 +252,9 @@ test.describe("pagination", () => {
     await expect(page.locator("html")).toHaveClass(/dark/);
     await page.getByRole("button", { name: "Light mode" }).click();
     await page.getByRole("button", { name: /^Open / }).click();
-    const url = await page.getByLabel("Original URL").inputValue();
+    const url = await page
+      .getByLabel("Access link", { exact: true })
+      .inputValue();
     const id = new URL(url).pathname.split("/").pop()!.replace(".png", "");
     await page.reload();
     await expect(
@@ -346,7 +366,7 @@ test.describe("upload queue", () => {
 
 test.describe("deletion failure", () => {
   test.use({ scenario: "delete-failure" });
-  test("failed cleanup remains visible and old link stops serving", async ({
+  test("failed cleanup can terminate with task history retained and capacity released", async ({
     page,
     service,
   }) => {
@@ -360,6 +380,15 @@ test.describe("deletion failure", () => {
         await page.request.get(service.url + "/api/files?status=ready")
       ).json()
     )[0].url;
+    const image = (
+      await (
+        await page.request.get(service.url + "/api/files?status=ready")
+      ).json()
+    )[0];
+    const session = await (
+      await page.request.get(service.url + "/api/auth/session")
+    ).json();
+    const headers = { "x-csrf-token": session.csrfToken, origin: service.url };
     await page
       .getByRole("button", { name: "Delete image", exact: true })
       .click();
@@ -399,17 +428,93 @@ test.describe("deletion failure", () => {
     await expect(
       row.getByRole("button", { name: "Retry", exact: true }),
     ).toBeEnabled();
-    await row.getByRole("button", { name: "Ignore", exact: true }).click();
+    const before = await (
+      await page.request.get(`${service.url}/api/files/${image.id}/operations`)
+    ).json();
+    const failedTask = before.tasks.find(
+      (task: any) => task.kind === "delete" && task.status === "failed",
+    );
+    expect(failedTask).toBeTruthy();
+    const accounted = (
+      await (
+        await page.request.get(service.url + "/api/storage-sources")
+      ).json()
+    )[0];
+    expect(accounted.usedStorageBytes).toBe(image.byteSize);
+    expect(accounted.replicaCount).toBe(1);
+    expect(
+      (
+        await page.request.put(
+          `${service.url}/api/storage-sources/${accounted.id}`,
+          {
+            headers,
+            data: {
+              ...accounted,
+              maxStorageBytes: image.byteSize * 2,
+              expectedVersion: accounted.configVersion,
+            },
+          },
+        )
+      ).ok(),
+    ).toBeTruthy();
+    const capacityPage = await page.context().newPage();
+    await capacityPage.goto(service.url + "/app/config/sources");
+    const capacityBar = capacityPage.getByRole("progressbar", {
+      name: source.name,
+    });
+    await expect(capacityBar).toHaveAttribute("aria-valuenow", "50");
+    await expect(capacityBar.locator(":scope > div")).toHaveCount(1);
+    await row
+      .getByRole("button", { name: "Terminate Replica", exact: true })
+      .click();
     const confirmation = page.getByRole("dialog", {
-      name: "Ignore",
+      name: "Terminate Replica",
       exact: true,
     });
     await expect(confirmation).toContainText(
-      "Remote files and other replicas will not be changed",
+      "Replica and task history are kept. Remote deletion is not guaranteed",
     );
     await confirmation
-      .getByRole("button", { name: "Ignore", exact: true })
+      .getByRole("button", { name: "Terminate Replica", exact: true })
       .click();
+    await expect(row).toContainText("Deleted");
+    await expect(
+      row.getByRole("button", { name: "Retry", exact: true }),
+    ).toHaveCount(0);
+    const after = await (
+      await page.request.get(`${service.url}/api/files/${image.id}/operations`)
+    ).json();
+    expect(after.replicas).toHaveLength(before.replicas.length);
+    expect(after.tasks).toHaveLength(before.tasks.length);
+    expect(
+      after.tasks.find((task: any) => task.id === failedTask.id).status,
+    ).toBe("failed");
+    expect(
+      (
+        await page.request.post(
+          `${service.url}/api/tasks/${failedTask.id}/retry`,
+          { headers },
+        )
+      ).status(),
+    ).toBe(409);
+    expect(
+      (
+        await page.request.post(
+          `${service.url}/api/files/${image.id}/replicas/${after.replicas[0].id}/terminate`,
+          { headers, data: { confirm: true } },
+        )
+      ).ok(),
+    ).toBeTruthy();
+    const released = (
+      await (
+        await page.request.get(service.url + "/api/storage-sources")
+      ).json()
+    )[0];
+    expect(released.usedStorageBytes).toBe(0);
+    expect(released.replicaCount).toBe(0);
+    await capacityPage.reload();
+    await expect(capacityBar).toHaveAttribute("aria-valuenow", "0");
+    await capacityPage.close();
     await page.getByRole("button", { name: "Close", exact: true }).click();
     await expect(card).toHaveCount(0);
   });

@@ -57,7 +57,7 @@ test("replacement rejects wrong formats, unsettled tasks, stale paths, and anoth
     expect((await replace(next, "/stale.png")).status).toBe(409);
     await f.app.db.transaction(async (r) => {
       const replicas = await r.replicas(next.id);
-      replicas[0]!.status = "write_unknown";
+      replicas[0]!.status = "write_failed";
       await r.saveReplica(replicas[0]!);
     });
     expect((await replace(next)).status).toBe(409);

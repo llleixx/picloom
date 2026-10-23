@@ -74,7 +74,6 @@ test("all stages share data within an attempt; failed actions release sources an
           name: "PluginError",
           code: "EXTERNAL_PRIVATE_CODE",
           retryable: false,
-          outcome: "unknown",
         });
     }
   };

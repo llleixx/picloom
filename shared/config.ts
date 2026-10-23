@@ -106,7 +106,6 @@ export interface Reference {
 export interface InstanceView {
   maxStorageBytes: number | null;
   usedStorageBytes: number;
-  reservedStorageBytes: number;
   canImport: boolean;
   replicaCount: number;
   id: string;
@@ -157,6 +156,7 @@ export interface OperationsView {
   replicas: Array<{
     id: string;
     instanceId: string;
+    instanceDeleted: boolean;
     name: string;
     status: string;
   }>;

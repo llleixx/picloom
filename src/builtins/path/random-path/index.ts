@@ -65,7 +65,6 @@ export const randomPath: Definition<"path"> = {
             "UNSUPPORTED",
             "Random path requires a supported final image type",
             false,
-            "notApplied",
           );
         // The upload ID is already random; deriving the name keeps retries stable.
         const name = fileId.replaceAll("-", "");

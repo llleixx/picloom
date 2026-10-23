@@ -468,6 +468,63 @@ export function persistenceContract(
             r.saveTask({ ...task, status: "running" }, "pending"),
           ),
         ).rejects.toBeInstanceOf(Conflict);
+        // Capacity uses the same accounting for every managed replica state.
+        for (const status of [
+          "pending",
+          "writing",
+          "ready",
+          "write_failed",
+          "delete_pending",
+          "deleting",
+          "delete_failed",
+        ] as const) {
+          await f.db.transaction((r) => r.saveReplica({ ...replica, status }));
+          expect(await f.db.read((r) => r.storageUsedBytes(storage.id))).toBe(
+            1,
+          );
+          expect(
+            (await f.db.read((r) => r.storageUsage([storage.id]))).get(
+              storage.id,
+            ),
+          ).toBe(1);
+          expect(
+            await f.db.read((r) => r.instanceReplicaCount(storage.id)),
+          ).toBe(1);
+          expect(
+            await f.db.read((r) => r.storageUsedBytes(storage.id, replica.id)),
+          ).toBe(0);
+        }
+        await f.db.transaction(async (r) => {
+          await r.saveTask({ ...task, status: "failed", next_run_at: null });
+          await r.saveReplica({ ...replica, status: "deleted" });
+          await r.replaceMembers(group.id, []);
+          await r.deleteInstance(storage.id);
+        });
+        expect(await f.db.read((r) => r.instance(storage.id))).toBeNull();
+        expect(await f.db.read((r) => r.replica(replica.id))).toMatchObject({
+          storage_instance_id: storage.id,
+          status: "deleted",
+        });
+        expect(await f.db.read((r) => r.task(task.id))).toMatchObject({
+          status: "failed",
+        });
+        expect(await f.db.read((r) => r.file(file.id))).toMatchObject({
+          id: file.id,
+        });
+        expect(await f.db.read((r) => r.instanceReplicaCount(storage.id))).toBe(
+          0,
+        );
+        expect(
+          (await f.db.read((r) => r.storageUsage([storage.id]))).get(
+            storage.id,
+          ),
+        ).toBeUndefined();
+        await expect(
+          f.db.transaction((r) => r.saveReplica(replica)),
+        ).rejects.toBeInstanceOf(Conflict);
+        await expect(
+          f.db.transaction((r) => r.insertReplica({ ...replica, ...entity() })),
+        ).rejects.toThrow("Expected storage instance");
       } finally {
         await f.close();
       }

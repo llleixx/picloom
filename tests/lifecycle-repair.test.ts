@@ -43,8 +43,7 @@ test("deletion exhausts one budget, survives restart, and resumes only on explic
   const f = await fixture({
     beforeDelete: async () => {
       calls++;
-      if (failing)
-        throw new PluginError("NETWORK", "offline", true, "notApplied");
+      if (failing) throw new PluginError("NETWORK", "offline", true);
     },
   });
   try {
@@ -95,9 +94,7 @@ test("repair reads another replica after temp cleanup, respects capacity, and re
   const lease = f.app.plugins.acquire(source.id, "storage");
   const write = spyOn(lease.runtime, "write");
   try {
-    write.mockRejectedValue(
-      new PluginError("NETWORK", "offline", false, "notApplied"),
-    );
+    write.mockRejectedValue(new PluginError("NETWORK", "offline", false));
     const image = await (await f.upload()).json();
     await f.app.files.sweep();
     const task = (await f.app.db.read((r) => r.tasks(image.id))).find(
@@ -152,114 +149,108 @@ test("repair reads another replica after temp cleanup, respects capacity, and re
   }
 });
 
-test("unknown write is verified without rewriting; missing repair source is reported before scheduling", async () => {
+test("failed write retries directly with its task ID and rejects a missing source", async () => {
   const { f, source } = await redundant();
   const lease = f.app.plugins.acquire(source.id, "storage");
-  const write = spyOn(lease.runtime, "write");
-  const recover = spyOn(lease.runtime, "recoverWrite");
+  const original = lease.runtime.write.bind(lease.runtime);
+  const write = spyOn(lease.runtime, "write").mockRejectedValue(
+    new PluginError("NETWORK", "Response lost", false),
+  );
   try {
-    write.mockRejectedValue(
-      new PluginError("NETWORK", "uncertain", false, "unknown"),
-    );
     const image = await (await f.upload()).json();
     await f.app.files.sweep();
     const task = (await f.app.db.read((r) => r.tasks(image.id))).find(
       (t) => t.status === "failed",
-    );
-    await f.app.db.transaction(async (r) => {
-      const other = (await r.replicas(image.id)).find(
-        (x) => x.storage_instance_id !== source.id,
-      )!;
-      await r.saveReplica({ ...other, status: "write_failed" });
+    )!;
+    write.mockImplementation(async (input, context) => {
+      expect(input.operationId).toBe(task.id);
+      return original(input, context);
     });
-    recover.mockResolvedValue({ status: "stored", locator: null });
-    await f.app.files.tasks.retry(task!.id);
+    await f.app.files.tasks.retry(task.id);
     await f.app.files.sweep();
-    expect(write).toHaveBeenCalledTimes(1);
+    expect(write).toHaveBeenCalledTimes(2);
     expect(
-      await f.app.db.read((r) => r.replica(task!.replica_id!)),
+      await f.app.db.read((r) => r.replica(task.replica_id!)),
     ).toMatchObject({ status: "ready" });
     await f.app.db.transaction(async (r) => {
-      const replica = (await r.replica(task!.replica_id!))!;
-      const current = (await r.task(task!.id))!;
-      await r.saveReplica({ ...replica, status: "write_failed" });
+      for (const replica of await r.replicas(image.id))
+        await r.saveReplica({ ...replica, status: "write_failed" });
+      const current = (await r.task(task.id))!;
       await r.saveTask({ ...current, status: "failed" });
     });
-    const response = await f.request(`/api/tasks/${task!.id}/retry`, "POST");
-    expect(response.status).toBe(409);
-    expect((await response.json()).error.code).toBe("REPAIR_SOURCE_MISSING");
+    expect(
+      (await f.request(`/api/tasks/${task.id}/retry`, "POST")).status,
+    ).toBe(409);
     const operations = await (
       await f.request(`/api/files/${image.id}/operations`)
     ).json();
     expect(
-      operations.tasks.find((t: { id: string }) => t.id === task!.id)
-        .retryError,
+      operations.tasks.find((t: { id: string }) => t.id === task.id).retryError,
     ).toBe("REPAIR_SOURCE_MISSING");
   } finally {
     write.mockRestore();
-    recover.mockRestore();
     await lease.release();
     await f.close();
   }
 });
 
-test("unknown cleanup uses bounded tasks, does not block healthy deletion, and can be ignored", async () => {
+test("failed-write cleanup has a bounded delete budget and termination keeps failed history", async () => {
   const { f, source } = await redundant();
   const lease = f.app.plugins.acquire(source.id, "storage");
   const write = spyOn(lease.runtime, "write").mockRejectedValue(
-    new PluginError("NETWORK", "unknown", false, "unknown"),
+    new PluginError("NETWORK", "Response lost", false),
   );
-  const recover = spyOn(lease.runtime, "recoverWrite").mockResolvedValue({
-    status: "unknown",
-  });
+  const remove = spyOn(lease.runtime, "delete").mockRejectedValue(
+    new PluginError("ACCESS_DENIED", "Denied", false),
+  );
   try {
-    f.app.config.retryLimit = 1;
     const image = await (await f.upload()).json();
     await f.app.files.sweep();
     await f.app.files.delete(image.id);
     await f.app.files.sweep();
-    expect((await f.app.db.read((r) => r.file(image.id)))?.status).toBe(
-      "delete_failed",
-    );
     const replica = (await f.app.db.read((r) => r.replicas(image.id))).find(
       (r) => r.storage_instance_id === source.id,
     )!;
-    expect(replica.status).toBe("write_unknown");
-    expect(recover).toHaveBeenCalledTimes(1);
-    const failed = await f.app.db.read((r) => r.file(image.id));
-    expect(
-      (await f.app.db.read((r) => r.filesNeedingCleanup())).some(
-        (file) => file.id === image.id,
-      ),
-    ).toBe(false);
+    expect(replica.status).toBe("delete_failed");
+    expect((await f.app.db.read((r) => r.file(image.id)))?.status).toBe(
+      "delete_failed",
+    );
+    expect(remove).toHaveBeenCalledTimes(1);
+    const tasks = await f.app.db.read((r) => r.tasks(image.id));
+    const failedDelete = tasks.find(
+      (t) => t.replica_id === replica.id && t.kind === "delete",
+    )!;
     await f.app.files.sweep();
-    expect(recover).toHaveBeenCalledTimes(1);
-    expect(await f.app.db.read((r) => r.file(image.id))).toEqual(failed);
+    expect(remove).toHaveBeenCalledTimes(1);
     const unrelated = await (await f.upload()).json();
     await f.app.files.delete(unrelated.id);
-    await f.app.files.ignoreReplica(image.id, replica.id);
-    // Ignoring one replica must not run cleanup for unrelated files.
+    await f.app.files.terminateReplica(image.id, replica.id);
     expect(
       (await f.app.db.read((r) => r.tasks(unrelated.id))).some(
-        (task) => task.kind === "delete",
+        (t) => t.kind === "delete",
       ),
     ).toBe(false);
     expect((await f.app.db.read((r) => r.file(image.id)))?.status).toBe(
       "deleted",
     );
-    // Only the unrelated upload still reserves capacity on this source.
+    expect(await f.app.db.read((r) => r.task(failedDelete.id))).toEqual(
+      failedDelete,
+    );
+    await expect(
+      f.app.files.tasks.retry(failedDelete.id),
+    ).rejects.toMatchObject({ code: "CONFLICT" });
     expect(await f.app.db.read((r) => r.storageUsedBytes(source.id))).toBe(
       f.png.length,
     );
   } finally {
     write.mockRestore();
-    recover.mockRestore();
+    remove.mockRestore();
     await lease.release();
     await f.close();
   }
 });
 
-test("restart converts interrupted writes to unknown without resetting an exhausted retry budget", async () => {
+test("restart converts interrupted writes to failure without resetting an exhausted retry budget", async () => {
   const { f } = await redundant();
   try {
     const image = await (await f.upload()).json();
@@ -281,7 +272,7 @@ test("restart converts interrupted writes to unknown without resetting an exhaus
     });
     expect(
       await f.app.db.read((r) => r.replica(task!.replica_id!)),
-    ).toMatchObject({ status: "write_unknown" });
+    ).toMatchObject({ status: "write_failed" });
     expect(
       (await f.app.db.read((r) => r.file(image.id)))?.temp_path,
     ).toBeNull();
@@ -290,28 +281,18 @@ test("restart converts interrupted writes to unknown without resetting an exhaus
   }
 });
 
-test("a failed verification never turns an earlier unknown write into an absent object", async () => {
+test("a lost write response is retried directly and remains counted once", async () => {
   const { f, source } = await redundant();
   const lease = f.app.plugins.acquire(source.id, "storage");
-  const originalWrite = lease.runtime.write.bind(lease.runtime);
+  const original = lease.runtime.write.bind(lease.runtime);
+  let fail = true;
   const write = spyOn(lease.runtime, "write").mockImplementation(
     async (input, context) => {
-      await originalWrite(input, context);
-      throw new PluginError(
-        "NETWORK",
-        "Response lost after commit",
-        false,
-        "unknown",
-      );
+      const result = await original(input, context);
+      if (fail)
+        throw new PluginError("NETWORK", "Response lost after commit", false);
+      return result;
     },
-  );
-  const recover = spyOn(lease.runtime, "recoverWrite").mockRejectedValue(
-    new PluginError(
-      "ACCESS_DENIED",
-      "Verification denied",
-      false,
-      "notApplied",
-    ),
   );
   try {
     const image = await (await f.upload()).json();
@@ -319,29 +300,21 @@ test("a failed verification never turns an earlier unknown write into an absent 
     const task = (await f.app.db.read((r) => r.tasks(image.id))).find(
       (t) => t.kind === "write" && t.status === "failed",
     )!;
-    const file = (await f.app.db.read((r) => r.file(image.id)))!;
-    expect(
-      await Bun.file(join(f.root, "repair-target", file.storage_key)).exists(),
-    ).toBe(true);
-    await f.app.files.tasks.retry(task.id);
-    await f.app.files.sweep();
-    expect(
-      await f.app.db.read((r) => r.replica(task.replica_id!)),
-    ).toMatchObject({ status: "write_unknown" });
     expect(await f.app.db.read((r) => r.storageUsedBytes(source.id))).toBe(
       f.png.length,
     );
-    expect(write).toHaveBeenCalledTimes(1);
-    recover.mockRestore();
+    fail = false;
     await f.app.files.tasks.retry(task.id);
     await f.app.files.sweep();
+    expect(write).toHaveBeenCalledTimes(2);
     expect(
       await f.app.db.read((r) => r.replica(task.replica_id!)),
     ).toMatchObject({ status: "ready" });
-    expect(write).toHaveBeenCalledTimes(1);
+    expect(await f.app.db.read((r) => r.storageUsedBytes(source.id))).toBe(
+      f.png.length,
+    );
   } finally {
     write.mockRestore();
-    recover.mockRestore();
     await lease.release();
     await f.close();
   }
@@ -403,3 +376,72 @@ test("restart makes exhausted tasks recoverable even before their replica operat
     await f.close();
   }
 });
+
+for (const existing of ["managed", "unregistered"] as const) {
+  test(`failed-upload cleanup preserves ${existing} objects at a conflicting storage key`, async () => {
+    const f = await fixture();
+    const storageKey = "shared.png";
+    try {
+      f.app.plugins.register({
+        id: "test.shared-storage-key",
+        kind: "path",
+        version: "1",
+        apiVersion: 1,
+        configSchemaVersion: 1,
+        configSchema: { type: "object" },
+        defaultLocale: "en-US",
+        nameKey: "package.name",
+        messages: { "en-US": { "package.name": "Shared storage key" } },
+        async createInstance() {
+          return {
+            async generate({ fileId }) {
+              return { logicalKey: `${fileId}.png`, storageKey };
+            },
+          };
+        },
+      });
+      const path = await f.app.plugins.save({
+        pluginId: "test.shared-storage-key",
+        version: "1",
+        name: "Shared storage key",
+        config: {},
+      });
+      await f.app.db.transaction(async (r) => {
+        const profile = (await r.profile(f.profileId))!;
+        await r.saveProfile(
+          {
+            ...profile,
+            path_instance_id: path.id,
+            config_version: profile.config_version + 1,
+          },
+          profile.config_version,
+        );
+      });
+      const object = Bun.file(join(f.root, "originals", storageKey));
+      const bytes =
+        existing === "managed"
+          ? new Uint8Array(f.png)
+          : new TextEncoder().encode("Preexisting object outside Picloom");
+      let original: { id: string; url: string } | undefined;
+      if (existing === "managed") {
+        const uploaded = await f.upload();
+        expect(uploaded.status).toBe(201);
+        original = await uploaded.json();
+      } else await Bun.write(object, bytes);
+
+      expect((await f.upload()).status).toBe(502);
+      await f.app.files.sweep();
+      expect(await object.bytes()).toEqual(bytes);
+      if (original) {
+        expect(await f.app.db.read((r) => r.file(original!.id))).toMatchObject({
+          status: "ready",
+        });
+        const readable = await f.request(new URL(original.url).pathname);
+        expect(readable.status).toBe(200);
+        expect(new Uint8Array(await readable.arrayBuffer())).toEqual(bytes);
+      }
+    } finally {
+      await f.close();
+    }
+  });
+}

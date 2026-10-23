@@ -10,7 +10,6 @@ test("manual retry persists across restart, counts attempts cumulatively and nev
         retryable ? "NETWORK" : "ACCESS_DENIED",
         "Failed",
         retryable,
-        "notApplied",
       );
     },
   });

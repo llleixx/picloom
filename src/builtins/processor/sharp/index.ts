@@ -79,7 +79,6 @@ function runtime(
           "INVALID_INPUT",
           "Invalid image dimensions",
           false,
-          "notApplied",
         );
       const file = "getFile" in input ? await input.getFile() : input.file;
       if (

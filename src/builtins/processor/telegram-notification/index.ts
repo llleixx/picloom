@@ -126,7 +126,6 @@ export const telegramNotification: Definition<"processor"> = {
                 "INVALID_CONFIG",
                 "Invalid Telegram bot token",
                 false,
-                "notApplied",
               );
             const lines = [
               "Picloom",
@@ -182,7 +181,6 @@ export const telegramNotification: Definition<"processor"> = {
                       : "SERVICE",
                   "Telegram rejected the notification",
                   code === 429,
-                  code >= 400 && code < 500 ? "notApplied" : "unknown",
                 );
               }
               if (
@@ -194,7 +192,6 @@ export const telegramNotification: Definition<"processor"> = {
                   "INVALID_DATA",
                   "Unconfirmed Telegram notification",
                   false,
-                  "unknown",
                 );
               return {
                 status: "pass",
@@ -209,7 +206,6 @@ export const telegramNotification: Definition<"processor"> = {
                 "NETWORK",
                 "Telegram notification outcome is unknown",
                 false,
-                "unknown",
               );
             }
           },

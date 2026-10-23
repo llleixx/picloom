@@ -121,7 +121,6 @@ const messages: Record<string, MessageKey> = {
   REPAIR_SOURCE_MISSING: "errors.repairSourceMissing",
   TEMP_MISSING: "errors.temp_missing",
   UNAVAILABLE: "errors.unavailable",
-  WRITE_UNKNOWN: "errors.write_unknown",
   WRITE_FAILED: "errors.write_failed",
   DELETE_FAILED: "errors.delete_failed",
   ACTION_FAILED: "errors.action_failed",

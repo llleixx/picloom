@@ -33,12 +33,7 @@ function validKey(value: string) {
   try {
     return storageKey(value);
   } catch {
-    throw new PluginError(
-      "INVALID_INPUT",
-      "Invalid WebDAV object path",
-      false,
-      "notApplied",
-    );
+    throw new PluginError("INVALID_INPUT", "Invalid WebDAV object path", false);
   }
 }
 
@@ -46,11 +41,7 @@ async function discard(response: Response) {
   await response.body?.cancel().catch(() => {});
 }
 
-function failure(
-  operation: string,
-  status: number,
-  outcome: "notApplied" | "unknown" = "unknown",
-) {
+function failure(operation: string, status: number) {
   return new PluginError(
     status === 401 || status === 403
       ? "ACCESS_DENIED"
@@ -60,8 +51,8 @@ function failure(
           ? "RESOURCE_LIMIT"
           : "SERVICE",
     "WebDAV " + operation + " failed (HTTP " + status + ")",
-    [408, 409, 423, 425, 429].includes(status) || status >= 500,
-    outcome,
+    [408, 409, 423, 425, 429].includes(status) ||
+      (status >= 500 && status !== 507),
   );
 }
 
@@ -188,12 +179,7 @@ export const webdavStorage: Definition<"storage"> = {
       if (locator === null) return validKey(logical);
       if (typeof locator === "object" && typeof locator.key === "string")
         return validKey(locator.key);
-      throw new PluginError(
-        "INVALID_INPUT",
-        "Invalid WebDAV locator",
-        false,
-        "notApplied",
-      );
+      throw new PluginError("INVALID_INPUT", "Invalid WebDAV locator", false);
     };
     const objectUrl = (path: string) =>
       new URL(
@@ -227,7 +213,6 @@ export const webdavStorage: Definition<"storage"> = {
           "NETWORK",
           "WebDAV " + method + " request failed",
           true,
-          method === "PUT" || method === "DELETE" ? "unknown" : "notApplied",
         );
       }
     };
@@ -245,7 +230,7 @@ export const webdavStorage: Definition<"storage"> = {
         // RFC 4918: 405 means the resource already exists, possibly a file.
         // Do not claim it is a collection; the subsequent child request must succeed.
         if (![200, 201, 204, 405].includes(status))
-          throw failure("MKCOL", status, "notApplied");
+          throw failure("MKCOL", status);
       }
     };
     return {
@@ -287,6 +272,7 @@ export const webdavStorage: Definition<"storage"> = {
         const pages = new Map<Frame, DirectoryEntry[]>();
         const items: Array<{
           storageKey: string;
+          locator: { key: string };
           byteSize?: number;
           mimeType?: string;
         }> = [];
@@ -314,7 +300,7 @@ export const webdavStorage: Definition<"storage"> = {
             );
             if (response.status !== 207) {
               await discard(response);
-              throw failure("PROPFIND", response.status, "notApplied");
+              throw failure("PROPFIND", response.status);
             }
             entries = await readDirectory(response, url, signal);
             pages.set(frame, entries);
@@ -333,6 +319,7 @@ export const webdavStorage: Definition<"storage"> = {
             }
             items.push({
               storageKey: path,
+              locator: { key: path },
               byteSize: entry.byteSize,
               mimeType: entry.mimeType,
             });
@@ -361,7 +348,6 @@ export const webdavStorage: Definition<"storage"> = {
             "INVALID_INPUT",
             "WebDAV PUT requires a known file size",
             false,
-            "notApplied",
           );
         const path = validKey(logical);
         await ensureParents(path, signal);
@@ -416,22 +402,15 @@ export const webdavStorage: Definition<"storage"> = {
               "CONFLICT",
               "WebDAV object already exists",
               false,
-              "notApplied",
             );
-          if (![200, 201, 204].includes(status))
-            throw failure(
-              "PUT",
-              status,
-              status >= 400 && status < 500 ? "notApplied" : "unknown",
-            );
+          if (![200, 201, 204].includes(status)) throw failure("PUT", status);
           if (!complete)
             throw new PluginError(
               "INVALID_DATA",
               "WebDAV server accepted an incomplete request",
               false,
-              "unknown",
             );
-          return { locator: null };
+          return { locator: { key: path } };
         } finally {
           signal.removeEventListener("abort", cancel);
           await reader.cancel().catch(() => {});
@@ -454,9 +433,8 @@ export const webdavStorage: Definition<"storage"> = {
               "NOT_FOUND",
               "WebDAV object not found",
               false,
-              "notApplied",
             );
-          throw failure("GET", status, "notApplied");
+          throw failure("GET", status);
         }
         const length = response.headers.get("content-length");
         const size =
@@ -475,6 +453,11 @@ export const webdavStorage: Definition<"storage"> = {
       },
       async delete({ storageKey: logical, locator }, ctx) {
         ctx.signal.throwIfAborted();
+        if (locator === null)
+          throw new PluginError(
+            "INVALID_INPUT",
+            "Missing confirmed webdav locator",
+          );
         const signal = signalFor(ctx.signal);
         const response = await request(
           objectUrl(key(logical, locator)),
@@ -484,29 +467,7 @@ export const webdavStorage: Definition<"storage"> = {
         const status = response.status;
         await discard(response);
         // 202 is asynchronous and 207 may contain failures; neither proves deletion.
-        if (![200, 204, 404].includes(status))
-          throw failure(
-            "DELETE",
-            status,
-            status >= 400 && status < 500 ? "notApplied" : "unknown",
-          );
-      },
-      async recoverWrite({ storageKey: logical }, ctx) {
-        const signal = signalFor(ctx.signal);
-        try {
-          const response = await request(
-            objectUrl(validKey(logical)),
-            "HEAD",
-            signal,
-          );
-          const status = response.status;
-          await discard(response);
-          // Standard WebDAV has no atomic PUT operation metadata. Existence and
-          // matching length cannot prove which operation created the object.
-          return { status: status === 404 ? "notStored" : "unknown" };
-        } catch {
-          return { status: "unknown" };
-        }
+        if (![200, 204, 404].includes(status)) throw failure("DELETE", status);
       },
     };
   },

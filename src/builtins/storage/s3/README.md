@@ -53,6 +53,8 @@ Replace the endpoint, region, bucket and credentials with provider values; regio
 
 ## Behavior and limitations
 
-Supports reads, writes, deletion, enumeration and recovery using operation metadata. Object keys are `keyPrefix/storageKey`; prefixes must not start or end with `/`. `forcePathStyle=true` uses path-style addressing; otherwise virtual-host addressing is used. Choose the mode required by your provider. Uploads at or above the threshold use multipart upload. With `redirect` enabled, normal reads may return an expiring signed URL; stream requests still read through the application. Endpoint, region, bucket, prefix and addressing mode are immutable.
+Supports reads, writes, deletion and enumeration. Repeated writes use operation metadata to recognize an existing object from the same operation. Object keys are `keyPrefix/storageKey`; prefixes must not start or end with `/`. `forcePathStyle=true` uses path-style addressing; otherwise virtual-host addressing is used. Choose the mode required by your provider. Uploads at or above the threshold use multipart upload. With `redirect` enabled, normal reads may return an expiring signed URL; stream requests still read through the application. Endpoint, region, bucket, prefix and addressing mode are immutable.
+
+Deletion uses the object location saved after a successful write or import. Without a confirmed location, deletion fails; manually terminate the replica to end its management.
 
 Import preserves the full storage key as the public path by default. “Public path strip depth” removes leading directories: stripping two levels maps `ab/cd/photo.jpg` to `photo.jpg`. Scan scope does not change the starting point, and the storage key stays unchanged. Too few directories fail; public path collisions are not overwritten, and registered storage objects are skipped.

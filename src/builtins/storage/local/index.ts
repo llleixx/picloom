@@ -68,7 +68,6 @@ export const localStorage: Definition<"storage"> = {
           "INVALID_INPUT",
           "Reserved storage directory",
           false,
-          "notApplied",
         );
       return value;
     };
@@ -100,7 +99,11 @@ export const localStorage: Definition<"storage"> = {
           )
         )
           throw new PluginError("INVALID_INPUT", "Invalid scan cursor");
-        const items: Array<{ storageKey: string; byteSize: number }> = [];
+        const items: Array<{
+          storageKey: string;
+          locator: { key: string };
+          byteSize: number;
+        }> = [];
         // Bound directory work too: an empty page may still have a next cursor.
         let work = 0;
         while (stack.length && items.length < limit && work++ < limit * 4) {
@@ -134,7 +137,11 @@ export const localStorage: Definition<"storage"> = {
             if (entry.isFile() && !entry.name.endsWith(".part")) {
               const stat = await lstat(join(directory, entry.name));
               if (stat.isFile())
-                items.push({ storageKey: name, byteSize: stat.size });
+                items.push({
+                  storageKey: name,
+                  locator: { key: name },
+                  byteSize: stat.size,
+                });
               if (items.length >= limit) break;
             }
           }
@@ -168,15 +175,9 @@ export const localStorage: Definition<"storage"> = {
             "CONFLICT",
             "Object belongs to another operation",
             false,
-            "notApplied",
           );
         if (!existing && (await Bun.file(target).exists()))
-          throw new PluginError(
-            "CONFLICT",
-            "Object already exists",
-            false,
-            "notApplied",
-          );
+          throw new PluginError("CONFLICT", "Object already exists", false);
         if (!existing) {
           const f = await open(record, "wx");
           try {
@@ -202,7 +203,7 @@ export const localStorage: Definition<"storage"> = {
               "INVALID_DATA",
               "Existing object has incorrect size",
             );
-          return { locator: null };
+          return { locator: { key: storageKey } };
         }
         await remove(temporary);
         try {
@@ -225,47 +226,11 @@ export const localStorage: Definition<"storage"> = {
           );
           await link(temporary, target);
           await remove(temporary);
-          return { locator: null };
+          return { locator: { key: storageKey } };
         } catch (e) {
           await remove(temporary);
           throw e;
         }
-      },
-      async recoverWrite({ operationId, storageKey, expectedSize }) {
-        const target = await safePath(root, objectKey(storageKey));
-        const record = await recordPath(storageKey);
-        let saved;
-        try {
-          saved = JSON.parse(await readFile(record, "utf8"));
-        } catch (e) {
-          if ((e as NodeJS.ErrnoException).code === "ENOENT")
-            return {
-              status: (await Bun.file(target).exists())
-                ? "unknown"
-                : "notStored",
-            };
-          throw e;
-        }
-        if (
-          saved.operationId !== operationId ||
-          saved.storageKey !== storageKey ||
-          saved.size !== expectedSize
-        )
-          return { status: "unknown" };
-        if (await Bun.file(target).exists())
-          return saved.inode &&
-            (await lstat(target)).ino === saved.inode &&
-            Bun.file(target).size === expectedSize
-            ? { status: "stored", locator: null }
-            : { status: "unknown" };
-        await remove(
-          join(
-            dirname(target),
-            `.${createHash("sha256").update(operationId).digest("hex")}.part`,
-          ),
-        );
-        await remove(record);
-        return { status: "notStored" };
       },
       async read({ storageKey, locator }, ctx) {
         ctx.signal.throwIfAborted();
@@ -280,6 +245,11 @@ export const localStorage: Definition<"storage"> = {
       },
       async delete({ storageKey, locator }, ctx) {
         ctx.signal.throwIfAborted();
+        if (locator === null)
+          throw new PluginError(
+            "INVALID_INPUT",
+            "Missing confirmed local locator",
+          );
         const path = await safePath(root, key(storageKey, locator));
         await remove(path);
         await remove(await recordPath(storageKey));

@@ -64,7 +64,7 @@ test("local in-place import preserves paths, metadata, duplicate safety, reads, 
     expect(await f.app.db.read((r) => r.tasks(file.id))).toEqual([]);
     expect(
       (await f.app.db.read((r) => r.replicas(file.id)))[0]!.locator_json,
-    ).toBeNull();
+    ).toEqual({ key: file.storage_key });
     expect((await scan(f, src.id)).imported).toBe(0);
     expect((await scan(f, src.id, { publicPrefix: "/alias/" })).imported).toBe(
       0,

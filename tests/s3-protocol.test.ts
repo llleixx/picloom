@@ -1,13 +1,38 @@
 import { test, expect } from "bun:test";
 import { fixture } from "./helpers";
 import { PluginError } from "../src/plugins/api";
-test("S3 SDK protocol enforces conditional creation, metadata recovery, streams and signed redirect", async () => {
+test("S3 SDK protocol enforces conditional creation, repeated writes, streams and signed redirect", async () => {
   const objects = new Map<string, { bytes: Uint8Array; headers: Headers }>();
-  let loseResponse = false;
+  let requests = 0,
+    loseResponse = false,
+    failureStatus = 0;
   const server = Bun.serve({
     port: 0,
     async fetch(req) {
-      const key = new URL(req.url).pathname;
+      requests++;
+      const url = new URL(req.url),
+        key = url.pathname;
+      if (req.method === "GET" && url.searchParams.get("list-type") === "2")
+        return new Response(
+          '<ListBucketResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/"><IsTruncated>false</IsTruncated>' +
+            [...objects.entries()]
+              .map(
+                ([key, value]) =>
+                  "<Contents><Key>" +
+                  decodeURIComponent(key.slice("/test/".length)) +
+                  "</Key><Size>" +
+                  value.bytes.length +
+                  "</Size></Contents>",
+              )
+              .join("") +
+            "</ListBucketResult>",
+        );
+      if (failureStatus) {
+        await req.arrayBuffer();
+        return new Response("<Error><Code>InjectedFailure</Code></Error>", {
+          status: failureStatus,
+        });
+      }
       if (req.method === "PUT") {
         expect(req.headers.get("if-none-match")).toBe("*");
         expect(req.headers.get("authorization")).toContain("AWS4-HMAC-SHA256");
@@ -58,7 +83,7 @@ test("S3 SDK protocol enforces conditional creation, metadata recovery, streams 
         multipartThresholdMiB: 64,
         partSizeMiB: 16,
         partConcurrency: 3,
-        keyPrefix: "",
+        keyPrefix: "prefix",
         forcePathStyle: true,
         signedUrlSeconds: 300,
         endpoint: server.url.origin,
@@ -94,22 +119,8 @@ test("S3 SDK protocol enforces conditional creation, metadata recovery, streams 
         { operationId: "write-1", fileId, storageKey: "中文/a.png", file },
         ctx,
       );
-      expect(result.locator).toBeNull();
-      expect(objects.has("/test/%E4%B8%AD%E6%96%87/a.png")).toBe(true);
-      expect(
-        (
-          await lease.runtime.recoverWrite!(
-            {
-              operationId: "write-1",
-              fileId,
-              storageKey: "中文/a.png",
-              expectedSize: f.png.length,
-              locator: null,
-            },
-            ctx,
-          )
-        ).status,
-      ).toBe("stored");
+      expect(result.locator).toEqual({ key: "prefix/中文/a.png" });
+      expect(objects.has("/test/prefix/%E4%B8%AD%E6%96%87/a.png")).toBe(true);
       expect(
         await lease.runtime.write(
           { operationId: "write-1", fileId, storageKey: "中文/a.png", file },
@@ -138,11 +149,32 @@ test("S3 SDK protocol enforces conditional creation, metadata recovery, streams 
       expect(redirect.type).toBe("redirect");
       if (redirect.type === "redirect")
         expect(redirect.url).toContain("X-Amz-Signature");
+      const before = requests;
+      await expect(
+        lease.runtime.delete(
+          {
+            operationId: "missing-locator",
+            storageKey: "中文/a.png",
+            locator: null,
+          },
+          ctx,
+        ),
+      ).rejects.toMatchObject({ code: "INVALID_INPUT", retryable: false });
+      expect(requests).toBe(before);
+      expect(objects.has("/test/prefix/%E4%B8%AD%E6%96%87/a.png")).toBe(true);
+      const listed = await lease.runtime.listFiles!({ limit: 10 }, ctx);
+      expect(listed.items).toEqual([
+        {
+          storageKey: "中文/a.png",
+          locator: { key: "prefix/中文/a.png" },
+          byteSize: f.png.length,
+        },
+      ]);
       await lease.runtime.delete(
         {
           operationId: "delete",
           storageKey: "中文/a.png",
-          locator: result.locator!,
+          locator: listed.items[0]!.locator!,
         },
         ctx,
       );
@@ -154,20 +186,6 @@ test("S3 SDK protocol enforces conditional creation, metadata recovery, streams 
         },
         ctx,
       );
-      expect(
-        (
-          await lease.runtime.recoverWrite!(
-            {
-              operationId: "write-1",
-              fileId,
-              storageKey: "中文/a.png",
-              expectedSize: f.png.length,
-              locator: null,
-            },
-            ctx,
-          )
-        ).status,
-      ).toBe("notStored");
       loseResponse = true;
       const another = crypto.randomUUID();
       await expect(
@@ -180,21 +198,49 @@ test("S3 SDK protocol enforces conditional creation, metadata recovery, streams 
           },
           ctx,
         ),
-      ).rejects.toBeInstanceOf(PluginError);
+      ).rejects.toMatchObject({ retryable: true });
       expect(
-        (
-          await lease.runtime.recoverWrite!(
+        await lease.runtime.write(
+          {
+            operationId: "lost-response",
+            fileId: another,
+            storageKey: "x",
+            file,
+          },
+          ctx,
+        ),
+      ).toEqual({ locator: { key: "prefix/x" } });
+      for (const status of [401, 403, 408, 409, 429, 503]) {
+        failureStatus = status;
+        const retryable = [408, 429, 503].includes(status);
+        await expect(
+          lease.runtime.write(
+            { operationId: "classify", fileId, storageKey: "errors", file },
+            ctx,
+          ),
+        ).rejects.toMatchObject({ retryable: status === 409 || retryable });
+        await expect(
+          lease.runtime.delete(
             {
-              operationId: "lost-response",
-              fileId: another,
+              operationId: "classify-delete",
               storageKey: "x",
-              expectedSize: f.png.length,
-              locator: null,
+              locator: { key: "prefix/x" },
             },
             ctx,
-          )
-        ).status,
-      ).toBe("stored");
+          ),
+        ).rejects.toMatchObject({ retryable });
+      }
+      failureStatus = 404;
+      await expect(
+        lease.runtime.delete(
+          {
+            operationId: "already-missing",
+            storageKey: "missing",
+            locator: { key: "prefix/missing" },
+          },
+          ctx,
+        ),
+      ).resolves.toBeUndefined();
     } finally {
       await lease.release();
     }

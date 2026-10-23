@@ -434,88 +434,8 @@ export class PluginManager {
     }
   }
   async start() {
-    await this.migrateBuiltins();
     for (const record of await this.db.read((x) => x.instances()))
       await this.initialize(record);
-  }
-  private async migrateBuiltins() {
-    for (const old of await this.db.read((r) => r.instances())) {
-      const version = this.builtins.get(old.plugin_id);
-      if (version === undefined) continue;
-      const target = this.descriptor({ ...old, plugin_version: version });
-      if (target.kind !== old.kind)
-        throw new AppError("CONFIG_INVALID", "Plugin kind cannot change");
-      if (old.config_schema_version > target.configSchemaVersion)
-        throw new AppError("PLUGIN_VERSION", "Cannot downgrade configuration");
-      if (
-        old.plugin_version === version &&
-        old.config_schema_version === target.configSchemaVersion
-      )
-        continue;
-      const previous = this.cacheConfiguration(old);
-      const full =
-        old.config_schema_version < target.configSchemaVersion
-          ? await this.migrateConfiguration(
-              old,
-              target,
-              structuredClone(previous),
-            )
-          : structuredClone(previous);
-      const validate = compileSchema(target.configSchema);
-      if (!validate(full))
-        throw new AppError(
-          "CONFIG_INVALID",
-          "Configuration does not match plugin schema",
-          400,
-          schemaErrors(validate.errors),
-        );
-      if (target.validateConfig) {
-        try {
-          const errors = await target.validateConfig(
-            freeze(structuredClone(full)),
-          );
-          if (errors.length) throw new Error();
-        } catch {
-          throw new AppError("CONFIG_INVALID", "Plugin rejected configuration");
-        }
-      }
-      const checkImmutable = (rule: Schema, path: string) => {
-        if (
-          rule["x-immutable"] &&
-          readPointer(previous, path) !== undefined &&
-          !equalJson(readPointer(previous, path), readPointer(full, path))
-        )
-          throw new AppError(
-            "NEW_INSTANCE_REQUIRED",
-            "Storage target changes require a new instance",
-          );
-        for (const [key, child] of Object.entries(rule.properties ?? {}))
-          checkImmutable(child, path + "/" + pointer(key));
-      };
-      checkImmutable(target.configSchema, "");
-      if ("localDirectory" in target && target.localDirectory)
-        directoryRoot(full, target.localDirectory.configPath);
-      const parts = split(full, target.configSchema);
-      await this.db.transaction(async (r) => {
-        const current = requireValue(await r.instance(old.id));
-        if (current.secrets_version !== old.secrets_version)
-          throw new Conflict();
-        await r.saveInstance(
-          {
-            ...current,
-            plugin_version: version,
-            config_schema_version: target.configSchemaVersion,
-            config_json: parts.config,
-            config_version: old.config_version + 1,
-            secrets_encrypted: this.secrets.encrypt(parts.secrets, old.id),
-            secrets_version: old.secrets_version + 1,
-            last_init_error: null,
-            updated_at: Date.now(),
-          },
-          old.config_version,
-        );
-      });
-    }
   }
   private async migrateConfiguration(
     old: Instance,
@@ -960,8 +880,7 @@ export class PluginManager {
         kind: record.kind,
         name: record.name,
         maxStorageBytes: record.max_storage_bytes ?? null,
-        usedStorageBytes: usage.get(record.id)?.used ?? 0,
-        reservedStorageBytes: usage.get(record.id)?.reserved ?? 0,
+        usedStorageBytes: usage.get(record.id) ?? 0,
         configVersion: record.config_version,
         canImport:
           record.kind === "storage" &&
@@ -992,7 +911,6 @@ export class PluginManager {
       )
         throw new Conflict("实例仍有在途调用");
       await this.db.transaction(async (r) => {
-        await r.pruneTerminalReferences(id);
         const refs = await r.instanceReferences(id);
         const replicaCount = await r.instanceReplicaCount(id);
         if (refs.length || replicaCount)

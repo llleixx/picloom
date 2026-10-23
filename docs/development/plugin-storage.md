@@ -56,10 +56,10 @@ export default {
 | ------------- | ---------------------------------------------------- |
 | `storageKey`  | 路径插件给出的相对存储键                             |
 | `file`        | 文件输入，通过 `openRead()` 获取流，不保证有本地路径 |
-| `locator`     | 插件返回的额外定位信息；核心保存并原样传给后续调用   |
+| `locator`     | 插件返回的对象定位信息；核心保存并原样传给后续调用   |
 | `operationId` | 写入或删除操作的标识，可用于识别重复调用             |
 
-本地示例不需要额外定位信息。若远端服务返回对象 ID，可用 `{ locator: { objectId: "remote-123" } }` 保存；也允许字符串定位信息，不要放入凭证。
+本地示例通过 `locator` 保存确认写入的路径。远端服务返回对象 ID 时，可用 `{ locator: { objectId: "remote-123" } }` 保存；也允许字符串定位信息，不要放入凭证。
 
 ### write：写入图片
 
@@ -74,7 +74,7 @@ write(input: {
 }, context: Context): Promise<{ locator?: Locator }>;
 ```
 
-返回对象中的 `locator?: Locator` 是可选定位信息，省略时核心按 `null` 保存。只能在确认写入成功后返回；失败时抛错，是否可能生效通过 [PluginError](./plugin-errors.md#pluginerror-的四个字段) 表达。
+返回对象中的 `locator?: Locator` 是可选定位信息，省略时核心按 `null` 保存。只能在确认写入成功后返回；失败时通过 [PluginError](./plugin-errors.md#pluginerror-的三个字段) 表达原因及是否允许重试。
 
 ### read：读取图片
 
@@ -116,44 +116,13 @@ delete(input: {
 }, context: Context): Promise<void>;
 ```
 
-成功无数据返回，失败抛错。目标已不存在通常可视为成功，但认证失败或查询超时不能当作“不存在”。只删除指定对象，不删除整个存储根目录。
+成功无数据返回，失败抛错。目标已不存在通常可视为成功，但认证失败或查询超时不能当作“不存在”。只删除指定对象，不删除整个存储根目录。不支持删除或缺少必要定位时抛出错误，不可空返回成功；副本会进入删除失败，供用户重试或人工终结。
+
+SDK 允许省略 `locator`，各插件仍须保证删除目标可靠。本地、S3、WebDAV 和 OpenList 在写入成功或扫描导入时返回明确定位；删除缺少已保存定位的副本时会失败，不通过 `storageKey` 猜测目标，以免删除发生路径冲突的其他对象。
 
 <span id="扩展与约束"></span>
 
 ## 可选能力与约束
-### recoverWrite：核对写入结果（可选）
-
-写入结果不确定时，核心可以调用它核实。查询失败不能推断为没有写入。
-
-```ts
-recoverWrite(input: {
-  operationId: string;
-  fileId: string;
-  storageKey: string;
-  expectedSize: number;
-  locator: Locator;
-}, context: Context): Promise<
-  | { status: "stored"; locator?: Locator }
-  | { status: "notStored" | "unknown" }
->;
-```
-
-| 输入字段       | 类型      | 可选 | 含义                        |
-| -------------- | --------- | ---- | --------------------------- |
-| `operationId`  | `string`  | 否   | 原写入操作标识              |
-| `fileId`       | `string`  | 否   | Picloom 文件 ID             |
-| `storageKey`   | `string`  | 否   | 待核对的相对键              |
-| `expectedSize` | `number`  | 否   | 预期内容大小，字节          |
-| `locator`      | `Locator` | 否   | 已有定位信息，可能为 `null` |
-
-| 返回 `status` | 含义         | 附加字段                            |
-| ------------- | ------------ | ----------------------------------- |
-| `stored`      | 确认已写入   | 可选 `locator: Locator`，供核心保存 |
-| `notStored`   | 确认没有写入 | 无                                  |
-| `unknown`     | 无法判断     | 无                                  |
-
-没有可靠查询能力可以不实现；实现后也不能为了推进任务而猜测结果。
-
 ### listFiles：扫描导入（可选）
 
 管理员导入存储源中的已有图片时，核心逐页调用此方法。
@@ -189,7 +158,7 @@ listFiles(input: {
 | `items[].mimeType`   | `string`         | 否   | MIME 类型                          |
 | `nextCursor`         | `string \| null` | 是   | 下一页游标；结束必须返回 `null`    |
 
-游标由插件定义，核心原样传回。`scope` 只缩小扫描范围，不改变存储根目录，也不应从返回的键中剥离该范围前缀。导入选项 `stripDirectories` 由核心用于生成逻辑路径，默认 `0`；不传给插件，不修改 `storageKey` 或 `locator`。
+扫描条目的定位会随副本保存。路径型存储应显式返回定位，供后续安全删除。游标由插件定义，核心原样传回。`scope` 只缩小扫描范围，不改变存储根目录，也不应从返回的键中剥离该范围前缀。导入选项 `stripDirectories` 由核心用于生成逻辑路径，默认 `0`；不传给插件，不修改 `storageKey` 或 `locator`。
 
 ### 本地目录声明（可选）
 
@@ -197,7 +166,7 @@ listFiles(input: {
 
 用户填写 `./example-images` 时，宿主以应用数据目录为基准解析并保存绝对路径，插件收到的配置已完成解析。声明同时供容量统计和备份识别；不要让核心依靠插件 ID 猜测目录。
 
-重复写入不能覆盖其他文件；远端支持幂等键时可使用 `operationId`。本例没有实现写入结果恢复，接入远端服务时还需遵守 [错误与重试规则](./plugin-errors.md)。
+每次写入重试直接调用 `write`，沿用原 `operationId`，可能创建重复远端对象。重复写入不能覆盖其他文件；插件可利用远端幂等键减少重复。核心只管理已保存的定位，不枚举或补偿历史重复对象。接入远端服务时遵守 [错误与重试规则](./plugin-errors.md)。
 
 <span id="想实现什么"></span><span id="在哪里执行"></span><span id="谁负责什么"></span><span id="看一次调用"></span><span id="定义与能力清单"></span>
 开发流程见[最小实现](#最小实现)，调用规则见[接口行为](#接口行为)。

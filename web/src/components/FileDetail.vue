@@ -93,7 +93,17 @@ watch(
 );
 const operationError = ref("");
 const retrying = ref("");
+function replicaRunning(id: string) {
+  return operations.data.value?.tasks.some(
+    (task) => task.replicaId === id && task.status === "running",
+  );
+}
 function replicaRetry(id: string) {
+  if (
+    operations.data.value?.replicas.find((replica) => replica.id === id)
+      ?.status === "deleted"
+  )
+    return;
   return operations.data.value?.tasks.find(
     (task) =>
       task.replicaId === id &&
@@ -115,11 +125,9 @@ const operationStatuses = computed<Record<string, string>>(() => ({
   writing: t("ui.writing"),
   ready: t("ui.ready"),
   write_failed: t("ui.writeFailed"),
-  write_unknown: t("ui.writeOutcomeUnknown"),
   delete_pending: t("ui.pendingDeletion"),
   deleting: t("ui.deleting"),
   delete_failed: t("ui.deleteFailed"),
-  delete_unknown: t("ui.deleteOutcomeUnknown"),
   deleted: t("ui.deleted"),
 }));
 async function retryTask(id: string) {
@@ -136,27 +144,6 @@ async function retryTask(id: string) {
     operationError.value = errorText(e);
   } finally {
     retrying.value = "";
-  }
-}
-const confirmForget = ref(false),
-  forgetting = ref(false),
-  forgetError = ref("");
-async function forgetRecord() {
-  if (forgetting.value) return;
-  forgetting.value = true;
-  forgetError.value = "";
-  try {
-    await api("/api/files/" + encodeURIComponent(props.id) + "/forget", {
-      method: "POST",
-      body: JSON.stringify({ confirm: true }),
-    });
-    confirmForget.value = false;
-    emit("close");
-    await queryClient.invalidateQueries({ queryKey: ["files"] });
-  } catch (error) {
-    forgetError.value = errorText(error);
-  } finally {
-    forgetting.value = false;
   }
 }
 const confirming = ref(false),
@@ -198,9 +185,9 @@ watch(
 const deleteWhole = ref(false),
   includeLast = ref(false),
   replicaTarget = ref(""),
-  ignoringReplica = ref(false);
-function confirmRemoval(replicaId = "", ignore = false) {
-  ignoringReplica.value = ignore;
+  terminatingReplica = ref(false);
+function confirmRemoval(replicaId = "", terminate = false) {
+  terminatingReplica.value = terminate;
   replicaTarget.value = replicaId;
   deleteWhole.value = false;
   includeLast.value = false;
@@ -220,9 +207,9 @@ async function remove() {
   try {
     const sourceOnly =
       !replicaTarget.value && props.sourceId && !deleteWhole.value;
-    if (ignoringReplica.value && replicaTarget.value) {
+    if (terminatingReplica.value && replicaTarget.value) {
       await api(
-        `/api/files/${encodeURIComponent(props.id)}/replicas/${encodeURIComponent(replicaTarget.value)}/ignore`,
+        `/api/files/${encodeURIComponent(props.id)}/replicas/${encodeURIComponent(replicaTarget.value)}/terminate`,
         {
           method: "POST",
           body: JSON.stringify({ confirm: true }),
@@ -332,14 +319,6 @@ async function remove() {
             {{ t("ui.publicAccessDisabledCleanupPending") }}
           </p>
         </div>
-        <Button
-          v-if="isAdmin && ['deleting', 'delete_failed'].includes(file.status)"
-          class="mt-4"
-          variant="destructive"
-          @click="confirmForget = true"
-        >
-          {{ t("images.forget") }}
-        </Button>
         <div v-if="file.status === 'blocked'" class="mt-4 space-y-2">
           <p class="subtle">{{ t("images.blockedHint") }}</p>
           <Button
@@ -421,12 +400,18 @@ async function remove() {
             :key="replica.id"
             class="rounded-lg border p-3 text-sm"
           >
-            {{ replica.name }} ·
+            {{
+              replica.instanceDeleted
+                ? t("replicas.instanceDeleted", { id: replica.instanceId })
+                : replica.name
+            }}
+            ·
             {{ operationStatuses[replica.status] ?? replica.status }}
             <Button
               v-if="
                 ['ready', 'blocked'].includes(file.status) &&
-                ['ready', 'pending', 'write_failed'].includes(replica.status)
+                ['ready', 'pending', 'write_failed'].includes(replica.status) &&
+                !replicaRunning(replica.id)
               "
               variant="ghost"
               size="sm"
@@ -446,18 +431,14 @@ async function remove() {
             >
             <Button
               v-if="
-                [
-                  'write_failed',
-                  'write_unknown',
-                  'delete_failed',
-                  'delete_unknown',
-                ].includes(replica.status)
+                replica.status === 'delete_failed' &&
+                !replicaRunning(replica.id)
               "
               variant="ghost"
               size="sm"
               class="ml-2"
               @click="confirmRemoval(replica.id, true)"
-              >{{ t("replicas.ignore") }}</Button
+              >{{ t("replicas.terminate") }}</Button
             >
             <p
               v-if="replicaRetry(replica.id)?.retryError"
@@ -517,40 +498,14 @@ async function remove() {
           </p>
         </section>
       </template>
-      <Dialog v-model:open="confirmForget">
-        <DialogContent :busy="forgetting">
-          <DialogTitle>{{ t("images.forget") }}</DialogTitle>
-          <DialogDescription>{{ t("images.forgetHint") }}</DialogDescription>
-          <p v-if="forgetting" class="subtle">
-            {{ t("images.forgetWaiting") }}
-          </p>
-          <p v-if="forgetError" role="alert" class="error-box">
-            {{ forgetError }}
-          </p>
-          <div class="flex justify-end gap-2">
-            <Button
-              variant="outline"
-              :disabled="forgetting"
-              @click="confirmForget = false"
-              >{{ t("ui.cancel") }}</Button
-            >
-            <Button
-              variant="destructive"
-              :loading="forgetting"
-              @click="forgetRecord"
-              >{{ t("images.forgetConfirm") }}</Button
-            >
-          </div>
-        </DialogContent>
-      </Dialog>
       <Dialog v-model:open="confirming"
         ><DialogContent :busy="deleting"
           ><DialogTitle>{{
-            ignoringReplica ? t("replicas.ignore") : t("ui.deleteImage2")
+            terminatingReplica ? t("replicas.terminate") : t("ui.deleteImage2")
           }}</DialogTitle
           ><DialogDescription>{{
-            ignoringReplica
-              ? t("replicas.ignoreConfirm")
+            terminatingReplica
+              ? t("replicas.terminateConfirm")
               : replicaTarget
                 ? lastReplica
                   ? t("replicas.last")
@@ -580,8 +535,8 @@ async function remove() {
               >{{
                 deleting
                   ? t("ui.deletingNow")
-                  : ignoringReplica
-                    ? t("replicas.ignore")
+                  : terminatingReplica
+                    ? t("replicas.terminate")
                     : t("ui.confirmDelete")
               }}</Button
             >

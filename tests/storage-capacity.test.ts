@@ -35,7 +35,7 @@ test("capacity admits exact fit, blocks excess, persists and can be cleared", as
   }
 });
 
-test("in-flight writes reserve capacity and deleted replicas release it", async () => {
+test("in-flight writes consume capacity and deleted replicas release it", async () => {
   let entered!: () => void, release!: () => void;
   const started = new Promise<void>((resolve) => (entered = resolve));
   const gate = new Promise<void>((resolve) => (release = resolve));
@@ -49,7 +49,6 @@ test("in-flight writes reserve capacity and deleted replicas release it", async 
     const id = await limit(f, f.png.length);
     expect(await f.app.plugins.view(id)).toMatchObject({
       usedStorageBytes: 0,
-      reservedStorageBytes: 0,
     });
     const upload = f.upload();
     await started;
@@ -59,8 +58,7 @@ test("in-flight writes reserve capacity and deleted replicas release it", async 
         (source: { id: string }) => source.id === id,
       ),
     ).toMatchObject({
-      usedStorageBytes: 0,
-      reservedStorageBytes: f.png.length,
+      usedStorageBytes: f.png.length,
     });
     expect((await f.upload()).ok).toBe(false);
     release();
@@ -69,17 +67,13 @@ test("in-flight writes reserve capacity and deleted replicas release it", async 
     const file = await result.json();
     expect(await f.app.plugins.view(id)).toMatchObject({
       usedStorageBytes: f.png.length,
-      reservedStorageBytes: 0,
     });
     await f.app.db.transaction(async (r) => {
       const replica = (await r.replicas(file.id))[0]!;
       replica.status = "delete_pending";
       await r.saveReplica(replica);
       expect(await r.storageUsedBytes(id)).toBe(f.png.length);
-      expect((await r.storageUsage([id])).get(id)).toEqual({
-        used: f.png.length,
-        reserved: 0,
-      });
+      expect((await r.storageUsage([id])).get(id)).toBe(f.png.length);
       replica.status = "deleted";
       await r.saveReplica(replica);
       expect(await r.storageUsedBytes(id)).toBe(0);

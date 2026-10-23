@@ -1,7 +1,7 @@
 import { test, expect } from "bun:test";
 import { fixture } from "./helpers";
 
-test("S3 multipart batches, conditional completion, recovery and abort cleanup", async () => {
+test("S3 multipart batches, conditional completion, retries and abort cleanup", async () => {
   const f = await fixture();
   const sessions = new Map<
     string,
@@ -160,38 +160,47 @@ test("S3 multipart batches, conditional completion, recovery and abort cleanup",
         storageKey: "large",
         file,
       };
-      await lease.runtime.write(input, ctx);
+      expect(await lease.runtime.write(input, ctx)).toEqual({
+        locator: { key: "large" },
+      });
       expect(objects.get("/test/large")!.bytes).toEqual(bytes);
       expect(peak).toBe(2);
       expect(sessions.size).toBe(0);
       expect(puts).toBe(0);
-      await lease.runtime.write(input, ctx); // Same operation is recoverable after 412.
+      expect(await lease.runtime.write(input, ctx)).toEqual({
+        locator: { key: "large" },
+      }); // A repeat of the same operation succeeds after 412.
       await expect(
         lease.runtime.write({ ...input, operationId: "other" }, ctx),
-      ).rejects.toMatchObject({ code: "CONFLICT", outcome: "notApplied" });
+      ).rejects.toMatchObject({ code: "CONFLICT" });
       mode = "lost";
       await expect(
         lease.runtime.write({ ...input, storageKey: "lost" }, ctx),
-      ).rejects.toMatchObject({ outcome: "unknown" });
-      expect(
-        (
-          await lease.runtime.recoverWrite!(
-            {
-              operationId: "op",
-              fileId: "file",
-              storageKey: "lost",
-              expectedSize: bytes.length,
-              locator: null,
-            },
-            ctx,
-          )
-        ).status,
-      ).toBe("stored");
+      ).rejects.toMatchObject({ retryable: true });
+      await expect(
+        lease.runtime.write({ ...input, storageKey: "lost" }, ctx),
+      ).resolves.toEqual({ locator: { key: "lost" } });
       mode = "fail";
       await expect(
         lease.runtime.write({ ...input, storageKey: "fail" }, ctx),
-      ).rejects.toMatchObject({ outcome: "notApplied", retryable: true });
+      ).rejects.toMatchObject({ retryable: true });
       expect(objects.has("/test/fail")).toBe(false);
+      expect(sessions.size).toBe(0);
+      await expect(
+        lease.runtime.write(
+          {
+            ...input,
+            storageKey: "invalid",
+            file: {
+              ...file,
+              async openRead() {
+                return new Blob([new Uint8Array([1])]).stream();
+              },
+            },
+          },
+          ctx,
+        ),
+      ).rejects.toMatchObject({ code: "INVALID_DATA", retryable: false });
       expect(sessions.size).toBe(0);
       mode = "cancel";
       await expect(
@@ -201,7 +210,7 @@ test("S3 multipart batches, conditional completion, recovery and abort cleanup",
         ),
       ).rejects.toThrow();
       expect(sessions.size).toBe(0);
-      expect(aborts).toBe(5);
+      expect(aborts).toBe(7);
       mode = "ok";
       await lease.runtime.write(
         {

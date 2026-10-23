@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { fixture } from "./helpers";
 import { handler } from "../src/http/app";
 import { PluginError } from "../src/plugins/api";
-test("actual process exit after storage commit recovers without publishing", async () => {
+test("process exit after storage commit retains an unpublished object until manual termination", async () => {
   const f = await fixture();
   try {
     await f.app.close();
@@ -30,15 +30,32 @@ test("actual process exit after storage commit recovers without publishing", asy
     expect(rows).toHaveLength(1);
     expect(rows[0]!.status).toBe("failed");
     const replicas = await f.app.db.read((r) => r.replicas(rows[0]!.id));
-    expect(replicas[0]!.status).toBe("deleted");
+    const replica = replicas[0]!;
+    expect(replica.status).toBe("delete_failed");
+    expect(replica.locator_json).toBeNull();
+    const object = Bun.file(join(f.root, "originals", rows[0]!.storage_key));
+    expect(await object.exists()).toBe(true);
+    const deletion = (await f.app.db.read((r) => r.tasks(rows[0]!.id))).find(
+      (t) => t.kind === "delete",
+    )!;
+    expect(deletion).toMatchObject({ status: "failed", attempts: 1 });
+    await f.app.files.terminateReplica(rows[0]!.id, replica.id);
+    expect(await f.app.db.read((r) => r.file(rows[0]!.id))).toMatchObject({
+      status: "failed",
+    });
+    expect(await f.app.db.read((r) => r.task(deletion.id))).toEqual(deletion);
+    expect(await object.exists()).toBe(true);
   } finally {
     await f.close();
   }
 }, 15000);
-test("failure before write creates no public object and can be cleaned", async () => {
+test("failed upload remains failed after termination, until explicit whole-file deletion", async () => {
   const f = await fixture({
     beforeWrite: async () => {
-      throw new PluginError("NETWORK", "Before write", false, "notApplied");
+      throw new PluginError("NETWORK", "Before write", false);
+    },
+    beforeDelete: async () => {
+      throw new PluginError("ACCESS_DENIED", "Denied", false);
     },
   });
   try {
@@ -46,9 +63,29 @@ test("failure before write creates no public object and can be cleaned", async (
     await f.app.files.sweep();
     const rows = await f.app.db.read((r) => r.files(10, 0));
     expect(rows[0]!.status).toBe("failed");
+    const replica = (await f.app.db.read((r) => r.replicas(rows[0]!.id)))[0]!;
+    expect(replica.status).toBe("delete_failed");
+    const failedDelete = (
+      await f.app.db.read((r) => r.tasks(rows[0]!.id))
+    ).find((t) => t.kind === "delete")!;
+    expect(failedDelete.status).toBe("failed");
     expect(
-      (await f.app.db.read((r) => r.replicas(rows[0]!.id)))[0]!.status,
-    ).toBe("deleted");
+      await f.app.db.read((r) =>
+        r.storageUsedBytes(replica.storage_instance_id),
+      ),
+    ).toBe(f.png.length);
+    await f.app.files.terminateReplica(rows[0]!.id, replica.id);
+    expect((await f.app.db.read((r) => r.file(rows[0]!.id)))?.status).toBe(
+      "failed",
+    );
+    expect(await f.app.db.read((r) => r.task(failedDelete.id))).toEqual(
+      failedDelete,
+    );
+    await f.app.files.delete(rows[0]!.id);
+    await f.app.files.sweep();
+    expect((await f.app.db.read((r) => r.file(rows[0]!.id)))?.status).toBe(
+      "deleted",
+    );
   } finally {
     await f.close();
   }

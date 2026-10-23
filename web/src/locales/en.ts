@@ -54,13 +54,14 @@ export const en = {
 
   "storage.usageLimited": "Used {used} / {limit} · {percent}%",
   "storage.usageUnlimited": "Used {used} · Unlimited",
-  "storage.pending": "Pending {size}",
+  "storage.deleteConfigurationHint":
+    "Deleting removes this configuration and keeps image, replica and task history. Unterminated replicas and active references must be cleared first.",
   "storage.full": "Capacity full",
   "images.replicaError": "Replica issues",
   "storage.capacity": "Total capacity limit (GiB)",
   "storage.unlimited": "Unlimited",
   "storage.capacityHelp":
-    "Leave blank for no limit. Counts files managed by Picloom, including pending writes. New writes stop when capacity is insufficient.",
+    "Leave blank for no limit. Counts all unterminated replicas, including failed writes and deletes. Capacity is released when a replica is terminated.",
   "errors.storage_capacity_exceeded": "Storage source capacity exceeded",
 
   "settings.enabledLocales": "Homepage languages",
@@ -177,9 +178,10 @@ export const en = {
   "replicas.includeLast": "Also delete images with no other available replica",
   "replicas.keepLast":
     "Images with no other available replica are kept unless selected below.",
-  "replicas.ignore": "Ignore",
-  "replicas.ignoreConfirm":
-    "Remove this abnormal replica record and its tasks, releasing its capacity. Remote files and other replicas will not be changed.",
+  "replicas.terminate": "Terminate Replica",
+  "replicas.terminateConfirm":
+    "Stop managing this replica and release its accounted capacity. Replica and task history are kept. Remote deletion is not guaranteed.",
+  "replicas.instanceDeleted": "Deleted storage source · {id}",
   "replicas.delete": "Delete Replica",
   "replicas.confirm":
     "The selected replica will be removed. Other replicas and the public URL are kept.",
@@ -199,12 +201,6 @@ export const en = {
 
   "images.blocked": "Blocked",
   "images.blockedHint": "Public access is blocked.",
-  "images.forget": "Abandon cleanup and remove record",
-  "images.forgetHint":
-    "Removes only the Picloom record and local cache. Remote files may remain and must be cleaned up manually. This cannot be undone.",
-  "images.forgetWaiting":
-    "Waiting for active operations on this image to finish.",
-  "images.forgetConfirm": "Remove record",
   "images.restoreAccess": "Restore access",
   "users.title": "Users",
   "users.member": "Member",
@@ -415,7 +411,7 @@ export const en = {
   "configuration.create.profiles": "Create upload profile",
   "configuration.edit.profiles": "Edit upload profile",
   "pipelines.create": "Create pipeline",
-  "configuration.storedReplicas": "Stored replicas: {count}",
+  "configuration.storedReplicas": "Unterminated replicas: {count}",
   "pipelines.group.upload": "Upload",
   "pipelines.group.access": "Access",
   "pipelines.group.post_save": "Post-Save",
@@ -705,10 +701,8 @@ export const en = {
   "ui.cancelled": "Cancelled",
   "ui.writing": "Writing",
   "ui.writeFailed": "Write failed",
-  "ui.writeOutcomeUnknown": "Write outcome unknown",
   "ui.pendingDeletion": "Pending deletion",
   "ui.deleteFailed": "Delete failed",
-  "ui.deleteOutcomeUnknown": "Delete outcome unknown",
   "ui.outputExceedsThePixelLimit": "Output exceeds the pixel limit.",
   "ui.setAtLeastOneParameter": "Set at least one parameter.",
   "ui.serverReturnedANonImageResponse": "Server returned a non-image response.",
@@ -845,7 +839,6 @@ export const en = {
     "Cannot retry: the temporary file is gone and no available replica can supply the file.",
   "errors.temp_missing": "Temporary file missing.",
   "errors.unavailable": "Service unavailable.",
-  "errors.write_unknown": "Write outcome unknown. Verification required.",
   "errors.write_failed": "Storage write failed.",
   "errors.delete_failed": "Storage cleanup failed.",
   "errors.action_failed": "Action failed.",

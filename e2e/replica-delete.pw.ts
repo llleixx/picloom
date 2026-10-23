@@ -98,11 +98,60 @@ test("source filter, replica deletion and explicit last-copy deletion", async ({
   expect(
     (await page.request.get(service.url + new URL(image.url).pathname)).ok(),
   ).toBeTruthy();
+  // Removing an unused configuration preserves its completed replica and tasks.
+  const updatedGroup = await (
+    await page.request.get(service.url + "/api/storage-groups/" + group.id)
+  ).json();
+  expect(
+    (
+      await page.request.put(service.url + "/api/storage-groups/" + group.id, {
+        headers,
+        data: {
+          ...updatedGroup,
+          members: group.members,
+          replicaCount: 1,
+          expectedVersion: updatedGroup.configVersion,
+        },
+      })
+    ).ok(),
+  ).toBeTruthy();
+  const beforeRemoval = await (
+    await page.request.get(`${service.url}/api/files/${image.id}/operations`)
+  ).json();
+  expect(
+    (
+      await page.request.delete(
+        `${service.url}/api/storage-sources/${source.id}`,
+        { headers },
+      )
+    ).ok(),
+  ).toBeTruthy();
+  const history = await (
+    await page.request.get(`${service.url}/api/files/${image.id}/operations`)
+  ).json();
+  expect(history.tasks).toHaveLength(beforeRemoval.tasks.length);
+  expect(history.replicas).toHaveLength(beforeRemoval.replicas.length);
+  expect(
+    history.replicas.find((replica: any) => replica.instanceId === source.id),
+  ).toMatchObject({
+    status: "deleted",
+    instanceDeleted: true,
+    name: source.id,
+  });
   await page.getByRole("button", { name: "Close", exact: true }).click();
-  await expect(page.getByTestId("file-card")).toHaveCount(0);
+  // The source was removed through the API, outside this page's query cache.
+  await page.reload();
   await page
     .getByLabel("Storage Source", { exact: true })
     .selectOption(group.members[0].instanceId);
+  await page
+    .getByTestId("file-card")
+    .getByRole("button", { name: /^Open / })
+    .click();
+  await expect(
+    page.getByText(`Deleted storage source · ${source.id}`, { exact: false }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Close", exact: true }).click();
   await expect(page.getByTestId("file-card")).toHaveCount(1);
   await page.getByTestId("file-card").getByRole("checkbox").check();
   await page

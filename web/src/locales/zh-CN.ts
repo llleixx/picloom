@@ -48,13 +48,14 @@ export const zhCN = {
 
   "storage.usageLimited": "已用 {used} / {limit} · {percent}%",
   "storage.usageUnlimited": "已用 {used} · 不限容量",
-  "storage.pending": "待写入 {size}",
+  "storage.deleteConfigurationHint":
+    "仅删除配置，保留图片、副本和任务历史。需先清理未终结副本并解除配置引用。",
   "storage.full": "容量已满",
   "images.replicaError": "副本异常",
   "storage.capacity": "总容量上限（GiB）",
   "storage.unlimited": "不限制",
   "storage.capacityHelp":
-    "留空表示不限制。按 Picloom 管理的文件统计，包含待写入副本；剩余容量不足时停止新写入。",
+    "留空表示不限制。全部未终结副本均计入，包括写入和删除失败；副本终结后释放账面容量。",
   "errors.storage_capacity_exceeded": "存储源容量不足",
 
   "settings.enabledLocales": "首页启用语言",
@@ -145,9 +146,10 @@ export const zhCN = {
   "replicas.wholeImage": "全部存储源（删除图片）",
   "replicas.includeLast": "同时删除没有其他可用副本的图片",
   "replicas.keepLast": "没有其他可用副本的图片将被保留，除非下方另行选择。",
-  "replicas.ignore": "忽略",
-  "replicas.ignoreConfirm":
-    "删除这条异常副本及其任务记录，释放占用容量。不清理远端文件，也不影响其他副本。",
+  "replicas.terminate": "终结副本",
+  "replicas.terminateConfirm":
+    "结束对此副本的管理并释放账面容量，保留副本和任务历史，不保证远端对象已删除。",
+  "replicas.instanceDeleted": "存储源已删除 · {id}",
   "replicas.delete": "删除副本",
   "replicas.confirm": "将移除所选副本，其他副本和公开链接保持可用。",
   "replicas.last":
@@ -164,11 +166,6 @@ export const zhCN = {
     "插件结果必须为 JSON 对象，总大小不超过 64 KiB。",
   "images.blocked": "已封禁",
   "images.blockedHint": "公开访问已被封禁。",
-  "images.forget": "放弃清理并移除记录",
-  "images.forgetHint":
-    "仅移除 Picloom 中的记录和本地缓存，远端文件可能仍然存在，需要自行清理。此操作不可撤销。",
-  "images.forgetWaiting": "正在等待该图片的运行中操作退出，请稍候。",
-  "images.forgetConfirm": "确认移除记录",
   "images.restoreAccess": "恢复访问",
   "users.title": "用户",
   "users.member": "成员",
@@ -367,7 +364,7 @@ export const zhCN = {
   "configuration.create.profiles": "创建上传配置",
   "configuration.edit.profiles": "编辑上传配置",
   "pipelines.create": "创建处理链",
-  "configuration.storedReplicas": "已存储副本：{count}",
+  "configuration.storedReplicas": "未终结副本：{count}",
   "pipelines.group.upload": "上传时",
   "pipelines.group.access": "访问时",
   "pipelines.group.post_save": "保存后",
@@ -640,10 +637,8 @@ export const zhCN = {
   "ui.cancelled": "已取消",
   "ui.writing": "写入中",
   "ui.writeFailed": "写入失败",
-  "ui.writeOutcomeUnknown": "写入结果未知",
   "ui.pendingDeletion": "待删除",
   "ui.deleteFailed": "删除失败",
-  "ui.deleteOutcomeUnknown": "删除结果未知",
   "ui.outputExceedsThePixelLimit": "输出超过像素上限。",
   "ui.setAtLeastOneParameter": "请至少设置一个参数。",
   "ui.serverReturnedANonImageResponse": "服务器返回的内容不是图片。",
@@ -773,7 +768,6 @@ export const zhCN = {
     "无法重试：临时文件已清理，且没有可读取的正常副本。",
   "errors.temp_missing": "临时文件丢失。",
   "errors.unavailable": "服务不可用。",
-  "errors.write_unknown": "写入结果未知，需要核实。",
   "errors.write_failed": "存储写入失败。",
   "errors.delete_failed": "存储清理失败。",
   "errors.action_failed": "操作失败。",

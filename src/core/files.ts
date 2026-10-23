@@ -1094,8 +1094,8 @@ export class Files {
     }
     return { results };
   }
-  async ignoreReplica(fileId: string, replicaId: string) {
-    await this.tasks.ignoreReplica(fileId, replicaId);
+  async terminateReplica(fileId: string, replicaId: string) {
+    await this.tasks.terminateReplica(fileId, replicaId);
   }
 
   async deleteReplica(fileId: string, replicaId: string, includeLast = false) {
@@ -1107,23 +1107,19 @@ export class Files {
         throw new AppError("NOT_FOUND", "Replica not found", 404);
       if (
         ["deleting", "deleted"].includes(file.status) ||
-        [
-          "deleted",
-          "delete_pending",
-          "deleting",
-          "delete_failed",
-          "delete_unknown",
-        ].includes(replica.status)
+        ["deleted", "delete_pending", "deleting", "delete_failed"].includes(
+          replica.status,
+        )
       )
         return;
       if (!["ready", "blocked"].includes(file.status))
         throw new Conflict("File is not available");
       const tasks = await r.tasks(fileId);
       if (
-        ["writing", "write_unknown"].includes(replica.status) ||
+        replica.status === "writing" ||
         tasks.some((t) => t.replica_id === replicaId && t.status === "running")
       )
-        throw new Conflict("Replica has an active or unresolved write");
+        throw new Conflict("Replica has a running task");
       const otherReady = (await r.replicas(fileId)).some(
         (r) => r.id !== replicaId && r.status === "ready",
       );
@@ -1151,7 +1147,7 @@ export class Files {
           task.last_error = null;
           await r.saveTask(task);
         }
-      if (["pending", "write_failed"].includes(replica.status)) {
+      if (replica.status === "pending") {
         replica.status = "deleted";
       } else {
         replica.status = "delete_pending";
@@ -1237,7 +1233,7 @@ export class Files {
       if (f.status === "deleted" || f.status === "deleting") return;
       if (f.status === "delete_failed")
         throw new Conflict(
-          "Retry the failed deletion task or remove the record",
+          "Retry the failed deletion task or terminate its replica",
         );
       const previous = f.status;
       f.status = "deleting";

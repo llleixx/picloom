@@ -12,12 +12,13 @@ const enabled =
   !!process.env.S3_TEST_SECRET_KEY;
 for (const multipart of [false, true])
   (enabled ? test : test.skip)(
-    `real S3 compatible endpoint (${multipart ? "multipart" : "PUT"}): conditional write, stream, recovery, signed URL and cleanup`,
+    `real S3 compatible endpoint (${multipart ? "multipart" : "PUT"}): conditional write, stream, repeat write, signed URL and cleanup`,
     async () => {
       const f = await fixture();
       const bytes = multipart ? Buffer.alloc(11 * 1024 ** 2, 42) : f.png;
       const objectKey = crypto.randomUUID() + ".png";
       let locator: import("../src/plugins/api").Locator = null;
+      let written = false;
       const record = await f.app.plugins.save({
         secretEdits: {
           "/accessKeyId": {
@@ -73,20 +74,13 @@ for (const multipart of [false, true])
               ctx,
             )
           ).locator ?? null;
+        written = true;
         expect(
-          (
-            await lease.runtime.recoverWrite!(
-              {
-                operationId,
-                fileId,
-                storageKey: objectKey,
-                expectedSize: bytes.length,
-                locator,
-              },
-              ctx,
-            )
-          ).status,
-        ).toBe("stored");
+          await lease.runtime.write(
+            { operationId, fileId, storageKey: objectKey, file },
+            ctx,
+          ),
+        ).toEqual({ locator });
         await expect(
           lease.runtime.write(
             {
@@ -118,29 +112,22 @@ for (const multipart of [false, true])
           await response.arrayBuffer();
         }
       } finally {
-        if (locator) {
+        if (written) {
+          const cleanupContext = { ...ctx, signal: AbortSignal.timeout(30000) };
           await lease.runtime.delete(
             {
               operationId: crypto.randomUUID(),
               storageKey: objectKey,
               locator,
             },
-            ctx,
+            cleanupContext,
           );
-          expect(
-            (
-              await lease.runtime.recoverWrite!(
-                {
-                  operationId,
-                  fileId,
-                  storageKey: objectKey,
-                  expectedSize: bytes.length,
-                  locator,
-                },
-                { ...ctx, signal: AbortSignal.timeout(30000) },
-              )
-            ).status,
-          ).toBe("notStored");
+          await expect(
+            lease.runtime.read(
+              { storageKey: objectKey, locator, mode: "stream" },
+              cleanupContext,
+            ),
+          ).rejects.toMatchObject({ code: "NOT_FOUND" });
         }
         await lease.release();
         await f.close();

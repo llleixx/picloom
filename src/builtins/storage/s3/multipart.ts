@@ -7,7 +7,12 @@ import {
   type CreateMultipartUploadCommandInput,
   type CompletedPart,
 } from "@aws-sdk/client-s3";
-import { PluginError, type FileInput, type Context } from "@picloom/plugin-sdk";
+import {
+  PluginError,
+  isPluginError,
+  type FileInput,
+  type Context,
+} from "@picloom/plugin-sdk";
 
 // Keep only one batch of parts in memory; no durable multipart session is needed.
 export async function multipartWrite(
@@ -24,7 +29,6 @@ export async function multipartWrite(
       "RESOURCE_LIMIT",
       "Increase part size: upload exceeds 10,000 parts",
       false,
-      "notApplied",
     );
   const signal = ctx.signal;
   let uploadId: string | undefined;
@@ -43,7 +47,8 @@ export async function multipartWrite(
       abortSignal: signal,
     });
     uploadId = created.UploadId;
-    if (!uploadId) throw new Error("Missing multipart upload ID");
+    if (!uploadId)
+      throw new PluginError("INVALID_DATA", "Missing multipart upload ID");
     reader = (await file.openRead()).getReader();
     signal.addEventListener("abort", cancel, { once: true });
     let buffer = Buffer.alloc(Math.min(partSize, size)),
@@ -68,7 +73,8 @@ export async function multipartWrite(
             { abortSignal: signal },
           )
           .then((result) => {
-            if (!result.ETag) throw new Error("Missing part ETag");
+            if (!result.ETag)
+              throw new PluginError("INVALID_DATA", "Missing part ETag");
             parts.push({ PartNumber, ETag: result.ETag });
           })
           .catch((error) => {
@@ -86,7 +92,7 @@ export async function multipartWrite(
       const { done, value } = await reader.read();
       if (done) break;
       if (total + value.length > size)
-        throw new Error("Unexpected stream size");
+        throw new PluginError("INVALID_DATA", "Unexpected stream size");
       let pos = 0;
       while (pos < value.length) {
         signal.throwIfAborted();
@@ -102,7 +108,8 @@ export async function multipartWrite(
         }
       }
     }
-    if (total !== size) throw new Error("Unexpected stream size");
+    if (total !== size)
+      throw new PluginError("INVALID_DATA", "Unexpected stream size");
     if (offset) await flush();
     await Promise.all(pending);
     if (failure) throw failure;
@@ -120,10 +127,11 @@ export async function multipartWrite(
       }),
       { abortSignal: signal },
     );
-    if (!result.ETag) throw new Error("Missing completed object ETag");
+    if (!result.ETag)
+      throw new PluginError("INVALID_DATA", "Missing completed object ETag");
     completed = true;
   } catch (error) {
-    if (completing) throw error; // Existing write/recover protocol handles an uncertain completion.
+    if (isPluginError(error) || completing) throw error; // The caller handles conditional completion and retryable failures.
     const status = (error as { $metadata?: { httpStatusCode?: number } })
       .$metadata?.httpStatusCode;
     throw new PluginError(
@@ -135,8 +143,7 @@ export async function multipartWrite(
             ? "NETWORK"
             : "SERVICE",
       "S3 multipart upload failed",
-      status === undefined || status === 429 || status >= 500,
-      "notApplied",
+      status === undefined || status === 408 || status === 429 || status >= 500,
     );
   } finally {
     await Promise.all(pending);

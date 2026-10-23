@@ -55,7 +55,7 @@ function davServer() {
   const directories = new Set(["/dav/"]);
   const requests: Array<{ method: string; path: string; headers: Headers }> =
     [];
-  const faults = { put: 201, head: 0, mkdir: 0, read: 0, remove: 0 };
+  const faults = { put: 201, mkdir: 0, read: 0, remove: 0 };
   const server = Bun.serve({
     port: 0,
     async fetch(req) {
@@ -97,8 +97,6 @@ function davServer() {
         const found = objects.delete(path);
         return new Response(null, { status: found ? 204 : 404 });
       }
-      if (req.method === "HEAD" && faults.head)
-        return new Response(null, { status: faults.head });
       if (req.method === "GET" && faults.read)
         return new Response("response with secret:password must stay private", {
           status: faults.read,
@@ -127,7 +125,7 @@ function davServer() {
   };
 }
 
-test("WebDAV HTTP protocol: conditional PUT, encoded directories, stream reads, conservative recovery and idempotent DELETE", async () => {
+test("WebDAV HTTP protocol: conditional PUT, encoded directories, stream reads and idempotent DELETE", async () => {
   const dav = davServer();
   try {
     const storage = await runtime(dav.endpoint, {
@@ -141,7 +139,7 @@ test("WebDAV HTTP protocol: conditional PUT, encoded directories, stream reads, 
     };
     const result = await storage.write(input, context());
     const path = "/dav/%E4%B8%AD%E6%96%87%20folder/100%25/public/name.png";
-    expect(result.locator).toBeNull();
+    expect(result.locator).toEqual({ key: input.storageKey });
     expect(dav.objects.get(path)?.bytes).toEqual(
       new TextEncoder().encode("image bytes"),
     );
@@ -167,27 +165,20 @@ test("WebDAV HTTP protocol: conditional PUT, encoded directories, stream reads, 
         expect(await new Response(read.stream).text()).toBe("image bytes");
       }
     }
-    expect(
-      await storage.recoverWrite!(
-        { ...input, expectedSize: 11, locator: result.locator! },
-        context(),
-      ),
-    ).toEqual({ status: "unknown" });
     await expect(storage.write(input, context())).rejects.toMatchObject({
       code: "CONFLICT",
-      outcome: "notApplied",
     });
     expect(dav.objects.get(path)?.bytes).toEqual(
       new TextEncoder().encode("image bytes"),
     );
+    const beforeMissing = dav.requests.length;
+    await expect(
+      storage.delete({ ...input, locator: null }, context()),
+    ).rejects.toMatchObject({ code: "INVALID_INPUT", retryable: false });
+    expect(dav.requests.length).toBe(beforeMissing);
+    expect(dav.objects.has(path)).toBe(true);
     await storage.delete({ ...input, locator: result.locator! }, context());
     await storage.delete({ ...input, locator: result.locator! }, context());
-    expect(
-      await storage.recoverWrite!(
-        { ...input, expectedSize: 11, locator: null },
-        context(),
-      ),
-    ).toEqual({ status: "notStored" });
     await expect(
       storage.read(
         {
@@ -204,7 +195,7 @@ test("WebDAV HTTP protocol: conditional PUT, encoded directories, stream reads, 
   }
 });
 
-test("WebDAV cannot infer write ownership after a failed response or from HEAD size", async () => {
+test("WebDAV retries conditional PUT after a transient failure without overwriting an existing object", async () => {
   const dav = davServer();
   try {
     const storage = await runtime(dav.endpoint);
@@ -218,31 +209,14 @@ test("WebDAV cannot infer write ownership after a failed response or from HEAD s
     await expect(storage.write(input, context())).rejects.toMatchObject({
       code: "SERVICE",
       retryable: true,
-      outcome: "unknown",
     });
     expect(dav.objects.size).toBe(1);
-    expect(
-      await storage.recoverWrite!(
-        { ...input, expectedSize: 11, locator: null },
-        context(),
-      ),
-    ).toEqual({ status: "unknown" });
-    for (const status of [200, 401, 403, 405, 500]) {
-      dav.faults.head = status;
-      expect(
-        await storage.recoverWrite!(
-          { ...input, expectedSize: 11, locator: null },
-          context(),
-        ),
-      ).toEqual({ status: "unknown" });
-    }
-    const aborted = AbortSignal.abort();
-    expect(
-      await storage.recoverWrite!(
-        { ...input, expectedSize: 11, locator: null },
-        context(aborted),
-      ),
-    ).toEqual({ status: "unknown" });
+    dav.faults.put = 0;
+    await expect(storage.write(input, context())).rejects.toMatchObject({
+      code: "CONFLICT",
+      retryable: false,
+    });
+    expect(dav.objects.size).toBe(1);
   } finally {
     await dav.server.stop(true);
   }
@@ -267,14 +241,18 @@ test("WebDAV refuses redirect, partial read and ambiguous deletion responses wit
       }
       expect(dav.requests.length).toBe(before + 1);
     }
-    for (const status of [202, 207, 302, 500]) {
+    for (const status of [202, 207, 302, 500, 507]) {
       dav.faults.remove = status;
       await expect(
         storage.delete(
-          { operationId: "delete", storageKey: "legacy.png", locator: null },
+          {
+            operationId: "delete",
+            storageKey: "legacy.png",
+            locator: { key: "legacy.png" },
+          },
           context(),
         ),
-      ).rejects.toBeInstanceOf(PluginError);
+      ).rejects.toMatchObject({ retryable: status === 500 });
     }
   } finally {
     await dav.server.stop(true);
@@ -346,7 +324,7 @@ test("WebDAV raw legacy names are encoded once and DELETE addresses the file pat
     if (read.type === "stream")
       expect(await new Response(read.stream).text()).toBe("legacy");
     await storage.delete(
-      { operationId: "x", storageKey: logical, locator: null },
+      { operationId: "x", storageKey: logical, locator: { key: logical } },
       context(),
     );
     expect(
@@ -556,7 +534,7 @@ test("WebDAV concurrent creation preserves the first object", async () => {
   }
 });
 
-test("WebDAV operation deadline bounds stalled recovery and directory creation", async () => {
+test("WebDAV operation deadline bounds stalled directory creation", async () => {
   const server = createServer(() => {});
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   try {
@@ -570,12 +548,6 @@ test("WebDAV operation deadline bounds stalled recovery and directory creation",
       storageKey: "nested/a.png",
       file: file(),
     };
-    expect(
-      await storage.recoverWrite!(
-        { ...input, expectedSize: 11, locator: null },
-        context(),
-      ),
-    ).toEqual({ status: "unknown" });
     await expect(storage.write(input, context())).rejects.toMatchObject({
       code: "NETWORK",
     });
@@ -638,6 +610,7 @@ test("WebDAV import enumeration resumes sorted nested listings and retains reada
       keyPrefix: "prefix",
     });
     const keys: string[] = [];
+    const locators = new Map<string, import("../src/plugins/api").Locator>();
     let cursor: string | undefined;
     do {
       const page = await storage.listFiles!(
@@ -648,6 +621,8 @@ test("WebDAV import enumeration resumes sorted nested listings and retains reada
         expect(item.byteSize).toBe(11);
         expect(item.mimeType).toBe("image/png");
         keys.push(item.storageKey);
+        expect(item.locator).toEqual({ key: item.storageKey });
+        locators.set(item.storageKey, item.locator!);
       }
       if (page.nextCursor) expect(page.nextCursor).not.toBe(cursor);
       cursor = page.nextCursor ?? undefined;
@@ -666,7 +641,11 @@ test("WebDAV import enumeration resumes sorted nested listings and retains reada
     if (read.type === "stream")
       expect(await new Response(read.stream).text()).toBe("image bytes");
     await storage.delete(
-      { operationId: "delete-import", storageKey: key, locator: null },
+      {
+        operationId: "delete-import",
+        storageKey: key,
+        locator: locators.get(key)!,
+      },
       context(),
     );
     expect(operations).toEqual([

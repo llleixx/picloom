@@ -145,7 +145,7 @@ test("bundled local and Sharp plugins install and run without application import
   }
 });
 
-test("an independently bundled SDK error preserves retry and write outcome", async () => {
+test("an independently bundled SDK error preserves failure code and retryability", async () => {
   const f = await fixture();
   try {
     const sdk = fileURLToPath(import.meta.resolve("@picloom/plugin-sdk"));
@@ -154,7 +154,7 @@ test("an independently bundled SDK error preserves retry and write outcome", asy
       await bundledPackage(
         "external.errors",
         "path",
-        `import { PluginError } from ${JSON.stringify(sdk)}; export default {id:"external.errors",defaultLocale:"en-US",nameKey:"package.name",messages:{"en-US":{"package.name":"external.errors"}},kind:"path",version:"1.0.0",apiVersion:1,configSchemaVersion:1,configSchema:{type:"object",properties:{}},async createInstance(){return {async generate(){throw new PluginError("INVALID_INPUT","External failure",false,"notApplied")}}}};`,
+        `import { PluginError } from ${JSON.stringify(sdk)}; export default {id:"external.errors",defaultLocale:"en-US",nameKey:"package.name",messages:{"en-US":{"package.name":"external.errors"}},kind:"path",version:"1.0.0",apiVersion:1,configSchemaVersion:1,configSchema:{type:"object",properties:{}},async createInstance(){return {async generate(){throw new PluginError("INVALID_INPUT","External failure",false)}}}};`,
       ),
     );
     const instance = await f.app.plugins.save({
@@ -187,7 +187,7 @@ test("an independently bundled SDK error preserves retry and write outcome", asy
       expect(isPluginError(caught)).toBe(true);
       if (isPluginError(caught)) {
         expect(caught.retryable).toBe(false);
-        expect(caught.outcome).toBe("notApplied");
+        expect(caught.code).toBe("INVALID_INPUT");
       }
     } finally {
       await lease.release();

@@ -470,7 +470,7 @@ test("post-save retry restarts the whole pipeline with stable operation IDs", as
   }
 });
 
-test("unknown redundant writes recover with task ID without writing twice", async () => {
+test("failed redundant writes retry directly with the original task ID", async () => {
   const f = await fixture();
   let operation = "",
     writes = 0;
@@ -495,18 +495,17 @@ test("unknown redundant writes recover with task ID without writing twice", asyn
         return {
           async write(input) {
             writes++;
+            if (operation) expect(input.operationId).toBe(operation);
             operation = input.operationId;
             await new Response(await input.file.openRead()).arrayBuffer();
-            throw new PluginError("NETWORK", "response lost", true);
+            if (writes === 1)
+              throw new PluginError("NETWORK", "response lost", true);
+            return { locator: { key: "stored" } };
           },
           async read() {
             throw Error();
           },
           async delete() {},
-          async recoverWrite(input) {
-            expect(input.operationId).toBe(operation);
-            return { status: "stored", locator: { key: "exists" } };
-          },
         };
       },
     });
@@ -541,7 +540,7 @@ test("unknown redundant writes recover with task ID without writing twice", asyn
       r.saveTask({ ...task, next_run_at: Date.now() }),
     );
     await f.app.files.sweep();
-    expect(writes).toBe(1);
+    expect(writes).toBe(2);
     expect((await f.app.db.read((r) => r.task(task.id)))?.status).toBe(
       "success",
     );

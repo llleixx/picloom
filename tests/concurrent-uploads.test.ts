@@ -120,7 +120,7 @@ test("all first attempts fail once without background retries or quota consumpti
   const { f, leases, close } = await copies();
   const spies = leases.map((lease) =>
     spyOn(lease.runtime, "write").mockImplementation(async () => {
-      throw new PluginError("NETWORK", "offline", true, "notApplied");
+      throw new PluginError("NETWORK", "offline", true);
     }),
   );
   try {
@@ -132,7 +132,17 @@ test("all first attempts fail once without background retries or quota consumpti
     expect(
       tasks.filter((t) => t.kind === "write").map((t) => t.attempts),
     ).toEqual([1, 1]);
-    expect(tasks.every((t) => t.status === "cancelled")).toBe(true);
+    expect(
+      tasks
+        .filter((t) => t.kind === "write")
+        .every((t) => t.status === "cancelled"),
+    ).toBe(true);
+    expect(
+      tasks.filter((t) => t.kind === "delete").map((t) => t.status),
+    ).toEqual(["failed", "failed"]);
+    expect(
+      (await f.app.db.read((r) => r.replicas(file!.id))).map((r) => r.status),
+    ).toEqual(["delete_failed", "delete_failed"]);
     expect(
       await f.app.db.read((r) =>
         r.dailyUploadCount(
@@ -155,8 +165,7 @@ test("one failed target does not prevent publication and retries with the same o
   const spy = spyOn(leases[0]!.runtime, "write").mockImplementation(
     async (input, ctx) => {
       ids.push(input.operationId);
-      if (ids.length === 1)
-        throw new PluginError("NETWORK", "offline", true, "notApplied");
+      if (ids.length === 1) throw new PluginError("NETWORK", "offline", true);
       return original(input, ctx);
     },
   );

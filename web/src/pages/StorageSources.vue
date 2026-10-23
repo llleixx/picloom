@@ -65,13 +65,9 @@ function capacitySize(bytes: number) {
 }
 const rows = computed(() =>
   instances.data.value?.map((item) => {
-    const total = item.usedStorageBytes + item.reservedStorageBytes;
+    const total = item.usedStorageBytes;
     const ratio =
       item.maxStorageBytes == null ? 0 : total / item.maxStorageBytes;
-    const usedPercent =
-      item.maxStorageBytes == null
-        ? 0
-        : Math.min(100, (item.usedStorageBytes / item.maxStorageBytes) * 100);
     const percent = Math.min(100, ratio * 100);
     const text =
       item.maxStorageBytes == null
@@ -83,22 +79,13 @@ const rows = computed(() =>
             limit: capacitySize(item.maxStorageBytes),
             percent: formatNumber(Math.floor(ratio * 100)),
           });
-    const pendingText =
-      item.reservedStorageBytes > 0
-        ? t("storage.pending", {
-            size: capacitySize(item.reservedStorageBytes),
-          })
-        : "";
     return {
       ...item,
-      usedPercent,
-      reservedPercent: Math.max(0, percent - usedPercent),
       percent,
       full: ratio >= 1,
       warning: ratio >= 0.8,
       usageText: text,
-      pendingText,
-      accessibleUsage: [text, pendingText, ratio >= 1 ? t("storage.full") : ""]
+      accessibleUsage: [text, ratio >= 1 ? t("storage.full") : ""]
         .filter(Boolean)
         .join(" · "),
     };
@@ -313,7 +300,6 @@ async function remove() {
               class="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground tabular-nums"
             >
               <span>{{ item.usageText }}</span>
-              <span v-if="item.pendingText">· {{ item.pendingText }}</span>
               <span v-if="item.full" class="font-medium text-destructive">{{
                 t("storage.full")
               }}</span>
@@ -338,11 +324,7 @@ async function remove() {
             >
               <div
                 class="h-full shrink-0 bg-current"
-                :style="{ width: item.usedPercent + '%' }"
-              />
-              <div
-                class="h-full shrink-0 bg-current opacity-35"
-                :style="{ width: item.reservedPercent + '%' }"
+                :style="{ width: item.percent + '%' }"
               />
             </div>
           </div>
@@ -499,7 +481,7 @@ async function remove() {
       ><DialogContent :busy="busy"
         ><DialogTitle>{{ t("ui.deleteConfiguration") }}</DialogTitle
         ><DialogDescription>{{
-          t("ui.existingImagesAreKeptPendingActionsMay")
+          t("storage.deleteConfigurationHint")
         }}</DialogDescription>
         <p v-if="error" role="alert" class="error-box">{{ error }}</p>
         <div class="flex justify-end gap-2">

@@ -26,6 +26,17 @@ function failureCode(error: unknown) {
   if (status === 429) return "RATE_LIMITED";
   return status === undefined ? "NETWORK" : "SERVICE";
 }
+function retryable(error: unknown, writing = false) {
+  const status = (error as { $metadata?: { httpStatusCode?: number } })
+    ?.$metadata?.httpStatusCode;
+  return (
+    status === undefined ||
+    (writing && status === 409) ||
+    status === 408 ||
+    status === 429 ||
+    status >= 500
+  );
+}
 export const s3Storage: Definition<"storage"> = {
   defaultLocale: "en-US",
   nameKey: "package.name",
@@ -264,10 +275,9 @@ export const s3Storage: Definition<"storage"> = {
                 "INVALID_INPUT",
                 "Invalid S3 locator",
                 false,
-                "notApplied",
               );
             })();
-    const recover = async (
+    const ownsObject = async (
       operationId: string,
       fileId: string,
       logical: string,
@@ -280,16 +290,22 @@ export const s3Storage: Definition<"storage"> = {
           new HeadObjectCommand({ Bucket: bucket, Key: k }),
           { abortSignal: signal },
         );
-        return result.Metadata?.operation === operationId &&
+        return (
+          result.Metadata?.operation === operationId &&
           result.Metadata?.file === fileId &&
           result.ContentLength === size
-          ? { status: "stored" as const, locator: null }
-          : { status: "unknown" as const };
+        );
       } catch (e) {
-        return (e as { $metadata?: { httpStatusCode: number } }).$metadata
-          ?.httpStatusCode === 404
-          ? { status: "notStored" as const }
-          : { status: "unknown" as const };
+        if (
+          (e as { $metadata?: { httpStatusCode: number } }).$metadata
+            ?.httpStatusCode === 404
+        )
+          return false;
+        throw new PluginError(
+          failureCode(e),
+          "S3 object ownership check failed",
+          retryable(e, true),
+        );
       }
     };
     return {
@@ -317,6 +333,7 @@ export const s3Storage: Definition<"storage"> = {
             .filter((o) => o.Key?.startsWith(base) && !o.Key.endsWith("/"))
             .map((o) => ({
               storageKey: o.Key!.slice(base.length),
+              locator: { key: o.Key! },
               byteSize: o.Size,
             })),
           nextCursor: result.IsTruncated
@@ -332,7 +349,6 @@ export const s3Storage: Definition<"storage"> = {
             "INVALID_INPUT",
             "S3 upload requires a known non-negative size",
             false,
-            "notApplied",
           );
         let body: Readable | undefined;
         try {
@@ -350,7 +366,7 @@ export const s3Storage: Definition<"storage"> = {
               Number(config.partConcurrency),
               ctx,
             );
-            return { locator: null };
+            return { locator: { key: key(logical, null) } };
           }
           body = Readable.fromWeb(
             (await file.openRead()) as unknown as import("node:stream/web").ReadableStream<Uint8Array>,
@@ -367,37 +383,26 @@ export const s3Storage: Definition<"storage"> = {
             }),
             { abortSignal: ctx.signal },
           );
-          return { locator: null };
+          return { locator: { key: key(logical, null) } };
         } catch (e) {
           if (isPluginError(e)) throw e;
           const status = (e as { $metadata?: { httpStatusCode: number } })
             .$metadata?.httpStatusCode;
           if (status === 412) {
-            const result = await recover(
+            const owned = await ownsObject(
               operationId,
               fileId,
               logical,
               size,
               ctx.signal,
             );
-            if (result.status === "stored") return { locator: result.locator };
-            throw new PluginError(
-              "CONFLICT",
-              "S3 对象已被其他操作占用",
-              false,
-              "notApplied",
-            );
+            if (owned) return { locator: { key: key(logical, null) } };
+            throw new PluginError("CONFLICT", "S3 对象已被其他操作占用", false);
           }
           throw new PluginError(
             failureCode(e),
             "S3 写入失败",
-            status === undefined ||
-              status === 409 ||
-              status === 429 ||
-              status >= 500,
-            status !== undefined && status >= 400 && status < 500
-              ? "notApplied"
-              : "unknown",
+            retryable(e, true),
           );
         } finally {
           body?.destroy();
@@ -436,11 +441,20 @@ export const s3Storage: Definition<"storage"> = {
         } catch (error) {
           ctx.signal.throwIfAborted();
           if (isPluginError(error)) throw error;
-          throw new PluginError(failureCode(error), "S3 读取失败", true);
+          throw new PluginError(
+            failureCode(error),
+            "S3 读取失败",
+            retryable(error),
+          );
         }
       },
       async delete({ storageKey: logical, locator }, ctx) {
         ctx.signal.throwIfAborted();
+        if (locator === null)
+          throw new PluginError(
+            "INVALID_INPUT",
+            "Missing confirmed s3 locator",
+          );
         try {
           await client.send(
             new DeleteObjectCommand({
@@ -452,17 +466,13 @@ export const s3Storage: Definition<"storage"> = {
         } catch (error) {
           ctx.signal.throwIfAborted();
           if (isPluginError(error)) throw error;
-          throw new PluginError(failureCode(error), "S3 删除失败", true);
+          if (failureCode(error) === "NOT_FOUND") return;
+          throw new PluginError(
+            failureCode(error),
+            "S3 删除失败",
+            retryable(error),
+          );
         }
-      },
-      async recoverWrite(input, ctx) {
-        return recover(
-          input.operationId,
-          input.fileId,
-          input.storageKey,
-          input.expectedSize,
-          ctx.signal,
-        );
       },
       dispose() {
         client.destroy();

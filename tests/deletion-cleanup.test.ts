@@ -8,8 +8,7 @@ test("list and detail distinguish retrying deletion from failure, and retry only
   let fail = true;
   const f = await fixture({
     beforeDelete: async () => {
-      if (fail)
-        throw new PluginError("ACCESS_DENIED", "Denied", false, "notApplied");
+      if (fail) throw new PluginError("ACCESS_DENIED", "Denied", false);
     },
   });
   try {
@@ -42,15 +41,16 @@ test("list and detail distinguish retrying deletion from failure, and retry only
   }
 });
 
-test("forget requires admin, CSRF, confirmation and deletion intent; removes records but preserves storage objects", async () => {
+test("termination requires admin, CSRF, confirmation and deletion failure, retaining records and objects", async () => {
   const f = await fixture({
     beforeDelete: async () => {
-      throw new PluginError("ACCESS_DENIED", "Denied", false, "notApplied");
+      throw new PluginError("ACCESS_DENIED", "Denied", false);
     },
   });
   try {
     const image = await (await f.upload()).json();
-    const endpoint = `/api/files/${image.id}/forget`;
+    const replica = (await f.app.db.read((r) => r.replicas(image.id)))[0]!;
+    const endpoint = `/api/files/${image.id}/replicas/${replica.id}/terminate`;
     expect((await f.request(endpoint, "POST", { confirm: true })).status).toBe(
       409,
     );
@@ -99,65 +99,69 @@ test("forget requires admin, CSRF, confirmation and deletion intent; removes rec
     expect((await f.request(endpoint, "POST", { confirm: true })).status).toBe(
       200,
     );
-    expect(await f.app.db.read((r) => r.file(image.id))).toBeNull();
-    expect(await f.app.db.read((r) => r.tasks(image.id))).toHaveLength(0);
-    expect(await f.app.db.read((r) => r.replicas(image.id))).toHaveLength(0);
+    expect(await f.app.db.read((r) => r.file(image.id))).toMatchObject({
+      status: "deleted",
+    });
+    expect(await f.app.db.read((r) => r.replica(replica.id))).toMatchObject({
+      status: "deleted",
+    });
+    const failed = (await f.app.db.read((r) => r.tasks(image.id))).find(
+      (t) => t.kind === "delete",
+    )!;
+    expect(failed.status).toBe("failed");
+    expect((await f.request(endpoint, "POST", { confirm: true })).status).toBe(
+      200,
+    );
+    await expect(f.app.files.tasks.retry(failed.id)).rejects.toMatchObject({
+      code: "CONFLICT",
+    });
     expect(await object.exists()).toBe(true);
     await f.app.files.sweep();
-    expect((await f.request(`/api/files/${image.id}`)).status).toBe(404);
+    expect((await f.request(`/api/files/${image.id}`)).status).toBe(200);
   } finally {
     await f.close();
   }
 });
 
-test("forget waits for running deletion, excludes new work and does not block unrelated files", async () => {
+test("termination rejects running deletion while unrelated files continue", async () => {
   const entered = Promise.withResolvers<void>(),
     release = Promise.withResolvers<void>();
-  const secondEntered = Promise.withResolvers<void>();
   let calls = 0;
   const f = await fixture({
     beforeDelete: async () => {
       if (++calls === 1) {
         entered.resolve();
         await release.promise;
-        throw new PluginError("ACCESS_DENIED", "Denied", false, "notApplied");
+        throw new PluginError("ACCESS_DENIED", "Denied", false);
       }
-      secondEntered.resolve();
     },
   });
-  let forgotten: Promise<void> | undefined;
   try {
-    const first = await (await f.upload()).json();
-    const second = await (await f.upload()).json();
+    const first = await (await f.upload()).json(),
+      second = await (await f.upload()).json();
+    const replica = (await f.app.db.read((r) => r.replicas(first.id)))[0]!;
     await f.app.files.delete(first.id);
     await f.app.files.tasks.cleanupPending();
     await f.app.files.tasks.dispatch();
     await entered.promise;
-    let done = false;
-    forgotten = f.app.files.tasks.forget(first.id).then(() => {
-      done = true;
-    });
-    // A second forget can only conflict after the first has installed its admission gate.
-    await expect(f.app.files.tasks.forget(first.id)).rejects.toThrow(
-      "already in progress",
-    );
-    expect(done).toBe(false);
-    expect(await f.app.db.read((r) => r.file(first.id))).not.toBeNull();
+    await expect(
+      f.app.files.terminateReplica(first.id, replica.id),
+    ).rejects.toMatchObject({ code: "CONFLICT" });
     await f.app.files.delete(second.id);
     await f.app.files.tasks.cleanupPending();
     await f.app.files.tasks.dispatch();
-    await secondEntered.promise;
     release.resolve();
-    await forgotten;
     await f.app.files.sweep();
-    expect(await f.app.db.read((r) => r.file(first.id))).toBeNull();
-    expect((await f.app.db.read((r) => r.file(second.id)))!.status).toBe(
+    await f.app.files.terminateReplica(first.id, replica.id);
+    expect((await f.app.db.read((r) => r.file(first.id)))?.status).toBe(
+      "deleted",
+    );
+    expect((await f.app.db.read((r) => r.file(second.id)))?.status).toBe(
       "deleted",
     );
     expect(calls).toBe(2);
   } finally {
     release.resolve();
-    await forgotten;
     await f.close();
   }
 });

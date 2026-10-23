@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { localStorage } from "../src/builtins/storage/local/index";
 import type { InstanceServices } from "../src/plugins/api";
 
-test("local storage uses storageKey, recovers its own write and preserves conflicting objects", async () => {
+test("local storage uses storageKey, retries its own write and preserves conflicting objects", async () => {
   const root = await mkdtemp(join(tmpdir(), "local-path-"));
   const ctx = {
     signal: new AbortController().signal,
@@ -36,16 +36,14 @@ test("local storage uses storageKey, recovers its own write and preserves confli
   };
   try {
     let plugin = await create();
-    expect(await plugin.write(input, ctx)).toEqual({ locator: null });
+    expect(await plugin.write(input, ctx)).toEqual({
+      locator: { key: input.storageKey },
+    });
     expect(await Bun.file(join(root, input.storageKey)).text()).toBe("data");
     plugin = await create();
-    expect(
-      await plugin.recoverWrite!(
-        { ...input, expectedSize: 4, locator: null },
-        ctx,
-      ),
-    ).toEqual({ status: "stored", locator: null });
-    expect(await plugin.write(input, ctx)).toEqual({ locator: null });
+    expect(await plugin.write(input, ctx)).toEqual({
+      locator: { key: input.storageKey },
+    });
     await expect(
       plugin.write(
         { ...input, operationId: "other", fileId: crypto.randomUUID() },
@@ -56,30 +54,23 @@ test("local storage uses storageKey, recovers its own write and preserves confli
     await expect(
       plugin.write({ ...input, storageKey: "existing.png" }, ctx),
     ).rejects.toMatchObject({ code: "CONFLICT" });
-    expect(
-      await plugin.recoverWrite!(
-        {
-          ...input,
-          storageKey: "existing.png",
-          expectedSize: 4,
-          locator: null,
-        },
-        ctx,
-      ),
-    ).toEqual({ status: "unknown" });
     expect(await Bun.file(join(root, "existing.png")).text()).toBe("keep");
     const page = await plugin.listFiles!({ limit: 100 }, ctx);
     expect(page.items.map((x) => x.storageKey).sort()).toEqual(
       ["existing.png", input.storageKey].sort(),
     );
-    await plugin.delete({ ...input, locator: null }, ctx);
-    await plugin.delete({ ...input, locator: null }, ctx);
-    expect(
-      await plugin.recoverWrite!(
-        { ...input, expectedSize: 4, locator: null },
-        ctx,
-      ),
-    ).toEqual({ status: "notStored" });
+    await expect(
+      plugin.delete({ ...input, locator: null }, ctx),
+    ).rejects.toMatchObject({ code: "INVALID_INPUT", retryable: false });
+    expect(await Bun.file(join(root, input.storageKey)).text()).toBe("data");
+    for (const item of page.items)
+      expect(item.locator).toEqual({ key: item.storageKey });
+    const imported = page.items.find(
+      (item) => item.storageKey === input.storageKey,
+    )!;
+    await plugin.delete({ ...input, locator: imported.locator! }, ctx);
+    await plugin.delete({ ...input, locator: imported.locator! }, ctx);
+    expect(await Bun.file(join(root, input.storageKey)).exists()).toBe(false);
   } finally {
     await rm(root, { recursive: true, force: true });
   }

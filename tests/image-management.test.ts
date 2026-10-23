@@ -111,12 +111,7 @@ test("replica issue filter matches the selected source and keeps counts consiste
       storage_instance_id: source.id,
     };
     await f.app.db.transaction((r) => r.insertReplica(replica));
-    for (const status of [
-      "write_failed",
-      "write_unknown",
-      "delete_failed",
-      "delete_unknown",
-    ] as const) {
+    for (const status of ["write_failed", "delete_failed"] as const) {
       await f.app.db.transaction((r) => r.saveReplica({ ...replica, status }));
       for (const query of [
         "status=replica_error",
@@ -157,7 +152,6 @@ test("replica issue filter matches the selected source and keeps counts consiste
       "ready",
       "delete_pending",
       "deleting",
-      "deleted",
     ] as const) {
       await f.app.db.transaction((r) => r.saveReplica({ ...replica, status }));
       const result = await f.request("/api/files?status=replica_error");
@@ -209,11 +203,6 @@ test("replica issue filter matches the selected source and keeps counts consiste
       status: "deleted",
       replicaIssue: false,
     });
-    await f.app.db.transaction((r) => r.removeReplica(replica.id));
-    const removed = await f.request(
-      `/api/files?status=deleted&source=${source.id}`,
-    );
-    expect(removed.headers.get("X-Total-Count")).toBe("0");
   } finally {
     await f.close();
   }

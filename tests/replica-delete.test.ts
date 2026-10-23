@@ -83,6 +83,23 @@ test("source filtering survives group changes; deleting a replica preserves URL 
     expect(
       (await f.request(`/api/storage-sources/${source.id}`, "DELETE")).status,
     ).toBe(200);
+    expect(await f.app.db.read((r) => r.replica(replica.id))).toMatchObject({
+      storage_instance_id: source.id,
+      status: "deleted",
+    });
+    const operations = await (
+      await f.request(`/api/files/${image.id}/operations`)
+    ).json();
+    expect(
+      operations.replicas.find(
+        (item: { id: string }) => item.id === replica.id,
+      ),
+    ).toMatchObject({ instanceDeleted: true, instanceId: source.id });
+    expect(
+      operations.tasks.some(
+        (task: { replicaId: string }) => task.replicaId === replica.id,
+      ),
+    ).toBe(true);
   } finally {
     await f.close();
   }
@@ -163,7 +180,7 @@ test("replica deletion failure can retry while file stays ready; upload tokens c
     const lease = f.app.plugins.acquire(source.id, "storage");
     const originalDelete = lease.runtime.delete;
     lease.runtime.delete = async () => {
-      throw new PluginError("FAILED", "fail", false, "notApplied");
+      throw new PluginError("FAILED", "fail", false);
     };
     await f.app.files.deleteReplica(image.id, replica.id);
     await f.app.files.sweep();
@@ -192,7 +209,7 @@ test("exhausted uncertain replica writes release local source without losing rem
   const { f, source } = await setup();
   const lease = f.app.plugins.acquire(source.id, "storage");
   const write = spyOn(lease.runtime, "write").mockRejectedValue(
-    new PluginError("FAILED", "Uncertain write", false, "unknown"),
+    new PluginError("FAILED", "Uncertain write", false),
   );
   try {
     const image = await (await f.upload()).json();
@@ -207,7 +224,7 @@ test("exhausted uncertain replica writes release local source without losing rem
       "failed",
     );
     expect((await f.app.db.read((r) => r.replica(replica.id)))!.status).toBe(
-      "write_unknown",
+      "write_failed",
     );
     expect(
       (await f.app.db.read((r) => r.file(image.id)))!.temp_path,
@@ -260,7 +277,7 @@ test("source-filtered file lists batch pending deletions for the current page", 
   }
 });
 
-test("one failed replica recovery does not block deletion of healthy replicas", async () => {
+test("one failed replica deletion does not block deletion of healthy replicas", async () => {
   const { f, source } = await setup();
   let recovery: ReturnType<typeof spyOn> | undefined;
   try {
@@ -272,10 +289,10 @@ test("one failed replica recovery does not block deletion of healthy replicas", 
     )!;
     const healthy = replicas.find((r) => r.id !== uncertain.id)!;
     await f.app.db.transaction((r) =>
-      r.saveReplica({ ...uncertain, status: "write_unknown" }),
+      r.saveReplica({ ...uncertain, status: "write_failed" }),
     );
     const lease = f.app.plugins.acquire(source.id, "storage");
-    recovery = spyOn(lease.runtime, "recoverWrite").mockRejectedValue(
+    recovery = spyOn(lease.runtime, "delete").mockRejectedValue(
       new Error("Unreachable storage"),
     );
     await lease.release();
@@ -286,7 +303,7 @@ test("one failed replica recovery does not block deletion of healthy replicas", 
       "deleted",
     );
     expect((await f.app.db.read((r) => r.replica(uncertain.id)))?.status).toBe(
-      "write_unknown",
+      "delete_failed",
     );
     expect((await f.app.db.read((r) => r.file(image.id)))?.status).toBe(
       "deleting",
@@ -309,7 +326,7 @@ test("one failed replica recovery does not block deletion of healthy replicas", 
   }
 });
 
-test("ignoring an abnormal replica removes only its local records and releases capacity", async () => {
+test("terminating a deletion-failed replica retains history and releases capacity", async () => {
   const { f, source } = await setup();
   try {
     const image = await (await f.upload()).json();
@@ -320,12 +337,12 @@ test("ignoring an abnormal replica removes only its local records and releases c
     const lease = f.app.plugins.acquire(source.id, "storage");
     const remove = spyOn(lease.runtime, "delete");
     try {
-      const endpoint = `/api/files/${image.id}/replicas/${replica.id}/ignore`;
+      const endpoint = `/api/files/${image.id}/replicas/${replica.id}/terminate`;
       expect(
         (await f.request(endpoint, "POST", { confirm: true })).status,
       ).toBe(409);
       await f.app.db.transaction((r) =>
-        r.saveReplica({ ...replica, status: "write_unknown" }),
+        r.saveReplica({ ...replica, status: "delete_failed" }),
       );
       expect((await f.request(endpoint, "POST", {})).status).toBe(400);
       const token = await (
@@ -338,7 +355,7 @@ test("ignoring an abnormal replica removes only its local records and releases c
       expect(
         (
           await f.request(
-            `/api/files/wrong/replicas/${replica.id}/ignore`,
+            `/api/files/wrong/replicas/${replica.id}/terminate`,
             "POST",
             { confirm: true },
           )
@@ -361,8 +378,15 @@ test("ignoring an abnormal replica removes only its local records and releases c
       expect(
         (await f.request(endpoint, "POST", { confirm: true })).status,
       ).toBe(200);
-      expect(await f.app.db.read((r) => r.replica(replica.id))).toBeNull();
-      expect(await f.app.db.read((r) => r.task(task.id))).toBeNull();
+      expect(await f.app.db.read((r) => r.replica(replica.id))).toMatchObject({
+        status: "deleted",
+      });
+      expect(await f.app.db.read((r) => r.task(task.id))).toMatchObject({
+        status: "cancelled",
+      });
+      expect(
+        (await f.request(endpoint, "POST", { confirm: true })).status,
+      ).toBe(200);
       expect(await f.app.db.read((r) => r.replica(other.id))).toEqual(other);
       expect(await f.app.db.read((r) => r.storageUsedBytes(source.id))).toBe(0);
       expect(

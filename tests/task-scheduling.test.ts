@@ -138,7 +138,7 @@ test("dispatch fills idle slots beside a slow task, enforces capacity and drains
   }
 });
 
-test("recovery runs as a bounded task while unrelated tasks continue", async () => {
+test("failed-write cleanup runs as a bounded deletion while unrelated tasks continue", async () => {
   const f = await fixture();
   const blocked = gate();
   let recovery: ReturnType<typeof spyOn> | undefined,
@@ -169,7 +169,7 @@ test("recovery runs as a bounded task while unrelated tasks continue", async () 
       ...entity(),
       storage_instance_id: source.id,
 
-      status: "write_unknown",
+      status: "write_failed",
     };
     await f.app.db.transaction(async (r) => {
       await r.insertReplica(uncertain);
@@ -182,16 +182,16 @@ test("recovery runs as a bounded task while unrelated tasks continue", async () 
         status: "failed",
         attempts: 1,
         next_run_at: null,
-        last_error: "WRITE_UNKNOWN",
+        last_error: "WRITE_FAILED",
       });
     });
     lease = f.app.plugins.acquire(a.replica.storage_instance_id, "storage");
     let recovering = false;
-    recovery = spyOn(recoveryLease.runtime, "recoverWrite").mockImplementation(
+    recovery = spyOn(recoveryLease.runtime, "delete").mockImplementation(
       async () => {
         recovering = true;
         await blocked.promise;
-        return { status: "notStored" };
+        return;
       },
     );
     const deleted: string[] = [];

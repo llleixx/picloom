@@ -105,12 +105,10 @@ export type ReplicaStatus =
   | "writing"
   | "ready"
   | "write_failed"
-  | "write_unknown"
   | "delete_pending"
   | "deleting"
   | "delete_failed"
-  | "delete_unknown"
-  // Terminal: no remaining remote cleanup, including a cancelled unwritten replica.
+  // Management ended, including cancellation and manual termination; remote data may remain.
   | "deleted";
 export interface Replica extends Entity {
   file_id: string;
@@ -232,11 +230,8 @@ export interface Repositories {
   ): Promise<import("../../shared/config").Reference[]>;
   instanceReplicaCount(id: string): Promise<number>;
   deleteInstance(id: string): Promise<void>;
-  pruneTerminalReferences(id: string): Promise<void>;
   instance(id: string): Promise<Instance | null>;
-  storageUsage(
-    ids: string[],
-  ): Promise<Map<string, { used: number; reserved: number }>>;
+  storageUsage(ids: string[]): Promise<Map<string, number>>;
   storageUsedBytes(id: string, excludeReplicaId?: string): Promise<number>;
   saveInstance(value: Instance, expectedVersion?: number): Promise<void>;
   initError(id: string, error: string | null): Promise<void>;
@@ -313,8 +308,6 @@ export interface Repositories {
     storageInstanceId?: string,
   ): Promise<string[]>;
   pendingFileDeletions(fileIds: string[]): Promise<string[]>;
-  removeReplica(id: string): Promise<void>;
-  removeFile(id: string): Promise<void>;
   countFiles(filter?: FileFilter): Promise<number>;
   filesInStates(states: FileRecord["status"][]): Promise<FileRecord[]>;
   filesNeedingCleanup(): Promise<FileRecord[]>;

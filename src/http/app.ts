@@ -686,28 +686,20 @@ export function handler(app: Application) {
             ),
           );
         }
-        const forget = path.match(/^\/api\/files\/([^/]+)\/forget$/);
-        if (forget && method === "POST") {
-          app.auth.requireAdmin(auth);
-          if ((await body(req)).confirm !== true)
-            throw new AppError(
-              "INVALID_INPUT",
-              "Confirm removal of the record",
-            );
-          await app.files.tasks.forget(forget[1]!);
-          return json({ ok: true });
-        }
-        const replicaIgnore = path.match(
-          /^\/api\/files\/([^/]+)\/replicas\/([^/]+)\/ignore$/,
+        const replicaTerminate = path.match(
+          /^\/api\/files\/([^/]+)\/replicas\/([^/]+)\/terminate$/,
         );
-        if (replicaIgnore && method === "POST") {
+        if (replicaTerminate && method === "POST") {
           app.auth.requireAdmin(auth);
           if ((await body(req)).confirm !== true)
             throw new AppError(
               "INVALID_INPUT",
-              "Confirm removal of the replica record",
+              "Confirm termination of replica management",
             );
-          await app.files.ignoreReplica(replicaIgnore[1]!, replicaIgnore[2]!);
+          await app.files.terminateReplica(
+            replicaTerminate[1]!,
+            replicaTerminate[2]!,
+          );
           return json({ ok: true });
         }
         const replicaDelete = path.match(
