@@ -33,3 +33,19 @@
 省略 `profileId`（保留 `"Arguments": {}`）时，使用用户或站点默认上传配置。此配置仅上传图片，大小受站点、用户和上传配置限制。
 
 `.sxcu` 文件含有上传令牌，请勿公开分享。其他字段见 [ShareX 自定义上传器文档](https://getsharex.com/docs/custom-uploader)。
+
+## PicGo
+
+在 PicGo 中安装 [web-uploader 插件](https://github.com/yuki-xin/picgo-plugin-web-uploader)，选择“自定义Web图床”，填写以下配置并设为默认图床：
+
+| 配置项 | 内容 |
+| --- | --- |
+| API 地址（`url`） | `https://pic.example.com/api/files`，替换为你的站点地址 |
+| POST 参数名（`paramName`） | `file` |
+| JSON 路径（`jsonPath`） | `url` |
+| 自定义请求头（`customHeader`） | `{"Authorization":"Bearer YOUR_UPLOAD_TOKEN"}` |
+| 自定义 Body（`customBody`） | `{"profileId":"YOUR_PROFILE_ID"}` |
+
+在 Picloom 的 **上传令牌** 页面[创建令牌](./access.md#上传令牌)，授权目标上传配置；在 **配置 → 上传配置** 中复制配置 ID，分别替换表中的占位符。已设置[默认上传配置](./profiles.md)时，自定义 Body 可留空。
+
+通过 PicGo 上传图片后即可获得 Picloom 图片链接。

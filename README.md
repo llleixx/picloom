@@ -26,7 +26,7 @@ Follow the [Docker quick start (中文)](https://llleixx.github.io/picloom/guide
 - [Common recipes (中文)](https://llleixx.github.io/picloom/guide/recipes.html): replicas, thumbnails, watermarks and moderation.
 - [Image management (中文)](https://llleixx.github.io/picloom/guide/files.html): replace images while keeping links, or import an existing library.
 - [Backups and upgrades (中文)](https://llleixx.github.io/picloom/operations/data.html): save and restore data.
-- [External integrations (中文)](https://llleixx.github.io/picloom/guide/integrations.html): upload screenshots with ShareX.
+- [External integrations (中文)](https://llleixx.github.io/picloom/guide/integrations.html): upload images with ShareX or PicGo.
 - [HTTP API (中文)](https://llleixx.github.io/picloom/reference/http-api.html): integrate upload tools.
 
 Extend storage and image processing with plugins, and customize the website with themes. See the [plugin list (中文)](https://llleixx.github.io/picloom/reference/plugins.html), [plugin installation (中文)](https://llleixx.github.io/picloom/guide/plugins.html) and [theme installation (中文)](https://llleixx.github.io/picloom/guide/themes.html).
