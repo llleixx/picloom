@@ -9,7 +9,7 @@
 | 环境变量 | 密钥、数据库、监听地址，以及运行设置的初始值 | 部署参数在启动时读取；运行设置仅用于首次初始化 |
 | Web「设置」 | 网站、域名、防盗链、缓存、游客额度、容量与并发 | 保存到 `DATA_DIR/site-settings.json`，立即应用并在重启后保留 |
 
-**运行设置在首次启动时自动保存，之后从 `site-settings.json` 读取。** 这不要求先在 Web 点击保存。已有部署的域名、防盗链、上传限制和缓存等设置应在 Web 修改；重启或更改对应环境变量不会覆盖已保存值。密钥、数据库、监听地址等部署参数仍从环境变量读取，不受这个文件覆盖。
+**运行设置在首次启动时自动保存，之后从 `site-settings.json` 读取。** 这不要求先在 Web 点击保存。已有部署的域名、防盗链、上传限制和缓存等设置应在 Web 修改；重启或更改对应环境变量不会覆盖已保存值。密钥、数据库、监听地址等部署参数仍从环境变量读取，不受这个文件覆盖。已有站点缺少可信代理字段时，会将当前 `TRUSTED_PROXIES` 补入并保存；之后以 Web 设置为准，包括主动清空的列表。
 
 Docker 使用 `docker/.env.example`，源码开发使用根目录的 `.env.example`。Compose 旁的 `.env` 用于替换 Compose 变量，不会自动把所有变量传入容器；额外变量需加入 Compose 的 `environment`。
 
@@ -24,7 +24,6 @@ Docker 使用 `docker/.env.example`，源码开发使用根目录的 `.env.examp
 | `DATABASE_URL` | 空 | 空值使用数据目录内的 SQLite，否则连接指定 PostgreSQL 数据库 |
 | `HOST` / `PORT` | `127.0.0.1` / `7425` | HTTP 监听地址和端口；Docker 镜像监听 `0.0.0.0`，对外端口由 Compose 映射决定 |
 | `INITIAL_OWNER_PASSWORD` | 空，指定时至少 6 字符 | 仅首次创建 Owner 时使用；留空会生成随机密码并打印，不能用于修改已有密码 |
-| `TRUSTED_PROXIES` | 空 | 逗号分隔的可信代理 IP 或 CIDR；仅信任这些来源传入的 `X-Real-IP` |
 
 密钥生成与目录映射见 [Docker 部署](../operations/deploy.md)，反代配置见 [域名与反向代理](../operations/proxy.md)。
 
@@ -38,6 +37,7 @@ Docker 使用 `docker/.env.example`，源码开发使用根目录的 `.env.examp
 | `siteLogoUrl` | 无环境变量，初始化 `/assets/picloom.svg` | Logo 的 HTTP(S) 地址或内置图标路径；留空不显示 |
 | `siteFaviconUrl` | 无环境变量，初始化 `/assets/picloom.svg` | 浏览器标签页图标地址；留空不加载替代资源 |
 | `publicOrigin` | `PUBLIC_ORIGIN`，空 | 网站来源，如 `https://pic.example.com`；用于来源检查和链接生成，留空时普通请求使用当前来源 |
+| `trustedProxies` | `TRUSTED_PROXIES`，空列表 | 可信代理 IP 或 CIDR；Web 每行一个，环境变量用逗号分隔。仅信任这些来源传入的 `X-Real-IP`，代理必须覆盖该请求头 |
 | `imageOrigin` | `IMAGE_ORIGIN`，跟随网站来源 | 独立图片域名；为空时使用网站来源，再回退到当前请求来源 |
 
 域名字段只填协议和主机，不带路径。后台任务没有当前请求来源，需要生成完整图片 URL 时应配置域名，例如使用 URL 模式审核。

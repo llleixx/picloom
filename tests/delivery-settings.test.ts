@@ -31,6 +31,7 @@ test("delivery settings require admin/CSRF, validate, apply live and survive res
       cacheBytes: 1048576,
       cacheTtlMs: 60000,
       publicOrigin: "http://localhost",
+      trustedProxies: [],
       imageOrigin: "https://images.example.com/",
       imageCacheMaxAge: 600,
       hotlinkEnabled: true,
@@ -226,6 +227,7 @@ test("site branding persists with settings and is public, normalized and validat
     expect((await staleCookie.json()).content["en-US"].name).toBe("My Gallery");
     expect(publicSettings.publicOrigin).toBeUndefined();
     expect(publicSettings.hotlinkAllowedHosts).toBeUndefined();
+    expect(publicSettings.trustedProxies).toBeUndefined();
     const reset = await (
       await f.request("/api/settings", "PUT", {
         ...saved,

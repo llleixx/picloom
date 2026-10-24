@@ -13,6 +13,7 @@ import {
 import type { Settings } from "../config";
 import type { DeliverySettings } from "../../shared/api";
 import { AppError } from "./errors";
+import { createClientIpResolver } from "../trusted-proxies";
 
 function validate(input: unknown): DeliverySettings {
   const fields: Array<{ path: string; message: string }> = [];
@@ -35,6 +36,7 @@ function validate(input: unknown): DeliverySettings {
         "cacheBytes",
         "cacheTtlMs",
         "publicOrigin",
+        "trustedProxies",
         "imageOrigin",
         "imageCacheMaxAge",
         "hotlinkEnabled",
@@ -178,6 +180,23 @@ function validate(input: unknown): DeliverySettings {
       fail("/" + key, `Use a whole number from 1 to ${max}.`);
     runtime[key] = v[key] as number;
   }
+  const proxies: string[] = [];
+  if (!Array.isArray(v.trustedProxies))
+    fail("/trustedProxies", "Use a list of IP addresses or CIDR ranges.");
+  else {
+    for (const raw of v.trustedProxies) {
+      if (typeof raw !== "string") {
+        fail("/trustedProxies", "Use IP addresses or CIDR ranges.");
+        break;
+      }
+      proxies.push(raw.trim());
+    }
+    try {
+      createClientIpResolver(proxies);
+    } catch {
+      fail("/trustedProxies", "Use IP addresses or CIDR ranges.");
+    }
+  }
   const hosts: string[] = [];
   if (
     !Array.isArray(v.hotlinkAllowedHosts) ||
@@ -219,6 +238,7 @@ function validate(input: unknown): DeliverySettings {
     cacheBytes: v.cacheBytes as number,
     cacheTtlMs: v.cacheTtlMs as number,
     publicOrigin: publicOrigin!,
+    trustedProxies: [...new Set(proxies)],
     imageCacheMaxAge: v.imageCacheMaxAge as number,
     imageOrigin,
     hotlinkEnabled: v.hotlinkEnabled as boolean,
@@ -230,11 +250,13 @@ function validate(input: unknown): DeliverySettings {
 /** Single-process settings: persist atomically before applying to live services. */
 export class DeliveryConfiguration {
   private value: DeliverySettings;
+  private clientIp: ReturnType<typeof createClientIpResolver>;
   constructor(
     private readonly config: Settings,
     private readonly applyRuntime: (value: DeliverySettings) => void,
     readonly store = new SiteSettings(config.root),
   ) {
+    this.clientIp = createClientIpResolver(config.trustedProxies);
     this.value = {
       ...(Object.fromEntries(
         runtimeKeys.map((key) => [key, config[key]]),
@@ -248,6 +270,7 @@ export class DeliveryConfiguration {
       cacheBytes: config.cacheBytes,
       cacheTtlMs: config.cacheTtlMs,
       publicOrigin: config.origin,
+      trustedProxies: [...config.trustedProxies],
       imageCacheMaxAge: config.imageCacheMaxAge,
       imageOrigin:
         config.imageOrigin === config.origin ? null : config.imageOrigin,
@@ -259,8 +282,20 @@ export class DeliveryConfiguration {
   async load() {
     await this.store.load();
     const saved = this.store.get().delivery;
-    if (saved) this.apply(validate(saved));
-    else
+    if (saved) {
+      const missingProxies = saved.trustedProxies === undefined;
+      const value = validate({
+        ...saved,
+        trustedProxies: missingProxies
+          ? this.config.trustedProxies
+          : saved.trustedProxies,
+      });
+      if (missingProxies)
+        await this.store.update((next) => {
+          next.delivery = value;
+        });
+      this.apply(value);
+    } else
       await this.store.update((next) => {
         next.delivery = this.value;
       });
@@ -286,7 +321,11 @@ export class DeliveryConfiguration {
   get(): DeliverySettings {
     return structuredClone({ ...this.value, publicOrigin: this.config.origin });
   }
+  resolveClientIp(peer: string, forwarded: string | null): string {
+    return this.clientIp(peer, forwarded);
+  }
   private apply(value: DeliverySettings) {
+    this.clientIp = createClientIpResolver(value.trustedProxies);
     this.value = value;
     const { publicOrigin, ...delivery } = value;
     Object.assign(this.config, delivery, {

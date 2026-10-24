@@ -35,6 +35,7 @@ const draft = ref<DeliverySettings>({
   cacheBytes: 1024 ** 3,
   cacheTtlMs: 86400000,
   publicOrigin: "",
+  trustedProxies: [],
   imageCacheMaxAge: 300,
   hotlinkEnabled: false,
   hotlinkAllowedHosts: [],
@@ -180,6 +181,7 @@ const expanded = ref<Record<string, boolean>>({});
 const loaded = ref(false);
 const siteLink = ref("");
 const domains = ref("");
+const proxies = ref("");
 const busy = ref(false),
   error = ref("");
 const fields = ref<Record<string, string>>({});
@@ -191,6 +193,7 @@ watch(
       // Query results are readonly; the editor owns its nested arrays and content.
       draft.value = JSON.parse(JSON.stringify(value));
       domains.value = value.hotlinkAllowedHosts.join("\n");
+      proxies.value = value.trustedProxies.join("\n");
     }
   },
   { immediate: true },
@@ -206,6 +209,10 @@ async function save() {
       body: JSON.stringify({
         ...draft.value,
         imageOrigin: draft.value.imageOrigin?.trim() || null,
+        trustedProxies: proxies.value
+          .split(/\r?\n/)
+          .map((x) => x.trim())
+          .filter(Boolean),
         hotlinkAllowedHosts: domains.value
           .split(/\r?\n/)
           .map((x) => x.trim())
@@ -218,6 +225,7 @@ async function save() {
         ? value.publicOrigin + "/app/settings"
         : "";
     domains.value = value.hotlinkAllowedHosts.join("\n");
+    proxies.value = value.trustedProxies.join("\n");
     queryClient.setQueryData(["delivery-settings"], value);
     await Promise.all(
       ["files", "profiles", "client-settings"].map((key) =>
@@ -454,6 +462,26 @@ async function save() {
             {{ fields["/publicOrigin"] }}
           </p>
           <p id="site-hint" class="subtle">{{ t("settings.siteHint") }}</p>
+          <label class="field"
+            >{{ t("settings.trustedProxies") }}
+            <textarea
+              v-model="proxies"
+              class="w-full rounded-md border bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              rows="3"
+              :aria-invalid="!!fields['/trustedProxies']"
+              aria-describedby="proxies-hint proxies-error"
+            />
+          </label>
+          <p
+            v-if="fields['/trustedProxies']"
+            id="proxies-error"
+            class="text-sm text-destructive"
+          >
+            {{ fields["/trustedProxies"] }}
+          </p>
+          <p id="proxies-hint" class="subtle">
+            {{ t("settings.trustedProxiesHint") }}
+          </p>
         </section>
         <section
           v-for="group in limitGroups"

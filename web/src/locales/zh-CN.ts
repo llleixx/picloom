@@ -413,6 +413,9 @@ export const zhCN = {
   "system.delete": "删除",
   "settings.website": "网站",
   "settings.siteOrigin": "站点地址",
+  "settings.trustedProxies": "可信代理",
+  "settings.trustedProxiesHint":
+    "每行填写一个 IP 地址或 CIDR 网段。仅信任这些来源传入的 X-Real-IP，代理必须覆盖该请求头；留空则不信任任何代理。保存后立即生效。",
   "settings.siteHint":
     "留空使用请求地址，不校验请求来源；填写后严格校验来源。后台传递图片 URL 或经 HTTPS 代理访问时需填写外部站点地址。",
   "settings.openSite": "打开更新后的站点",

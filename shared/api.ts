@@ -106,6 +106,7 @@ export interface DeliverySettings extends RuntimeSettings, SiteSettings {
   cacheBytes: number;
   cacheTtlMs: number;
   publicOrigin: string;
+  trustedProxies: string[];
   imageCacheMaxAge: number;
   imageOrigin: string | null;
   hotlinkEnabled: boolean;

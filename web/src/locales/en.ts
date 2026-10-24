@@ -466,6 +466,9 @@ export const en = {
 
   "settings.website": "Website",
   "settings.siteOrigin": "Site origin",
+  "settings.trustedProxies": "Trusted proxies",
+  "settings.trustedProxiesHint":
+    "One IP address or CIDR range per line. Only these peers may supply X-Real-IP; the proxy must overwrite this header. Leave blank to trust no proxies. Changes apply immediately.",
   "settings.siteHint":
     "Leave blank to use the request address without origin checks; setting a value enables strict origin checks. Set the external origin for background URL delivery or HTTPS proxies.",
   "settings.openSite": "Open the updated site",
