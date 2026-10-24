@@ -2,7 +2,24 @@
 import type { ParameterSchema } from "@picloom/plugin-sdk";
 import { computed, onUnmounted, reactive, ref, watch } from "vue";
 import { useQuery } from "@tanstack/vue-query";
-import { ChevronRight, Plus, X, LoaderCircle } from "lucide-vue-next";
+import {
+  Check,
+  ChevronDown,
+  ChevronRight,
+  Plus,
+  X,
+  LoaderCircle,
+} from "lucide-vue-next";
+import {
+  ComboboxRoot,
+  ComboboxAnchor,
+  ComboboxInput,
+  ComboboxTrigger,
+  ComboboxPortal,
+  ComboboxContent,
+  ComboboxItem,
+  ComboboxItemIndicator,
+} from "reka-ui";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { api, response, errorText } from "@/lib/api";
@@ -32,7 +49,9 @@ const query = useQuery({
   staleTime: 0,
 });
 const groups = computed(() =>
-  (query.data.value ?? []).map((group) => localizePlugin(group, locale.value)),
+  (query.data.value ?? [])
+    .filter((group) => Object.keys(group.paramsSchema.properties ?? {}).length)
+    .map((group) => localizePlugin(group, locale.value)),
 );
 const fields = computed(() => {
   const result = new Map<
@@ -78,6 +97,70 @@ const selected = ref<string[]>([]),
   values = reactive<Config>({}),
   picker = ref(false),
   search = ref("");
+const plugin = ref("");
+const pluginSearch = ref("");
+const pluginOpen = ref(false);
+watch(
+  groups,
+  (items) => {
+    if (
+      plugin.value !== "all" &&
+      !items.some((group) => group.id === plugin.value)
+    )
+      plugin.value = items[0]?.id ?? "";
+  },
+  { immediate: true },
+);
+watch(plugin, () => {
+  picker.value = false;
+  search.value = "";
+});
+function groupCount(group: AccessParameterGroup) {
+  return selected.value.filter((key) =>
+    Object.hasOwn(group.paramsSchema.properties ?? {}, key),
+  ).length;
+}
+const pluginOptions = computed(() =>
+  [
+    {
+      id: "all",
+      name: t("linkBuilder.selected"),
+      count: selected.value.length,
+    },
+    ...groups.value.map((group) => ({
+      id: group.id,
+      name: group.name,
+      count: groupCount(group),
+    })),
+  ].filter((option) =>
+    option.name
+      .toLocaleLowerCase()
+      .includes(pluginSearch.value.trim().toLocaleLowerCase()),
+  ),
+);
+function pluginLabel(value: unknown) {
+  return value === "all"
+    ? t("linkBuilder.selected")
+    : (groups.value.find((group) => group.id === value)?.name ?? "");
+}
+const sections = computed(() => {
+  const seen = new Set<string>();
+  return groups.value
+    .filter((group) => plugin.value === "all" || group.id === plugin.value)
+    .map((group) => ({
+      ...group,
+      fields: selected.value.flatMap((key) => {
+        if (
+          !Object.hasOwn(group.paramsSchema.properties ?? {}, key) ||
+          seen.has(key)
+        )
+          return [];
+        seen.add(key);
+        const field = fields.value.get(key);
+        return field ? [field] : [];
+      }),
+    }));
+});
 const active = computed(() =>
   selected.value.flatMap((key) => {
     const field = fields.value.get(key);
@@ -86,6 +169,7 @@ const active = computed(() =>
 );
 const choices = computed(() =>
   groups.value
+    .filter((group) => group.id === plugin.value)
     .map((group) => ({
       ...group,
       fields: Object.keys(group.paramsSchema.properties ?? {})
@@ -105,8 +189,6 @@ function add(key: string) {
   const field = fields.value.get(key)!;
   const value = field.defaultConflict ? undefined : initialValue(rule);
   if (value !== undefined) values[key] = value;
-  picker.value = false;
-  search.value = "";
 }
 function remove(key: string) {
   selected.value = selected.value.filter((item) => item !== key);
@@ -192,49 +274,135 @@ async function showPreview() {
         <span
           v-if="selected.length"
           class="ml-auto text-xs font-normal text-muted-foreground"
-          >{{ selected.length }}</span
+          >{{ t("linkBuilder.added", { count: selected.length }) }}</span
         >
       </summary>
       <form class="mt-3 space-y-3" @submit.prevent="showPreview">
-        <div
-          v-for="field in active"
-          :key="field.key"
-          class="rounded-md border p-3"
+        <ComboboxRoot
+          v-if="groups.length > 1"
+          :model-value="plugin"
+          :open="pluginOpen"
+          open-on-click
+          ignore-filter
+          @update:model-value="plugin = String($event)"
+          @update:open="
+            pluginOpen = $event;
+            pluginSearch = '';
+          "
         >
-          <div class="mb-2 flex items-center justify-between gap-2">
-            <span
-              class="min-w-0 truncate text-xs text-muted-foreground"
-              :title="field.groups.join(' · ')"
-              >{{ field.key }}</span
+          <ComboboxAnchor
+            class="flex h-9 items-center gap-2 rounded-md border px-3 text-sm focus-within:ring-1 focus-within:ring-ring"
+          >
+            <ComboboxInput
+              :model-value="pluginOpen ? pluginSearch : pluginLabel(plugin)"
+              :display-value="pluginLabel"
+              :aria-label="t('linkBuilder.plugin')"
+              :placeholder="t('linkBuilder.searchPlugins')"
+              autocomplete="off"
+              class="min-w-0 flex-1 truncate bg-transparent outline-none"
+              @update:model-value="pluginSearch = $event"
+            />
+            <ComboboxTrigger :aria-label="t('linkBuilder.plugin')"
+              ><ChevronDown :size="14"
+            /></ComboboxTrigger>
+          </ComboboxAnchor>
+          <ComboboxPortal>
+            <ComboboxContent
+              position="popper"
+              align="start"
+              :side-offset="4"
+              class="z-50 max-h-64 w-[var(--reka-combobox-trigger-width)] overflow-y-auto rounded-md border bg-background p-1 shadow-md"
             >
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              :aria-label="t('linkBuilder.remove') + ': ' + field.key"
-              @click="remove(field.key)"
-              ><X :size="15"
-            /></Button>
+              <ComboboxItem
+                v-for="option in pluginOptions"
+                :key="option.id"
+                :value="option.id"
+                class="relative flex cursor-default items-center gap-2 rounded py-2 pr-2 pl-7 text-sm outline-none data-[highlighted]:bg-muted"
+              >
+                <ComboboxItemIndicator class="absolute left-2"
+                  ><Check :size="14"
+                /></ComboboxItemIndicator>
+                <span class="min-w-0 flex-1 truncate">{{ option.name }}</span>
+                <span class="text-xs text-muted-foreground">{{
+                  t("linkBuilder.added", { count: option.count })
+                }}</span>
+              </ComboboxItem>
+              <p
+                v-if="!pluginOptions.length"
+                class="p-2 text-xs text-muted-foreground"
+              >
+                {{ t("linkBuilder.noPlugins") }}
+              </p>
+            </ComboboxContent>
+          </ComboboxPortal>
+        </ComboboxRoot>
+        <template v-for="section in sections" :key="section.id">
+          <div v-if="section.fields.length" class="space-y-3">
+            <p
+              v-if="plugin === 'all'"
+              class="text-xs font-medium text-muted-foreground"
+            >
+              {{ section.name }}
+            </p>
+            <div
+              v-for="field in section.fields"
+              :key="field.key"
+              class="space-y-1 border-b pb-3 last:border-0 last:pb-0"
+            >
+              <div class="flex items-center justify-between gap-2">
+                <span
+                  class="min-w-0 truncate text-xs text-muted-foreground"
+                  :title="field.groups.join(' · ')"
+                  >{{ field.key }}</span
+                >
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  :aria-label="t('linkBuilder.remove') + ': ' + field.key"
+                  @click="remove(field.key)"
+                  ><X :size="15"
+                /></Button>
+              </div>
+              <p
+                v-if="field.groups.length > 1"
+                class="text-xs text-muted-foreground"
+              >
+                {{
+                  t("linkBuilder.sharedWith", {
+                    plugins: field.groups
+                      .filter((name) => name !== section.name)
+                      .join(" · "),
+                  })
+                }}
+              </p>
+              <p v-if="field.defaultConflict" class="subtle">
+                {{ t("linkBuilder.defaultConflict") }}
+              </p>
+              <SchemaField
+                :schema="field.schema"
+                :value="readPointer(values, '/' + pointer(field.key))"
+                :root="values"
+                :localization="field.localization"
+                @change="
+                  (value) => {
+                    if (value === undefined) delete values[field.key];
+                    else values[field.key] = value;
+                  }
+                "
+                :path="'/' + pointer(field.key)"
+                :label="field.key"
+                :errors="[]"
+              />
+            </div>
           </div>
-          <p v-if="field.defaultConflict" class="subtle">
-            {{ t("linkBuilder.defaultConflict") }}
-          </p>
-          <SchemaField
-            :schema="field.schema"
-            :value="readPointer(values, '/' + pointer(field.key))"
-            :root="values"
-            :localization="field.localization"
-            @change="
-              (value) => {
-                if (value === undefined) delete values[field.key];
-                else values[field.key] = value;
-              }
-            "
-            :path="'/' + pointer(field.key)"
-            :label="field.key"
-            :errors="[]"
-          />
-        </div>
+        </template>
+        <p
+          v-if="!sections.some((section) => section.fields.length)"
+          class="text-xs text-muted-foreground"
+        >
+          {{ t("linkBuilder.noSelected") }}
+        </p>
         <div v-if="picker" class="space-y-3 rounded-md border bg-muted/30 p-3">
           <div class="flex gap-2">
             <Input
@@ -286,10 +454,11 @@ async function showPreview() {
         </div>
         <div class="flex flex-wrap gap-2">
           <Button
+            v-if="plugin !== 'all'"
             type="button"
             variant="outline"
             size="sm"
-            @click="picker = !picker"
+            @click="picker = true"
             ><Plus :size="16" />{{ t("linkBuilder.add") }}</Button
           >
           <Button type="submit" variant="outline" size="sm" :disabled="busy"

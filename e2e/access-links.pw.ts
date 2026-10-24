@@ -55,6 +55,21 @@ test("shared access parameters ignore presentation hints but retain constraint c
   await width.click();
   await page.getByLabel("Width 0", { exact: true }).fill("12");
   await expect(page.getByLabel("Width 0", { exact: true })).toHaveValue("12");
+  const plugin = page.getByRole("combobox", { name: "Plugin", exact: true });
+  await plugin.click();
+  await plugin.fill("step1");
+  await page.getByRole("option", { name: /step1/ }).click();
+  await expect(page.getByLabel("Width 0", { exact: true })).toHaveValue("12");
+  await expect(page.getByText("Also used by: step0")).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: "Open link", exact: true }),
+  ).toHaveAttribute("href", /w=12/);
+  await plugin.click();
+  await page.getByRole("option", { name: /Added parameters/ }).click();
+  await expect(page.getByLabel("Width 0", { exact: true })).toHaveCount(1);
+  await expect(
+    page.getByRole("button", { name: "Add parameter", exact: true }),
+  ).toHaveCount(0);
 });
 
 test("access links preserve empty, false and zero and do not pick conflicting defaults", async ({
