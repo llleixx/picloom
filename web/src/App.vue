@@ -5,7 +5,7 @@ import { navigation, navigationGroups } from "./lib/navigation";
 import { t, configureLanguages } from "@/lib/i18n";
 import { ref, watch, watchEffect, computed } from "vue";
 import { useRoute } from "vue-router";
-import { CloudUpload, Moon, Sun, Menu } from "lucide-vue-next";
+import { Moon, Sun, Menu } from "lucide-vue-next";
 import { Button } from "@/components/ui/button";
 import {
   Sheet,
@@ -91,11 +91,6 @@ watchEffect(() => {
         class="mb-7 mt-3 flex items-center gap-3 text-lg font-semibold tracking-tight"
         ><SiteBrand
       /></a>
-      <a
-        href="/"
-        class="mb-5 flex items-center gap-3 px-3 py-2 text-sm text-muted-foreground hover:text-foreground"
-        ><CloudUpload :size="18" />{{ t("home.upload") }}</a
-      >
       <nav :aria-label="t('ui.mainNavigation')" class="space-y-6 pb-6">
         <section
           v-for="group in groups"
@@ -176,12 +171,9 @@ watchEffect(() => {
     <main class="mx-auto max-w-[1600px] p-5 md:p-9"><RouterView /></main>
     <Sheet v-model:open="menu"
       ><SheetContent side="left" class="w-64 overflow-y-auto p-6"
-        ><SheetTitle><SiteBrand /></SheetTitle
+        ><SheetTitle><a href="/" @click="menu = false"><SiteBrand /></a></SheetTitle
         ><SheetDescription>{{ t("ui.navigation") }}</SheetDescription>
         <nav class="mt-5 space-y-5">
-          <a @click="menu = false" href="/" class="block px-3 py-2">{{
-            t("home.upload")
-          }}</a>
           <section
             v-for="group in groups"
             :key="group.id"
