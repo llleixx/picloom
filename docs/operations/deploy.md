@@ -42,7 +42,7 @@ openssl rand -hex 32
 docker compose up -d
 ```
 
-访问 `http://localhost:3000`，用 `admin` 和初始密码登录。远程部署时将 `localhost` 换成服务器地址。默认存储与上传配置见 [快速开始](../guide/quick-start.md#_2-查看默认配置)。
+访问 `http://localhost:7425`，用 `admin` 和初始密码登录。远程部署时将 `localhost` 换成服务器地址。默认存储与上传配置见 [快速开始](../guide/quick-start.md#_2-查看默认配置)。
 
 ## 数据存在哪里
 
@@ -66,14 +66,14 @@ PostgreSQL 只替代数据库，插件、运行设置和本地图片仍需保存
 
 | 配置 | 默认值 | 作用 |
 | --- | --- | --- |
-| `HTTP_PORT` | `3000` | 宿主机访问端口，容器内仍使用 `3000` |
+| `HTTP_PORT` | `7425` | 宿主机访问端口，容器内仍使用 `7425` |
 | `PUBLISH_ADDRESS` | `0.0.0.0` | 宿主机监听地址，默认监听所有 IPv4 接口 |
 
 如果 Nginx 运行在同一宿主机上，可设为：
 
 ```dotenv
 PUBLISH_ADDRESS=127.0.0.1
-HTTP_PORT=3000
+HTTP_PORT=7425
 ```
 
 此时只能通过宿主机本地端口或反向代理访问。域名、HTTPS 与可信代理设置见 [域名与反向代理](./proxy.md)。

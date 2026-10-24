@@ -7,7 +7,7 @@
 ```mermaid
 flowchart LR
     A[浏览器] -->|HTTPS| B[反向代理]
-    B -->|HTTP| C[Picloom:3000]
+    B -->|HTTP| C[Picloom:7425]
 ```
 
 先将域名解析到服务器，并为反向代理准备该域名的 HTTPS 证书。下面以 Nginx 运行在 Picloom 所在宿主机上为例。
@@ -21,7 +21,7 @@ flowchart LR
 ```dotenv
 PUBLIC_ORIGIN=https://pic.example.com
 PUBLISH_ADDRESS=127.0.0.1
-HTTP_PORT=3000
+HTTP_PORT=7425
 ```
 
 站点域名包含协议，不带路径和末尾斜杠。`127.0.0.1` 让应用端口仅供宿主机访问，对外通过 Nginx 提供服务。
@@ -56,7 +56,7 @@ server {
     client_max_body_size 64m;
 
     location / {
-        proxy_pass http://127.0.0.1:3000;
+        proxy_pass http://127.0.0.1:7425;
         proxy_set_header Host $host;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_set_header X-Real-IP $remote_addr;
@@ -73,7 +73,7 @@ server {
 sudo nginx -t && sudo nginx -s reload
 ```
 
-如果 Nginx 运行在另一个容器中，应让两者加入同一 Docker 网络，并将上游改为 `http://picloom:3000`。容器中的 `127.0.0.1` 指向容器自身。
+如果 Nginx 运行在另一个容器中，应让两者加入同一 Docker 网络，并将上游改为 `http://picloom:7425`。容器中的 `127.0.0.1` 指向容器自身。
 
 ## 获取真实客户端 IP
 

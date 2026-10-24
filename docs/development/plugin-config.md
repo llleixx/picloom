@@ -81,7 +81,7 @@ const width = Number(params.width ?? config.width);
 安装[上传处理示例](./processors/upload.md#安装与验证)、启用参数后，使用宽于 800 像素的静态 PNG 验证：
 
 ```sh
-PICLOOM_URL=http://localhost:3000
+PICLOOM_URL=http://localhost:7425
 PICLOOM_TOKEN=替换为上传令牌
 PICLOOM_PROFILE=替换为上传配置ID
 curl --fail-with-body "$PICLOOM_URL/api/files" \

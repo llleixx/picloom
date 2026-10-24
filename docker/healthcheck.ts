@@ -1,7 +1,7 @@
 export {};
 try {
   const response = await fetch(
-    `http://127.0.0.1:${process.env.PORT ?? 3000}/api/client-settings`,
+    `http://127.0.0.1:${process.env.PORT ?? 7425}/api/client-settings`,
     {
       signal: AbortSignal.timeout(4000),
     },

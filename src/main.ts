@@ -1,7 +1,7 @@
 import { createClientIpResolver } from "./trusted-proxies";
 import { maxUploadBodyBytes } from "../shared/runtime-settings";
 import { startRuntime } from "./runtime";
-const runtime = await startRuntime({ port: Number(process.env.PORT ?? 3000) });
+const runtime = await startRuntime({ port: Number(process.env.PORT ?? 7425) });
 const clientIp = createClientIpResolver(runtime.app.config.trustedProxies);
 const server = Bun.serve({
   hostname: process.env.HOST ?? "127.0.0.1",

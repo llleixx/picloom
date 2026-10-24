@@ -22,7 +22,7 @@ Docker 使用 `docker/.env.example`，源码开发使用根目录的 `.env.examp
 | `ENCRYPTION_KEY` | 必填，64 位十六进制 | 加密插件凭证等敏感数据。保留原密钥，不能通过换一个值来轮换已保存数据的密钥 |
 | `DATA_DIR` | 源码为 `./data`；Docker 为 `/var/lib/picloom/app` | 保存数据库、设置、插件和临时内容；不代表所有存储源图片都位于这里 |
 | `DATABASE_URL` | 空 | 空值使用数据目录内的 SQLite，否则连接指定 PostgreSQL 数据库 |
-| `HOST` / `PORT` | `127.0.0.1` / `3000` | HTTP 监听地址和端口；Docker 镜像监听 `0.0.0.0`，对外端口由 Compose 映射决定 |
+| `HOST` / `PORT` | `127.0.0.1` / `7425` | HTTP 监听地址和端口；Docker 镜像监听 `0.0.0.0`，对外端口由 Compose 映射决定 |
 | `INITIAL_OWNER_PASSWORD` | 空，指定时至少 6 字符 | 仅首次创建 Owner 时使用；留空会生成随机密码并打印，不能用于修改已有密码 |
 | `TRUSTED_PROXIES` | 空 | 逗号分隔的可信代理 IP 或 CIDR；仅信任这些来源传入的 `X-Real-IP` |
 

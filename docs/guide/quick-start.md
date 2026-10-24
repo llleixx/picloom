@@ -27,7 +27,7 @@ openssl rand -hex 32
 docker compose up -d
 ```
 
-访问 `http://localhost:3000`，用 `admin` 和初始密码登录。远程部署时将 `localhost` 换成服务器地址。
+访问 `http://localhost:7425`，用 `admin` 和初始密码登录。远程部署时将 `localhost` 换成服务器地址。
 
 若初始密码留空，首次启动会生成随机密码，可通过 `docker compose logs picloom` 查看。修改该变量不会重置已有账户密码。
 

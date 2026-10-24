@@ -32,8 +32,8 @@ COPY shared ./shared
 COPY docker/healthcheck.ts ./docker/healthcheck.ts
 COPY --from=frontend /app/dist/web ./dist/web
 ENV LD_PRELOAD=libjemalloc.so.2 VIPS_CONCURRENCY=1
-ENV NODE_ENV=production HOST=0.0.0.0 PORT=3000 DATA_DIR=/var/lib/picloom/app
+ENV NODE_ENV=production HOST=0.0.0.0 PORT=7425 DATA_DIR=/var/lib/picloom/app
 USER root
-EXPOSE 3000
+EXPOSE 7425
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 CMD ["bun", "docker/healthcheck.ts"]
 CMD ["bun", "src/main.ts"]

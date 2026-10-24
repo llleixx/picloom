@@ -5,7 +5,7 @@ import { resolve } from "node:path";
 
 export default defineConfig(({ mode }) => {
   const env = { ...loadEnv(mode, process.cwd(), ""), ...process.env };
-  const target = env.BACKEND_URL ?? "http://127.0.0.1:3000";
+  const target = env.BACKEND_URL ?? "http://127.0.0.1:7425";
   return {
     root: resolve("web"),
     base: "/",
