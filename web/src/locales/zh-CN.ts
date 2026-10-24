@@ -73,7 +73,7 @@ export const zhCN = {
   "storage.deleteSourceTitle": "删除存储源？",
   "cleanup.result": "清理结果",
   "cleanup.scopeNote": "在后台清理现有图片，不包含后续上传和导入。",
-  "removal.removed": "已移除",
+  "removal.removed": "已删除",
   "removal.detaching": "解除中…",
   "removal.deleteReplicaTitle": "删除副本？",
   "removal.detachReplicaTitle": "解除副本引用？",

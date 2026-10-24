@@ -81,7 +81,7 @@ export const en = {
   "cleanup.result": "Cleanup result",
   "cleanup.scopeNote":
     "Clean up current images in the background. Later uploads and imports are excluded.",
-  "removal.removed": "Removed",
+  "removal.removed": "Deleted",
   "removal.detaching": "Detaching…",
   "removal.deleteReplicaTitle": "Delete replica?",
   "removal.detachReplicaTitle": "Detach replica?",
