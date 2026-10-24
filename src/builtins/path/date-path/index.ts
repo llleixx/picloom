@@ -22,14 +22,14 @@ export const datePath: Definition<"path"> = {
   configSchemaVersion: 1,
   async createInstance() {
     return {
-      async generate({ fileId, uploadedAt, metadata }) {
+      async generate({ record, metadata }) {
         const ext = metadata.mimeType
           ?.split("/")[1]
           ?.replace("svg+xml", "svg")
           .replace("jpeg", "jpg");
         if (!ext) throw new Error("Missing image type");
         return {
-          logicalKey: `${new Date(uploadedAt).toISOString().slice(0, 10).replaceAll("-", "/")}/${fileId.replaceAll("-", "")}.${ext}`,
+          logicalKey: `${new Date(record.createdAt).toISOString().slice(0, 10).replaceAll("-", "/")}/${record.id.replaceAll("-", "")}.${ext}`,
         };
       },
     };

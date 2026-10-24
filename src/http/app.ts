@@ -1,3 +1,4 @@
+import { organizationRequest } from "./organization";
 import { themeRequest } from "./themes";
 import { pluginErrorCode } from "../core/errors";
 import { maxDirectUploadBytes } from "../../shared/runtime-settings";
@@ -60,6 +61,7 @@ const field = (obj: Record<string, unknown>, key: string) => {
 const view = (f: FileRecord, origin: string): FileView => ({
   id: f.id,
   ownerId: f.owner_id,
+  tags: [],
   status: f.status,
   mimeType: f.mime_type,
   byteSize: f.byte_size,
@@ -150,6 +152,10 @@ export function handler(app: Application) {
             auth,
           );
           await app.files.validateUpload(profileId, 1, auth, guestIp);
+          await app.files.uploadOrganization(
+            app.auth.uploadOwner(auth).ownerId,
+            input.organization,
+          );
           const profile = (await app.files.uploadProfiles(auth)).find(
             (p) => p.id === profileId,
           );
@@ -186,6 +192,7 @@ export function handler(app: Application) {
                 undefined,
                 guestIp,
                 inputPath,
+                input.organization,
               ),
               201,
             );
@@ -269,6 +276,28 @@ export function handler(app: Application) {
                   "INVALID_PARAMS",
                   "Expected one params field",
                 );
+              if (form.getAll("organization").length > 1)
+                throw new AppError(
+                  "INVALID_INPUT",
+                  "Expected one organization field",
+                );
+              let organization: unknown;
+              const organizationField = form.get("organization");
+              if (organizationField !== null) {
+                if (typeof organizationField !== "string")
+                  throw new AppError(
+                    "INVALID_INPUT",
+                    "Expected JSON organization",
+                  );
+                try {
+                  organization = JSON.parse(organizationField);
+                } catch {
+                  throw new AppError(
+                    "INVALID_INPUT",
+                    "Expected JSON organization",
+                  );
+                }
+              }
               const params = parseUploadParams(form.get("params"));
               const profileId = await app.auth.resolveUploadProfile(
                 profile ?? undefined,
@@ -297,6 +326,7 @@ export function handler(app: Application) {
                   undefined,
                   guestIp,
                   inputPath,
+                  organization,
                 ),
                 201,
               );
@@ -367,6 +397,15 @@ export function handler(app: Application) {
           );
           return json(await app.auth.uploadDefaults(auth));
         }
+        const organizationResponse = await organizationRequest(
+          app,
+          auth,
+          path,
+          method,
+          () => body(req),
+          url.searchParams,
+        );
+        if (organizationResponse) return organizationResponse;
         const workspaceRoute =
           path.startsWith("/api/auth/") ||
           path === "/api/tokens" ||
@@ -568,7 +607,7 @@ export function handler(app: Application) {
             offset < 0
           )
             throw new AppError("INVALID_INPUT", "Invalid pagination");
-          const filter: FileFilter = {};
+          let filter: FileFilter = {};
           if (url.searchParams.has("source")) {
             app.auth.requireAdmin(auth);
             filter.storageInstanceId = url.searchParams.get("source")!;
@@ -630,8 +669,45 @@ export function handler(app: Application) {
               throw new AppError("INVALID_INPUT", "Search too long");
             filter.q = q.trim();
           }
+          if (url.searchParams.has("tag")) {
+            filter.tagIds = [...new Set(url.searchParams.getAll("tag"))];
+            if (filter.tagIds.length > 100 || filter.tagIds.some((id) => !id))
+              throw new AppError("INVALID_INPUT", "Invalid tag filters");
+          }
+          if (url.searchParams.has("tagMode"))
+            filter.tagMode = url.searchParams.get(
+              "tagMode",
+            ) as FileFilter["tagMode"];
+          if (url.searchParams.has("collection")) {
+            filter.collectionId = url.searchParams.get("collection")!;
+            if (!filter.collectionId)
+              throw new AppError("INVALID_INPUT", "Invalid collection");
+          }
+          for (const key of ["untagged", "uncollected"] as const) {
+            if (!url.searchParams.has(key)) continue;
+            const value = url.searchParams.get(key);
+            if (!["true", "false"].includes(value!))
+              throw new AppError(
+                "INVALID_INPUT",
+                "Invalid organization filter",
+              );
+            filter[key] = value === "true";
+          }
+          if (url.searchParams.has("sort")) {
+            if (url.searchParams.get("sort") !== "createdAt")
+              throw new AppError("INVALID_INPUT", "Invalid sorting");
+            filter.sort = "createdAt";
+          }
+          if (url.searchParams.has("order")) {
+            const order = url.searchParams.get("order");
+            if (order !== "asc" && order !== "desc")
+              throw new AppError("INVALID_INPUT", "Invalid sorting");
+            filter.order = order;
+          }
+          filter = await app.organization.fileFilter(auth, filter);
           const result = await app.db.read(async (r) => {
             const files = await r.files(limit, offset, filter);
+            const tags = await r.fileTags(files.map((f) => f.id));
             const issues = new Set(
               await r.filesWithReplicaIssues(
                 files.map((f) => f.id),
@@ -644,6 +720,10 @@ export function handler(app: Application) {
             return {
               items: files.map((f) => {
                 const item = view(f, app.config.imageOrigin || requestOrigin);
+                item.tags = (tags.get(f.id) ?? []).map(({ id, name }) => ({
+                  id,
+                  name,
+                }));
                 item.replicaIssue = issues.has(f.id);
                 if (pending) item.backgroundPending = pending.has(f.id);
                 return item;
@@ -812,6 +892,10 @@ export function handler(app: Application) {
               const f = requireValue(await r.file(id));
               app.auth.assertFile(auth, f);
               const result = view(f, app.config.imageOrigin || requestOrigin);
+              const organization = await app.organization.read(r, id);
+              result.tags = [...organization.tags];
+              result.collections = [...organization.collections];
+              result.origin = { kind: f.origin_kind, userId: f.origin_user_id };
               const tasks = await r.tasks(id);
               result.uploadProfileId = f.upload_profile_id;
               result.backgroundPending = tasks.some((task) =>

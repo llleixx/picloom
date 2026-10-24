@@ -27,6 +27,7 @@ import {
   errorMessage,
   copy,
   queryClient,
+  session,
 } from "@/lib/api";
 import { date, size, statuses, fileStatus } from "@/lib/utils";
 import ImagePreview from "@/components/ImagePreview.vue";
@@ -40,6 +41,9 @@ import {
 import { copyFormats, copyPreferences, formatLink } from "@/lib/link-formats";
 import { dateBoundary, localDate } from "@/lib/date-range";
 import DeleteScope from "@/components/DeleteScope.vue";
+import OrganizationPicker from "@/components/OrganizationPicker.vue";
+import OrganizationEditor from "@/components/OrganizationEditor.vue";
+import type { CollectionView } from "../../../shared/organization";
 import FileDetail from "@/components/FileDetail.vue";
 const ownerSearch = ref("");
 const owners = useQuery({
@@ -68,6 +72,54 @@ const pageSize = 24;
 const route = useRoute(),
   router = useRouter(),
   uploading = ref(false);
+const collectionId = computed(() =>
+  typeof route.query.collection === "string" ? route.query.collection : "",
+);
+const collection = useQuery({
+  queryKey: computed(() => ["organization", "collection", collectionId.value]),
+  enabled: computed(() => !!collectionId.value),
+  queryFn: () =>
+    api<CollectionView>(
+      "/api/collections/" + encodeURIComponent(collectionId.value),
+    ),
+});
+const canUpload = computed(
+  () =>
+    !collectionId.value ||
+    collection.data.value?.ownerId === session.value?.user.id,
+);
+const filterOwner = computed(() =>
+  collectionId.value
+    ? collection.data.value?.ownerId
+    : route.query.owner === "guest"
+      ? null
+      : typeof route.query.owner === "string" &&
+          !["", "me"].includes(route.query.owner)
+        ? route.query.owner
+        : undefined,
+);
+const tagFilters = computed({
+  get: () =>
+    (Array.isArray(route.query.tag)
+      ? route.query.tag
+      : route.query.tag
+        ? [route.query.tag]
+        : []
+    ).filter((id): id is string => typeof id === "string"),
+  set: (value) =>
+    update({ tag: value.length ? value : undefined, untagged: undefined }),
+});
+const collectionFilter = computed({
+  get: () => (collectionId.value ? [collectionId.value] : []),
+  set: (value) => update({ collection: value[0], uncollected: undefined }),
+});
+const organizing = ref(false);
+const sameOwner = computed(
+  () =>
+    checked.value.size > 0 &&
+    [...checked.value.values()].every((file) => file.ownerId !== null) &&
+    new Set([...checked.value.values()].map((file) => file.ownerId)).size === 1,
+);
 const mode = ref(localStorage.getItem("fileView") === "list" ? "list" : "grid");
 watch(mode, (value) => localStorage.setItem("fileView", value));
 const page = computed(() => {
@@ -108,6 +160,12 @@ const params = computed(() => {
     p.set("createdFrom", "invalid");
   }
   if (route.query.q) p.set("q", String(route.query.q));
+  for (const id of tagFilters.value) p.append("tag", id);
+  if (route.query.tagMode === "any") p.set("tagMode", "any");
+  if (route.query.untagged === "true") p.set("untagged", "true");
+  if (collectionId.value) p.set("collection", collectionId.value);
+  if (route.query.uncollected === "true") p.set("uncollected", "true");
+  p.set("order", route.query.order === "asc" ? "asc" : "desc");
   return p.toString();
 });
 const files = useQuery<{ items: FileView[]; total: number }>({
@@ -124,7 +182,7 @@ const files = useQuery<{ items: FileView[]; total: number }>({
     };
   },
 });
-function update(values: Record<string, string | undefined>) {
+function update(values: Record<string, string | string[] | undefined>) {
   void router.push({
     query: { ...route.query, page: undefined, file: undefined, ...values },
   });
@@ -244,6 +302,10 @@ function togglePage() {
 }
 watch(
   [
+    () => route.query.tag,
+    () => route.query.collection,
+    () => route.query.untagged,
+    () => route.query.uncollected,
     () => route.query.owner,
     () => route.query.source,
     () => status.value,
@@ -410,10 +472,36 @@ async function navigate(direction: -1 | 1) {
   <section>
     <div class="mb-7 flex items-start justify-between gap-4">
       <div>
-        <h1 class="page-heading">{{ t("ui.images") }}</h1>
+        <h1 class="page-heading">
+          {{ collection.data.value?.name ?? t("ui.images") }}
+        </h1>
+        <template v-if="collection.data.value"
+          ><p
+            class="mt-2 max-w-xl whitespace-pre-line text-sm text-muted-foreground"
+          >
+            {{ collection.data.value.description }}
+          </p>
+          <p class="subtle">
+            {{
+              t("organization.readyCount", {
+                count: collection.data.value.readyFileCount,
+              })
+            }}
+          </p>
+          <RouterLink
+            :to="{
+              path: '/app/collections',
+              query: { owner: collection.data.value.ownerId },
+            }"
+            class="text-sm text-primary"
+            >{{ t("organization.manage") }}</RouterLink
+          ></template
+        >
       </div>
-      <Button @click="uploading = true"
-        ><Plus />{{ t("ui.uploadImages") }}</Button
+      <Button v-if="canUpload" @click="uploading = true"
+        ><Plus />{{
+          t(collectionId ? "organization.uploadHere" : "ui.uploadImages")
+        }}</Button
       >
     </div>
     <div class="mb-6 flex flex-wrap items-center gap-3 border-b pb-5">
@@ -524,6 +612,79 @@ async function navigate(direction: -1 | 1) {
         /></Button>
       </div>
     </div>
+    <details class="mb-4 rounded-lg border p-3">
+      <summary class="cursor-pointer text-sm">
+        {{ t("organization.filters") }}
+      </summary>
+      <div v-if="filterOwner !== null" class="mt-3 grid gap-3 sm:grid-cols-2">
+        <OrganizationPicker
+          v-model="tagFilters"
+          kind="tags"
+          :owner="filterOwner"
+          :create="false"
+        /><OrganizationPicker
+          v-model="collectionFilter"
+          kind="collections"
+          :owner="filterOwner"
+          :create="false"
+          :max="1"
+        />
+      </div>
+      <div class="mt-3 flex flex-wrap items-center gap-4 text-sm">
+        <template v-if="filterOwner !== null"
+          ><select
+            :value="route.query.tagMode ?? 'all'"
+            class="native-select"
+            :aria-label="t('organization.tagMode')"
+            @change="
+              update({ tagMode: ($event.target as HTMLSelectElement).value })
+            "
+          >
+            <option value="all">{{ t("organization.allTags") }}</option>
+            <option value="any">{{ t("organization.anyTag") }}</option></select
+          ><label class="flex items-center gap-2"
+            ><input
+              type="checkbox"
+              :checked="route.query.untagged === 'true'"
+              @change="
+                update({
+                  untagged: ($event.target as HTMLInputElement).checked
+                    ? 'true'
+                    : undefined,
+                  tag: undefined,
+                })
+              "
+            />{{ t("organization.untagged") }}</label
+          ><label class="flex items-center gap-2"
+            ><input
+              type="checkbox"
+              :checked="route.query.uncollected === 'true'"
+              @change="
+                update({
+                  uncollected: ($event.target as HTMLInputElement).checked
+                    ? 'true'
+                    : undefined,
+                  collection: undefined,
+                })
+              "
+            />{{ t("organization.uncollected") }}</label
+          ></template
+        ><select
+          :value="route.query.order ?? 'desc'"
+          class="native-select"
+          :aria-label="t('organization.order')"
+          @change="
+            update({ order: ($event.target as HTMLSelectElement).value })
+          "
+        >
+          <option value="desc">{{ t("organization.newest") }}</option>
+          <option value="asc">{{ t("organization.oldest") }}</option>
+        </select>
+      </div>
+    </details>
+    <p v-if="collection.error.value" role="alert" class="mb-4 error-box">
+      {{ errorText(collection.error.value) }}
+    </p>
     <div
       v-if="selectable.length || checked.size"
       class="mb-4 flex flex-wrap items-center gap-3 text-sm"
@@ -576,6 +737,14 @@ async function navigate(direction: -1 | 1) {
             )
           }}</Button
         >
+        <Button
+          variant="outline"
+          :disabled="bulkBusy || !sameOwner"
+          @click="organizing = true"
+          >{{ t("organization.edit") }}</Button
+        ><span v-if="!sameOwner" class="subtle">{{
+          t("organization.sameOwner")
+        }}</span>
         <Button variant="ghost" :disabled="bulkBusy" @click="checked.clear()">{{
           t("images.clearSelection")
         }}</Button>
@@ -607,11 +776,13 @@ async function navigate(direction: -1 | 1) {
       </select>
       <select
         :value="route.query.owner ?? ''"
-        :aria-label="t('users.uploadedBy')"
+        :aria-label="t('users.owner')"
         class="native-select"
         @change="
           update({
             owner: ($event.target as HTMLSelectElement).value,
+            tag: undefined,
+            collection: undefined,
             page: '1',
           })
         "
@@ -679,7 +850,7 @@ async function navigate(direction: -1 | 1) {
       /></span>
       <h2 class="text-lg font-medium">{{ t("ui.noImagesFound") }}</h2>
       <p class="subtle">{{ t("ui.uploadAnImageOrAdjustYourFilters") }}</p>
-      <Button variant="outline" @click="uploading = true"
+      <Button v-if="canUpload" variant="outline" @click="uploading = true"
         ><Plus />{{ t("ui.uploadImages") }}</Button
       >
     </div>
@@ -758,6 +929,14 @@ async function navigate(direction: -1 | 1) {
               >· {{ t("images.replicaError") }}</span
             >
           </p>
+          <div v-if="file.tags?.length" class="mt-2 flex flex-wrap gap-1">
+            <span
+              v-for="tag in file.tags"
+              :key="tag.id"
+              class="max-w-full truncate rounded bg-muted px-1.5 py-0.5 text-[11px]"
+              >{{ tag.name }}</span
+            >
+          </div>
           <div
             class="mt-3 flex flex-wrap items-center justify-between gap-1 text-xs text-muted-foreground"
           >
@@ -804,7 +983,10 @@ async function navigate(direction: -1 | 1) {
         /></Button>
       </div>
     </footer>
-    <UploadPanel v-model:open="uploading" /><FileDetail
+    <UploadPanel
+      v-model:open="uploading"
+      :collection-id="canUpload ? collectionId : undefined"
+    /><FileDetail
       v-if="selected"
       :key="selected"
       :id="selected"
@@ -818,6 +1000,14 @@ async function navigate(direction: -1 | 1) {
       @next="navigate(1)"
       @close="update({ file: undefined, page: String(page) })"
     />
+    <Dialog v-model:open="organizing"
+      ><DialogContent class="max-h-[90dvh] overflow-y-auto"
+        ><DialogTitle>{{ t("organization.edit") }}</DialogTitle
+        ><DialogDescription>{{ t("organization.batchHint") }}</DialogDescription
+        ><OrganizationEditor
+          :files="[...checked.values()]"
+          batch /></DialogContent
+    ></Dialog>
     <Dialog
       :open="confirmDelete"
       @update:open="

@@ -61,6 +61,7 @@ test("thumbnail requests share eight slots and pagination discards queued images
       return {
         id,
         ownerId: null,
+        tags: [],
         status: "ready",
         mimeType: "image/png",
         byteSize: 100,

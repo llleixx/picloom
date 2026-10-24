@@ -169,8 +169,13 @@ test("an independently bundled SDK error preserves failure code and retryability
       try {
         await lease.runtime.generate(
           {
-            fileId: "x",
-            uploadedAt: 0,
+            record: {
+              id: "x",
+              createdAt: 0,
+              origin: { kind: "upload" as const, userId: null },
+              ownerId: null,
+              organization: { tags: [], collections: [] },
+            },
             metadata: {
               mimeType: null,
               byteSize: null,

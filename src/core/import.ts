@@ -1,3 +1,4 @@
+import type { Organization } from "./organization";
 import { isDeepStrictEqual } from "node:util";
 import type { Persistence } from "../persistence/port";
 import { entity } from "../persistence/port";
@@ -15,6 +16,7 @@ export class Imports {
   constructor(
     private db: Persistence,
     private plugins: PluginManager,
+    private organization: Organization,
   ) {}
   async page(
     sourceId: string,
@@ -39,6 +41,14 @@ export class Imports {
     )
       throw new AppError("INVALID_INPUT", "Invalid import options");
     if (input.scope) logicalKey((input.scope as string).replace(/\/$/, ""));
+    const selection = await this.organization.resolve(
+      ownerId,
+      input.organization,
+    );
+    const organization = {
+      tagIds: selection.tags.map((x) => x.id),
+      collectionIds: selection.collections.map((x) => x.id),
+    };
     const publicPrefix = prefix(input.publicPrefix);
     const stripDirectories =
       (input.stripDirectories as number | undefined) ?? 0;
@@ -153,6 +163,8 @@ export class Imports {
             ...entity(),
             guest_ip: null,
             owner_id: ownerId,
+            origin_kind: "import" as const,
+            origin_user_id: ownerId,
             upload_profile_id: null,
             storage_group_id: null,
             public_prefix: publicPrefix,
@@ -174,6 +186,7 @@ export class Imports {
             issue(key, "PATH_CONFLICT");
             continue;
           }
+          await this.organization.write(r, file.id, ownerId, organization);
           await r.insertReplica({
             ...entity(),
             file_id: file.id,

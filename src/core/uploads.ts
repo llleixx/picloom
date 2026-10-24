@@ -108,6 +108,10 @@ export class Uploads {
     await this.files.validateUpload(profileId, input.size, identity, guestIp);
     const uploadKey = randomBytes(32).toString("base64url");
     const owner = this.auth.uploadOwner(identity);
+    const selection = await this.files.uploadOrganization(
+      owner.ownerId,
+      input.organization,
+    );
     const session: UploadSession = {
       ...entity(),
       upload_key_hash: hash(uploadKey),
@@ -117,6 +121,10 @@ export class Uploads {
       profile_id: profileId,
       source_name: (input.name as string) ?? "image",
       params_json: params,
+      organization_json: {
+        tagIds: selection.tags.map((x) => x.id),
+        collectionIds: selection.collections.map((x) => x.id),
+      },
       byte_size: input.size,
       part_size: this.config.chunkPartBytes,
       status: "pending",
@@ -334,6 +342,7 @@ export class Uploads {
             session.file_id,
             session.guest_ip,
             inputPath,
+            session.owner_id === null ? undefined : session.organization_json,
           );
           session.status = "completed";
           await this.db.transaction((r) => r.saveUploadSession(session));

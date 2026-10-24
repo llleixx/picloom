@@ -7,7 +7,15 @@ import { useQuery } from "@tanstack/vue-query";
 import { CloudUpload, Check, LoaderCircle, Copy } from "lucide-vue-next";
 import { Button } from "@/components/ui/button";
 import type { UploadProfileView, UploadDefaults } from "../../../shared/api";
-import { session, api, copy, errorMessage, errorText, notify, messageText } from "@/lib/api";
+import {
+  session,
+  api,
+  copy,
+  errorMessage,
+  errorText,
+  notify,
+  messageText,
+} from "@/lib/api";
 import { size } from "@/lib/utils";
 import {
   uploads,
@@ -17,13 +25,29 @@ import {
   cancelUpload,
   dismissUpload,
 } from "@/lib/uploads";
+import OrganizationPicker from "./OrganizationPicker.vue";
 import CopyResult from "./CopyResult.vue";
 import ImagePreview from "./ImagePreview.vue";
 import { copyFormats, copyPreferences, formatLink } from "@/lib/link-formats";
-const props = withDefaults(defineProps<{ active?: boolean }>(), {
-  active: true,
-});
+const props = withDefaults(
+  defineProps<{ active?: boolean; collectionId?: string }>(),
+  {
+    active: true,
+  },
+);
 const open = computed(() => props.active);
+const tagIds = ref<string[]>([]),
+  collectionIds = ref<string[]>([]);
+watch(
+  () => [props.collectionId, props.active],
+  () => {
+    if (props.active) {
+      tagIds.value = [];
+      collectionIds.value = props.collectionId ? [props.collectionId] : [];
+    }
+  },
+  { immediate: true },
+);
 const profiles = useQuery({
   queryKey: computed(() => ["profiles", session.value?.user.id ?? "guest"]),
   queryFn: ({ signal }) =>
@@ -90,7 +114,14 @@ function add(files: File[]) {
     notify({ key: "ui.selectAnAvailableUploadProfile" });
     return;
   }
-  enqueue(files, profile.value);
+  enqueue(
+    files,
+    profile.value,
+    undefined,
+    session.value
+      ? { tagIds: tagIds.value, collectionIds: collectionIds.value }
+      : undefined,
+  );
 }
 function copyAll() {
   return copy(
@@ -129,7 +160,13 @@ function paste(event: ClipboardEvent) {
     notify({ key: "ui.selectAnAvailableUploadProfile" });
     return;
   }
-  enqueueUrls(urls, profile.value);
+  enqueueUrls(
+    urls,
+    profile.value,
+    session.value
+      ? { tagIds: tagIds.value, collectionIds: collectionIds.value }
+      : undefined,
+  );
 }
 onMounted(() => window.addEventListener("paste", paste));
 onUnmounted(() => window.removeEventListener("paste", paste));
@@ -212,6 +249,13 @@ onUnmounted(() => window.removeEventListener("paste", paste));
         </option>
       </select></label
     >
+    <div v-if="session" class="space-y-3">
+      <OrganizationPicker v-model="tagIds" kind="tags" /><OrganizationPicker
+        v-model="collectionIds"
+        kind="collections"
+      />
+      <p class="subtle">{{ t("organization.queueHint") }}</p>
+    </div>
     <p v-if="defaults.error.value" class="error-box">
       {{ errorText(defaults.error.value) }}
     </p>

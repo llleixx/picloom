@@ -347,7 +347,7 @@ test("removing a running action deletes configuration immediately while the acqu
             async execute() {
               started.resolve();
               await finish.promise;
-              return { status: "pass" };
+              return {};
             },
             async dispose() {
               disposed = true;

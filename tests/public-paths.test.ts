@@ -97,10 +97,10 @@ test("concurrent uploads through nested prefixes reserve one complete path witho
       },
       async createInstance({ config }) {
         return {
-          async generate({ fileId }) {
+          async generate({ record }) {
             return {
               logicalKey: String(config.key),
-              storageKey: fileId + ".png",
+              storageKey: record.id + ".png",
             };
           },
         };

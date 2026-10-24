@@ -103,7 +103,7 @@ test("administrator creates a member; member and guest upload with isolated work
     await page.getByRole("link", { name: "Images", exact: true }).click();
     await page.reload();
     await expect(page.getByTestId("file-card")).toHaveCount(2);
-    await page.getByLabel("Uploaded By", { exact: true }).selectOption("guest");
+    await page.getByLabel("Owner", { exact: true }).selectOption("guest");
     await expect(page.getByTestId("file-card")).toHaveCount(1);
     await page.getByRole("button", { name: /^Open / }).click();
     await expect(

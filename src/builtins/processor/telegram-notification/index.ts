@@ -115,8 +115,10 @@ export const telegramNotification: Definition<"processor"> = {
         return {
           async execute(input, ctx): Promise<PostSaveResult> {
             ctx.signal.throwIfAborted();
-            if (!(config.statuses as string[]).includes(input.currentStatus))
-              return { status: "pass", details: { sent: false } };
+            if (
+              !(config.statuses as string[]).includes(input.currentDisposition)
+            )
+              return { details: { sent: false } };
             const token = (await services.readSecrets()).value.botToken;
             if (
               typeof token !== "string" ||
@@ -129,8 +131,8 @@ export const telegramNotification: Definition<"processor"> = {
               );
             const lines = [
               "Picloom",
-              `Current status: ${input.currentStatus}`,
-              `File: ${input.fileId}`,
+              `Current disposition: ${input.currentDisposition}`,
+              `File: ${input.record.id}`,
               `URL: ${input.url}`,
             ];
             if (config.includeDetails) {
@@ -138,7 +140,7 @@ export const telegramNotification: Definition<"processor"> = {
                 if (result.details === undefined) continue;
                 lines.push(
                   "",
-                  `${result.pluginId} [${result.stepId}] — ${result.status}`,
+                  `${result.pluginId} [${result.stepId}]${result.disposition ? ` — ${result.disposition.value}` : ""}`,
                   JSON.stringify(result.details, null, 2),
                 );
               }
@@ -194,7 +196,6 @@ export const telegramNotification: Definition<"processor"> = {
                   false,
                 );
               return {
-                status: "pass",
                 details: { sent: true, messageId: data.result.message_id },
               };
             } catch (error) {

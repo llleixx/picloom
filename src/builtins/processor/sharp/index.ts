@@ -6,9 +6,10 @@ import {
   type Config,
   type ParameterSchema,
   type Parameters,
-  type ProcessorPlugin,
-  type CheckInput,
-  type ProcessorInput,
+  type UploadPlugin,
+  type AccessPlugin,
+  type UploadCheckInput,
+  type UploadProcessInput,
   type AccessCheckInput,
   type AccessProcessorInput,
 } from "@picloom/plugin-sdk";
@@ -46,10 +47,7 @@ function runtime(
   config: Readonly<Config>,
   fixed: boolean,
   sharp: typeof import("sharp"),
-): ProcessorPlugin<
-  CheckInput | AccessCheckInput,
-  ProcessorInput | AccessProcessorInput
-> {
+): UploadPlugin & AccessPlugin {
   const parameters = (params: Parameters) =>
     fixed
       ? ({
@@ -62,7 +60,7 @@ function runtime(
         } as Parameters)
       : params;
   return {
-    async check(input) {
+    async check(input: UploadCheckInput | AccessCheckInput) {
       const { limits } = input;
       const { params } = input;
       const p = parameters(params);
@@ -98,7 +96,7 @@ function runtime(
         };
       return { status: "applicable" };
     },
-    async process(input, ctx) {
+    async process(input: UploadProcessInput | AccessProcessorInput, ctx) {
       ctx.signal.throwIfAborted();
       const { limits, createOutput } = input;
       const file = "getFile" in input ? await input.getFile() : input.file;

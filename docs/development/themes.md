@@ -61,6 +61,7 @@ export function mount(container: HTMLElement, ctx: ThemeContext) {
 完整类型以 SDK 为准。`subscribe` 立即提供一次状态，随后响应变化；返回快照不用于修改核心状态。主题通过操作函数提交行为：
 
 - `selectProfile`、`uploads.add/addUrls/cancel/resume/dismiss`：上传方案和队列。
+- `organization.list(kind, query)`、`create(kind, name)`、`select({ tagIds, collectionIds })`：查询、创建当前登录用户的标签或集合，选择新上传的初始归类。`kind` 为 `tags` 或 `collections`；列表返回 `{ items, total }`，接受 `q`、`limit`（默认 50、范围 1–100）、`offset`（默认 0）。快照的 `organization` 提供当前选择，每次入队时固定；游客隐藏此入口。
 - `links`：链接格式及复制偏好。
 - `login`：认证、会话刷新与安全返回，主题展示 `snapshot.login`。
 - `navigate`：首页、登录页和后台跳转。

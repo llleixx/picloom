@@ -6,9 +6,10 @@ import {
   type ConfigSchema,
   type Definition,
   type Descriptor,
-  type ProcessorPlugin,
-  type CheckInput,
-  type ProcessorInput,
+  type UploadPlugin,
+  type AccessPlugin,
+  type UploadCheckInput,
+  type UploadProcessInput,
   type AccessCheckInput,
   type AccessProcessorInput,
 } from "@picloom/plugin-sdk";
@@ -252,14 +253,7 @@ const escape = (text: string) =>
         "'": "&apos;",
       })[c]!,
   );
-function stage(
-  access: boolean,
-): Descriptor<
-  ProcessorPlugin<
-    CheckInput | AccessCheckInput,
-    ProcessorInput | AccessProcessorInput
-  >
-> {
+function stage(access: boolean): Descriptor<UploadPlugin & AccessPlugin> {
   return {
     configSchemaVersion: 1,
     configSchema,
@@ -288,7 +282,7 @@ function stage(
           throw new Error("Watermark must be a static PNG, JPEG or WebP");
       }
       return {
-        async check(input) {
+        async check(input: UploadCheckInput | AccessCheckInput) {
           const { params } = input;
           if ((access && params.watermark === false) || config.opacity === 0)
             return { status: "noop" };
@@ -305,7 +299,10 @@ function stage(
             };
           return { status: "applicable" };
         },
-        async process(input, context) {
+        async process(
+          input: UploadProcessInput | AccessProcessorInput,
+          context,
+        ) {
           context.signal.throwIfAborted();
           const { limits, createOutput } = input;
           const file = "getFile" in input ? await input.getFile() : input.file;

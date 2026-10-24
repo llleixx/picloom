@@ -5,7 +5,7 @@ import { fixture } from "./helpers";
 import { retainStream } from "../src/infra/files";
 import { Secrets } from "../src/infra/secrets";
 import { entity } from "../src/persistence/port";
-import type { Definition, ProcessorPlugin } from "../src/plugins/api";
+import type { Definition, UploadPlugin } from "../src/plugins/api";
 const context = () => ({
   signal: new AbortController().signal,
   requestId: "test",
@@ -261,8 +261,13 @@ test("trusted ESM package can load while service is running", async () => {
     expect(
       await lease.runtime.generate(
         {
-          fileId: "x",
-          uploadedAt: 0,
+          record: {
+            id: "x",
+            createdAt: 0,
+            origin: { kind: "upload" as const, userId: null },
+            ownerId: null,
+            organization: { tags: [], collections: [] },
+          },
           metadata: { mimeType: "image/png", byteSize: 1, width: 1, height: 1 },
         },
         context(),

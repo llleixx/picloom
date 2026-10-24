@@ -376,9 +376,7 @@ test("write, post-save and delete queues have independent live limits and pause 
           async createInstance() {
             return {
               execute: async (input) =>
-                hold("action", input.fileId, async () => ({
-                  status: "pass" as const,
-                })),
+                hold("action", input.record.id, async () => ({})),
             };
           },
         },

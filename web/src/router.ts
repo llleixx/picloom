@@ -10,6 +10,8 @@ import {
 import Users from "./pages/Users.vue";
 import Themes from "./pages/Themes.vue";
 
+import Collections from "./pages/Collections.vue";
+import Tags from "./pages/Tags.vue";
 import Files from "./pages/Files.vue";
 import Tokens from "./pages/Tokens.vue";
 import Account from "./pages/Account.vue";
@@ -28,6 +30,8 @@ export const router = createRouter({
     { path: "/app", redirect: "/app/images" },
 
     { path: "/app/images", component: Files },
+    { path: "/app/collections", component: Collections },
+    { path: "/app/tags", component: Tags },
     { path: "/app/tokens", component: Tokens },
     { path: "/app/account", component: Account },
     { path: "/app/users", component: Users },

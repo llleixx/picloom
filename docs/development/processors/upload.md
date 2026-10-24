@@ -57,8 +57,9 @@ export default {
 check(input: {
   params: Parameters;
   file: FileInput;
+  readonly record: FileContext;
   limits: { maxDimension: number; maxPixels: number };
-}, context: CheckContext): Promise<{
+}, context: UploadCheckContext): Promise<{
   status: "applicable" | "noop" | "unsupported";
   reason?: string;
 }>;
@@ -84,11 +85,12 @@ check(input: {
 process(input: {
   params: Parameters;
   file: FileInput;
+  readonly record: FileContext;
   limits: { maxDimension: number; maxPixels: number };
   createOutput(): Promise<Output>;
-}, context: PipelineContext): Promise<
-  | { status: "pass" }
-  | { status: "replace"; output: Output }
+}, context: UploadProcessContext): Promise<
+  | { status: "pass"; organization?: OrganizationUpdate }
+  | { status: "replace"; output: Output; organization?: OrganizationUpdate }
   | { status: "reject"; reason: string }
 >;
 ```
@@ -101,7 +103,9 @@ process(input: {
 
 输出来自本次 `createOutput()`，写入完成后才能返回。输出接口见 [文件与输出](../plugin-services.md#文件与输出)。
 
-输入沿用 `check` 的字段，并增加 `createOutput()`；上下文允许写入流水线临时数据。
+输入沿用 `check` 的字段，并增加 `createOutput()`。同一步检查与处理收到相同的 `record` 快照，后续步骤和路径插件读取此前成功步骤接受的归类。`check` 通过 `context.organization` 查找分类，`process` 还可复用或创建分类，见[归类服务](../plugin-services.md#文件上下文与归类)。
+
+返回 `organization: { tagIds, collectionIds }` 设置完整目标关系；省略字段保留该项，空数组清空。每项最多 100 个 ID，仅可选择当前归属范围内的分类。核心完整校验图片输出及归类后才同时接受；无效结果不会部分更新。仅需归类时返回 `{ status: "pass", organization: { tagIds: [tag.id] } }`。
 
 <span id="扩展与约束"></span>
 

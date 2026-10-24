@@ -481,7 +481,7 @@ test("package catalogs reject stage metadata and declaration errors identify fie
           async createInstance() {
             return {
               async execute() {
-                return { status: "pass" };
+                return {};
               },
             };
           },
@@ -502,7 +502,7 @@ test("package catalogs reject stage metadata and declaration errors identify fie
             async createInstance() {
               return {
                 async execute() {
-                  return { status: "pass" };
+                  return {};
                 },
               };
             },

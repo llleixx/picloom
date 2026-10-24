@@ -1,3 +1,5 @@
+import { Organization } from "./organization";
+import { processorOutputs } from "./processor-output";
 import { checkStorageCapacity, storageHasCapacity } from "./storage-capacity";
 import { TemporarySpace } from "../infra/temporary-space";
 import { isPluginError } from "@picloom/plugin-sdk";
@@ -31,8 +33,8 @@ import {
   type Context,
   type Metadata,
   type Query,
-  type ProcessorPlugin,
-  type Output,
+  type UploadPlugin,
+  type FileContext,
   type FileInput,
 } from "../plugins/api";
 import { AppError, Conflict, requireValue } from "./errors";
@@ -42,7 +44,6 @@ import {
   publicPathKey,
   fileInput,
   logicalKey,
-  output,
   publicPath,
   retainStream,
   prefetchStream,
@@ -65,6 +66,7 @@ export class Files {
   readonly profileInFlight = new InFlight();
   readonly profileClosing = new Set<string>();
   readonly tasks: TaskExecutor;
+  readonly organization: Organization;
   random: () => number = Math.random;
   private limit: Limiter;
   private derived: DerivedImages;
@@ -77,6 +79,7 @@ export class Files {
     private config: Settings,
     private faults: Faults = {},
   ) {
+    this.organization = new Organization(db);
     this.temporary = new TemporarySpace(config);
     this.limit = new Limiter(
       config.processingConcurrency,
@@ -105,6 +108,7 @@ export class Files {
       this.inFlight,
       this.cache,
       this.temporary,
+      this.organization,
       (file, path, signal) => this.download(file, path, signal),
       faults.beforeDelete,
       faults,
@@ -139,7 +143,7 @@ export class Files {
         });
       return result as Array<{
         step: Step;
-        runtime: ProcessorPlugin | AccessPlugin;
+        runtime: UploadPlugin | AccessPlugin;
         record: ReturnType<PluginManager["acquire"]>["record"];
         release: () => Promise<void>;
       }>;
@@ -148,147 +152,235 @@ export class Files {
       throw e;
     }
   }
-  private async pipeline(
+  private checkResult(check: { status: string; reason?: string }, step: Step) {
+    if (
+      !check ||
+      !["applicable", "noop", "unsupported"].includes(check.status) ||
+      (check.reason !== undefined && typeof check.reason !== "string")
+    )
+      throw new AppError(
+        "PROCESSING_RESULT_INVALID",
+        "Invalid processor check result",
+        500,
+      );
+    if (check.status === "unsupported" && step.on_not_applicable !== "skip")
+      throw new AppError(
+        "UNSUPPORTED",
+        check.reason ?? "Processor does not support this file",
+        422,
+      );
+    return check.status === "applicable";
+  }
+  private validateImageResult(
+    result: unknown,
+  ): asserts result is Exclude<
+    import("../plugins/api").UploadResult,
+    { status: "reject" }
+  > {
+    if (
+      !result ||
+      typeof result !== "object" ||
+      Array.isArray(result) ||
+      !("status" in result) ||
+      typeof result.status !== "string" ||
+      !["pass", "replace", "reject"].includes(result.status)
+    )
+      throw new AppError(
+        "PROCESSING_RESULT_INVALID",
+        "Invalid processor result",
+        500,
+      );
+    if (result.status === "reject") {
+      if (!("reason" in result) || typeof result.reason !== "string")
+        throw new AppError(
+          "PROCESSING_RESULT_INVALID",
+          "Invalid rejection",
+          500,
+        );
+      throw new AppError("REJECTED", result.reason, 422);
+    }
+    if (
+      result.status === "replace" &&
+      (!("output" in result) ||
+        !result.output ||
+        typeof result.output !== "object" ||
+        !("handle" in result.output) ||
+        typeof result.output.handle !== "string")
+    )
+      throw new AppError(
+        "PROCESSING_RESULT_INVALID",
+        "Invalid processor output",
+        500,
+      );
+  }
+  private async processedMetadata(path: string, signal: AbortSignal) {
+    const metadata = await identify(path, this.config.maxPixels, signal);
+    if (
+      metadata.width! > this.config.maxDimension ||
+      metadata.height! > this.config.maxDimension
+    )
+      throw new AppError("INVALID_PARAMS", "Output exceeds dimension limit");
+    return metadata;
+  }
+  private async uploadPipeline(
     path: string,
     metadata: Metadata,
     params: Parameters[],
     steps: ReturnType<Files["acquireSteps"]>,
     ctx: Context,
     owned: Set<string>,
-    load?: () => Promise<{ path: string; metadata: Metadata }>,
+    record: FileContext,
   ) {
-    let loaded = !load;
     const data = pipelineData();
-    const execution = { ...ctx, data };
-    const checking = { ...ctx, data: { get: data.get } };
     for (const [index, item] of steps.entries()) {
       ctx.signal.throwIfAborted();
-      const created = new Map<string, { output: Output; path: string }>();
-      const writes: Promise<void>[] = [];
+      let active = true;
+      let checking = true;
+      const checkCatalog = this.organization.scope(
+        record.ownerId,
+        ctx.signal,
+        () => active && checking,
+      );
+      const catalog = this.organization.scope(
+        record.ownerId,
+        ctx.signal,
+        () => active,
+      );
+      const scope = scopedInput(fileInput(path, metadata), ctx.signal);
+      const outputs = processorOutputs(
+        this.temporary,
+        owned,
+        this.config.maxUploadBytes,
+        ctx.signal,
+      );
+      try {
+        const runtime = item.runtime as UploadPlugin;
+        const input = {
+          file: scope.file,
+          params: params[index]!,
+          record: structuredClone(record),
+          limits: {
+            maxDimension: this.config.maxDimension,
+            maxPixels: this.config.maxPixels,
+          },
+        };
+        const check = await runtime.check(input, {
+          ...ctx,
+          data: { get: data.get },
+          organization: checkCatalog.reader,
+        });
+        checking = false;
+        if (!this.checkResult(check, item.step)) continue;
+        const result = await runtime.process(
+          {
+            ...input,
+            record: structuredClone(record),
+            createOutput: outputs.createOutput,
+          },
+          {
+            ...ctx,
+            data,
+            organization: catalog.writer,
+          },
+        );
+        active = false;
+        this.validateImageResult(result);
+        ctx.signal.throwIfAborted();
+        let nextPath = path,
+          nextMetadata = metadata;
+        if (result.status === "replace") {
+          nextPath = await outputs.accept(result.output);
+          nextMetadata = await this.processedMetadata(nextPath, ctx.signal);
+        }
+        const next = await this.organization.applyUpdate(
+          record.ownerId,
+          record.organization,
+          result.organization,
+        );
+        path = nextPath;
+        metadata = nextMetadata;
+        record = { ...record, organization: next.organization };
+      } catch (error) {
+        if (isPluginError(error) && error.code === "INVALID_INPUT")
+          throw new AppError("INVALID_PARAMS", "Invalid processor parameters");
+        throw error;
+      } finally {
+        active = false;
+        await outputs.close();
+        await scope.close();
+      }
+    }
+    return { path, metadata, record };
+  }
+  private async accessPipeline(
+    path: string,
+    metadata: Metadata,
+    params: Parameters[],
+    steps: ReturnType<Files["acquireSteps"]>,
+    ctx: Context,
+    owned: Set<string>,
+    load: () => Promise<{ path: string; metadata: Metadata }>,
+  ) {
+    let loaded = false;
+    const data = pipelineData();
+    for (const [index, item] of steps.entries()) {
+      ctx.signal.throwIfAborted();
+      let active = true;
       let scope = loaded
         ? scopedInput(fileInput(path, metadata), ctx.signal)
         : undefined;
       let pending: Promise<FileInput> | undefined;
-      let active = true;
       const getFile = () => {
         ctx.signal.throwIfAborted();
         if (!active) throw new Error("Processor step has ended");
         return (pending ??= (async () => {
           if (!loaded) {
-            ({ path, metadata } = await load!());
+            ({ path, metadata } = await load());
             loaded = true;
           }
           scope ??= scopedInput(fileInput(path, metadata), ctx.signal);
           return scope.file;
         })());
       };
-      const input = {
-        file: scope?.file as FileInput,
-        metadata: Object.freeze({ ...metadata }),
-        getFile,
-        params: params[index]!,
-        limits: {
-          maxDimension: this.config.maxDimension,
-          maxPixels: this.config.maxPixels,
-        },
-        createOutput: async () => {
-          const p = this.temp();
-          owned.add(p);
-          let written = false;
-          const value = output(p, (stream) => {
-            if (!active || written)
-              throw new AppError("PLUGIN_OUTPUT", "Output is closed", 500);
-            written = true;
-            const pending = this.temporary
-              .write(
-                p,
-                stream,
-                load ? this.config.uploadTempBytes : this.config.maxUploadBytes,
-                ctx.signal,
-              )
-              .then(() => {});
-            writes.push(pending);
-            void pending.catch(() => {});
-            return pending;
-          });
-          created.set(value.handle, { output: value, path: p });
-          return value;
-        },
-      };
+      const outputs = processorOutputs(
+        this.temporary,
+        owned,
+        this.config.uploadTempBytes,
+        ctx.signal,
+      );
       try {
-        const { createOutput, ...checkInput } = input;
-        const { file: _file, ...accessCheckInput } = checkInput;
-        const check = load
-          ? await (item.runtime as AccessPlugin).check(
-              accessCheckInput,
-              checking,
-            )
-          : await (item.runtime as ProcessorPlugin).check(checkInput, checking);
+        const runtime = item.runtime as AccessPlugin;
+        const input = {
+          metadata: Object.freeze({ ...metadata }),
+          getFile,
+          params: params[index]!,
+          limits: {
+            maxDimension: this.config.maxDimension,
+            maxPixels: this.config.maxPixels,
+          },
+        };
         if (
-          !check ||
-          typeof check !== "object" ||
-          Array.isArray(check) ||
-          !["applicable", "noop", "unsupported"].includes(check.status) ||
-          (check.reason !== undefined && typeof check.reason !== "string")
-        )
-          throw new AppError(
-            "PROCESSING_RESULT_INVALID",
-            "Processor check returned an invalid result",
-            500,
-          );
-        if (check.status === "noop") continue;
-        if (check.status === "unsupported") {
-          if (item.step.on_not_applicable === "skip") continue;
-          throw new AppError(
-            "UNSUPPORTED",
-            check.reason ?? "Processor does not support this file",
-            422,
-          );
-        }
-        const result = load
-          ? await (item.runtime as AccessPlugin).process(
-              { ...accessCheckInput, createOutput },
-              execution,
-            )
-          : await (item.runtime as ProcessorPlugin).process(input, execution);
-        if (
-          !result ||
-          typeof result !== "object" ||
-          Array.isArray(result) ||
-          !["pass", "replace", "reject"].includes(result.status) ||
-          (result.status === "reject" && typeof result.reason !== "string") ||
-          (result.status === "replace" &&
-            (!result.output ||
-              typeof result.output !== "object" ||
-              Array.isArray(result.output) ||
-              typeof result.output.handle !== "string"))
-        )
-          throw new AppError(
-            "PROCESSING_RESULT_INVALID",
-            "Processor process returned an invalid result",
-            500,
-          );
-        if (result.status === "reject")
-          throw new AppError("REJECTED", result.reason, 422);
-        if (result.status === "replace") {
-          if (created.get(result.output.handle)?.output !== result.output)
-            throw new AppError(
-              "PLUGIN_OUTPUT",
-              "Plugin returned an unowned output",
-              500,
-            );
-          loaded = true;
-          await Promise.all(writes);
-          path = created.get(result.output.handle)!.path;
-          metadata = await identify(path, this.config.maxPixels, ctx.signal);
-          if (
-            metadata.width! > this.config.maxDimension ||
-            metadata.height! > this.config.maxDimension
+          !this.checkResult(
+            await runtime.check(input, { ...ctx, data: { get: data.get } }),
+            item.step,
           )
-            throw new AppError(
-              "INVALID_PARAMS",
-              "Output exceeds dimension limit",
-            );
+        )
+          continue;
+        const result = await runtime.process(
+          { ...input, createOutput: outputs.createOutput },
+          { ...ctx, data },
+        );
+        this.validateImageResult(result);
+        if ("organization" in result)
+          throw new AppError(
+            "PROCESSING_RESULT_INVALID",
+            "Access processors cannot change organization",
+            500,
+          );
+        if (result.status === "replace") {
+          path = await outputs.accept(result.output);
+          metadata = await this.processedMetadata(path, ctx.signal);
+          loaded = true;
         }
       } catch (error) {
         if (isPluginError(error) && error.code === "INVALID_INPUT")
@@ -296,7 +388,7 @@ export class Files {
         throw error;
       } finally {
         active = false;
-        await Promise.allSettled(writes);
+        await outputs.close();
         if (pending) await pending.catch(() => {});
         await scope?.close();
       }
@@ -445,6 +537,11 @@ export class Files {
     )
       throw new AppError("TOO_LARGE", "Invalid upload size", 413);
   }
+  async uploadOrganization(ownerId: string | null, value: unknown) {
+    if (ownerId === null && value !== undefined)
+      throw new AppError("FORBIDDEN", "Guests cannot select organization", 403);
+    return this.organization.resolve(ownerId, value);
+  }
   async upload(
     blob: Pick<File, "size" | "stream" | "name">,
     profileId: string,
@@ -454,6 +551,7 @@ export class Files {
     fileId?: string,
     guestIp: string | null = null,
     inputPath?: string,
+    organization?: unknown,
   ) {
     const prepared = inputPath
       ? { path: inputPath, adopted: false }
@@ -472,6 +570,7 @@ export class Files {
           fileId,
           guestIp,
           prepared,
+          organization,
         );
       } finally {
         end();
@@ -490,6 +589,7 @@ export class Files {
     fileId?: string,
     guestIp: string | null = null,
     prepared?: { path: string; adopted: boolean },
+    organization?: unknown,
   ) {
     await this.auth.authorizeUpload(identity, profileId);
     await this.auth.checkUploadQuota(identity, blob.size, guestIp);
@@ -503,7 +603,19 @@ export class Files {
         )
     )
       throw new AppError("TOO_LARGE", "Invalid upload size", 413);
+    const ownerId = this.auth.uploadOwner(identity).ownerId;
+    const initialOrganization = await this.uploadOrganization(
+      ownerId,
+      organization,
+    );
     const base = { ...entity(), ...(fileId ? { id: fileId } : {}) };
+    const initialRecord: FileContext = {
+      id: base.id,
+      createdAt: base.created_at,
+      ownerId,
+      origin: { kind: "upload", userId: ownerId },
+      organization: initialOrganization,
+    };
     const end = this.inFlight.enter(base.id);
     const owned = new Set<string>();
     if (prepared) {
@@ -557,7 +669,15 @@ export class Files {
         const metadata = await identify(temp, this.config.maxPixels, signal);
         if (!plan.profile.allowed_mime_types.includes(metadata.mimeType!))
           throw new AppError("UNSUPPORTED", "Upload type not allowed", 415);
-        return this.pipeline(temp, metadata, effective, chain, ctx, owned);
+        return this.uploadPipeline(
+          temp,
+          metadata,
+          effective,
+          chain,
+          ctx,
+          owned,
+          initialRecord,
+        );
       }, signal);
       if (current.metadata.byteSize! > this.config.maxUploadBytes)
         throw new AppError("TOO_LARGE", "Processed upload exceeds limit", 413);
@@ -572,8 +692,7 @@ export class Files {
         );
       const generated = await pathLease.runtime.generate(
         {
-          fileId: base.id,
-          uploadedAt: base.created_at,
+          record: structuredClone(current.record),
           metadata: current.metadata,
           originalName: blob.name.split(/[\\/]/).pop(),
         },
@@ -583,8 +702,10 @@ export class Files {
       const storageKey = logicalKey(generated.storageKey ?? key);
       record = {
         ...base,
-        guest_ip: this.auth.uploadOwner(identity).ownerId ? null : guestIp,
-        owner_id: this.auth.uploadOwner(identity).ownerId,
+        guest_ip: ownerId ? null : guestIp,
+        owner_id: ownerId,
+        origin_kind: "upload",
+        origin_user_id: ownerId,
         upload_profile_id: plan.profile.id,
         storage_group_id: plan.profile.storage_group_id,
         public_prefix: plan.profile.public_prefix,
@@ -608,6 +729,12 @@ export class Files {
         for (const id of plan.targets)
           await checkStorageCapacity(r, id, record!.byte_size!);
         await r.insertFile(record!);
+        await this.organization.write(r, base.id, ownerId, {
+          tagIds: current.record.organization.tags.map((x) => x.id),
+          collectionIds: current.record.organization.collections.map(
+            (x) => x.id,
+          ),
+        });
         for (const replica of replicas) {
           await r.insertReplica(replica);
           await r.insertTask({
@@ -1014,7 +1141,7 @@ export class Files {
           useCache,
           signal,
           async (getSource, processingSignal, owned) => {
-            const processed = await this.pipeline(
+            const processed = await this.accessPipeline(
               "",
               {
                 mimeType: file.mime_type,
@@ -1255,6 +1382,7 @@ export class Files {
       old.status = "deleting";
       await r.saveFile(old, "ready");
       await r.saveFile(next, "ready");
+      await this.organization.transfer(r, old.id, next.id);
       return { id: next.id, path };
     });
   }

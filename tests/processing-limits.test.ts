@@ -102,8 +102,8 @@ test("upload processing shares the thumbnail/access concurrency and queue limit"
     const original = await (await f.upload()).json();
     f.app.files.configureProcessing(1, 1);
     const files = f.app.files as any;
-    const pipeline = files.pipeline.bind(files);
-    pipelineSpy = spyOn(files, "pipeline").mockImplementation(
+    const pipeline = files.uploadPipeline.bind(files);
+    pipelineSpy = spyOn(files, "uploadPipeline").mockImplementation(
       async (...args: any[]) => {
         entered.resolve();
         await release.promise;

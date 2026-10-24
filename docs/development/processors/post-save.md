@@ -25,7 +25,7 @@ export default {
 
 <<< ../../../examples/post-save/src/index.ts#implementation
 
-`execute` 读取元数据，返回 `pass` 或 `block`，并用 `details` 记录宽度和阈值。
+`execute` 读取元数据，通过 `disposition.value` 返回 `pass` 或 `block`，并用 `details` 记录宽度和阈值。
 
 <span id="接入并验证"></span>
 
@@ -51,99 +51,59 @@ export default {
 
 ```ts
 execute(input: {
-  operationId: string;
-  fileId: string;
-  publicPath: string;
-  url: string;
-  file: FileInput;
-  readonly currentStatus: PostSaveStatus;
+  readonly operationId: string;
+  readonly record: FileContext;
+  readonly publicPath: string;
+  readonly url: string;
+  readonly file: FileInput;
+  readonly currentDisposition: PostSaveDisposition;
   readonly previousResults: readonly Readonly<PostSaveStepResult>[];
-}, context: PipelineContext): Promise<PostSaveResult>;
+}, context: PostSaveContext): Promise<PostSaveResult>;
 ```
 
-`PostSaveStatus` 为 `"pass" | "block" | "delete"`。返回 `PostSaveResult`：
+`PostSaveResult` 的字段均可省略，通知插件可以只返回 `{ details: { sent: true } }`：
 
-| 字段             | 类型             | 必需 | 核心行为                                               |
-| ---------------- | ---------------- | ---- | ------------------------------------------------------ |
-| `status`         | `PostSaveStatus` | 是   | 本步骤意见：放行、屏蔽或删除，参与累计                 |
-| `details`        | `Config`         | 否   | 保存简要 JSON 对象，并传给后续步骤；不放凭证或图片字节 |
-| `overrideStatus` | `PostSaveStatus` | 否   | 强制替换本步骤后的累计状态；后续步骤仍可改变           |
+| 字段           | 类型                                                                       | 核心行为                                             |
+| -------------- | -------------------------------------------------------------------------- | ---------------------------------------------------- |
+| `disposition`  | `{ value: "pass" \| "block" \| "delete", mode?: "escalate" \| "replace" }` | 提出处置；省略表示不参与                             |
+| `organization` | `OrganizationUpdate`                                                       | 修改本次图片的标签或集合                             |
+| `details`      | `Config`                                                                   | 保存简要 JSON 对象并传给后续步骤，不放凭证或图片字节 |
 
-`previousResults` 每项为 `PostSaveStepResult`，包含上述原始返回字段，并增加：
+`record` 包含文件 ID、时间、来源、归属及当前有效归类；`context.organization` 提供当前归属范围内的查找和创建服务，见[文件上下文与归类](../plugin-services.md#文件上下文与归类)。归类修改省略字段表示保留该项，空数组清空，非空数组设置完整目标 ID，每项最多 100 个。
 
-| 字段            | 类型     | 必需 | 含义                      |
-| --------------- | -------- | ---- | ------------------------- |
-| `stepId`        | `string` | 是   | 前序步骤 ID               |
-| `pluginId`      | `string` | 是   | 执行该步骤的插件 ID       |
-| `pluginVersion` | `string` | 是   | 插件版本                  |
-| `completedAt`   | `number` | 是   | 完成时间，Unix 毫秒时间戳 |
+`operationId` 可用于远端幂等处理；`publicPath` 含公开前缀、不含域名，`url` 在未配置域名时可能是相对路径。`currentDisposition` 是本次尝试的累计决策，初始为 `pass`，并非数据库文件状态。
 
-返回 `block/delete` 不终止后续步骤；核心在本次执行结束时应用累计处置。组合规则见下文。
-
-`operationId` 可用于远端幂等处理；`publicPath` 含公开前缀、不含域名，`url` 在未配置域名时可能是相对路径。`currentStatus` 初始为 `pass`，`previousResults` 只含当前尝试已完成步骤的快照。
+`previousResults` 按执行顺序包含本次尝试已完成步骤的隔离快照。每项复用规范化后的结果，加上 `stepId`、`pluginId`、`pluginVersion` 和 Unix 毫秒时间 `completedAt`。有处置时记录明确的 `mode`。结果表示步骤当时接受的修改，文件详情中的关系才是当前归类。
 
 <span id="扩展与约束"></span>
 
 ## 可选能力与约束
 
-先理解一个步骤的结果，再组合多个步骤。下面区分每一步的原始意见与核心最终采用的累计状态。
-
-### 后续步骤能读到什么
-
-继续上面的宽度检查示例。它返回 `block` 后，下一个步骤收到的输入片段如下：
-
-```json
-{
-  "currentStatus": "block",
-  "previousResults": [
-    {
-      "stepId": "step-width-review",
-      "pluginId": "example.width-review",
-      "pluginVersion": "1.0.0",
-      "completedAt": 1792310400000,
-      "status": "block",
-      "details": {
-        "width": 2400,
-        "maxWidth": 1280
-      }
-    }
-  ]
-}
-```
-
-`previousResults` 按执行顺序排列，只包含本次尝试中已完成的步骤，不包含当前步骤。没有详情的步骤也会记录，只是省略 `details`。`completedAt` 使用 Unix 毫秒时间戳。
-
-这是独立快照，修改它不会改变核心记录。完整实现可参考 扩展仓库中的腾讯审核（`picloom-extensions/plugins/tencent-moderation`） 和 [Telegram 通知](https://github.com/llleixx/picloom/blob/main/src/builtins/processor/telegram-notification/index.ts)：前者给出处置，后者根据当前累计状态决定是否通知。
-
 ### 如何形成累计处置
 
-初始状态为 `pass`，默认按 `delete > block > pass` 累计。可选的 `overrideStatus` 强制替换当前累计状态，后续步骤仍可再次改变它：
+省略 `mode` 或使用 `escalate` 时，按 `pass < block < delete` 累积；`replace` 明确覆盖此前累计决策，后续步骤仍可再次改变：
 
-| 步骤 | 返回值                                       | 累计状态 |
-| ---- | -------------------------------------------- | -------- |
-| 审核 | `{ status: "block" }`                        | `block`  |
-| 复核 | `{ status: "pass", overrideStatus: "pass" }` | `pass`   |
-| 通知 | `{ status: "pass" }`                         | `pass`   |
+| 步骤 | 返回值                                                | 累计处置 |
+| ---- | ----------------------------------------------------- | -------- |
+| 审核 | `{ disposition: { value: "block" } }`                 | `block`  |
+| 复核 | `{ disposition: { value: "pass", mode: "replace" } }` | `pass`   |
+| 通知 | `{ details: { sent: true } }`                         | `pass`   |
 
-通知插件正常完成时返回 `pass` 即可；不返回 `overrideStatus`，就不会撤销之前的屏蔽或删除意见。
+`block/delete` 不终止后续步骤，后续步骤通过 `currentDisposition` 决定是否通知，通过 `previousResults` 读取前序识别摘要。`delete` 随后由后台清理副本，不表示远端图片已删除。
 
-`block/delete` 不终止后续步骤。核心在本次执行结束时应用累计处置，`delete` 随后由后台清理副本，不表示远端图片已删除。
+### 归类与失败提交
 
-### 后续失败怎么办
+每一步完整结果有效后才同时接受归类、处置和摘要。同一步返回屏蔽意见和非法分类时，整个步骤失败，屏蔽意见也不参与累计。需要审核独立生效时，将审核与归类配置为两个步骤，让归类步骤读取前序 `details`。
 
-后续步骤抛错时，已完成步骤的结果和处置仍会保留，非法返回值不参与累计。累计为 `block/delete` 时，失败任务不再自动重试；为 `pass` 时，可重试错误按限制重试整条流水线，新尝试的前序结果从空列表开始。
+本次执行成功或失败时，核心统一提交此前已接受的归类、处置、结果及任务状态。只写插件明确修改的归类字段；未改集合不会覆盖人工编辑的集合。人工与插件对同一字段的修改按提交顺序生效。已接受结果中的分类在提交前被删除时排除相应 ID；文件被其他操作置入删除流程后，不再写新归类或覆盖删除状态。
 
-一次执行的结果记录总量上限为 64 KiB，包括步骤标识和详情。只返回足够解释处理结果的摘要。
+累计为 `block/delete` 时，失败任务不自动重试；为 `pass` 时，可重试错误按次数限制重试整条流水线。只有 `ready` 文件可重新执行，每次从数据库当前归类及空前序结果开始。屏蔽文件必须先由管理员解除屏蔽，重试不隐式放行；删除失败通过删除任务处理。
+
+一次执行的结果总量上限为 64 KiB，包括步骤标识、处置、归类与摘要。只返回完成后续处理和解释结果所需的内容。
 
 ### 步骤间传值
 
-| 机制              | 用途                                                                 | 生命周期                                   |
-| ----------------- | -------------------------------------------------------------------- | ------------------------------------------ |
-| `context.data`    | 使用命名空间传递本次执行的临时 JSON 数据；`check` 只读，处理方法可写 | 同一次流水线执行，不跨请求或重试保存       |
-| `previousResults` | 保存后阶段读取前序步骤的原始结果，包括可选 `overrideStatus`          | 当前尝试已完成的步骤；核心另行保存结果记录 |
-| `currentStatus`   | 保存后阶段读取当前累计处置                                           | 每步执行前由核心计算                       |
-
-`context.data` 的命名空间应避免与其他插件冲突，例如使用插件 ID；总量限制为 256 KiB，读取返回副本，修改后需调用 `set` 才会生效。需要跨调用持久保存的数据应使用 [状态服务](../plugin-services.md#密钥与运行状态)。
+`context.data` 用于本次流水线的临时 JSON，`previousResults` 用于保存后读取已完成步骤的接受结果，`currentDisposition` 用于读取每步执行前的累计处置。临时数据不跨请求或重试保存；持久运行数据见[状态服务](../plugin-services.md#密钥与运行状态)。
 
 <span id="想实现什么"></span><span id="在哪里执行"></span><span id="谁负责什么"></span><span id="看一次调用"></span><span id="定义与能力清单"></span>
 开发流程见[最小实现](#最小实现)，调用规则见[接口行为](#接口行为)。

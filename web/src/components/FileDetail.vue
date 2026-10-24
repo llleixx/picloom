@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import OrganizationEditor from "./OrganizationEditor.vue";
 import ReplaceImage from "./ReplaceImage.vue";
 import AccessLinkBuilder from "./AccessLinkBuilder.vue";
 import DeleteScope from "./DeleteScope.vue";
@@ -389,6 +390,21 @@ async function remove() {
             ><dt class="text-muted-foreground">{{ t("users.owner") }}</dt>
             <dd>{{ file.ownerName ?? t("users.guest") }}</dd></template
           >
+          <template v-if="file.origin"
+            ><dt class="text-muted-foreground">
+              {{ t("organization.origin") }}
+            </dt>
+            <dd>
+              {{
+                t(
+                  file.origin.kind === "import"
+                    ? "organization.import"
+                    : "organization.upload",
+                )
+              }}
+              · {{ file.origin.userId ?? t("users.guest") }}
+            </dd></template
+          >
           <dt class="text-muted-foreground">{{ t("ui.logicalPath") }}</dt>
           <dd class="break-all">{{ file.logicalKey }}</dd>
           <template v-if="file.storageKey !== file.logicalKey">
@@ -411,6 +427,10 @@ async function remove() {
           <dt class="text-muted-foreground">{{ t("ui.status") }}</dt>
           <dd>{{ fileStatus(file) }}</dd>
         </dl>
+        <div v-if="file.ownerId !== null" class="my-5 space-y-3 border-t pt-5">
+          <h3 class="font-medium">{{ t("organization.title") }}</h3>
+          <OrganizationEditor :files="[file]" />
+        </div>
         <ProcessingResults
           v-if="isAdmin && file.processingResults?.length"
           :results="file.processingResults"

@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { fixture } from "./helpers";
-import type { ProcessorPlugin, ProcessorInput } from "@picloom/plugin-sdk";
+import type { UploadPlugin, UploadProcessInput } from "@picloom/plugin-sdk";
 
 for (const stage of ["upload", "access"] as const) {
   test(`${stage} rejects malformed processor results before continuing the pipeline`, async () => {
@@ -21,9 +21,9 @@ for (const stage of ["upload", "access"] as const) {
         return {
           cacheable: false,
           async check() {
-            return checkResult as Awaited<ReturnType<ProcessorPlugin["check"]>>;
+            return checkResult as Awaited<ReturnType<UploadPlugin["check"]>>;
           },
-          async process(input: Pick<ProcessorInput, "createOutput">) {
+          async process(input: Pick<UploadProcessInput, "createOutput">) {
             processCalls++;
             if (replace) {
               const output = await input.createOutput();
@@ -31,7 +31,7 @@ for (const stage of ["upload", "access"] as const) {
               return { status: "replace" as const, output };
             }
             return processResult as Awaited<
-              ReturnType<ProcessorPlugin["process"]>
+              ReturnType<UploadPlugin["process"]>
             >;
           },
         };
@@ -133,8 +133,9 @@ for (const stage of ["upload", "access"] as const) {
       const assertInvalid = async (code = "PROCESSING_RESULT_INVALID") => {
         const before = followingCalls;
         const response = await request();
+        const body = await response.text();
         expect(response.status).toBe(500);
-        expect((await response.json()).error.code).toBe(code);
+        expect(JSON.parse(body).error.code).toBe(code);
         expect(followingCalls).toBe(before);
       };
       for (const value of [
@@ -159,6 +160,9 @@ for (const stage of ["upload", "access"] as const) {
         "pass",
         {},
         { status: "replcae" },
+        { status: ["pass"] },
+        { status: ["replace"] },
+        { status: ["reject"], reason: "Policy rejected" },
         { status: "reject" },
         { status: "reject", reason: 1 },
         { status: "replace" },

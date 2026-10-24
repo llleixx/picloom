@@ -15,6 +15,8 @@ export const webPages = [
   "/",
   "/login",
   "/app/images",
+  "/app/collections",
+  "/app/tags",
   "/app/tokens",
   "/app/account",
   ...adminPages,

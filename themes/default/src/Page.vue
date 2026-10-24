@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import OrganizationPicker from "./OrganizationPicker.vue";
 import { ref, onUnmounted, computed } from "vue";
 import type { ThemeContext } from "@picloom/theme-sdk";
 const props = defineProps<{ context: ThemeContext }>();
@@ -219,6 +220,13 @@ async function login() {
             </option>
           </select></label
         >
+        <div v-if="s.user" class="space-y-3">
+          <OrganizationPicker :context="ctx" kind="tags" /><OrganizationPicker
+            :context="ctx"
+            kind="collections"
+          />
+          <p class="subtle">{{ t("organization.queueHint") }}</p>
+        </div>
         <p v-if="!s.loading && !profile" class="error-box">
           {{
             s.profiles.some((p) => p.available)

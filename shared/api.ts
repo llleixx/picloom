@@ -1,3 +1,4 @@
+import type { FileOrigin, OrganizationItem } from "./organization";
 import type { SiteLocalization } from "./locales";
 import type { Config } from "./config";
 import type { UserRole } from "./roles";
@@ -16,6 +17,10 @@ export interface FileView {
   id: string;
   ownerId: string | null;
   ownerName?: string | null;
+  tags: OrganizationItem[];
+  /** Detail response only. */
+  collections?: OrganizationItem[];
+  origin?: FileOrigin;
   /** Detail response only; pending/running background operations. */
   backgroundPending?: boolean;
   /** List response; scoped to the selected storage source, if any. */

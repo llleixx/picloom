@@ -254,7 +254,7 @@ test("owned stage upgrades validate parameters, keep IDs and retain saved config
             async createInstance() {
               return {
                 async execute() {
-                  return { status: "pass" };
+                  return {};
                 },
               };
             },

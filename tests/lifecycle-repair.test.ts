@@ -394,8 +394,8 @@ for (const existing of ["managed", "unregistered"] as const) {
         messages: { "en-US": { "package.name": "Shared storage key" } },
         async createInstance() {
           return {
-            async generate({ fileId }) {
-              return { logicalKey: `${fileId}.png`, storageKey };
+            async generate({ record }) {
+              return { logicalKey: `${record.id}.png`, storageKey };
             },
           };
         },

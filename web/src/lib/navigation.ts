@@ -1,6 +1,8 @@
 import { adminPages, ownerPages } from "../../../shared/web-routes";
 import {
   CloudUpload,
+  Folder,
+  Tag,
   Image,
   KeyRound,
   UserRound,
@@ -34,6 +36,8 @@ const page = (
 export const navigation = [
   page("/", "home.upload", CloudUpload),
   page("/app/images", "ui.images", Image, "library"),
+  page("/app/collections", "organization.collections", Folder, "library"),
+  page("/app/tags", "organization.tags", Tag, "library"),
   page("/app/tokens", "ui.uploadTokens", KeyRound, "library"),
   page("/app/config/sources", "ui.storageSources", Settings2, "configuration"),
   page("/app/config/groups", "ui.storageGroups", Layers3, "configuration"),

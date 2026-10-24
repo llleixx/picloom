@@ -119,10 +119,11 @@ export async function bootstrap(
       packages,
       auth,
       files,
+      organization: files.organization,
       uploads,
       cleanups: new SourceCleanups(db, files),
       configuration,
-      imports: new Imports(db, plugins),
+      imports: new Imports(db, plugins, files.organization),
       async close() {
         if (closed) return;
         closed = true;

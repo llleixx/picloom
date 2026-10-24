@@ -71,7 +71,9 @@ test("blocked images can be privately previewed and restored by an administrator
     /\/api\/files\/[^/]+\/preview$/,
   );
   await expect(dialog.locator("img")).toHaveJSProperty("naturalWidth", 32);
-  await expect(dialog.getByLabel("Original URL")).toHaveCount(0);
+  await expect(dialog.getByLabel("Access link", { exact: true })).toHaveCount(
+    0,
+  );
   await expect(
     dialog.getByRole("heading", { name: "Processing Results" }),
   ).toBeVisible();
@@ -81,7 +83,7 @@ test("blocked images can be privately previewed and restored by an administrator
   await dialog
     .getByRole("button", { name: "Restore access", exact: true })
     .click();
-  await expect(dialog.getByLabel("Original URL")).toBeVisible();
+  await expect(dialog.getByLabel("Access link", { exact: true })).toBeVisible();
   expect((await page.request.get(result.url)).status()).toBe(200);
   await expect(dialog.getByText("Test content", { exact: true })).toBeVisible();
   const settledRequests = detailRequests;

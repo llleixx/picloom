@@ -1,5 +1,57 @@
 // UI copy lives here. Keep keys stable when editing English wording.
 export const en = {
+  "organization.title": "Tags & collections",
+  "organization.tags": "Tags",
+  "organization.collections": "Collections",
+  "organization.search": "Search or enter a name",
+  "organization.searchTags": "Search tags",
+  "organization.searchCollections": "Search collections",
+  "organization.empty": "No items found",
+  "organization.removeItem": "Remove {name}",
+  "organization.sameOwner":
+    "Select images belonging to the same registered user to organize them.",
+  "organization.processing":
+    "Background processing may still change tags and collections.",
+  "organization.addSelected": "Add selected",
+  "organization.removeSelected": "Remove selected",
+  "organization.saved": "Changes saved.",
+  "organization.newTag": "New tag",
+  "organization.newCollection": "New collection",
+  "organization.edit": "Edit organization",
+  "organization.sort": "Sort by",
+  "organization.order": "Order",
+  "organization.asc": "Ascending",
+  "organization.desc": "Descending",
+  "organization.name": "Name",
+  "organization.previous": "Previous",
+  "organization.next": "Next",
+  "organization.readyCount": "Available images: {count}",
+  "organization.copyId": "Copy ID",
+  "organization.description": "Description",
+  "organization.logical":
+    "Tags and collections organize images without changing their paths or public access.",
+  "organization.deleteHint":
+    "Deleting this definition removes its relationships. Images are kept.",
+  "organization.queueHint":
+    "Each image keeps the selection made when it enters the queue. Changes apply to new queue items.",
+  "organization.importHint":
+    "This selection applies only to newly imported images. Existing records are kept.",
+  "organization.origin": "Content source",
+  "organization.upload": "Upload",
+  "organization.import": "Import",
+  "organization.manage": "Manage collections",
+  "organization.uploadHere": "Upload to this collection",
+  "organization.filters": "Filters & sort",
+  "organization.tagMode": "Tag matching",
+  "organization.allTags": "Match all tags",
+  "organization.anyTag": "Match any tag",
+  "organization.untagged": "Untagged",
+  "organization.uncollected": "Not in a collection",
+  "organization.newest": "Newest first",
+  "organization.oldest": "Oldest first",
+  "organization.batchHint":
+    "Add or remove the selected tags and collections while keeping other relationships.",
+
   "images.detachedReplicasSummary":
     "Replicas detached: {accepted}. Kept: {kept}. Failed: {failed}.",
   "images.detachedImagesSummary":
@@ -27,10 +79,8 @@ export const en = {
   "removal.mode": "Operation",
   "removal.delete": "Delete files and release references",
   "removal.detach": "Detach only, keep files",
-  "removal.deleteHint":
-    "Delete storage files",
-  "removal.detachHint":
-    "Keep storage files",
+  "removal.deleteHint": "Delete storage files",
+  "removal.detachHint": "Keep storage files",
   "removal.preserveLast": "Keep images with no other available replica",
   "cleanup.title": "Clean up images",
   "cleanup.preview":
@@ -124,7 +174,7 @@ export const en = {
 
   "images.replace": "Replace image",
   "images.replaceHint":
-    "Keep the public link and replace the image. Use the same final format. Cached images may take time to refresh.",
+    "Keep the public link, original tags and collections. Use the same final format. Cached images may take time to refresh.",
   "images.replaceFailure":
     "Check Images before retrying; the new upload may already exist.",
   "images.replacing": "Uploading and waiting for background operations…",

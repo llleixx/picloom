@@ -101,7 +101,7 @@ process(input: {
 
 输出来自本次 `createOutput()`，写入完成后才能返回。输出接口见 [文件与输出](../plugin-services.md#文件与输出)。
 
-输入沿用 `check` 的字段，并增加 `createOutput()`；上下文允许写入流水线临时数据。
+输入沿用 `check` 的字段，并增加 `createOutput()`；上下文允许写入流水线临时数据。`AccessPlugin` 独立于 `UploadPlugin`，不提供文件归类或分类服务。返回 `organization` 会被核心拒绝，避免访问请求修改持久关系或绕过派生缓存。
 
 <span id="扩展与约束"></span>
 

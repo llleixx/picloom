@@ -55,11 +55,14 @@ updateState(value: Config, expectedVersion: number): Promise<void>;
 
 处理阶段还增加 `data`：
 
-| 上下文类型        | 使用位置                                    | `data` 能力    |
-| ----------------- | ------------------------------------------- | -------------- |
-| `Context`         | 路径与存储运行方法                          | 无 `data`      |
-| `CheckContext`    | 上传、访问的 `check`                        | 只读 `get`     |
-| `PipelineContext` | 上传、访问的 `process` 和保存后的 `execute` | `get` 与 `set` |
+| 上下文类型             | 使用位置                           | `data` 能力    |
+| ---------------------- | ---------------------------------- | -------------- |
+| `Context`              | 路径与存储运行方法                 | 无 `data`      |
+| `CheckContext`         | 访问 `check`                       | 只读 `get`     |
+| `PipelineContext`      | 访问 `process`                     | `get` 与 `set` |
+| `UploadCheckContext`   | 上传 `check`，另有只读归类服务     | 只读 `get`     |
+| `UploadProcessContext` | 上传 `process`，另有归类创建服务   | `get` 与 `set` |
+| `PostSaveContext`      | 保存后 `execute`，另有归类创建服务 | `get` 与 `set` |
 
 ```ts
 data.get(namespace: string): Json | undefined;
@@ -67,6 +70,52 @@ data.set(namespace: string, value: Json): void;
 ```
 
 `get` 返回副本，未设置时返回 `undefined`；`set` 覆盖该命名空间。数据仅存在于本次流水线执行，总量上限 256 KiB，不能用它跨请求持久保存状态。
+
+## 文件上下文与归类
+
+上传、路径和保存后输入通过 `record: FileContext` 提供隔离快照：
+
+```ts
+interface FileContext {
+  readonly id: string;
+  readonly createdAt: number;
+  readonly origin: {
+    readonly kind: "upload" | "import";
+    readonly userId: string | null;
+  };
+  readonly ownerId: string | null;
+  readonly organization: {
+    readonly tags: readonly { readonly id: string; readonly name: string }[];
+    readonly collections: readonly {
+      readonly id: string;
+      readonly name: string;
+    }[];
+  };
+}
+```
+
+`origin` 记录内容的上传或导入操作者，`ownerId` 决定图片归属；为注册用户 ID 时，也是分类范围。`null` 表示访客图片，其 `organization` 始终为空。插件不能指定或修改身份。归类输入含 ID 和名称；修改只返回 ID，重复项由核心去重并按 ID 排序，不表示主分类或显示顺序。
+
+注册用户图片的上传 `check` 可通过 `context.organization` 查找；上传 `process` 和保存后 `execute` 还可创建。`record.ownerId === null` 时跳过归类：所有分类服务调用都会拒绝，非空标签或集合结果也会拒绝，空数组或省略字段是无操作。服务签名如下：
+
+```ts
+listTags(query?: { q?: string; limit?: number; offset?: number }): Promise<OrganizationPage>;
+listCollections(query?: { q?: string; limit?: number; offset?: number }): Promise<OrganizationPage>;
+ensureTag(input: { name: string }): Promise<OrganizationItem>;
+ensureCollection(input: { name: string }): Promise<OrganizationItem>;
+```
+
+`OrganizationPage` 为 `{ items: OrganizationItem[], total: number }`，`OrganizationItem` 为 `{ id: string, name: string }`。列表默认 `limit=50`、`offset=0`，limit 范围 1–100。服务绑定本次图片归属，不接受跨用户参数。`ensure` 按规范化名称复用或创建，不修改已有名称或描述，也不自动关联图片。后续处理失败可能留下空分类。
+
+例如在上传 `process` 或保存后 `execute` 中创建标签后，将 ID 放入返回结果：
+
+```ts
+const tag = await context.organization.ensureTag({ name: "Landscape" });
+// 上传时还需返回 status: "pass" 或替换输出。
+return { organization: { tagIds: [tag.id] } };
+```
+
+这些服务只在本次调用有效，遵从取消信号。路径、访问和存储没有归类创建服务；`InstanceServices` 不保存当前用户。
 
 ## 文件与输出
 

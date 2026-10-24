@@ -122,7 +122,7 @@ test("all stages share data within an attempt; failed actions release sources an
           return {
             async execute(_input, ctx) {
               run("post_save", String(config.role), ctx);
-              return { status: "pass" };
+              return {};
             },
           };
         },

@@ -19,7 +19,9 @@ import {
   session,
   sessionCleanups,
 } from "./api";
+import type { OrganizationSelection } from "../../../shared/organization";
 export interface UploadItem {
+  organization?: OrganizationSelection;
   id: string;
   file: File;
   sourceUrl?: string;
@@ -65,12 +67,19 @@ export function enqueue(
   files: File[],
   profile: UploadProfileView,
   replaceId?: string,
+  organization?: OrganizationSelection,
 ) {
   const batchId = String(++nextId);
   for (const file of files)
     uploads.push({
       id: String(++nextId),
       batchId,
+      organization: organization
+        ? {
+            tagIds: [...organization.tagIds],
+            collectionIds: [...organization.collectionIds],
+          }
+        : undefined,
       replaceId,
       file,
       profileId: profile.id,
@@ -86,13 +95,23 @@ export function enqueue(
   pump();
   return batchId;
 }
-export function enqueueUrls(urls: string[], profile: UploadProfileView) {
+export function enqueueUrls(
+  urls: string[],
+  profile: UploadProfileView,
+  organization?: OrganizationSelection,
+) {
   const batchId = String(++nextId);
   for (const url of urls)
     uploads.push({
       id: String(++nextId),
       batchId,
       sourceUrl: url,
+      organization: organization
+        ? {
+            tagIds: [...organization.tagIds],
+            collectionIds: [...organization.collectionIds],
+          }
+        : undefined,
       file: new File(
         [],
         new URL(url).pathname.split("/").pop() || "remote-image",
@@ -191,13 +210,19 @@ async function run(
     return api<UploadResult>("/api/files/from-url", {
       method: "POST",
       signal,
-      body: JSON.stringify({ url: item.sourceUrl, profileId: item.profileId }),
+      body: JSON.stringify({
+        url: item.sourceUrl,
+        profileId: item.profileId,
+        organization: item.organization,
+      }),
     });
   }
   if (item.file.size <= settings.chunkedUpload.thresholdBytes) {
     const form = new FormData();
     form.set("file", item.file);
     form.set("profileId", item.profileId);
+    if (item.organization)
+      form.set("organization", JSON.stringify(item.organization));
     return send<UploadResult>(
       "POST",
       "/api/files",
@@ -219,6 +244,7 @@ async function run(
       signal,
       body: JSON.stringify({
         profileId: item.profileId,
+        organization: item.organization,
         size: item.file.size,
         name: item.file.name,
       }),
@@ -357,6 +383,7 @@ async function pump() {
           item.result = result;
           transfers.delete(item.id);
           void queryClient.invalidateQueries({ queryKey: ["files"] });
+          void queryClient.invalidateQueries({ queryKey: ["organization"] });
         })
         .catch((error) => {
           if (item.status === "cancelled") return;
@@ -367,6 +394,7 @@ async function pump() {
           active--;
           if (item.replaceId)
             void queryClient.invalidateQueries({ queryKey: ["files"] });
+          void queryClient.invalidateQueries({ queryKey: ["organization"] });
           if (copyPreferences.auto && !item.replaceId) {
             const batch = uploads.filter(
               (upload) => upload.batchId === item.batchId,

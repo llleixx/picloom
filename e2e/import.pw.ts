@@ -23,9 +23,18 @@ test("import from a source, rescan, preview and delete the original", async ({
   await page.getByRole("button", { name: "Import", exact: true }).click();
   await page.getByLabel("Scan scope (optional)").fill("legacy/");
   await page.getByLabel("Public prefix", { exact: true }).fill("/old/");
+  const importTags = page.getByRole("group", { name: "Tags", exact: true });
+  await importTags.getByLabel("Search tags", { exact: true }).fill("Legacy");
+  await importTags.getByRole("button", { name: "Create", exact: true }).click();
+  await expect(
+    importTags.getByRole("button", { name: "Remove Legacy", exact: true }),
+  ).toBeVisible();
   await page.getByRole("button", { name: "Start import", exact: true }).click();
   await expect(page.getByText("Scan complete.", { exact: true })).toBeVisible();
   await expect(page.getByText(/Scanned 1 · Imported 1/)).toBeVisible();
+  await importTags
+    .getByRole("button", { name: "Remove Legacy", exact: true })
+    .click();
   await page.getByRole("button", { name: "Start import", exact: true }).click();
   await expect(
     page.getByText(/Scanned 1 · Imported 0 · Skipped 1/),
@@ -34,20 +43,33 @@ test("import from a source, rescan, preview and delete the original", async ({
   await page.getByRole("link", { name: "Images", exact: true }).click();
   await expect(page.getByTestId("file-card")).toHaveCount(1);
   await page.getByRole("button", { name: /^Open / }).click();
-  await expect(page.getByLabel("Original URL", { exact: true })).toHaveValue(
+  await expect(page.getByLabel("Access link", { exact: true })).toHaveValue(
     service.url + "/old/legacy/sample.png",
   );
   const original = await page.request.get(
     service.url + "/old/legacy/sample.png",
   );
   expect(original.headers()["content-type"]).toContain("image/png");
+  await expect(
+    page.getByRole("button", { name: "Remove Legacy", exact: true }),
+  ).toBeVisible();
+  await page
+    .getByRole("button", { name: "Add parameter", exact: true })
+    .click();
+  await page.getByRole("button", { name: "Width w", exact: true }).click();
   await page.getByLabel("Width", { exact: true }).fill("20");
+  await page
+    .getByRole("button", { name: "Add parameter", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: "Output format format", exact: true })
+    .click();
   await page.getByLabel("Output format").selectOption("webp");
   await page
     .getByRole("button", { name: "Generate preview", exact: true })
     .click();
-  await expect(page.getByLabel("Processed URL")).toHaveValue(
-    service.url + "/old/legacy/sample.png?w=20&fit=inside&format=webp",
+  await expect(page.getByLabel("Access link", { exact: true })).toHaveValue(
+    service.url + "/old/legacy/sample.png?w=20&format=webp",
   );
   await page
     .getByRole("button", { name: "Delete image", exact: true })

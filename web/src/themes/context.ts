@@ -7,6 +7,7 @@ import type {
   Snapshot,
   ThemeContext,
   ThemeView,
+  OrganizationItem,
 } from "@picloom/theme-sdk";
 import type {
   ClientSettings,
@@ -21,6 +22,7 @@ import {
 } from "../../../shared/locales";
 import {
   api,
+  response,
   ApiError,
   clearPrivateQueries,
   clearSession,
@@ -63,6 +65,10 @@ export function createThemeRuntime(navigate: (path: string) => void) {
     settings: null as ClientSettings | null,
     profiles: [] as UploadProfileView[],
     selected: "",
+    organization: { tagIds: [], collectionIds: [] } as {
+      tagIds: string[];
+      collectionIds: string[];
+    },
     loading: true,
     error: "" as DisplayMessage,
     login: {
@@ -72,6 +78,19 @@ export function createThemeRuntime(navigate: (path: string) => void) {
       unavailable: false,
     },
   });
+  watch(
+    () => session.value?.user.id,
+    () => {
+      state.organization = { tagIds: [], collectionIds: [] };
+    },
+  );
+  const organization = () =>
+    session.value
+      ? {
+          tagIds: [...state.organization.tagIds],
+          collectionIds: [...state.organization.collectionIds],
+        }
+      : undefined;
   const site = () => ({
     name: state.settings ? siteText(state.settings, locale.value, "name") : "",
     homeTitle: state.settings
@@ -199,6 +218,7 @@ export function createThemeRuntime(navigate: (path: string) => void) {
   });
   function snapshot(): Snapshot {
     return {
+      organization: organization() ?? { tagIds: [], collectionIds: [] },
       page: state.page,
       site: site(),
       user: session.value ? { name: session.value.user.username } : null,
@@ -327,10 +347,39 @@ export function createThemeRuntime(navigate: (path: string) => void) {
         }
       },
       refresh,
+      organization: {
+        async list(kind, query = {}) {
+          if (!session.value) throw new ApiError("UNAUTHORIZED", "");
+          const params = new URLSearchParams({
+            q: query.q ?? "",
+            limit: String(query.limit ?? 50),
+            offset: String(query.offset ?? 0),
+          });
+          const res = await response(`/api/${kind}?${params}`);
+          return {
+            items: (await res.json()) as OrganizationItem[],
+            total: Number(res.headers.get("X-Total-Count") ?? 0),
+          };
+        },
+        async create(kind, name) {
+          if (!session.value) throw new ApiError("UNAUTHORIZED", "");
+          return api<OrganizationItem>(`/api/${kind}`, {
+            method: "POST",
+            body: JSON.stringify({ name }),
+          });
+        },
+        select(selection) {
+          if (!session.value) return;
+          state.organization = {
+            tagIds: [...selection.tagIds],
+            collectionIds: [...selection.collectionIds],
+          };
+        },
+      },
       uploads: {
         add(files) {
           const p = profile();
-          if (p) enqueue(files, p);
+          if (p) enqueue(files, p, undefined, organization());
         },
         addUrls(urls) {
           const p = profile();
@@ -342,7 +391,7 @@ export function createThemeRuntime(navigate: (path: string) => void) {
               )
             )
               throw new Error();
-            enqueueUrls(urls, p);
+            enqueueUrls(urls, p, organization());
           } catch {
             notify({ key: "ui.invalidParametersOrProcessingLimitExceeded" });
           }

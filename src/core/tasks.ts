@@ -1,3 +1,6 @@
+import type { FileContext } from "@picloom/plugin-sdk";
+import type { OrganizationUpdate } from "../../shared/organization";
+import type { Organization } from "./organization";
 import { messageText } from "../../shared/package-localization";
 import { checkStorageCapacity } from "./storage-capacity";
 import { pluginErrorCode } from "./errors";
@@ -48,6 +51,7 @@ export class TaskExecutor {
     private flight: InFlight,
     private cache: ImageCache,
     private temporary: TemporarySpace,
+    private organization: Organization,
     private download: (
       file: FileRecord,
       path: string,
@@ -470,6 +474,20 @@ export class TaskExecutor {
     let activeStep: { id: string; name: string } | undefined;
     let decision: "pass" | "block" | "delete" = "pass";
     const results: ProcessingResult[] = [];
+    let organizationUpdate: OrganizationUpdate = {};
+    const finishAction = async (r: Repositories, current: FileRecord) => {
+      await this.organization.write(
+        r,
+        current.id,
+        current.owner_id,
+        organizationUpdate,
+        { ignoreMissing: true },
+      );
+      if (decision !== "pass")
+        current.status = decision === "block" ? "blocked" : "deleting";
+      current.processing_results_json = results.length ? results : null;
+      await r.saveFile(current, "ready");
+    };
     let writeCompleted = false;
     try {
       if (this.stopping) controller.abort();
@@ -487,6 +505,15 @@ export class TaskExecutor {
             );
           return r.steps(pipeline.id);
         });
+        let record: FileContext = {
+          id: file.id,
+          createdAt: file.created_at,
+          origin: { kind: file.origin_kind, userId: file.origin_user_id },
+          ownerId: file.owner_id,
+          organization: await this.db.read((r) =>
+            this.organization.read(r, file.id),
+          ),
+        };
         const data = pipelineData();
         for (const step of steps) {
           activeStep = { id: step.id, name: step.id };
@@ -515,29 +542,54 @@ export class TaskExecutor {
               }),
               controller.signal,
             );
+            let active = true;
+            const catalog = this.organization.scope(
+              file.owner_id,
+              controller.signal,
+              () => active,
+            );
             try {
               const result = await stage.runtime.execute(
                 {
                   operationId: `${id}:${step.id}`,
-                  fileId: file.id,
+                  record: structuredClone(record),
                   publicPath: publicPath(file.public_prefix, file.logical_key),
                   url:
                     this.config.imageOrigin +
                     publicPath(file.public_prefix, file.logical_key),
                   file: scope.file,
-                  currentStatus: decision,
+                  currentDisposition: decision,
                   previousResults: structuredClone(results),
                 },
-                { ...ctx, data },
+                { ...ctx, data, organization: catalog.writer },
               );
+              active = false;
               controller.signal.throwIfAborted();
               if (
                 !result ||
-                !["pass", "block", "delete"].includes(result.status) ||
-                (result.overrideStatus !== undefined &&
-                  !["pass", "block", "delete"].includes(result.overrideStatus))
+                typeof result !== "object" ||
+                Array.isArray(result) ||
+                Object.keys(result).some(
+                  (key) =>
+                    !["disposition", "organization", "details"].includes(key),
+                ) ||
+                (result.disposition !== undefined &&
+                  (!result.disposition ||
+                    typeof result.disposition !== "object" ||
+                    Array.isArray(result.disposition) ||
+                    Object.keys(result.disposition).some(
+                      (key) => !["value", "mode"].includes(key),
+                    ) ||
+                    !["pass", "block", "delete"].includes(
+                      result.disposition.value,
+                    ) ||
+                    (result.disposition.mode !== undefined &&
+                      !["escalate", "replace"].includes(
+                        result.disposition.mode,
+                      ))))
               )
                 throw new AppError("PLUGIN_RESULT", "Invalid Post-save result");
+              let next: Awaited<ReturnType<Organization["applyUpdate"]>>;
               let completed: ProcessingResult;
               try {
                 if (result.details !== undefined) {
@@ -549,14 +601,26 @@ export class TaskExecutor {
                     throw new Error();
                   assertJson(result.details);
                 }
+                next = await this.organization.applyUpdate(
+                  file.owner_id,
+                  record.organization,
+                  result.organization,
+                );
                 completed = {
                   stepId: step.id,
                   pluginId: stage.record.plugin_id,
                   pluginVersion: stage.record.plugin_version,
                   completedAt: Date.now(),
-                  status: result.status,
-                  ...(result.overrideStatus !== undefined
-                    ? { overrideStatus: result.overrideStatus }
+                  ...(result.disposition
+                    ? {
+                        disposition: {
+                          value: result.disposition.value,
+                          mode: result.disposition.mode ?? "escalate",
+                        },
+                      }
+                    : {}),
+                  ...(result.organization !== undefined
+                    ? { organization: next.update }
                     : {}),
                   ...(result.details !== undefined
                     ? { details: JSON.parse(JSON.stringify(result.details)) }
@@ -570,17 +634,23 @@ export class TaskExecutor {
               } catch {
                 throw new AppError(
                   "PROCESSING_RESULT_INVALID",
-                  "Processing results must be JSON objects totaling at most 64 KiB",
+                  "Invalid organization or processing results; results must total at most 64 KiB",
                 );
               }
               // Accept a step atomically only after its entire result is valid.
               results.push(completed);
-              decision =
-                completed.overrideStatus ??
-                (dispositionRank[completed.status] > dispositionRank[decision]
-                  ? completed.status
-                  : decision);
+              record = { ...record, organization: next.organization };
+              organizationUpdate = { ...organizationUpdate, ...next.update };
+              if (completed.disposition) {
+                const { value, mode } = completed.disposition;
+                if (
+                  mode === "replace" ||
+                  dispositionRank[value] > dispositionRank[decision]
+                )
+                  decision = value;
+              }
             } finally {
+              active = false;
               await scope.close();
             }
           } finally {
@@ -670,10 +740,7 @@ export class TaskExecutor {
           const currentFile = requireValue(await r.file(file.id));
           if (currentFile.status !== "ready")
             throw new AppError("FILE_DELETING", "File is no longer available");
-          if (decision !== "pass")
-            currentFile.status = decision === "block" ? "blocked" : "deleting";
-          currentFile.processing_results_json = results.length ? results : null;
-          await r.saveFile(currentFile, "ready");
+          await finishAction(r, currentFile);
         }
         current.status = "success";
         current.last_error = null;
@@ -702,10 +769,7 @@ export class TaskExecutor {
         // Never overwrite a concurrent user deletion. Keep completed decisions even
         // when a later plugin throws, times out or returns an invalid result.
         if (t.kind === "action" && f.status === "ready" && results.length) {
-          if (decision !== "pass")
-            f.status = decision === "block" ? "blocked" : "deleting";
-          f.processing_results_json = results;
-          await r.saveFile(f, "ready");
+          await finishAction(r, f);
         }
         if (replica) {
           replica.status =

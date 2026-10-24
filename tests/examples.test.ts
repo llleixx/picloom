@@ -13,7 +13,10 @@ async function installExamples(
     const build = Bun.spawn(
       [
         process.execPath,
-        resolve(import.meta.dir, "../node_modules/@picloom/plugin-tools/dist/cli.js"),
+        resolve(
+          import.meta.dir,
+          "../node_modules/@picloom/plugin-tools/dist/cli.js",
+        ),
         "build",
       ],
       { cwd: directory, stdout: "pipe", stderr: "pipe" },
@@ -44,8 +47,13 @@ test("path example uses upload time and the current key result contract", async 
   const runtime = await datePath.createInstance();
   expect(
     await runtime.generate({
-      fileId: "sample",
-      uploadedAt: Date.UTC(2026, 0, 2),
+      record: {
+        id: "sample",
+        createdAt: Date.UTC(2026, 0, 2),
+        origin: { kind: "upload" as const, userId: null },
+        ownerId: null,
+        organization: { tags: [], collections: [] },
+      },
       metadata: {
         mimeType: "image/svg+xml",
         byteSize: 1,
@@ -214,7 +222,7 @@ test("access and post-save example packages preserve originals and apply review 
       const file = (await f.app.db.read((r) => r.file(result.id)))!;
       expect(file.status).toBe(width > 20 ? "blocked" : "ready");
       expect(file.processing_results_json?.[0]).toMatchObject({
-        status: width > 20 ? "block" : "pass",
+        disposition: { value: width > 20 ? "block" : "pass", mode: "escalate" },
         details: { width, maxWidth: 20 },
       });
       const read = await f.request(new URL(result.url).pathname);

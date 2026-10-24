@@ -1,3 +1,7 @@
+import type {
+  OrganizationSelection,
+  OrganizationQuery,
+} from "../../shared/organization";
 import type { UserRole } from "../../shared/roles";
 import type { Config, Kind, Locator } from "../plugins/api";
 export interface Entity {
@@ -77,6 +81,8 @@ export interface Step extends Entity {
 export interface FileRecord extends Entity {
   processing_results_json: import("../../shared/api").ProcessingResult[] | null;
   owner_id: string | null;
+  origin_kind: "upload" | "import";
+  origin_user_id: string | null;
   guest_ip: string | null;
   upload_profile_id: string | null;
   storage_group_id: string | null;
@@ -151,6 +157,7 @@ export interface UploadSession extends Entity {
   profile_id: string;
   source_name: string;
   params_json: Record<string, unknown>;
+  organization_json: OrganizationSelection;
   byte_size: number;
   part_size: number;
   status: "pending" | "completing" | "completed" | "failed";
@@ -171,7 +178,45 @@ export interface CleanupItem extends Entity {
   whole_file: boolean;
   error: string | null;
 }
+export interface Tag extends Entity {
+  owner_id: string;
+  name: string;
+  name_key: string;
+}
+export interface Collection extends Tag {
+  description: string;
+}
+export interface CollectionSummary {
+  collection_id: string;
+  ready_file_count: number;
+  preview_file_id: string | null;
+}
 export interface Repositories {
+  tag(id: string): Promise<Tag | null>;
+  collection(id: string): Promise<Collection | null>;
+  tags(ownerId: string, query?: OrganizationQuery): Promise<Tag[]>;
+  collections(
+    ownerId: string,
+    query?: OrganizationQuery,
+  ): Promise<Collection[]>;
+  countTags(ownerId: string, q?: string): Promise<number>;
+  countCollections(ownerId: string, q?: string): Promise<number>;
+  tagByName(ownerId: string, nameKey: string): Promise<Tag | null>;
+  collectionByName(
+    ownerId: string,
+    nameKey: string,
+  ): Promise<Collection | null>;
+  insertTag(value: Tag): Promise<void>;
+  insertCollection(value: Collection): Promise<void>;
+  saveTag(value: Tag): Promise<void>;
+  saveCollection(value: Collection): Promise<void>;
+  deleteTag(id: string): Promise<void>;
+  deleteCollection(id: string): Promise<void>;
+  fileTags(ids: string[]): Promise<Map<string, Tag[]>>;
+  fileCollections(ids: string[]): Promise<Map<string, Collection[]>>;
+  replaceFileTags(fileId: string, ids: readonly string[]): Promise<void>;
+  replaceFileCollections(fileId: string, ids: readonly string[]): Promise<void>;
+  collectionSummaries(ids: string[]): Promise<Map<string, CollectionSummary>>;
   cleanupPreview(
     sourceId: string,
   ): Promise<{ total: number; withoutOtherReady: number }>;
@@ -375,6 +420,13 @@ export interface Repositories {
   recoverTasks(retryLimit: number): Promise<void>;
 }
 export interface FileFilter {
+  tagIds?: string[];
+  tagMode?: "all" | "any";
+  untagged?: boolean;
+  collectionId?: string;
+  uncollected?: boolean;
+  sort?: "createdAt";
+  order?: "asc" | "desc";
   storageInstanceId?: string;
   ownerId?: string | null;
   createdFrom?: number;

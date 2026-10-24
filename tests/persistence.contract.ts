@@ -1,3 +1,4 @@
+import { organizationContract } from "./organization.contract";
 import { describe, test, expect } from "bun:test";
 import {
   entity,
@@ -14,6 +15,7 @@ export function persistenceContract(
   name: string,
   open: () => Promise<{ db: Persistence; close(): Promise<void> }>,
 ) {
+  organizationContract(name, open);
   describe(name, () => {
     test("task queues preserve eligibility and strict write tiers with deterministic ordering", async () => {
       const f = await open();
@@ -41,6 +43,8 @@ export function persistenceContract(
             ...base,
             guest_ip: null,
             owner_id: null,
+            origin_kind: "upload",
+            origin_user_id: null,
             upload_profile_id: null,
             storage_group_id: null,
             public_prefix: "/i/",
@@ -255,6 +259,8 @@ export function persistenceContract(
             ...entity(),
             guest_ip: null,
             owner_id: null,
+            origin_kind: "upload",
+            origin_user_id: null,
             upload_profile_id: null,
             storage_group_id: null,
             public_prefix: "/i/",
@@ -292,6 +298,7 @@ export function persistenceContract(
           profile_id: crypto.randomUUID(),
           source_name: "",
           params_json: { quality: 80, enabled: false },
+          organization_json: {tagIds:[], collectionIds:[]},
           byte_size: 101,
           part_size: 100,
           status: "pending" as const,
@@ -358,6 +365,8 @@ export function persistenceContract(
               ...entity(),
               guest_ip: null,
               owner_id: owner.id,
+              origin_kind: "upload",
+              origin_user_id: owner.id,
               upload_profile_id: null,
               storage_group_id: null,
               public_prefix: "/i/",
@@ -425,6 +434,8 @@ export function persistenceContract(
           ...entity(),
           guest_ip: null,
           owner_id: owner.id,
+          origin_kind: "upload",
+          origin_user_id: owner.id,
           upload_profile_id: null,
           storage_group_id: null,
           public_prefix: "/i/",
@@ -815,6 +826,8 @@ export function persistenceContract(
             files.push({
               ...entity(),
               owner_id: null,
+              origin_kind: "upload",
+              origin_user_id: null,
               guest_ip: null,
               upload_profile_id: null,
               storage_group_id: null,
@@ -869,6 +882,8 @@ export function persistenceContract(
           ...entity(),
           guest_ip: null,
           owner_id: owner.id,
+          origin_kind: "upload",
+          origin_user_id: owner.id,
           upload_profile_id: null,
           storage_group_id: null,
           public_prefix: "/i/",

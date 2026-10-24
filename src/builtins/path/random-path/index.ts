@@ -58,7 +58,7 @@ export const randomPath: Definition<"path"> = {
   },
   async createInstance({ config }) {
     return {
-      async generate({ fileId, metadata }) {
+      async generate({ record, metadata }) {
         const ext = extensions.get(metadata.mimeType ?? "");
         if (!ext)
           throw new PluginError(
@@ -67,7 +67,7 @@ export const randomPath: Definition<"path"> = {
             false,
           );
         // The upload ID is already random; deriving the name keeps retries stable.
-        const name = fileId.replaceAll("-", "");
+        const name = record.id.replaceAll("-", "");
         const logicalKey = name + "." + ext;
         const depth = Number(config.directoryDepth);
         const directories = Array.from({ length: depth }, (_, i) =>

@@ -43,7 +43,16 @@ curl --fail-with-body "$PICLOOM_URL/api/files" \
 | --- | --- | --- |
 | `profileId` | 否 | 上传配置 ID；省略时使用当前用户默认，否则使用站点默认。显式填写时不能使用显示名称代替 |
 | `file` | 是 | 图片文件 |
+| `organization` | 否 | 初始归类 JSON 字符串，例如 `{"tagIds":["TAG_ID"],"collectionIds":["COLLECTION_ID"]}` |
 | `params` | 否 | JSON 字符串，例如 `{"w":1600}`；对应参数必须已在上传流水线步骤中开放 |
+
+在管理界面「标签」或「集合」页面复制分类 ID 后，可增加：
+
+```sh
+-F 'organization={"tagIds":["YOUR_TAG_ID"],"collectionIds":["YOUR_COLLECTION_ID"]}'
+```
+
+`organization` 是核心字段，与插件 `params` 分开。URL 上传和分片创建在 JSON 中传同结构对象；省略表示初始无归类。会话用户及令牌只能选择自己范围的已有分类，访客图片不支持归类。上传处理及保存后处理可以继续调整注册用户图片的最终归类。分片固定创建时的 ID，完成前目标被删除会明确失败。
 
 需要参数时在命令中增加 `-F 'params={"w":1600}'`。让 curl 自动设置 multipart 的 Content-Type 和 boundary。
 
@@ -87,7 +96,7 @@ jq -n --arg profile "$PICLOOM_PROFILE_ID" \
 
 | 步骤 | 请求 | 输入 / 成功响应 |
 | --- | --- | --- |
-| 创建 | `POST /api/uploads` | JSON：`size`，可选 `profileId`、`name`、`params`；返回 `201` |
+| 创建 | `POST /api/uploads` | JSON：`size`，可选 `profileId`、`name`、`params`、`organization`；返回 `201` |
 | 写分片 | `PUT /api/uploads/:id/parts/:index` | 原始字节；返回 `200`、`{"ok":true}` |
 | 查进度 | `GET /api/uploads/:id` | 返回会话状态、`partSize`、`expiresAt`、已接收索引 `parts` |
 | 完成 | `POST /api/uploads/:id/complete` | 返回 `200` 和最终文件的 `id`、`url` |
@@ -184,6 +193,12 @@ curl --fail-with-body "$PICLOOM_URL/api/files?limit=20&offset=0&status=ready" \
 | `createdFrom` / `createdBefore` | 上传时间范围，Unix 毫秒时间戳，前闭后开 |
 | `owner` | 管理员按用户 ID、`me` 或 `guest` 筛选 |
 | `source` | 管理员按存储源 ID 筛选 |
+| `tag` / `tagMode` | 标签 ID 可重复，例如 `tag=A&tag=B`；匹配 `all`（默认）或 `any` |
+| `untagged` / `uncollected` | `true` 筛选未打标签或未加入集合的图片 |
+| `collection` | 集合 ID |
+| `sort` / `order` | `sort=createdAt`；`order=asc` 或 `desc`（默认） |
+
+分类条件与其他条件取交集，必须处于同一归属；与显式 `owner` 冲突或同时指定标签与 `untagged=true`、集合与 `uncollected=true` 会被拒绝。管理员通过分类筛选自动限定该分类归属。列表返回 `tags`，详情另外返回 `collections` 与内容来源 `origin: { kind: "upload" | "import", userId }`。
 
 删除图片时携带 CSRF，接受请求返回 `202`：
 
@@ -195,6 +210,30 @@ curl --fail-with-body "$PICLOOM_URL/api/files/$PICLOOM_FILE_ID" \
 ```
 
 删除是异步操作，`202` 不代表远端内容已清理。查询详情可跟踪状态；不支持远端删除的存储行为见对应 [插件说明](./plugins.md)。
+
+### 标签和集合
+
+这些接口只接受登录会话，写请求使用 CSRF。分类列表为数组，`X-Total-Count` 返回总数；查询 `q`、`limit`（默认 50，范围 1–100）、`offset`（默认 0）。管理员可指定 `owner=用户ID`，省略默认为当前用户。令牌不获得列表或分类管理权限。
+
+| 请求 | 输入或结果 |
+| --- | --- |
+| `GET /api/tags` | 按名称排序的标签列表 |
+| `POST /api/tags` | JSON `{ name, ownerId? }`，201 返回定义 |
+| `PATCH /api/tags/:id` | JSON `{ name }`，200 返回定义 |
+| `DELETE /api/tags/:id` | 删除定义及关联，200 返回 `{ "ok": true }` |
+| `GET /api/collections` | 集合列表；可选 `sort=name\|createdAt`、`order=asc\|desc`，默认名称升序 |
+| `GET /api/collections/:id` | 集合详情 |
+| `POST /api/collections` | JSON `{ name, description?, ownerId? }`，201 返回集合 |
+| `PATCH /api/collections/:id` | JSON `{ name?, description? }`，200 返回集合；空描述清空 |
+| `DELETE /api/collections/:id` | 删除定义及关联，保留图片 |
+| `POST /api/files/batch-tags` | JSON `{ ids, add?, remove? }` |
+| `POST /api/files/batch-collections` | JSON `{ ids, add?, remove? }` |
+
+创建时 `ownerId` 省略为当前用户，管理员可显式传其他用户 ID，不能传 `null`；修改不能变更归属。名称去首尾空白、NFC 规范化、禁止控制字符，标签 1–64、集合 1–100 个 Unicode 码点，描述最多 2000 个。范围内名称不区分大小写唯一，重名返回 409。
+
+标签定义返回 `id`、`ownerId`、`name`、`createdAt`、`updatedAt`；集合另外返回 `description`、`readyFileCount` 和 `preview`。预览为最新可用图片的 `{ fileId, thumbnailUrl }`，无可用图片时为 `null`，缩略图需要会话认证。
+
+批量接口也用于单图。`ids` 为 1–100 个不同图片 ID，`add`、`remove` 为分类 ID 数组，不能重叠且至少有一项操作。每张图片最多 100 个标签和 100 个集合，按移除后添加的最终结果校验。响应为 `{ "results": [{ "id": "…", "accepted": true }, { "id": "…", "accepted": false, "error": "错误码" }] }`。分类无效整体拒绝，图片不存在、权限或归属不符逐项失败。访客图片不能添加分类，管理员也不例外。其他关联保留，删除中或已删除图片只能移除关联。
 
 ### 删除与解除关联的范围
 
@@ -239,7 +278,7 @@ curl --fail-with-body "$PICLOOM_URL/api/files/$PICLOOM_FILE_ID" \
 | `POST /api/tasks/:id/retry` | 管理员重试符合条件的失败任务 |
 | `GET /api/settings`、`PUT /api/settings` | 读取、保存全套运行设置 |
 | `GET /api/system/status` | 管理员查看系统运行状态 |
-| `POST /api/storage-sources/:id/import` | 管理员分页导入，JSON：`publicPrefix`、`mimeTypes`，可选 `scope`、`cursor`、`stripDirectories`（默认 `0`，非负整数） |
+| `POST /api/storage-sources/:id/import` | 管理员分页导入，JSON：`publicPrefix`、`mimeTypes`，可选 `scope`、`cursor`、`stripDirectories`（默认 `0`，非负整数）、`organization`（与上传相同，只用于新记录；限定执行导入者范围，每页沿用选择） |
 | `/api/storage-sources`、`/api/storage-groups` | 管理存储源和存储组 |
 | `/api/upload-profiles`、`/api/pipelines` | 管理上传配置与流水线 |
 

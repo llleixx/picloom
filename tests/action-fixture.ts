@@ -41,7 +41,7 @@ export default {
         });
         await response.body?.cancel();
         if (!response.ok) throw new Error("Test action failed");
-        return {status: "pass"};
+        return {};
       }};
     }
   }}

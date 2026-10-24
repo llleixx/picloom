@@ -46,6 +46,13 @@ test("Sharp cancellation closes a blocked input without creating output", async 
   const reason = new Error("Stop blocked input");
   const processing = runtime.process(
     {
+      record: {
+        id: "test-image",
+        createdAt: 1,
+        origin: { kind: "upload", userId: null },
+        ownerId: null,
+        organization: { tags: [], collections: [] },
+      },
       params: { w: 10 },
       limits: { maxDimension: 100, maxPixels: 10000 },
       file: {
@@ -76,6 +83,20 @@ test("Sharp cancellation closes a blocked input without creating output", async 
     {
       signal: controller.signal,
       requestId: "cancel",
+      organization: {
+        async listTags() {
+          return { items: [], total: 0 };
+        },
+        async listCollections() {
+          return { items: [], total: 0 };
+        },
+        async ensureTag() {
+          throw Error("Unexpected create");
+        },
+        async ensureCollection() {
+          throw Error("Unexpected create");
+        },
+      },
       log() {},
       data: pipelineData(),
     },

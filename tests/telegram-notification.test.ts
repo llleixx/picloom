@@ -1,23 +1,29 @@
 import { expect, spyOn, test } from "bun:test";
 import { fixture } from "./helpers";
 import { pipelineData } from "../src/core/pipeline-data";
-import type { PostSavePlugin, PostSaveStatus } from "@picloom/plugin-sdk";
+import type { PostSavePlugin, PostSaveDisposition } from "@picloom/plugin-sdk";
 
 const input = (
-  currentStatus: PostSaveStatus,
+  currentDisposition: PostSaveDisposition,
 ): Parameters<PostSavePlugin["execute"]>[0] => ({
   operationId: "task:notification",
-  fileId: "image-id",
+  record: {
+    id: "image-id",
+    createdAt: 1,
+    origin: { kind: "upload", userId: null },
+    ownerId: null,
+    organization: { tags: [], collections: [] },
+  },
   publicPath: "/i/test.png",
   url: "https://images.example/i/test.png",
-  currentStatus,
+  currentDisposition,
   previousResults: [
     {
       stepId: "review",
       pluginId: "test.review",
       pluginVersion: "1",
       completedAt: 1,
-      status: "block",
+      disposition: { value: "block", mode: "escalate" },
       details: { label: "<Review>", score: 80 },
     },
   ],
@@ -32,6 +38,20 @@ const context = () => ({
   signal: new AbortController().signal,
   requestId: "notification-test",
   data: pipelineData(),
+  organization: {
+    async listTags() {
+      return { items: [], total: 0 };
+    },
+    async listCollections() {
+      return { items: [], total: 0 };
+    },
+    async ensureTag() {
+      throw Error("Unexpected create");
+    },
+    async ensureCollection() {
+      throw Error("Unexpected create");
+    },
+  },
   log() {},
 });
 async function instance(
@@ -82,14 +102,13 @@ test("Telegram notifications filter accumulated status, optionally include detai
     try {
       expect(
         await lease.runtime.execute(input("pass"), context()),
-      ).toMatchObject({ status: "pass", details: { sent: false } });
+      ).toMatchObject({ details: { sent: false } });
       expect(bodies).toHaveLength(0);
       for (const status of ["block", "delete"] as const) {
         expect(await lease.runtime.execute(input(status), context())).toEqual({
-          status: "pass",
           details: { sent: true, messageId: 7 },
         });
-        expect(bodies.at(-1).text).toContain(`Current status: ${status}`);
+        expect(bodies.at(-1).text).toContain(`Current disposition: ${status}`);
         expect(bodies.at(-1).text).not.toContain("Review");
       }
     } finally {
@@ -170,7 +189,7 @@ test("Telegram failures classify provider errors and never expose token-bearing 
 
 test("moderation followed by Telegram preserves block/delete even when delivery fails", async () => {
   const f = await fixture();
-  let status: PostSaveStatus = "block",
+  let status: PostSaveDisposition = "block",
     fail = false;
   const texts: string[] = [];
   const fetcher = spyOn(globalThis, "fetch").mockImplementation((async (
@@ -200,7 +219,10 @@ test("moderation followed by Telegram preserves block/delete even when delivery 
           async createInstance() {
             return {
               async execute() {
-                return { status, details: { suggestion: status } };
+                return {
+                  disposition: { value: status },
+                  details: { suggestion: status },
+                };
               },
             };
           },

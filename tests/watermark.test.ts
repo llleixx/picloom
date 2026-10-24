@@ -286,6 +286,13 @@ test("relative text and margin scale with the short side; fixed mode preserves p
       const path = join(f.root, `size-${width}-${height}-${mode}.png`);
       await runtime.process(
         {
+          record: {
+            id: "test-image",
+            createdAt: 1,
+            origin: { kind: "upload", userId: null },
+            ownerId: null,
+            organization: { tags: [], collections: [] },
+          },
           file: {
             metadata: {
               mimeType: "image/png",
@@ -310,6 +317,20 @@ test("relative text and margin scale with the short side; fixed mode preserves p
         {
           signal: new AbortController().signal,
           requestId: "size",
+          organization: {
+            async listTags() {
+              return { items: [], total: 0 };
+            },
+            async listCollections() {
+              return { items: [], total: 0 };
+            },
+            async ensureTag() {
+              throw Error("Unexpected create");
+            },
+            async ensureCollection() {
+              throw Error("Unexpected create");
+            },
+          },
           log() {},
           data: {
             get() {

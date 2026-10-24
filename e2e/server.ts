@@ -88,7 +88,7 @@ if (scenario === "configuration")
               });
               await response.body?.cancel();
               if (!response.ok) throw new Error("Test webhook failed");
-              return { status: "pass" };
+              return {};
             },
           };
         },
@@ -203,7 +203,7 @@ if (scenario === "configuration")
     async createInstance() {
       return {
         async generate(input) {
-          return { logicalKey: "test/" + input.fileId + ".png" };
+          return { logicalKey: "test/" + input.record.id + ".png" };
         },
       };
     },
@@ -229,7 +229,7 @@ if (scenario === "moderation" && profile) {
           return {
             async execute() {
               return {
-                status: "block",
+                disposition: { value: "block" },
                 details: {
                   label: "Test content",
                   score: 82,

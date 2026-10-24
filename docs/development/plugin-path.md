@@ -48,10 +48,9 @@ export default {
 
 ```ts
 generate(input: {
-  fileId: string;
-  uploadedAt: number;
-  metadata: Metadata;
-  originalName?: string;
+  readonly record: FileContext;
+  readonly metadata: Readonly<Metadata>;
+  readonly originalName?: string;
 }, context: Context): Promise<{ logicalKey: string; storageKey?: string }>;
 ```
 
@@ -62,7 +61,7 @@ generate(input: {
 
 只返回命名结果，不创建文件。生成失败时抛出错误，本次上传不能继续。
 
-`uploadedAt` 是 Unix 毫秒时间戳；元数据可能未知。原文件名不可直接用作安全路径，通常保留 `fileId` 避免重名。
+`record.createdAt` 是 Unix 毫秒时间戳，`record.id` 是文件 ID。`record` 还提供来源、归属和上传处理后的最终归类，结构见[文件上下文](./plugin-services.md#文件上下文与归类)。元数据可能未知；原文件名和分类名称都不是安全路径段，插件需要自行转换。分类改名、人工整理或保存后归类不会重算路径。
 
 <span id="扩展与约束"></span>
 
@@ -85,7 +84,7 @@ generate(input: {
 
 两个键都必须是有效相对路径：不能以 `/` 开头，不能有空路径段、`.`、`..`、反斜杠、控制字符或 `?`、`#`、`:`。长度最多 2048 个字符。SDK 的 `logicalKey()` 可用于校验。
 
-不同文件应生成不同路径，通常保留 `fileId` 即可。核心按完整公开路径检查唯一性，但不会替插件自动改名；也不要让不同文件共享同一个存储对象键。
+不同文件应生成不同路径，通常保留 `record.id` 即可。核心按完整公开路径检查唯一性，但不会替插件自动改名；也不要让不同文件共享同一个存储对象键。
 
 修改配置或升级路径插件只影响后续上传，不会重命名已有文件或修改旧链接。
 

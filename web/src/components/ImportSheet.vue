@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import OrganizationPicker from "./OrganizationPicker.vue";
 import { ref, reactive, onBeforeUnmount } from "vue";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,6 +24,8 @@ const scope = ref(""),
   publicPrefix = ref("/i/"),
   stripDirectories = ref(0),
   types = ref<string[]>([...importMimeTypes]);
+const tagIds = ref<string[]>([]),
+  collectionIds = ref<string[]>([]);
 const totals = reactive({
   scanned: 0,
   imported: 0,
@@ -50,6 +53,10 @@ async function start() {
     publicPrefix: publicPrefix.value,
     stripDirectories: stripDirectories.value,
     mimeTypes: [...types.value],
+    organization: {
+      tagIds: [...tagIds.value],
+      collectionIds: [...collectionIds.value],
+    },
   };
   let cursor: string | undefined;
   try {
@@ -135,6 +142,13 @@ function close(value: boolean) {
               }}</label
             >
           </fieldset>
+          <OrganizationPicker v-model="tagIds" kind="tags" :disabled="busy" />
+          <OrganizationPicker
+            v-model="collectionIds"
+            kind="collections"
+            :disabled="busy"
+          />
+          <p class="subtle">{{ t("organization.importHint") }}</p>
           <p class="text-sm">{{ t("import.takeover") }}</p>
           <p class="subtle">{{ t("import.restart") }}</p>
           <div aria-live="polite" class="space-y-2 border-t pt-4">

@@ -499,7 +499,7 @@ test("task timeout cancels execution and retains its source until the reader exi
                   ctx.signal.addEventListener("abort", aborted, { once: true });
                 await finished;
                 ctx.signal.throwIfAborted();
-                return { status: "pass" as const };
+                return {};
               },
             };
           },

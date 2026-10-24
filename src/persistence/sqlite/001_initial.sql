@@ -117,6 +117,8 @@ CREATE TABLE files (
   created_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL,
   owner_id TEXT REFERENCES users(id),
+  origin_kind TEXT NOT NULL CHECK(origin_kind IN ('upload','import')),
+  origin_user_id TEXT REFERENCES users(id),
   guest_ip TEXT,
   upload_profile_id TEXT REFERENCES upload_profiles(id) ON DELETE SET NULL,
   storage_group_id TEXT REFERENCES storage_groups(id) ON DELETE SET NULL,
@@ -135,6 +137,7 @@ CREATE TABLE files (
   deleted_at INTEGER,
   CHECK((temp_status='cleaned' AND temp_path IS NULL) OR (temp_status<>'cleaned' AND temp_path IS NOT NULL)),
   CHECK((status='deleted' AND deleted_at IS NOT NULL) OR (status<>'deleted' AND deleted_at IS NULL)),
+  CHECK(origin_kind <> 'import' OR origin_user_id IS NOT NULL),
   UNIQUE(public_prefix,logical_key)
 );
 CREATE TABLE file_replicas (
@@ -194,6 +197,7 @@ CREATE TABLE upload_sessions (
   source_token_id TEXT,
   profile_id TEXT NOT NULL,
   source_name TEXT NOT NULL,
+  organization_json TEXT NOT NULL CHECK(json_valid(organization_json) AND json_type(organization_json)='object'),
   params_json TEXT NOT NULL CHECK(json_valid(params_json)),
   byte_size INTEGER NOT NULL CHECK(byte_size>0),
   part_size INTEGER NOT NULL CHECK(part_size>0),
@@ -244,3 +248,35 @@ CREATE TABLE source_cleanup_items (
   FOREIGN KEY(replica_id,file_id) REFERENCES file_replicas(id,file_id)
 );
 CREATE INDEX cleanup_item_status ON source_cleanup_items(job_id,status,created_at,id);
+
+CREATE TABLE tags (
+  id TEXT PRIMARY KEY NOT NULL,
+  owner_id TEXT NOT NULL REFERENCES users(id),
+  name TEXT NOT NULL,
+  name_key TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+CREATE UNIQUE INDEX tags_owner_name ON tags(owner_id,name_key);
+CREATE TABLE collections (
+  id TEXT PRIMARY KEY NOT NULL,
+  owner_id TEXT NOT NULL REFERENCES users(id),
+  name TEXT NOT NULL,
+  name_key TEXT NOT NULL,
+  description TEXT NOT NULL DEFAULT '',
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+CREATE UNIQUE INDEX collections_owner_name ON collections(owner_id,name_key);
+CREATE TABLE file_tags (
+  file_id TEXT NOT NULL REFERENCES files(id) ON DELETE CASCADE,
+  tag_id TEXT NOT NULL REFERENCES tags(id) ON DELETE CASCADE,
+  PRIMARY KEY(file_id,tag_id)
+);
+CREATE INDEX file_tags_reverse ON file_tags(tag_id,file_id);
+CREATE TABLE collection_files (
+  collection_id TEXT NOT NULL REFERENCES collections(id) ON DELETE CASCADE,
+  file_id TEXT NOT NULL REFERENCES files(id) ON DELETE CASCADE,
+  PRIMARY KEY(collection_id,file_id)
+);
+CREATE INDEX collection_files_reverse ON collection_files(file_id,collection_id);

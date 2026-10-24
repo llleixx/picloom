@@ -659,7 +659,7 @@ test("deleting during an action stops the chain and cleans temporary data after 
                       { once: true },
                     );
                 });
-                return { status: "pass" };
+                return {};
               },
             };
           },
@@ -770,14 +770,14 @@ test("background tasks refill a free slot after failure while another task remai
           async createInstance() {
             return {
               async execute(input) {
-                started.push(input.fileId);
+                started.push(input.record.id);
                 peak = Math.max(peak, ++active);
                 try {
-                  if (input.fileId === ids[1])
+                  if (input.record.id === ids[1])
                     throw new PluginError("FAILED", "Expected failure", false);
-                  if (input.fileId === ids[2]) startedThird();
+                  if (input.record.id === ids[2]) startedThird();
                   await gate;
-                  return { status: "pass" as const };
+                  return {};
                 } finally {
                   active--;
                 }

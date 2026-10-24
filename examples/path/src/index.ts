@@ -19,18 +19,18 @@ export default {
   configSchemaVersion: 1,
   async createInstance() {
     return {
-      async generate({ fileId, uploadedAt, metadata }) {
+      async generate({ record, metadata }) {
         const extension = metadata.mimeType
           ?.split("/")[1]
           ?.replace("svg+xml", "svg")
           .replace("jpeg", "jpg");
         if (!extension)
           throw new PluginError("UNSUPPORTED", "Image format is required");
-        const day = new Date(uploadedAt)
+        const day = new Date(record.createdAt)
           .toISOString()
           .slice(0, 10)
           .replaceAll("-", "/");
-        return { logicalKey: `${day}/${fileId}.${extension}` };
+        return { logicalKey: `${day}/${record.id}.${extension}` };
       },
     };
   },

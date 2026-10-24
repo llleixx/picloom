@@ -1,3 +1,4 @@
+import type { OrganizationQuery } from "../../shared/organization";
 import { publicPath, publicPathKey } from "../infra/files";
 import { integer } from "./values";
 import { isDeepStrictEqual } from "node:util";
@@ -20,6 +21,9 @@ import type {
   Task,
   UploadSession,
   SystemSummary,
+  Tag,
+  Collection,
+  CollectionSummary,
 } from "./port";
 import type { Config, Locator } from "../plugins/api";
 
@@ -37,6 +41,7 @@ function groupRows<T>(rows: T[], key: (row: T) => string): Map<string, T[]> {
 const jsonKeys = [
   "processing_results_json",
   "params_json",
+  "organization_json",
   "allowed_profile_ids",
   "config_json",
   "enabled_params",
@@ -55,6 +60,10 @@ type Stored<T> = {
         : T[K];
 };
 export interface Schema {
+  tags: Stored<Tag>;
+  collections: Stored<Collection>;
+  file_tags: { file_id: string; tag_id: string };
+  collection_files: { collection_id: string; file_id: string };
   source_cleanup_jobs: Stored<CleanupJob>;
   source_cleanup_items: Stored<CleanupItem>;
   daily_upload_usage: { subject: string; day: string; upload_count: number };
@@ -1026,6 +1035,203 @@ export class SqlRepositories implements Repositories {
       this.db.selectFrom("files").selectAll().where("public_path", "=", path),
     );
   }
+  async tag(id: string) {
+    return this.first<Tag>(
+      this.db.selectFrom("tags").selectAll().where("id", "=", id),
+    );
+  }
+  async collection(id: string) {
+    return this.first<Collection>(
+      this.db.selectFrom("collections").selectAll().where("id", "=", id),
+    );
+  }
+  private tagQuery(ownerId: string, q?: string) {
+    let query = this.db.selectFrom("tags").where("owner_id", "=", ownerId);
+    if (q)
+      query = query.where(
+        this.contains(
+          "name_key",
+          q.normalize("NFC").toLowerCase().normalize("NFC"),
+        ),
+      );
+    return query;
+  }
+  private collectionQuery(ownerId: string, q?: string) {
+    let query = this.db
+      .selectFrom("collections")
+      .where("owner_id", "=", ownerId);
+    if (q)
+      query = query.where(
+        this.contains(
+          "name_key",
+          q.normalize("NFC").toLowerCase().normalize("NFC"),
+        ),
+      );
+    return query;
+  }
+  async tags(ownerId: string, query: OrganizationQuery = {}) {
+    return this.rows<Tag>(
+      this.tagQuery(ownerId, query.q)
+        .selectAll()
+        .orderBy("name_key", "asc")
+        .orderBy("id", "asc")
+        .limit(query.limit ?? 50)
+        .offset(query.offset ?? 0),
+    );
+  }
+  async collections(ownerId: string, query: OrganizationQuery = {}) {
+    const direction = query.order ?? "asc";
+    return this.rows<Collection>(
+      this.collectionQuery(ownerId, query.q)
+        .selectAll()
+        .orderBy(
+          query.sort === "createdAt" ? "created_at" : "name_key",
+          direction,
+        )
+        .orderBy("id", direction)
+        .limit(query.limit ?? 50)
+        .offset(query.offset ?? 0),
+    );
+  }
+  async countTags(ownerId: string, q?: string) {
+    const row = await this.tagQuery(ownerId, q)
+      .select((eb) => eb.fn.countAll<string | number>().as("n"))
+      .executeTakeFirstOrThrow();
+    return integer(row.n);
+  }
+  async countCollections(ownerId: string, q?: string) {
+    const row = await this.collectionQuery(ownerId, q)
+      .select((eb) => eb.fn.countAll<string | number>().as("n"))
+      .executeTakeFirstOrThrow();
+    return integer(row.n);
+  }
+  async tagByName(ownerId: string, nameKey: string) {
+    return this.first<Tag>(
+      this.tagQuery(ownerId).selectAll().where("name_key", "=", nameKey),
+    );
+  }
+  async collectionByName(ownerId: string, nameKey: string) {
+    return this.first<Collection>(
+      this.collectionQuery(ownerId).selectAll().where("name_key", "=", nameKey),
+    );
+  }
+  async insertTag(value: Tag) {
+    await this.db.insertInto("tags").values(encode(value)).execute();
+  }
+  async insertCollection(value: Collection) {
+    await this.db.insertInto("collections").values(encode(value)).execute();
+  }
+  async saveTag(value: Tag) {
+    await this.db
+      .updateTable("tags")
+      .set(encode(value))
+      .where("id", "=", value.id)
+      .execute();
+  }
+  async saveCollection(value: Collection) {
+    await this.db
+      .updateTable("collections")
+      .set(encode(value))
+      .where("id", "=", value.id)
+      .execute();
+  }
+  async deleteTag(id: string) {
+    await this.db.deleteFrom("tags").where("id", "=", id).execute();
+  }
+  async deleteCollection(id: string) {
+    await this.db.deleteFrom("collections").where("id", "=", id).execute();
+  }
+  async fileTags(ids: string[]) {
+    if (!ids.length) return new Map<string, Tag[]>();
+    const rows = await this.rows<Tag & { file_id: string }>(
+      this.db
+        .selectFrom("file_tags as ft")
+        .innerJoin("tags as t", "t.id", "ft.tag_id")
+        .selectAll("t")
+        .select("ft.file_id")
+        .where("ft.file_id", "in", ids)
+        .orderBy("t.id", "asc"),
+    );
+    return groupRows(rows, (row) => row.file_id);
+  }
+  async fileCollections(ids: string[]) {
+    if (!ids.length) return new Map<string, Collection[]>();
+    const rows = await this.rows<Collection & { file_id: string }>(
+      this.db
+        .selectFrom("collection_files as cf")
+        .innerJoin("collections as c", "c.id", "cf.collection_id")
+        .selectAll("c")
+        .select("cf.file_id")
+        .where("cf.file_id", "in", ids)
+        .orderBy("c.id", "asc"),
+    );
+    return groupRows(rows, (row) => row.file_id);
+  }
+  async replaceFileTags(fileId: string, ids: readonly string[]) {
+    await this.db
+      .deleteFrom("file_tags")
+      .where("file_id", "=", fileId)
+      .execute();
+    if (ids.length)
+      await this.db
+        .insertInto("file_tags")
+        .values(ids.map((tag_id) => ({ file_id: fileId, tag_id })))
+        .execute();
+  }
+  async replaceFileCollections(fileId: string, ids: readonly string[]) {
+    await this.db
+      .deleteFrom("collection_files")
+      .where("file_id", "=", fileId)
+      .execute();
+    if (ids.length)
+      await this.db
+        .insertInto("collection_files")
+        .values(
+          ids.map((collection_id) => ({ file_id: fileId, collection_id })),
+        )
+        .execute();
+  }
+  async collectionSummaries(ids: string[]) {
+    const result = new Map<string, CollectionSummary>();
+    if (!ids.length) return result;
+    const counts = await this.db
+      .selectFrom("collection_files as cf")
+      .innerJoin("files as f", "f.id", "cf.file_id")
+      .where("cf.collection_id", "in", ids)
+      .where("f.status", "=", "ready")
+      .groupBy("cf.collection_id")
+      .select("cf.collection_id")
+      .select((eb) => eb.fn.countAll<string | number>().as("n"))
+      .execute();
+    // A single ranked query chooses all previews without loading each collection separately.
+    const previews = this.db
+      .selectFrom("collection_files as cf")
+      .innerJoin("files as f", "f.id", "cf.file_id")
+      .where("cf.collection_id", "in", ids)
+      .where("f.status", "=", "ready")
+      .select([
+        "cf.collection_id",
+        "f.id",
+        sql<number>`row_number() over (partition by cf.collection_id order by f.created_at desc, f.id desc)`.as(
+          "rank",
+        ),
+      ])
+      .as("ranked");
+    const latest = await this.db
+      .selectFrom(previews)
+      .select(["collection_id", "id"])
+      .where("rank", "=", 1)
+      .execute();
+    for (const row of counts)
+      result.set(row.collection_id, {
+        collection_id: row.collection_id,
+        ready_file_count: integer(row.n),
+        preview_file_id: null,
+      });
+    for (const row of latest)
+      result.get(row.collection_id)!.preview_file_id = row.id;
+    return result;
+  }
   private fileFilter(filter: FileFilter = {}) {
     let q = this.db.selectFrom("files");
     if (filter.storageInstanceId || filter.status === "replica_error")
@@ -1071,14 +1277,69 @@ export class SqlRepositories implements Repositories {
           this.contains("logical_key", filter.q!),
         ]),
       );
+    if (filter.tagIds?.length) {
+      if (filter.tagMode === "any")
+        q = q.where((eb) =>
+          eb.exists(
+            eb
+              .selectFrom("file_tags")
+              .select("file_tags.file_id")
+              .whereRef("file_tags.file_id", "=", "files.id")
+              .where("file_tags.tag_id", "in", filter.tagIds!),
+          ),
+        );
+      else
+        for (const id of filter.tagIds)
+          q = q.where((eb) =>
+            eb.exists(
+              eb
+                .selectFrom("file_tags")
+                .select("file_tags.file_id")
+                .whereRef("file_tags.file_id", "=", "files.id")
+                .where("file_tags.tag_id", "=", id),
+            ),
+          );
+    }
+    if (filter.untagged)
+      q = q.where((eb) =>
+        eb.not(
+          eb.exists(
+            eb
+              .selectFrom("file_tags")
+              .select("file_tags.file_id")
+              .whereRef("file_tags.file_id", "=", "files.id"),
+          ),
+        ),
+      );
+    if (filter.collectionId)
+      q = q.where((eb) =>
+        eb.exists(
+          eb
+            .selectFrom("collection_files")
+            .select("collection_files.file_id")
+            .whereRef("collection_files.file_id", "=", "files.id")
+            .where("collection_files.collection_id", "=", filter.collectionId!),
+        ),
+      );
+    if (filter.uncollected)
+      q = q.where((eb) =>
+        eb.not(
+          eb.exists(
+            eb
+              .selectFrom("collection_files")
+              .select("collection_files.file_id")
+              .whereRef("collection_files.file_id", "=", "files.id"),
+          ),
+        ),
+      );
     return q;
   }
   async files(limit: number, offset: number, filter?: FileFilter) {
     return this.rows<FileRecord>(
       this.fileFilter(filter)
         .selectAll()
-        .orderBy("created_at", "desc")
-        .orderBy("id", "desc")
+        .orderBy("created_at", filter?.order ?? "desc")
+        .orderBy("id", filter?.order ?? "desc")
         .limit(limit)
         .offset(offset),
     );

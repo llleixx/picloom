@@ -29,8 +29,13 @@ const context = {
   log() {},
 };
 const input: Parameters<PathPlugin["generate"]>[0] = {
-  fileId: "ceab7c0c-35c8-4c66-b50a-27b78a2a6596",
-  uploadedAt: Date.UTC(2026, 9, 16),
+  record: {
+    id: "ceab7c0c-35c8-4c66-b50a-27b78a2a6596",
+    createdAt: Date.UTC(2026, 9, 16),
+    origin: { kind: "upload" as const, userId: null },
+    ownerId: null,
+    organization: { tags: [], collections: [] },
+  },
   originalName: "private-original-name.jpeg",
   metadata: {
     mimeType: "image/webp",
@@ -52,17 +57,24 @@ test("random path is stable across instances and hides dates and source filename
   expect(path).toMatch(/^[0-9a-f]{32}\.webp$/);
   expect(path).not.toContain("2026");
   expect(path).not.toContain("private-original-name");
-  expect(path).toBe(input.fileId.replaceAll("-", "") + ".webp");
+  expect(path).toBe(input.record.id.replaceAll("-", "") + ".webp");
   expect(
     await (
       await runtime()
     ).generate(
-      { ...input, uploadedAt: 0, originalName: "another.png" },
+      {
+        ...input,
+        record: { ...input.record, createdAt: 0 },
+        originalName: "another.png",
+      },
       context,
     ),
   ).toEqual({ logicalKey: path, storageKey: "ce/ab/" + path });
   expect(
-    await first.generate({ ...input, fileId: crypto.randomUUID() }, context),
+    await first.generate(
+      { ...input, record: { ...input.record, id: crypto.randomUUID() } },
+      context,
+    ),
   ).not.toMatchObject({ logicalKey: path });
 });
 
@@ -106,7 +118,7 @@ test("random path directory depth changes only the storage key", async () => {
       services,
     });
     const result = await plugin.generate(input, context);
-    const name = input.fileId.replaceAll("-", "") + ".webp";
+    const name = input.record.id.replaceAll("-", "") + ".webp";
     expect(result).toEqual(
       directoryDepth === 0
         ? { logicalKey: name }
