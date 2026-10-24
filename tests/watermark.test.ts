@@ -3,6 +3,7 @@ import sharp from "sharp";
 import { join } from "node:path";
 import { fixture } from "./helpers";
 import { watermark } from "../src/builtins/processor/watermark/index";
+import { requestParameters } from "../src/core/request-params";
 import type { InstanceServices } from "../src/plugins/api";
 
 test("plugins share core Sharp and watermark works in upload and access pipelines", async () => {
@@ -72,6 +73,12 @@ test("plugins share core Sharp and watermark works in upload and access pipeline
             margin: 0,
             position: "bottom-right",
           },
+          enabledParams: [
+            "watermarkPosition",
+            "watermarkImageWidth",
+            "watermarkMargin",
+            "watermarkOpacity",
+          ],
           onNotApplicable: "abort",
         },
       ],
@@ -85,6 +92,23 @@ test("plugins share core Sharp and watermark works in upload and access pipeline
       },
       profile.id,
     );
+    const form = new FormData();
+    form.set("profileId", profile.id);
+    form.set(
+      "file",
+      new File([await Bun.file(logo).arrayBuffer()], "logo.png"),
+    );
+    form.set("params", JSON.stringify({ watermarkOpacity: 0 }));
+    const skipped = await f.request("/api/files", "POST", form);
+    expect(skipped.status).toBe(201);
+    const skippedResult = await skipped.json();
+    expect(
+      Buffer.from(
+        await (
+          await f.request(new URL(skippedResult.url).pathname)
+        ).arrayBuffer(),
+      ),
+    ).toEqual(Buffer.from(await Bun.file(logo).arrayBuffer()));
     const uploaded = await f.upload();
     expect(uploaded.status).toBe(201);
     const result = await uploaded.json();
@@ -117,35 +141,46 @@ test("plugins share core Sharp and watermark works in upload and access pipeline
               position: "bottom-right",
               opacity: 70,
               type: "text",
-              text: "A&B <test>",
+              text: "",
               fontSize: 12,
               color: "#000000",
               margin: 0,
             },
-            enabledParams: ["watermark"],
+            enabledParams: ["watermarkOpacity", "watermarkText"],
             onNotApplicable: "abort",
           },
         ],
       },
       access.id,
     );
-    const processed = await f.request(originalPath + "?watermark=true");
+    const processed = await f.request(
+      originalPath + "?watermarkText=A%26B%20%3Ctest%3E&watermarkOpacity=70",
+    );
     expect(processed.status).toBe(200);
     const changed = await processed.arrayBuffer();
     expect(Buffer.from(changed).equals(Buffer.from(bytes))).toBe(false);
-    const cached = await f.request(originalPath + "?watermark=true");
+    const different = await f.request(
+      originalPath + "?watermarkText=Different",
+    );
+    expect(different.status).toBe(200);
+    expect(
+      Buffer.from(await different.arrayBuffer()).equals(Buffer.from(changed)),
+    ).toBe(false);
+    const cached = await f.request(
+      originalPath + "?watermarkText=A%26B%20%3Ctest%3E&watermarkOpacity=70",
+    );
     expect(
       Buffer.from(await cached.arrayBuffer()).equals(Buffer.from(changed)),
     ).toBe(true);
     expect(
       Buffer.from(await (await f.request(originalPath)).arrayBuffer()).equals(
-        Buffer.from(changed),
+        Buffer.from(bytes),
       ),
     ).toBe(true);
     expect(
       Buffer.from(
         await (
-          await f.request(originalPath + "?watermark=false")
+          await f.request(originalPath + "?watermarkOpacity=0")
         ).arrayBuffer(),
       ).equals(Buffer.from(bytes)),
     ).toBe(true);
@@ -153,9 +188,15 @@ test("plugins share core Sharp and watermark works in upload and access pipeline
     await f.close();
   }
 });
-test("watermark rejects missing content, skips unsupported inputs and honors access switch", async () => {
+test("watermark allows blank text, skips unsupported inputs and honors opacity overrides", async () => {
   expect(
     await watermark.stages.upload!.validateConfig!({ type: "text", text: " " }),
+  ).toHaveLength(0);
+  expect(
+    await watermark.stages.upload!.validateConfig!({
+      type: "image",
+      imagePath: " ",
+    }),
   ).toHaveLength(1);
   const runtime = await watermark.stages.access!.createInstance({
     id: "test",
@@ -177,7 +218,7 @@ test("watermark rejects missing content, skips unsupported inputs and honors acc
     services: { images: { sharp } } as InstanceServices,
   });
   const input = {
-    params: { watermark: true },
+    params: {},
     limits: { maxDimension: 1000, maxPixels: 1_000_000 },
     file: {
       metadata: {
@@ -222,7 +263,7 @@ test("watermark rejects missing content, skips unsupported inputs and honors acc
           getFile: async () => {
             throw new Error("Must not load");
           },
-          params: { watermark: false },
+          params: { watermarkOpacity: 0 },
           limits: input.limits,
         },
         context,
@@ -248,6 +289,95 @@ test("watermark rejects missing content, skips unsupported inputs and honors acc
       )
     ).status,
   ).toBe("unsupported");
+});
+
+test("watermark overrides validate merged sizing and leave instance settings unchanged", async () => {
+  for (const stage of [watermark.stages.upload!, watermark.stages.access!]) {
+    const config = {
+      type: "text",
+      text: "Default",
+      font: "sans",
+      color: "#ffffff",
+      sizeMode: "relative",
+      fontSizePercent: 3,
+      marginPercent: 2,
+      position: "bottom-right",
+      opacity: 70,
+    };
+    const runtime = await stage.createInstance({
+      id: "overrides",
+      config,
+      services: { images: { sharp } } as InstanceServices,
+    });
+    const input = {
+      file: { metadata: { mimeType: "image/png" } },
+      limits: { maxDimension: 1000, maxPixels: 1_000_000 },
+    };
+    const check = (params: Record<string, string | number>) =>
+      runtime.check({ ...input, params } as any, {} as any);
+    expect(stage.paramsSchema!.properties).not.toHaveProperty("watermark");
+    expect(
+      requestParameters(
+        stage.paramsSchema,
+        ["watermarkOpacity"],
+        { watermarkOpacity: 0, watermarkText: "Ignored" },
+        "body",
+      ),
+    ).toEqual({ watermarkOpacity: 0 });
+    expect(() =>
+      requestParameters(
+        stage.paramsSchema,
+        ["watermarkOpacity"],
+        { watermarkOpacity: 101 },
+        "body",
+      ),
+    ).toThrow();
+    expect((await check({ watermarkText: " " })).status).toBe("noop");
+    expect(
+      (await check({ watermarkText: "", watermarkSizeMode: "fixed" })).status,
+    ).toBe("noop");
+    await expect(check({ watermarkSizeMode: "fixed" })).rejects.toThrow(
+      "fontSize",
+    );
+    await expect(
+      check({ watermarkSizeMode: "fixed", watermarkFontSize: 12 }),
+    ).rejects.toThrow("margin");
+    expect(
+      (
+        await check({
+          watermarkSizeMode: "fixed",
+          watermarkFontSize: 12,
+          watermarkMargin: 0,
+        })
+      ).status,
+    ).toBe("applicable");
+    expect((await check({ watermarkOpacity: 0 })).status).toBe("noop");
+    expect((await check({})).status).toBe("applicable");
+    expect(config).toMatchObject({
+      text: "Default",
+      opacity: 70,
+      sizeMode: "relative",
+    });
+    expect(config).not.toHaveProperty("fontSize");
+    const { text: _, ...withoutText } = config;
+    expect(await stage.validateConfig!(withoutText)).toEqual([]);
+    const empty = await stage.createInstance({
+      id: "empty",
+      config: withoutText,
+      services: { images: { sharp } } as InstanceServices,
+    });
+    expect(
+      (await empty.check({ ...input, params: {} } as any, {} as any)).status,
+    ).toBe("noop");
+    expect(
+      (
+        await empty.check(
+          { ...input, params: { watermarkText: "From request" } } as any,
+          {} as any,
+        )
+      ).status,
+    ).toBe("applicable");
+  }
 });
 
 test("relative text and margin scale with the short side; fixed mode preserves pixel size", async () => {
@@ -380,6 +510,11 @@ test("watermark positions use EXIF-oriented dimensions without a raw base image"
       steps: [
         {
           pluginId: "builtin.watermark",
+          enabledParams: [
+            "watermarkPosition",
+            "watermarkImageWidth",
+            "watermarkMargin",
+          ],
           onNotApplicable: "abort",
           version: "1.0.0",
           config: {
@@ -392,10 +527,10 @@ test("watermark positions use EXIF-oriented dimensions without a raw base image"
             type: "image",
             sizeMode: "fixed",
             imagePath: logo,
-            imageWidth: 6,
+            imageWidth: 2,
             margin: 0,
             opacity: 100,
-            position: "bottom-right",
+            position: "top-left",
           },
         },
       ],
@@ -415,7 +550,18 @@ test("watermark positions use EXIF-oriented dimensions without a raw base image"
       .withMetadata({ orientation: 6 })
       .jpeg()
       .toBuffer();
-    const response = await f.upload(undefined, source, "oriented.jpg");
+    const form = new FormData();
+    form.set("profileId", profile.id);
+    form.set("file", new File([new Uint8Array(source)], "oriented.jpg"));
+    form.set(
+      "params",
+      JSON.stringify({
+        watermarkPosition: "bottom-right",
+        watermarkImageWidth: 6,
+        watermarkMargin: 0,
+      }),
+    );
+    const response = await f.request("/api/files", "POST", form);
     expect(response.status).toBe(201);
     const uploaded = await response.json();
     const result = await f.request(new URL(uploaded.url).pathname);

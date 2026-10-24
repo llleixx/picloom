@@ -17,7 +17,7 @@
 | 字段 | 含义 | 必填 | 默认值 | 约束 |
 | --- | --- | --- | --- | --- |
 | `type` | 水印类型 | 是 | `"text"` | `text`, `image` |
-| `text` | 水印文字 | 文字模式 | — | 最多 500 字符；文字模式必填 |
+| `text` | 水印文字 | 否 | — | 最多 500 字符 |
 | `font` | 字体名称 | 文字模式 | `"sans"` | — |
 | `fontFile` | 服务端字体文件路径 | 否 | — | — |
 | `sizeMode` | 相对尺寸或固定像素 | 是 | `"relative"` | `relative`, `fixed` |
@@ -32,11 +32,23 @@
 | `margin` | 固定边距，像素 | 固定尺寸 | `16` | ≥ 0；≤ 4096 |
 | `opacity` | 不透明度，百分比 | 是 | `70` | ≥ 0；≤ 100 |
 
-仅访问阶段提供以下请求参数，上传阶段无请求参数。需先在流水线步骤中显式开放。请求参数本身不由实例默认值补齐。
+上传和访问阶段均支持以下请求参数。先在流水线步骤中开放需要的参数，再在上传请求的 `params` JSON 对象或图片链接查询参数中传入。传入值仅覆盖本次处理，未传入的字段沿用实例配置；类型和取值范围与对应配置字段相同。
 
-| 字段 | 含义 | 必填 | 默认值 | 约束 |
-| --- | --- | --- | --- | --- |
-| `watermark` | 是否添加水印 | 否 | — | — |
+| 请求参数 | 对应配置字段 |
+| --- | --- |
+| `watermarkText` | `text` |
+| `watermarkColor` | `color` |
+| `watermarkPosition` | `position` |
+| `watermarkOpacity` | `opacity` |
+| `watermarkSizeMode` | `sizeMode` |
+| `watermarkFontSize` | `fontSize` |
+| `watermarkFontSizePercent` | `fontSizePercent` |
+| `watermarkImageWidth` | `imageWidth` |
+| `watermarkWidthPercent` | `widthPercent` |
+| `watermarkMargin` | `margin` |
+| `watermarkMarginPercent` | `marginPercent` |
+
+`type`、`font`、`fontFile`、`imagePath` 仅通过实例配置设置。切换尺寸模式时，合并后的配置必须具备该模式所需的字号或图片宽度及边距。没有独立水印开关；开放 `watermarkOpacity` 后，客户端可以传 `0` 跳过水印。
 
 ## 使用示例
 
@@ -60,8 +72,10 @@
 }
 ```
 
+开放 `watermarkText` 和 `watermarkOpacity` 后，上传请求可传 `params={"watermarkText":"Alice","watermarkOpacity":50}`；访问链接可追加 `?watermarkText=Alice&watermarkOpacity=50`。
+
 ## 行为与限制
 
-只处理静态 JPEG、PNG、WebP，成功返回 `replace`。文字模式必须填写 `text`，图片模式必须填写服务端 `imagePath`；图片水印同样限静态 PNG/JPEG/WebP。相对尺寸下，字号与边距以原图短边为基准，图片水印宽度以原图宽度为基准。访问阶段默认加水印；显式开放 `watermark` 参数后，客户端可用 `watermark=false` 跳过。透明度为 0 时也跳过。
+只处理静态 JPEG、PNG、WebP，成功返回 `replace`。文字模式在合并请求参数后，文字缺省、为空或仅含空白时跳过；可将实例文字留空，并开放 `watermarkText`，通过 URL 参数按需添加水印。图片模式必须填写服务端 `imagePath`；图片水印同样限静态 PNG/JPEG/WebP。相对尺寸下，字号与边距以原图短边为基准，图片水印宽度以原图宽度为基准。有效配置的不透明度为 0 时跳过。
 
-需要保存内容始终含水印时，使用上传阶段水印，不依赖客户端可关闭的访问水印。
+需要保存内容始终含水印时，使用上传阶段水印，配置非空文字和非零不透明度，不开放 `watermarkText` 或 `watermarkOpacity`。

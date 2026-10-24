@@ -313,8 +313,8 @@ test("access parameter APIs use a single package catalog", async () => {
 test("watermark request labels keep their authored translations", async () => {
   const { watermark } = await import("../src/builtins/processor/watermark");
   for (const [locale, label] of [
-    ["en-US", "Watermark"],
-    ["zh-CN", "水印"],
+    ["en-US", "Opacity (%)"],
+    ["zh-CN", "不透明度（%）"],
   ]) {
     const display = localizePlugin(
       {
@@ -328,7 +328,7 @@ test("watermark request labels keep their authored translations", async () => {
       fieldText(
         display,
         locale!,
-        (display.paramsSchema!.properties as any).watermark["x-ui"],
+        (display.paramsSchema!.properties as any).watermarkOpacity["x-ui"],
       ).label,
     ).toBe(label);
   }

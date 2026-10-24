@@ -4,6 +4,10 @@ import { readFile } from "node:fs/promises";
 import {
   PluginError,
   type ConfigSchema,
+  type Config,
+  type Parameters,
+  type ParameterSchema,
+  type ParamsSchema,
   type Definition,
   type Descriptor,
   type UploadPlugin,
@@ -193,7 +197,7 @@ const configSchema: ConfigSchema = {
   allOf: [
     {
       if: { properties: { type: { const: "text" } }, required: ["type"] },
-      then: { required: ["text", "font", "color"] },
+      then: { required: ["font", "color"] },
       else: { required: ["imagePath"] },
     },
     {
@@ -241,6 +245,41 @@ const configSchema: ConfigSchema = {
   ],
   additionalProperties: false,
 };
+const parameterFields = {
+  watermarkText: "text",
+  watermarkColor: "color",
+  watermarkPosition: "position",
+  watermarkOpacity: "opacity",
+  watermarkSizeMode: "sizeMode",
+  watermarkFontSize: "fontSize",
+  watermarkFontSizePercent: "fontSizePercent",
+  watermarkImageWidth: "imageWidth",
+  watermarkWidthPercent: "widthPercent",
+  watermarkMargin: "margin",
+  watermarkMarginPercent: "marginPercent",
+} as const;
+const paramsSchema: ParamsSchema = {
+  type: "object",
+  properties: Object.fromEntries(
+    Object.entries(parameterFields).map(([parameter, field]) => {
+      const {
+        default: _,
+        "x-ui": ui,
+        ...constraints
+      } = configSchema.properties![field]!;
+      const { visibleWhen: __, ...hint } = ui ?? {};
+      return [parameter, { ...constraints, "x-ui": hint } as ParameterSchema];
+    }),
+  ),
+  additionalProperties: false,
+};
+function effectiveConfig(config: Readonly<Config>, params: Parameters): Config {
+  const effective = { ...config };
+  for (const [parameter, field] of Object.entries(parameterFields)) {
+    if (params[parameter] !== undefined) effective[field] = params[parameter]!;
+  }
+  return effective;
+}
 const escape = (text: string) =>
   text.replace(
     /[&<>"']/g,
@@ -253,23 +292,25 @@ const escape = (text: string) =>
         "'": "&apos;",
       })[c]!,
   );
-function stage(access: boolean): Descriptor<UploadPlugin & AccessPlugin> {
+function stage(): Descriptor<UploadPlugin & AccessPlugin> & {
+  paramsSchema: ParamsSchema;
+} {
   return {
     configSchemaVersion: 1,
     configSchema,
+    paramsSchema,
     async validateConfig(config) {
-      const key = config.type === "image" ? "imagePath" : "text";
-      return typeof config[key] !== "string" || !String(config[key]).trim()
-        ? [{ path: "/" + key, message: "Required" }]
+      return config.type === "image" && !String(config.imagePath ?? "").trim()
+        ? [{ path: "/imagePath", message: "Required" }]
         : [];
     },
-    async createInstance({ config, services }) {
+    async createInstance({ config: fixedConfig, services }) {
       const sharp = services.images.sharp;
-      if (config.type === "text" && config.fontFile)
-        await readFile(String(config.fontFile));
+      if (fixedConfig.type === "text" && fixedConfig.fontFile)
+        await readFile(String(fixedConfig.fontFile));
       const asset =
-        config.type === "image"
-          ? await readFile(String(config.imagePath))
+        fixedConfig.type === "image"
+          ? await readFile(String(fixedConfig.imagePath))
           : undefined;
       if (asset) {
         const metadata = await sharp(asset, {
@@ -283,9 +324,29 @@ function stage(access: boolean): Descriptor<UploadPlugin & AccessPlugin> {
       }
       return {
         async check(input: UploadCheckInput | AccessCheckInput) {
-          const { params } = input;
-          if ((access && params.watermark === false) || config.opacity === 0)
+          const config = effectiveConfig(fixedConfig, input.params);
+          if (
+            config.opacity === 0 ||
+            (config.type === "text" && !String(config.text ?? "").trim())
+          )
             return { status: "noop" };
+          const relative = config.sizeMode === "relative";
+          const size =
+            config.type === "text"
+              ? relative
+                ? "fontSizePercent"
+                : "fontSize"
+              : relative
+                ? "widthPercent"
+                : "imageWidth";
+          for (const field of [size, relative ? "marginPercent" : "margin"]) {
+            if (config[field] === undefined)
+              throw new PluginError(
+                "INVALID_INPUT",
+                `Watermark requires ${field} for ${config.sizeMode} sizing`,
+                false,
+              );
+          }
           const file = "getFile" in input ? await input.getFile() : input.file;
           if (
             file.metadata.animated ||
@@ -304,6 +365,7 @@ function stage(access: boolean): Descriptor<UploadPlugin & AccessPlugin> {
           context,
         ) {
           context.signal.throwIfAborted();
+          const config = effectiveConfig(fixedConfig, input.params);
           const { limits, createOutput } = input;
           const file = "getFile" in input ? await input.getFile() : input.file;
           context.signal.throwIfAborted();
@@ -425,7 +487,6 @@ function stage(access: boolean): Descriptor<UploadPlugin & AccessPlugin> {
 }
 const fieldMessages = {
   "en-US": {
-    ...{ "params.watermark.label": "Watermark" },
     "settings.type.label": "Watermark Type",
     "settings.type.options.text": "text",
     "settings.type.options.image": "image",
@@ -462,7 +523,6 @@ const fieldMessages = {
     "settings.opacity.label": "Opacity (%)",
   },
   "zh-CN": {
-    ...{ "params.watermark.label": "水印" },
     "settings.type.label": "水印类型",
     "settings.type.options.text": "文字",
     "settings.type.options.image": "图片",
@@ -521,19 +581,7 @@ export const watermark: Definition<"processor"> = {
   version: "1.0.0",
   apiVersion: 1,
   stages: {
-    upload: stage(false),
-    access: {
-      ...stage(true),
-      paramsSchema: {
-        type: "object",
-        properties: {
-          watermark: {
-            type: "boolean",
-            "x-ui": { labelKey: "params.watermark.label" },
-          },
-        },
-        additionalProperties: false,
-      },
-    },
+    upload: stage(),
+    access: stage(),
   },
 };

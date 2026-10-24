@@ -17,7 +17,7 @@ Defaults initialize new drafts only; saving does not fill missing values. Requir
 | Field | Meaning | Required | Default | Constraints |
 | --- | --- | --- | --- | --- |
 | `type` | Watermark Type | Yes | `"text"` | `text`, `image` |
-| `text` | Text | Text mode | — | Up to 500 characters; Required in text mode |
+| `text` | Text | No | — | Up to 500 characters |
 | `font` | Font | Text mode | `"sans"` | — |
 | `fontFile` | Font File | No | — | — |
 | `sizeMode` | Size Mode | Yes | `"relative"` | `relative`, `fixed` |
@@ -32,11 +32,23 @@ Defaults initialize new drafts only; saving does not fill missing values. Requir
 | `margin` | Margin (px) | Fixed mode | `16` | ≥ 0; ≤ 4096 |
 | `opacity` | Opacity (%) | Yes | `70` | ≥ 0; ≤ 100 |
 
-Only the access stage provides the following request parameter; the upload stage has none. Enable it explicitly on the pipeline step. Instance defaults do not populate request parameters.
+Both upload and access stages support the following request parameters. Enable the desired parameters in the pipeline step, then pass them in the upload request’s `params` JSON object or the image URL query string. Values override instance settings for that request only; omitted fields retain their configured values. Types and limits match the corresponding configuration fields.
 
-| Field | Meaning | Required | Default | Constraints |
-| --- | --- | --- | --- | --- |
-| `watermark` | Watermark | No | — | — |
+| Request parameter | Configuration field |
+| --- | --- |
+| `watermarkText` | `text` |
+| `watermarkColor` | `color` |
+| `watermarkPosition` | `position` |
+| `watermarkOpacity` | `opacity` |
+| `watermarkSizeMode` | `sizeMode` |
+| `watermarkFontSize` | `fontSize` |
+| `watermarkFontSizePercent` | `fontSizePercent` |
+| `watermarkImageWidth` | `imageWidth` |
+| `watermarkWidthPercent` | `widthPercent` |
+| `watermarkMargin` | `margin` |
+| `watermarkMarginPercent` | `marginPercent` |
+
+`type`, `font`, `fontFile` and `imagePath` are instance settings only. When switching size modes, the merged configuration must contain the font size or image width and margin required by that mode. There is no separate watermark switch; enabling `watermarkOpacity` lets clients skip processing by passing `0`.
 
 ## Usage example
 
@@ -60,8 +72,10 @@ Create an upload-stage instance and add it to an upload pipeline. Upload a JPEG 
 }
 ```
 
+After enabling `watermarkText` and `watermarkOpacity`, pass `params={"watermarkText":"Alice","watermarkOpacity":50}` when uploading, or append `?watermarkText=Alice&watermarkOpacity=50` to an image URL.
+
 ## Behavior and limitations
 
-Only static JPEG, PNG and WebP are supported; success returns `replace`. Text mode requires `text`; image mode requires a server-side `imagePath` pointing to a static PNG/JPEG/WebP. Relative font size and margins use the image’s shorter side; watermark image width uses the image width. Access processing applies the watermark by default. Enabling the `watermark` request parameter lets clients skip it with `watermark=false`. Zero opacity also skips processing.
+Only static JPEG, PNG and WebP are supported; success returns `replace`. In text mode, processing is skipped if the merged text is omitted, empty or whitespace-only. Leave the instance text blank and enable `watermarkText` to add a watermark on demand through URL parameters. Image mode requires a server-side `imagePath` pointing to a static PNG/JPEG/WebP. Relative font size and margins use the image’s shorter side; watermark image width uses the image width. Processing is skipped when the effective opacity is zero.
 
-Use upload-stage watermarking when stored content must always contain a watermark; do not rely on an access watermark that clients can disable.
+When stored content must always contain a watermark, use upload-stage watermarking with nonblank text and nonzero opacity, and leave `watermarkText` and `watermarkOpacity` disabled.
