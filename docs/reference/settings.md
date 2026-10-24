@@ -37,7 +37,6 @@ Docker 使用 `docker/.env.example`，源码开发使用根目录的 `.env.examp
 | `siteLogoUrl` | 无环境变量，初始化 `/assets/picloom.svg` | Logo 的 HTTP(S) 地址或内置图标路径；留空不显示 |
 | `siteFaviconUrl` | 无环境变量，初始化 `/assets/picloom.svg` | 浏览器标签页图标地址；留空不加载替代资源 |
 | `publicOrigin` | `PUBLIC_ORIGIN`，空 | 网站来源，如 `https://pic.example.com`；用于来源检查和链接生成，留空时普通请求使用当前来源 |
-| `trustedProxies` | `TRUSTED_PROXIES`，空列表 | 可信代理 IP 或 CIDR；Web 每行一个，环境变量用逗号分隔。仅信任这些来源传入的 `X-Real-IP`，代理必须覆盖该请求头 |
 | `imageOrigin` | `IMAGE_ORIGIN`，跟随网站来源 | 独立图片域名；为空时使用网站来源，再回退到当前请求来源 |
 
 域名字段只填协议和主机，不带路径。后台任务没有当前请求来源，需要生成完整图片 URL 时应配置域名，例如使用 URL 模式审核。
@@ -69,6 +68,7 @@ Docker 使用 `docker/.env.example`，源码开发使用根目录的 `.env.examp
 
 | Web 字段 | 环境变量 / 默认 | 用途 |
 | --- | --- | --- |
+| `trustedProxies` | `TRUSTED_PROXIES`，空列表 | 可信代理 IP 或 CIDR；Web 每行一个，环境变量用逗号分隔。仅信任这些来源传入的 `X-Real-IP`，代理必须覆盖该请求头 |
 | `guestMaxUploadBytes` | 无环境变量，空 | 游客单文件大小上限；空值跟随全局上限 |
 | `guestDailyUploadLimit` | 无环境变量，空 | 按游客 IP、UTC 日期计算的每日上传次数；空值不另设每日额度，`0` 禁止上传 |
 | `maxUploadBytes` | `MAX_UPLOAD_BYTES=20971520`（20 MiB） | 全局单文件上限，还需同时满足用户与上传配置的限制 |

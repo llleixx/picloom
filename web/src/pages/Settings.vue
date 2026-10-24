@@ -462,26 +462,6 @@ async function save() {
             {{ fields["/publicOrigin"] }}
           </p>
           <p id="site-hint" class="subtle">{{ t("settings.siteHint") }}</p>
-          <label class="field"
-            >{{ t("settings.trustedProxies") }}
-            <textarea
-              v-model="proxies"
-              class="w-full rounded-md border bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              rows="3"
-              :aria-invalid="!!fields['/trustedProxies']"
-              aria-describedby="proxies-hint proxies-error"
-            />
-          </label>
-          <p
-            v-if="fields['/trustedProxies']"
-            id="proxies-error"
-            class="text-sm text-destructive"
-          >
-            {{ fields["/trustedProxies"] }}
-          </p>
-          <p id="proxies-hint" class="subtle">
-            {{ t("settings.trustedProxiesHint") }}
-          </p>
         </section>
         <section
           v-for="group in limitGroups"
@@ -594,6 +574,26 @@ async function save() {
             {{
               fields["/guestMaxUploadBytes"] || fields["/guestDailyUploadLimit"]
             }}
+          </p>
+          <label class="field"
+            >{{ t("settings.trustedProxies") }}
+            <textarea
+              v-model="proxies"
+              class="w-full rounded-md border bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              rows="3"
+              :aria-invalid="!!fields['/trustedProxies']"
+              aria-describedby="proxies-hint proxies-error"
+            />
+          </label>
+          <p
+            v-if="fields['/trustedProxies']"
+            id="proxies-error"
+            class="text-sm text-destructive"
+          >
+            {{ fields["/trustedProxies"] }}
+          </p>
+          <p id="proxies-hint" class="subtle">
+            {{ t("settings.trustedProxiesHint") }}
           </p>
         </section>
         <section class="border-t pt-6 space-y-4">
