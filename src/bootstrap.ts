@@ -238,6 +238,9 @@ export async function initializeUploadDefaults(
         "image/png",
         "image/webp",
         "image/svg+xml",
+        "image/gif",
+        "image/avif",
+        "image/tiff",
       ],
     };
     prefix(profile.public_prefix);
