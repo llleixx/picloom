@@ -1,6 +1,6 @@
 # 安装与使用插件
 
-内置插件无需安装。OpenList、NodeImage、Telegram 存储和腾讯云审核等外部插件需先安装 ZIP，才能在配置中选择。可用插件见[官方插件](../reference/plugins.md)。
+内置插件无需安装。OpenList、NodeImage、Telegram 存储、腾讯云审核和本地 NSFW 审核等外部插件需先安装 ZIP，才能在配置中选择。可用插件见[官方插件](../reference/plugins.md)。
 
 ## 安装并配置
 

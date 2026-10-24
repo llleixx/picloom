@@ -28,7 +28,7 @@
 - [备份与升级](https://llleixx.github.io/picloom/operations/data.html)：保存和恢复数据。
 - [HTTP API](https://llleixx.github.io/picloom/reference/http-api.html)：接入上传工具。
 
-内置本地、S3、WebDAV 存储及图片处理、水印、Telegram 通知。OpenList、NodeImage、Telegram 存储和腾讯云审核需[另行安装插件](https://llleixx.github.io/picloom/guide/plugins.html)；首页与登录页可[安装主题](https://llleixx.github.io/picloom/guide/themes.html)。
+内置本地、S3、WebDAV 存储及图片处理、水印、Telegram 通知。OpenList、NodeImage、Telegram 存储、腾讯云审核和[本地 NSFW 审核](https://llleixx.github.io/picloom/reference/plugins/nsfw-moderation.html)需[另行安装插件](https://llleixx.github.io/picloom/guide/plugins.html)；首页与登录页可[安装主题](https://llleixx.github.io/picloom/guide/themes.html)。
 
 ## 开发
 

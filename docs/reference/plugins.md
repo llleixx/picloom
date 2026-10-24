@@ -39,3 +39,4 @@
 | [NodeImage 存储](./plugins/nodeimage.md) | `picloom.nodeimage` |
 | [Telegram 存储](./plugins/telegram.md) | `picloom.telegram-storage` |
 | [腾讯云图片审核](./plugins/tencent-moderation.md) | `picloom.tencent-moderation` |
+| [本地 NSFW 审核](./plugins/nsfw-moderation.md) | `picloom.nsfw-moderation` |

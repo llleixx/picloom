@@ -111,6 +111,10 @@ const reference = [
             link: "/reference/plugins/tencent-moderation",
           },
           {
+            text: "本地 NSFW 审核",
+            link: "/reference/plugins/nsfw-moderation",
+          },
+          {
             text: "Telegram 通知",
             link: "/reference/plugins/telegram-notification",
           },
