@@ -188,7 +188,7 @@ curl --fail-with-body "$PICLOOM_URL/api/files?limit=20&offset=0&status=ready" \
 | 查询参数 | 用途 |
 | --- | --- |
 | `limit` / `offset` | 默认 50 / 0；`limit` 为 1–100 |
-| `status` | `preparing`、`ready`、`blocked`、`failed`、`deleting`、`deleted` |
+| `status` | 文件状态：`preparing`、`ready`、`blocked`、`failed`、`deleting`、`delete_failed`、`deleted`；另可用 `replica_error` 筛选存在写入或删除失败副本的文件 |
 | `mimeType` / `q` | 按图片 MIME 类型，或文件 ID／逻辑路径关键词筛选 |
 | `createdFrom` / `createdBefore` | 上传时间范围，Unix 毫秒时间戳，前闭后开 |
 | `owner` | 管理员按用户 ID、`me` 或 `guest` 筛选 |
