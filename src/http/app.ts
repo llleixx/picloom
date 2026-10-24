@@ -1,7 +1,7 @@
 import { organizationRequest } from "./organization";
 import { themeRequest } from "./themes";
 import { pluginErrorCode } from "../core/errors";
-import { maxDirectUploadBytes } from "../../shared/runtime-settings";
+import { receiveMultipart } from "./multipart";
 import { normalizeGuestIp } from "./guest-ip";
 import { isPluginError } from "@picloom/plugin-sdk";
 import { downloadImage } from "../infra/remote-image";
@@ -238,57 +238,26 @@ export function handler(app: Application) {
           if (upload) {
             const limits = await app.auth.uploadLimits(auth);
             await app.auth.checkUploadQuota(auth, 0, guestIp);
-            const maximum = Math.min(limits.maxBytes, maxDirectUploadBytes);
-            const length = Number(req.headers.get("content-length"));
             const leave = app.files.temporary.enterUpload();
             let inputPath: string | undefined;
             let handedOff = false;
             try {
-              if (length > maximum + 65536)
-                throw new AppError(
-                  "TOO_LARGE",
-                  "Use chunked upload for large files",
-                  413,
-                );
-              inputPath = app.files.temporary.create(
-                length > 0 ? Math.min(length, maximum) : maximum,
+              const received = await receiveMultipart(
+                req,
+                app.files.temporary,
+                limits.maxBytes,
               );
-              const stream = limitedBody(req, maximum + 65536);
-              const form = await new Response(stream, {
-                headers: {
-                  "content-type": req.headers.get("content-type") ?? "",
-                },
-              }).formData();
-              const blob = form.get("file");
-              const profile = form.get("profileId");
-              if (
-                !(blob instanceof File) ||
-                (profile !== null && typeof profile !== "string") ||
-                form.getAll("file").length !== 1 ||
-                form.getAll("profileId").length > 1
-              )
-                throw new AppError(
-                  "INVALID_INPUT",
-                  "Expected one file and optional profileId",
-                );
-              if (form.getAll("params").length > 1)
-                throw new AppError(
-                  "INVALID_PARAMS",
-                  "Expected one params field",
-                );
-              if (form.getAll("organization").length > 1)
-                throw new AppError(
-                  "INVALID_INPUT",
-                  "Expected one organization field",
-                );
+              inputPath = received.path;
+              const { fields } = received;
+              const profile = fields.profileId;
+              const blob = {
+                name: received.name,
+                size: received.size,
+                stream: () => Bun.file(received.path).stream(),
+              };
               let organization: unknown;
-              const organizationField = form.get("organization");
-              if (organizationField !== null) {
-                if (typeof organizationField !== "string")
-                  throw new AppError(
-                    "INVALID_INPUT",
-                    "Expected JSON organization",
-                  );
+              const organizationField = fields.organization;
+              if (organizationField !== undefined) {
                 try {
                   organization = JSON.parse(organizationField);
                 } catch {
@@ -298,7 +267,7 @@ export function handler(app: Application) {
                   );
                 }
               }
-              const params = parseUploadParams(form.get("params"));
+              const params = parseUploadParams(fields.params ?? null);
               const profileId = await app.auth.resolveUploadProfile(
                 profile ?? undefined,
                 auth,
@@ -308,12 +277,6 @@ export function handler(app: Application) {
                 blob.size,
                 auth,
                 guestIp,
-              );
-              await app.files.temporary.write(
-                inputPath,
-                blob.stream(),
-                maximum,
-                req.signal,
               );
               handedOff = true;
               return json(
@@ -358,10 +321,7 @@ export function handler(app: Application) {
             siteFaviconUrl: site.siteFaviconUrl,
             uploadConcurrency: app.config.uploadConcurrency,
             chunkedUpload: {
-              thresholdBytes: Math.min(
-                app.config.chunkThresholdBytes,
-                maxDirectUploadBytes,
-              ),
+              thresholdBytes: app.config.chunkThresholdBytes,
               partBytes: app.config.chunkPartBytes,
               concurrency: app.config.partConcurrency,
             },

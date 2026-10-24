@@ -26,6 +26,7 @@ Follow the [Docker quick start (中文)](https://llleixx.github.io/picloom/guide
 - [Common recipes (中文)](https://llleixx.github.io/picloom/guide/recipes.html): replicas, thumbnails, watermarks and moderation.
 - [Image management (中文)](https://llleixx.github.io/picloom/guide/files.html): replace images while keeping links, or import an existing library.
 - [Backups and upgrades (中文)](https://llleixx.github.io/picloom/operations/data.html): save and restore data.
+- [External integrations (中文)](https://llleixx.github.io/picloom/guide/integrations.html): upload screenshots with ShareX.
 - [HTTP API (中文)](https://llleixx.github.io/picloom/reference/http-api.html): integrate upload tools.
 
 Local, S3 and WebDAV storage, image processing, watermarks and Telegram notifications are built in. OpenList, NodeImage, Telegram storage, Tencent moderation and [local NSFW moderation](https://github.com/llleixx/picloom-extensions/blob/main/plugins/nsfw-moderation/README.md) require [plugin installation (中文)](https://llleixx.github.io/picloom/guide/plugins.html). You can also [install a theme (中文)](https://llleixx.github.io/picloom/guide/themes.html) for the home and login pages.

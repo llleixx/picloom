@@ -74,10 +74,10 @@ Docker 使用 `docker/.env.example`，源码开发使用根目录的 `.env.examp
 | `maxUploadBytes` | `MAX_UPLOAD_BYTES=20971520`（20 MiB） | 全局单文件上限，还需同时满足用户与上传配置的限制 |
 | `uploadSessionLimit` | `UPLOAD_SESSION_LIMIT=100` | 允许同时存在的待完成／完成中分片会话数量 |
 | `uploadSessionTtlMs` | `UPLOAD_SESSION_TTL_MS=86400000`（24 小时） | 从创建起计算的分片会话有效期，超期不能续传 |
-| `chunkThresholdBytes` | `CHUNK_THRESHOLD_BYTES=8388608`（8 MiB） | Web 上传器切换到分片上传的阈值；客户端得到的值不会超过普通上传的 20 MiB 上限 |
+| `chunkThresholdBytes` | `CHUNK_THRESHOLD_BYTES=8388608`（8 MiB） | Web 上传器切换到分片上传的阈值 |
 | `chunkPartBytes` | `CHUNK_PART_BYTES=4194304`（4 MiB） | 新分片会话的分片大小；已有会话仍使用创建时的值 |
 
-大小字段以字节保存，`1 MiB = 1048576` 字节。普通 multipart 上传另有固定的 20 MiB 文件上限，提高全局上限不会解除它；大文件使用 [分片上传](./http-api.md#分片上传)。
+大小字段以字节保存，`1 MiB = 1048576` 字节。普通上传与分片上传均受单文件大小限制；分片阈值只决定 Web 上传器使用哪种传输方式。
 
 ## 并发与图片处理
 

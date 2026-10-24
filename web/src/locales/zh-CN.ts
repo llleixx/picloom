@@ -316,7 +316,7 @@ export const zhCN = {
   "errors.temporaryFull": "临时缓存空间不足，请稍后重试。",
   "settings.upload": "上传",
   "settings.uploadHint":
-    "文件接收并发由服务端统一限制，分片并发按单文件限制。超过 20 MiB 的文件始终使用分片。",
+    "文件接收并发由服务端统一限制，分片并发按单文件限制。",
   "settings.maxUpload": "文件大小上限（MiB）",
   "settings.chunkThreshold": "分片阈值（MiB）",
   "settings.chunkSize": "分片大小（MiB）",

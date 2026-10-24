@@ -263,6 +263,7 @@ test("upload admission rejects full capacity before consuming multipart and rele
           cookie: f.cookie,
           "x-csrf-token": f.csrf,
           "content-type": "multipart/form-data; boundary=test",
+          "content-length": "1024",
         },
         body,
       }),
@@ -399,12 +400,13 @@ test("oversized and unwritable caches do not prevent serving generated images", 
   }
 });
 
-test("direct upload ceiling rejects oversized bodies with or without Content-Length", async () => {
+test("configured direct upload limit rejects oversized bodies with or without Content-Length", async () => {
   const f = await fixture();
   try {
     f.app.config.chunkThresholdBytes = 40 * 1024 ** 2;
     const settings = await (await f.request("/api/client-settings")).json();
-    expect(settings.chunkedUpload.thresholdBytes).toBe(20 * 1024 ** 2);
+    expect(settings.chunkedUpload.thresholdBytes).toBe(40 * 1024 ** 2);
+    f.app.config.maxUploadBytes = 20 * 1024 ** 2;
     const request = (body: ReadableStream<Uint8Array>, length?: number) =>
       handler(f.app)(
         new Request("http://localhost/api/files", {

@@ -21,7 +21,6 @@ export type RuntimeSettings = typeof runtimeDefaults;
 export const runtimeKeys = Object.keys(runtimeDefaults) as Array<
   keyof RuntimeSettings
 >;
-export const maxDirectUploadBytes = 20 * 1024 ** 2;
 export const maxUploadBodyBytes = 5 * 1024 ** 3 + 65536;
 export const runtimeMaximums: Partial<RuntimeSettings> = {
   maxUploadBytes: 5 * 1024 ** 3,

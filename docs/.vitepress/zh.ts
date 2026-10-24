@@ -17,6 +17,7 @@ const guide = [
       { text: "用户、游客与令牌", link: "/guide/access" },
       { text: "安装与使用插件", link: "/guide/plugins" },
       { text: "安装与使用主题", link: "/guide/themes" },
+      { text: "外部集成", link: "/guide/integrations" },
       { text: "常见场景", link: "/guide/recipes" },
     ],
   },

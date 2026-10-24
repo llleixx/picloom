@@ -362,7 +362,7 @@ export const en = {
   "errors.temporaryFull": "Temporary cache space is full. Please retry later.",
   "settings.upload": "Upload",
   "settings.uploadHint":
-    "File reception is limited across the server; chunk concurrency is per file. Files over 20 MiB always use chunks.",
+    "File reception is limited across the server; chunk concurrency is per file.",
   "settings.maxUpload": "Maximum file size (MiB)",
   "settings.chunkThreshold": "Chunk threshold (MiB)",
   "settings.chunkSize": "Chunk size (MiB)",
