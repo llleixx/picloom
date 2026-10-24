@@ -2,8 +2,8 @@
 layout: home
 hero:
   name: Picloom
-  text: 自托管图片管理与分享
-  tagline: 将图片保存到本地或远端存储，通过统一链接分享；按需配置多副本、图片处理和插件扩展。
+  text: 以插件编织你的自托管图床
+  tagline: 自由组合存储、路径与图片处理插件，以主题定制主页与登录页面，让每一套上传配置契合你的使用方式。
   image:
     src: /picloom.svg
     alt: Picloom

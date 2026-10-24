@@ -4,7 +4,7 @@
 
 # Picloom
 
-A self-hosted image hosting service with multiple storage backends and configurable image processing.
+A self-hosted image hosting service, woven your way with plugins.
 
 **English** · [简体中文](README.zh-CN.md)
 
