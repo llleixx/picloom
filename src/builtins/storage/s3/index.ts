@@ -60,7 +60,13 @@ export const s3Storage: Definition<"storage"> = {
       "settings.accessKeyId.label": "Access Key ID",
       "settings.secretAccessKey.label": "Secret Access Key",
       "settings.sessionToken.label": "Session Token",
-      "settings.redirect.label": "Redirect reads (302)",
+      "settings.readMode.label": "Read mode",
+      "settings.readMode.options.proxy": "Application proxy",
+      "settings.readMode.options.signed": "Signed redirect",
+      "settings.readMode.options.public": "Public URL redirect",
+      "settings.publicBaseUrl.label": "Public base URL",
+      "settings.publicBaseUrl.description":
+        "Public bucket root URL, optionally with a path. Objects must already be publicly accessible.",
       "settings.signedUrlSeconds.label": "Signed URL lifetime (seconds)",
     },
     "zh-CN": {
@@ -81,7 +87,13 @@ export const s3Storage: Definition<"storage"> = {
       "settings.accessKeyId.label": "访问密钥 ID",
       "settings.secretAccessKey.label": "访问密钥",
       "settings.sessionToken.label": "会话令牌",
-      "settings.redirect.label": "302 重定向",
+      "settings.readMode.label": "读取方式",
+      "settings.readMode.options.proxy": "应用转发",
+      "settings.readMode.options.signed": "签名重定向",
+      "settings.readMode.options.public": "公开地址重定向",
+      "settings.publicBaseUrl.label": "公开访问基础 URL",
+      "settings.publicBaseUrl.description":
+        "桶的公开根地址，可带路径；对象需要已经允许公开访问。",
       "settings.signedUrlSeconds.label": "签名链接有效期（秒）",
     },
   },
@@ -184,16 +196,32 @@ export const s3Storage: Definition<"storage"> = {
 
         "x-sensitive": true,
       },
-      redirect: {
-        "x-ui": { labelKey: "settings.redirect.label" },
-        type: "boolean",
-
-        default: false,
+      readMode: {
+        "x-ui": {
+          labelKey: "settings.readMode.label",
+          enumKeys: [
+            "settings.readMode.options.proxy",
+            "settings.readMode.options.signed",
+            "settings.readMode.options.public",
+          ],
+        },
+        type: "string",
+        enum: ["proxy", "signed", "public"],
+        default: "proxy",
+      },
+      publicBaseUrl: {
+        "x-ui": {
+          labelKey: "settings.publicBaseUrl.label",
+          descriptionKey: "settings.publicBaseUrl.description",
+          visibleWhen: { path: "/readMode", equals: "public" },
+        },
+        type: "string",
+        format: "uri",
       },
       signedUrlSeconds: {
         "x-ui": {
           labelKey: "settings.signedUrlSeconds.label",
-          visibleWhen: { path: "/redirect", equals: true },
+          visibleWhen: { path: "/readMode", equals: "signed" },
         },
         type: "integer",
 
@@ -205,15 +233,24 @@ export const s3Storage: Definition<"storage"> = {
     allOf: [
       {
         if: {
-          properties: { redirect: { const: true } },
-          required: ["redirect"],
+          properties: { readMode: { const: "signed" } },
+          required: ["readMode"],
         },
         then: { required: ["signedUrlSeconds"] },
+      },
+      {
+        if: {
+          properties: { readMode: { const: "public" } },
+          required: ["readMode"],
+        },
+        then: { required: ["publicBaseUrl"] },
       },
     ],
     required: [
       "region",
       "bucket",
+      "forcePathStyle",
+      "readMode",
       "accessKeyId",
       "secretAccessKey",
       "multipartThresholdMiB",
@@ -234,6 +271,21 @@ export const s3Storage: Definition<"storage"> = {
           throw 0;
       } catch {
         return [{ path: "/endpoint", message: "Invalid endpoint" }];
+      }
+    }
+    if (config.publicBaseUrl !== undefined) {
+      try {
+        const url = new URL(String(config.publicBaseUrl));
+        if (
+          !["http:", "https:"].includes(url.protocol) ||
+          url.username ||
+          url.password ||
+          url.href.includes("?") ||
+          url.href.includes("#")
+        )
+          throw 0;
+      } catch {
+        return [{ path: "/publicBaseUrl", message: "Invalid public base URL" }];
       }
     }
     const p = String(config.keyPrefix ?? "");
@@ -410,11 +462,20 @@ export const s3Storage: Definition<"storage"> = {
       },
       async read({ storageKey: logical, locator, mode }, ctx) {
         ctx.signal.throwIfAborted();
+        const objectKey = key(logical, locator);
+        if (mode === "auto" && config.readMode === "public") {
+          const base = new URL(String(config.publicBaseUrl));
+          const path = objectKey.split("/").map(encodeURIComponent).join("/");
+          return {
+            type: "redirect" as const,
+            url: base.href.replace(/\/+$/, "") + "/" + path,
+          };
+        }
         const command = new GetObjectCommand({
           Bucket: bucket,
-          Key: key(logical, locator),
+          Key: objectKey,
         });
-        if (mode === "auto" && config.redirect) {
+        if (mode === "auto" && config.readMode === "signed") {
           const seconds = Number(config.signedUrlSeconds);
           return {
             type: "redirect" as const,

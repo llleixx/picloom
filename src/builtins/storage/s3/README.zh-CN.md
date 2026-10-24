@@ -2,37 +2,15 @@
 
 [English](https://github.com/llleixx/picloom/blob/main/src/builtins/storage/s3/README.md) | [简体中文](https://github.com/llleixx/picloom/blob/main/src/builtins/storage/s3/README.zh-CN.md)
 
-## 用途
-
 将图片保存到 S3 或兼容 S3 的对象存储。
 
 `builtin.s3` · `storage`
 
-## 配置
+## 开始使用
 
-下表默认值仅用于生成初始草稿，保存时不补值；“必填”表示提交时必须存在，清空后须重新填写。创建后不可修改的字段标为“固定”。
+本插件已内置，无需安装 ZIP；通用操作见[安装与使用插件](https://llleixx.github.io/picloom/guide/plugins.html)。
 
-| 字段 | 含义 | 必填 | 默认值 | 约束 |
-| --- | --- | --- | --- | --- |
-| `multipartThresholdMiB` | 分片上传阈值，MiB | 是 | `64` | ≥ 5；≤ 5120 |
-| `partSizeMiB` | 分片大小，MiB | 是 | `16` | ≥ 5；≤ 512 |
-| `partConcurrency` | 分片并发数 | 是 | `3` | ≥ 1；≤ 8 |
-| `endpoint` | 服务端点 | 否 | — | 固定 |
-| `region` | 区域 | 是 | — | 固定 |
-| `bucket` | 桶名 | 是 | — | 固定 |
-| `keyPrefix` | 对象／目录前缀 | 否 | `""` | 固定 |
-| `forcePathStyle` | 路径寻址 | 否 | `true` | 固定 |
-| `accessKeyId` | 访问密钥 ID | 是 | — | 敏感 |
-| `secretAccessKey` | 访问密钥 | 是 | — | 敏感 |
-| `sessionToken` | 临时会话令牌 | 否 | — | 敏感 |
-| `redirect` | 普通读取允许 302 跳转 | 否 | `false` | — |
-| `signedUrlSeconds` | 签名链接有效期，秒 | 启用重定向时 | `300` | ≥ 1；≤ 604800 |
-
-无请求参数。
-
-## 使用示例
-
-将端点、区域、桶名和凭证替换为服务商提供的值；区域没有默认值。创建存储源并加入上传配置使用的存储组，上传一张图片，检查桶中的对象与公开链接。
+在 **配置 → 存储源** 创建 **S3 兼容存储**，将下方端点、区域、桶名和凭证占位符替换为服务商提供的值。保存后将该源加入存储组，再在上传配置中选择该组。上传一张图片并打开返回的 Picloom 链接，验证上传和访问。
 
 ```json
 {
@@ -41,8 +19,7 @@
   "partConcurrency": 3,
   "keyPrefix": "",
   "forcePathStyle": true,
-  "redirect": false,
-  "signedUrlSeconds": 300,
+  "readMode": "proxy",
   "endpoint": "https://s3.example.com",
   "region": "your-region",
   "bucket": "picloom",
@@ -51,9 +28,34 @@
 }
 ```
 
+## 配置
+
+默认值用于新建配置草稿，保存时不补值。创建后不可修改的字段标为“固定”。
+
+| 字段 | 含义 | 必填 | 默认值 | 约束 |
+| --- | --- | --- | --- | --- |
+| `multipartThresholdMiB` | 分片上传阈值，MiB | 是 | `64` | ≥ 5；≤ 5120；高级 |
+| `partSizeMiB` | 分片大小，MiB | 是 | `16` | ≥ 5；≤ 512；高级 |
+| `partConcurrency` | 分片并发数 | 是 | `3` | ≥ 1；≤ 8；高级 |
+| `endpoint` | 服务端点 | 否 | — | 固定 |
+| `region` | 区域 | 是 | — | 固定 |
+| `bucket` | 桶名 | 是 | — | 固定 |
+| `keyPrefix` | 对象／目录前缀 | 否 | `""` | 固定；高级 |
+| `forcePathStyle` | 路径寻址 | 是 | `true` | 固定 |
+| `accessKeyId` | 访问密钥 ID | 是 | — | 敏感 |
+| `secretAccessKey` | 访问密钥 | 是 | — | 敏感 |
+| `sessionToken` | 临时会话令牌 | 否 | — | 敏感；高级 |
+| `readMode` | 读取方式 | 是 | `"proxy"` | `proxy`、`signed`、`public` |
+| `publicBaseUrl` | 桶的公开根地址 | 公开地址模式下 | — | HTTP(S)，可带路径；不含账号密码、查询参数或片段 |
+| `signedUrlSeconds` | 签名链接有效期，秒 | 签名模式下 | `300` | ≥ 1；≤ 604800 |
+
+普通读取可选择 `proxy`（应用转发）、`signed`（签名重定向，使用配置的有效期）或 `public`（公开地址重定向）。界面只显示所选方式对应的配置项。图片处理等需要内容流的请求始终通过 S3 API 读取。
+
+公开地址模式下，在 `publicBaseUrl` 填写桶的公开根地址，例如 `https://img.example.com/assets/`。对象键 `photos/2026/a.png` 会拼成 `https://img.example.com/assets/photos/2026/a.png`，不额外添加桶名，对象路径会进行 URL 编码。该地址需要已经允许公开访问对象；Picloom 不修改桶权限或配置 CDN。上传、删除和枚举仍使用 S3 API。
+
 ## 行为与限制
 
-支持读写、删除和枚举。重复写入时通过操作元数据识别同一操作已保存的对象。对象键为 `keyPrefix/storageKey`；前缀不要以 `/` 开头或结尾。`forcePathStyle=true` 使用路径寻址，否则使用虚拟主机寻址，按服务商要求选择。达到分片阈值时采用分片上传。开启 `redirect` 后，普通读取可返回有时效的签名链接；需要内容流时仍由应用读取。端点、区域、桶、对象前缀和寻址方式创建后不可修改。
+支持读写、删除和枚举。对象键为 `keyPrefix/storageKey`；前缀不要以 `/` 开头或结尾。`forcePathStyle=true` 使用路径寻址，否则使用虚拟主机寻址，按服务商要求选择。达到分片阈值时采用分片上传。
 
 删除使用写入成功或导入时保存的对象定位。缺少已确认的定位时会记录删除失败，可将副本人工标记为已删除以结束管理。
 

@@ -44,7 +44,7 @@ for (const multipart of [false, true])
           multipartThresholdMiB: 5,
           partSizeMiB: 5,
           partConcurrency: 2,
-          redirect: true,
+          readMode: "signed",
         },
       });
       const lease = f.app.plugins.acquire(record.id, "storage"),
@@ -188,7 +188,7 @@ for (const multipart of [false, true])
           keyPrefix: prefix,
           forcePathStyle: true,
 
-          redirect: true,
+          readMode: "signed",
         },
       });
       const result = await f.request(

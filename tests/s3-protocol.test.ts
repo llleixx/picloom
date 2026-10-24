@@ -90,7 +90,7 @@ test("S3 SDK protocol enforces conditional creation, repeated writes, streams an
         region: "test",
         bucket: "test",
 
-        redirect: true,
+        readMode: "signed",
       },
     });
     expect(record.config_json.multipartThresholdMiB).toBe(64);
@@ -241,6 +241,138 @@ test("S3 SDK protocol enforces conditional creation, repeated writes, streams an
           ctx,
         ),
       ).resolves.toBeUndefined();
+    } finally {
+      await lease.release();
+    }
+  } finally {
+    await server.stop(true);
+    await f.close();
+  }
+});
+
+test("S3 public redirects preserve object paths and stream reads use the API in every mode", async () => {
+  const paths: string[] = [];
+  const server = Bun.serve({
+    port: 0,
+    fetch(request) {
+      paths.push(new URL(request.url).pathname);
+      return new Response("image", {
+        headers: { "content-type": "image/png" },
+      });
+    },
+  });
+  const f = await fixture();
+  const config = {
+    endpoint: server.url.origin,
+    region: "test",
+    bucket: "bucket",
+    keyPrefix: "photos",
+    forcePathStyle: true,
+    multipartThresholdMiB: 64,
+    partSizeMiB: 16,
+    partConcurrency: 3,
+  };
+  const save = (options: Record<string, unknown>) =>
+    f.app.plugins.save({
+      pluginId: "builtin.s3",
+      version: "1.0.0",
+      name: "Read modes",
+      config: { ...config, ...options },
+      secretEdits: {
+        "/accessKeyId": { action: "replace", value: "test" },
+        "/secretAccessKey": { action: "replace", value: "test" },
+      },
+    });
+  const ctx = {
+    signal: new AbortController().signal,
+    requestId: "read",
+    log() {},
+  };
+  try {
+    for (const options of [
+      { readMode: "public" },
+      { readMode: "signed" },
+      ...[
+        "ftp://example.com/",
+        "https://user:pass@example.com/",
+        "https://example.com/?a=1",
+        "https://example.com/#part",
+      ].map((publicBaseUrl) => ({ readMode: "public", publicBaseUrl })),
+    ])
+      await expect(save(options)).rejects.toBeDefined();
+
+    for (const readMode of ["proxy", "signed", "public"]) {
+      const record = await save({
+        readMode,
+        signedUrlSeconds: 60,
+        publicBaseUrl: "https://img.example.com/assets",
+      });
+      const lease = f.app.plugins.acquire(record.id, "storage");
+      try {
+        const input = {
+          storageKey: "a.png",
+          locator: { key: "photos/中文/a #%.png" },
+        };
+        const result = await lease.runtime.read(
+          { ...input, mode: "auto" },
+          ctx,
+        );
+        if (readMode === "proxy") {
+          expect(result.type).toBe("stream");
+          if (result.type === "stream")
+            expect(await new Response(result.stream).text()).toBe("image");
+        } else if (readMode === "signed") {
+          expect(result.type).toBe("redirect");
+          if (result.type === "redirect") {
+            expect(new URL(result.url).searchParams.get("X-Amz-Expires")).toBe(
+              "60",
+            );
+            expect(result.expiresAt).toBeGreaterThan(Date.now());
+          }
+        } else {
+          expect(result).toEqual({
+            type: "redirect",
+            url: "https://img.example.com/assets/photos/%E4%B8%AD%E6%96%87/a%20%23%25.png",
+          });
+          expect(
+            await lease.runtime.read(
+              { ...input, locator: { key: "imported/a.png" }, mode: "auto" },
+              ctx,
+            ),
+          ).toEqual({
+            type: "redirect",
+            url: "https://img.example.com/assets/imported/a.png",
+          });
+        }
+        const streamed = await lease.runtime.read(
+          { ...input, mode: "stream" },
+          ctx,
+        );
+        expect(streamed.type).toBe("stream");
+        if (streamed.type === "stream")
+          expect(await new Response(streamed.stream).text()).toBe("image");
+      } finally {
+        await lease.release();
+      }
+    }
+    expect(paths).toEqual(
+      Array(4).fill("/bucket/photos/%E4%B8%AD%E6%96%87/a%20%23%25.png"),
+    );
+    const record = await save({
+      readMode: "public",
+      publicBaseUrl: "https://img.example.com/assets/",
+    });
+    const lease = f.app.plugins.acquire(record.id, "storage");
+    try {
+      expect(
+        await lease.runtime.read(
+          { storageKey: "a.png", locator: null, mode: "auto" },
+          ctx,
+        ),
+      ).toEqual({
+        type: "redirect",
+        url: "https://img.example.com/assets/photos/a.png",
+      });
     } finally {
       await lease.release();
     }

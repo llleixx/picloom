@@ -407,7 +407,11 @@ function move(index: number, delta: number) {
           )
         "
       >
-        <option value="__unset" :disabled="required">
+        <option
+          v-if="!required || value === undefined"
+          value="__unset"
+          :disabled="required"
+        >
           {{ t("ui.notSet") }}
         </option>
         <option value="true">{{ t("ui.enabled") }}</option>

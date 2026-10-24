@@ -216,7 +216,7 @@ test("S3 import lists only, keeps instance-relative keys, follows cursors and su
         bucket: "bucket",
         keyPrefix: "legacy",
 
-        redirect: true,
+        readMode: "signed",
       },
     });
     const one = await scan(f, src.id, { scope: "photos" });
