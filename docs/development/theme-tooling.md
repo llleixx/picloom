@@ -6,7 +6,7 @@
 ## 创建与开发
 
 ```sh
-bun create @picloom/theme@0.1.2 ./my-theme
+bun create @picloom/theme@0.1.3 ./my-theme
 cd my-theme
 bun install
 bun run dev

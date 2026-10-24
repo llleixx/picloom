@@ -183,7 +183,7 @@ toolingTest(
       const pathSource = await readFile(sourcePath, "utf8");
       await Bun.write(
         sourcePath,
-        pathSource.replace("`${date}/${fileId}", "`updated/${date}/${fileId}"),
+        pathSource.replace("`${date}/", "`updated/${date}/"),
       );
       await run(["bun", "run", "typecheck"], project);
       await run(["bun", "run", "build"], project);

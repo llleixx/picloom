@@ -13,7 +13,7 @@ SDK 不包含宿主服务。没有测试实例时，可按[Docker 快速开始](
 ## 2. 创建项目
 
 ```sh
-bun create @picloom/plugin@0.1.2 ./my-plugin
+bun create @picloom/plugin@0.1.3 ./my-plugin
 cd my-plugin
 bun install
 ```

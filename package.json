@@ -39,7 +39,7 @@
     "saxes": "6.0.0",
     "sharp": "0.34.5",
     "tar": "7.5.11",
-    "@picloom/plugin-sdk": "0.1.1",
+    "@picloom/plugin-sdk": "0.2.0",
     "@picloom/package-rules": "0.1.0"
   },
   "devDependencies": {
@@ -63,7 +63,7 @@
     "vue": "3.5.44",
     "vue-router": "5.4.0",
     "vue-tsc": "3.3.13",
-    "@picloom/theme-sdk": "0.1.2",
-    "@picloom/plugin-tools": "0.1.1"
+    "@picloom/theme-sdk": "0.2.0",
+    "@picloom/plugin-tools": "0.1.2"
   }
 }
