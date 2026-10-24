@@ -52,11 +52,11 @@
 
 删除请求接受后显示「删除中」，后台清理失败且任务停止后显示「删除失败」。管理员可在详情中查看错误，修复存储问题后重试失败任务，也可通过同一操作入口选择解除引用。失败表示未确认远端删除成功；缺少已保存的对象定位时，存储插件可能拒绝删除，以免误删同路径的其他文件。正在上传、写入或运行相关任务时，解除引用或副本清理会提示稍后重试。
 
-[NodeImage](../reference/plugins/nodeimage.md)不支持远端删除，[Telegram](../reference/plugins/telegram.md)受消息时间和权限限制，可根据结果选择重试或解除引用。
+[NodeImage](https://github.com/llleixx/picloom-extensions/blob/main/plugins/nodeimage/README.zh-CN.md)不支持远端删除，[Telegram](https://github.com/llleixx/picloom-extensions/blob/main/plugins/telegram-storage/README.zh-CN.md)受消息时间和权限限制，可根据结果选择重试或解除引用。
 
 ## 导入已有图片
 
-本地存储、S3、[OpenList](../reference/plugins/openlist.md) 和 [WebDAV](../reference/plugins/webdav.md) 支持导入已有图片，入口位于对应存储源页面。
+本地存储、S3、[OpenList](https://github.com/llleixx/picloom-extensions/blob/main/plugins/openlist/README.zh-CN.md) 和 [WebDAV](../reference/plugins/webdav.md) 支持导入已有图片，入口位于对应存储源页面。
 
 以迁移 EasyImage 2.0 的图片为例：原图片按 `i/年/月/日/文件名` 保存，如 `i/2026/10/18/photo.jpg`。将 `i` 目录接入 Picloom 后，即可导入，无须重新上传。
 

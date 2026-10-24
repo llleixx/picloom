@@ -102,18 +102,27 @@ const reference = [
           { text: "本地存储", link: "/reference/plugins/local" },
           { text: "S3 兼容存储", link: "/reference/plugins/s3" },
           { text: "WebDAV 存储", link: "/reference/plugins/webdav" },
-          { text: "OpenList 存储", link: "/reference/plugins/openlist" },
-          { text: "NodeImage 存储", link: "/reference/plugins/nodeimage" },
-          { text: "Telegram 存储", link: "/reference/plugins/telegram" },
+          {
+            text: "OpenList 存储",
+            link: "https://github.com/llleixx/picloom-extensions/blob/main/plugins/openlist/README.zh-CN.md",
+          },
+          {
+            text: "NodeImage 存储",
+            link: "https://github.com/llleixx/picloom-extensions/blob/main/plugins/nodeimage/README.zh-CN.md",
+          },
+          {
+            text: "Telegram 存储",
+            link: "https://github.com/llleixx/picloom-extensions/blob/main/plugins/telegram-storage/README.zh-CN.md",
+          },
           { text: "图片处理", link: "/reference/plugins/sharp" },
           { text: "水印", link: "/reference/plugins/watermark" },
           {
             text: "腾讯云图片审核",
-            link: "/reference/plugins/tencent-moderation",
+            link: "https://github.com/llleixx/picloom-extensions/blob/main/plugins/tencent-moderation/README.zh-CN.md",
           },
           {
             text: "本地 NSFW 审核",
-            link: "/reference/plugins/nsfw-moderation",
+            link: "https://github.com/llleixx/picloom-extensions/blob/main/plugins/nsfw-moderation/README.zh-CN.md",
           },
           {
             text: "Telegram 通知",
@@ -160,8 +169,7 @@ export const zh: LocaleSpecificConfig<DefaultTheme.Config> = {
     langMenuLabel: "语言",
     skipToContentLabel: "跳至正文",
     footer: {
-      message:
-        "文档随 main 分支维护；部署与升级请核对产物版本及兼容说明。",
+      message: "文档随 main 分支维护；部署与升级请核对产物版本及兼容说明。",
     },
   },
 };

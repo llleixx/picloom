@@ -71,17 +71,17 @@
 
 在图片保存后审核，命中时屏蔽或删除。按需选择插件：
 
-| 插件 | 适用需求 | 起始配置 |
-| --- | --- | --- |
-| [本地 NSFW 审核](../reference/plugins/nsfw-moderation.md) | 在本机离线识别色情、色情动漫及可选的性感内容，无需凭据 | 默认检测 `Porn`、`Hentai`，阈值 `0.8`，命中后屏蔽 |
-| [腾讯云图片审核](../reference/plugins/tencent-moderation.md) | 使用腾讯云审核服务与策略 | 填写密钥、地域和 BizType，默认以文件内容送审 |
+| 插件与配置说明 | 适用需求 |
+| --- | --- |
+| [本地 NSFW 审核](https://github.com/llleixx/picloom-extensions/blob/main/plugins/nsfw-moderation/README.zh-CN.md) | 在本机离线识别色情、色情动漫及可选的性感内容，无需凭据 |
+| [腾讯云图片审核](https://github.com/llleixx/picloom-extensions/blob/main/plugins/tencent-moderation/README.zh-CN.md) | 使用腾讯云审核服务与策略 |
 
 1. 由 Owner 按[安装插件](./plugins.md)安装所选插件 ZIP，确认加载成功。
 2. 在 **配置 → 流水线** 创建保存后流水线“图片审核”，添加所选插件，填写配置。
 3. 编辑需要审核的上传配置，将保存后流水线设为“图片审核”。
 4. 通过该配置上传测试图片，在图片详情的后台操作和处理结果中检查审核是否完成、图片是否被屏蔽。
 
-审核在图片发布后执行，图片可能在审核完成前已经可访问，不适合要求“审核通过后才首次公开”的用途。
+公开访问时机和失败处理见[保存后流水线](./pipelines.md)。
 
 ## 屏蔽或删除时发送 Telegram 通知
 

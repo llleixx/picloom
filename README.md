@@ -12,10 +12,10 @@ A self-hosted image hosting service with multiple storage backends and configura
 
 ## Features
 
-- **Multiple storage backends and replicas.** Connect local directories, S3-compatible storage, WebDAV, OpenList and more. Choose storage targets and the number of copies through storage groups. Writes run concurrently; uploads return after the first copy is saved.
+- **Multiple storage backends and replicas.** Connect multiple storage backends. Choose storage targets and the number of copies through storage groups. Writes run concurrently; uploads return after the first copy is saved.
 - **Separate public and storage paths.** Organize files in sharded directories while keeping public URLs flat. Replicas share one public path.
 - **Processing at three stages.** Resize or watermark images before saving, generate variants on access, and run moderation or notifications after saving. Combine steps into reusable pipelines.
-- **Import existing images in place.** Scan local, S3, OpenList or WebDAV storage without uploading again. Preserve existing links by matching the domain and public paths.
+- **Import existing images in place.** Scan supported storage sources without uploading again. Preserve existing links by matching the domain and public paths.
 - **Reusable upload profiles.** Choose storage, path rules and processing once, then select a profile when uploading through the web interface or API. Upload tokens can be restricted to specific profiles.
 - **Web management.** Manage images, replicas and background tasks; use chunked uploads and built-in SQLite backups. Add capabilities with path, storage and processing plugins.
 
@@ -29,7 +29,7 @@ Follow the [Docker quick start (中文)](https://llleixx.github.io/picloom/guide
 - [External integrations (中文)](https://llleixx.github.io/picloom/guide/integrations.html): upload screenshots with ShareX.
 - [HTTP API (中文)](https://llleixx.github.io/picloom/reference/http-api.html): integrate upload tools.
 
-Local, S3 and WebDAV storage, image processing, watermarks and Telegram notifications are built in. OpenList, NodeImage, Telegram storage, Tencent moderation and [local NSFW moderation](https://github.com/llleixx/picloom-extensions/blob/main/plugins/nsfw-moderation/README.md) require [plugin installation (中文)](https://llleixx.github.io/picloom/guide/plugins.html). You can also [install a theme (中文)](https://llleixx.github.io/picloom/guide/themes.html) for the home and login pages.
+Extend storage and image processing with plugins, and customize the website with themes. See the [plugin list (中文)](https://llleixx.github.io/picloom/reference/plugins.html), [plugin installation (中文)](https://llleixx.github.io/picloom/guide/plugins.html) and [theme installation (中文)](https://llleixx.github.io/picloom/guide/themes.html).
 
 ## Development
 
@@ -38,7 +38,7 @@ Built with Bun, TypeScript and Vue; supports SQLite and PostgreSQL.
 - [Local development (中文)](https://llleixx.github.io/picloom/development/contributing.html): run the application and change core code.
 - [Plugin development (中文)](https://llleixx.github.io/picloom/development/plugin-tooling.html) and [theme development (中文)](https://llleixx.github.io/picloom/development/theme-tooling.html): create standalone extensions.
 - [picloom-tooling](https://github.com/llleixx/picloom-tooling): SDKs, development tools and project generators.
-- [picloom-extensions](https://github.com/llleixx/picloom-extensions): optional official plugins and the Horizon theme.
+- [picloom-extensions](https://github.com/llleixx/picloom-extensions): optional official plugins and themes.
 
 ## License
 

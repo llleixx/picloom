@@ -33,10 +33,10 @@
 
 由独立的 [picloom-extensions](https://github.com/llleixx/picloom-extensions) 仓库维护，以独立 ZIP 安装，不随主程序提供。
 
-| 插件 | ID |
-| --- | --- |
-| [OpenList 存储](./plugins/openlist.md) | `picloom.openlist` |
-| [NodeImage 存储](./plugins/nodeimage.md) | `picloom.nodeimage` |
-| [Telegram 存储](./plugins/telegram.md) | `picloom.telegram-storage` |
-| [腾讯云图片审核](./plugins/tencent-moderation.md) | `picloom.tencent-moderation` |
-| [本地 NSFW 审核](./plugins/nsfw-moderation.md) | `picloom.nsfw-moderation` |
+| 插件 | ID | 用途 |
+| --- | --- | --- |
+| [OpenList 存储](https://github.com/llleixx/picloom-extensions/blob/main/plugins/openlist/README.zh-CN.md) | `picloom.openlist` | 接入 OpenList 挂载的存储 |
+| [NodeImage 存储](https://github.com/llleixx/picloom-extensions/blob/main/plugins/nodeimage/README.zh-CN.md) | `picloom.nodeimage` | 通过 NodeImage 托管图片 |
+| [Telegram 存储](https://github.com/llleixx/picloom-extensions/blob/main/plugins/telegram-storage/README.zh-CN.md) | `picloom.telegram-storage` | 将原图保存为 Telegram 文档 |
+| [腾讯云图片审核](https://github.com/llleixx/picloom-extensions/blob/main/plugins/tencent-moderation/README.zh-CN.md) | `picloom.tencent-moderation` | 调用腾讯云审核图片 |
+| [本地 NSFW 审核](https://github.com/llleixx/picloom-extensions/blob/main/plugins/nsfw-moderation/README.zh-CN.md) | `picloom.nsfw-moderation` | 在本机离线审核 NSFW 内容 |
