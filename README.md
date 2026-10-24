@@ -21,6 +21,7 @@ A self-hosted image hosting service with multiple storage backends and configura
   - Generate image variants through URL parameters while preserving the original.
   - Customize public URLs and storage paths with dates, random strings or your own plugin-defined rules.
 - **Multiple upload profiles.** Combine storage, path and processing plugins into distinct upload rules for different uses.
+- **Custom upload parameters.** Adjust processing behavior with parameters supplied at upload time, tailoring individual uploads while reusing the same upload profile.
 - **Replicated storage.** Write images to multiple storage sources concurrently. Replicas share one public URL and improve image availability.
 - **Tags and collections.** Organize images with flexible categorization, filtering and batch management.
 - **Replace images without changing links.** Update image content without editing published references.
