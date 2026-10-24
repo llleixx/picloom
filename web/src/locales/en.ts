@@ -3,6 +3,8 @@ export const en = {
   "organization.title": "Tags & collections",
   "organization.tags": "Tags",
   "organization.collections": "Collections",
+  "organization.addTags": "Add tags",
+  "organization.addCollections": "Add collections",
   "organization.search": "Search or enter a name",
   "organization.searchTags": "Search tags",
   "organization.searchCollections": "Search collections",
@@ -32,8 +34,6 @@ export const en = {
     "Tags and collections organize images without changing their paths or public access.",
   "organization.deleteHint":
     "Deleting this definition removes its relationships. Images are kept.",
-  "organization.queueHint":
-    "Each image keeps the selection made when it enters the queue. Changes apply to new queue items.",
   "organization.importHint":
     "This selection applies only to newly imported images. Existing records are kept.",
   "organization.origin": "Content source",
@@ -192,9 +192,13 @@ export const en = {
   "profiles.makeSite": "Set as site default",
   "profiles.required":
     "No usable default upload profile. Please select a profile.",
+  "linkBuilder.parameters": "Link parameters",
+  "images.fileInformation": "File information",
+  "images.processing": "Processing",
+  "images.replicaCount": "{count} replicas",
+  "images.failedTasks": "{count} failed tasks",
+  "images.activeTasks": "{count} active tasks",
   "linkBuilder.title": "Access link",
-  "linkBuilder.hint":
-    "Add parameters exposed by the access pipeline. Unset parameters use the pipeline’s behavior.",
   "linkBuilder.clear": "Clear parameters",
   "linkBuilder.remove": "Remove parameter",
   "linkBuilder.search": "Search parameters",
@@ -379,6 +383,12 @@ export const en = {
   "errors.uploadClosed":
     "Upload is closed. Check Images before uploading again.",
   "errors.uploadCapacity": "Upload staging is full. Try again later.",
+  "images.scope": "Image scope",
+  "users.allUsers": "All users",
+  "images.filters": "Filters",
+  "images.resetFilters": "Reset filters",
+  "images.done": "Done",
+  "images.removeFilter": "Remove filter: {name}",
   "images.uploadedTime": "Upload time",
   "images.anyTime": "Any time",
   "images.today": "Today",
@@ -793,7 +803,6 @@ export const en = {
   "ui.setAtLeastOneParameter": "Set at least one parameter.",
   "ui.serverReturnedANonImageResponse": "Server returned a non-image response.",
   "ui.imageDetails": "Image details",
-  "ui.previewProcessAndShare": "Preview, process, and share.",
   "ui.publicAccessDisabledCleanupPending":
     "Public access disabled. Cleanup pending.",
   "ui.cleanupFailedCheckStorageIfRetriesKeep":

@@ -18,6 +18,7 @@ import { sheetVariants } from ".";
 interface SheetContentProps extends DialogContentProps {
   class?: HTMLAttributes["class"];
   busy?: boolean;
+  hideClose?: boolean;
   side?: SheetVariants["side"];
 }
 
@@ -29,7 +30,13 @@ const props = defineProps<SheetContentProps>();
 
 const emits = defineEmits<DialogContentEmits>();
 
-const delegatedProps = reactiveOmit(props, "class", "side", "busy");
+const delegatedProps = reactiveOmit(
+  props,
+  "class",
+  "side",
+  "busy",
+  "hideClose",
+);
 
 const forwarded = useForwardPropsEmits(delegatedProps, emits);
 </script>
@@ -56,6 +63,7 @@ const forwarded = useForwardPropsEmits(delegatedProps, emits);
       <slot />
 
       <DialogClose
+        v-if="!hideClose"
         :disabled="busy"
         :aria-label="t('ui.close')"
         class="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-secondary"

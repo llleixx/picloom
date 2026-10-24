@@ -26,9 +26,16 @@ import {
   dismissUpload,
 } from "@/lib/uploads";
 import OrganizationPicker from "./OrganizationPicker.vue";
+import CopySettings from "../../../themes/default/src/CopySettings.vue";
+import UploadOptions from "../../../themes/default/src/UploadOptions.vue";
 import CopyResult from "./CopyResult.vue";
 import ImagePreview from "./ImagePreview.vue";
-import { copyFormats, copyPreferences, formatLink } from "@/lib/link-formats";
+import {
+  copyFormats,
+  copyPreferences,
+  formatLink,
+  type CopyFormat,
+} from "@/lib/link-formats";
 const props = withDefaults(
   defineProps<{ active?: boolean; collectionId?: string }>(),
   {
@@ -36,6 +43,8 @@ const props = withDefaults(
   },
 );
 const open = computed(() => props.active);
+const tagPicker = ref<InstanceType<typeof OrganizationPicker>>(),
+  collectionPicker = ref<InstanceType<typeof OrganizationPicker>>();
 const tagIds = ref<string[]>([]),
   collectionIds = ref<string[]>([]);
 watch(
@@ -131,6 +140,10 @@ function copyAll() {
       .join("\n"),
   );
 }
+function setCopyPreferences(format: string, auto: boolean) {
+  copyPreferences.format = format as CopyFormat;
+  copyPreferences.auto = auto;
+}
 function paste(event: ClipboardEvent) {
   if (!open.value || !event.clipboardData) return;
   if (event.clipboardData.files.length) {
@@ -172,7 +185,7 @@ onMounted(() => window.addEventListener("paste", paste));
 onUnmounted(() => window.removeEventListener("paste", paste));
 </script>
 <template>
-  <div class="space-y-6">
+  <div class="space-y-4">
     <p v-if="profiles.isPending.value" class="subtle">
       {{ t("ui.loading") }}
     </p>
@@ -183,14 +196,7 @@ onUnmounted(() => window.removeEventListener("paste", paste));
       }}</Button>
     </div>
     <div
-      class="cursor-pointer rounded-2xl border-2 border-dashed px-6 py-16 text-center transition-colors hover:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-      role="button"
-      tabindex="0"
-      :aria-label="t('ui.dropImagesHere')"
-      :aria-disabled="!profile"
-      @click="profile && input?.click()"
-      @keydown.enter.self.prevent="profile && input?.click()"
-      @keydown.space.self.prevent="profile && input?.click()"
+      class="upload-dropzone"
       :class="dragging ? 'border-primary bg-primary/5' : 'border-border'"
       @dragover.prevent="dragging = true"
       @dragleave.prevent="dragging = false"
@@ -199,63 +205,103 @@ onUnmounted(() => window.removeEventListener("paste", paste));
         add(Array.from($event.dataTransfer?.files ?? []));
       "
     >
-      <CloudUpload class="mx-auto mb-4 text-primary" :size="32" />
-      <p class="mb-2 text-sm font-medium">{{ t("ui.dropImagesHere") }}</p>
-      <p class="mb-5 text-xs text-muted-foreground">
-        {{ t("ui.orPasteFromYourClipboard") }}
-      </p>
-      <Button :disabled="!profile" @click.stop="input?.click()">{{
-        t("ui.chooseFiles")
-      }}</Button>
-      <input
-        @click.stop
-        ref="input"
-        data-testid="upload-input"
-        type="file"
-        accept="image/*"
-        multiple
-        class="hidden"
-        @change="
-          add(Array.from(input?.files ?? []));
-          if (input) input.value = '';
-        "
-      />
-      <p v-if="profile" class="mt-4 text-xs text-muted-foreground">
-        {{ t("uploads.limit", { size: size(profile.maxUploadBytes) }) }} ·
-        {{
-          profile.allowedMimeTypes
-            .map((t) => t.replace("image/", ""))
-            .join(" / ")
-        }}
-      </p>
-    </div>
-    <label class="field"
-      >{{ t("ui.uploadProfile")
-      }}<select
-        v-model="selected"
-        @change="rememberSelection"
-        class="native-select"
-        :aria-label="t('ui.uploadProfile')"
+      <div class="absolute top-2 right-2 z-10">
+        <CopySettings
+          :format="copyPreferences.format"
+          :formats="copyFormats"
+          :auto="copyPreferences.auto"
+          :t="t"
+          @change="setCopyPreferences"
+        />
+      </div>
+      <div
+        class="cursor-pointer rounded-2xl px-4 pt-16 pb-8 text-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary sm:px-6 sm:pb-12"
+        role="button"
+        tabindex="0"
+        :aria-label="t('ui.dropImagesHere')"
+        :aria-disabled="!profile"
+        @click="profile && input?.click()"
+        @keydown.enter.self.prevent="profile && input?.click()"
+        @keydown.space.self.prevent="profile && input?.click()"
       >
-        <option value="" disabled>{{ t("ui.selectAProfile") }}</option>
-        <option
-          v-for="p in profiles.data.value"
-          :key="p.id"
-          :value="p.id"
-          :disabled="!p.available"
-        >
-          {{ p.name
-          }}{{ p.available ? "" : ` · ${errorMessage(p.reasonCode)}` }}
-        </option>
-      </select></label
-    >
-    <div v-if="session" class="space-y-3">
-      <OrganizationPicker v-model="tagIds" kind="tags" /><OrganizationPicker
-        v-model="collectionIds"
-        kind="collections"
-      />
-      <p class="subtle">{{ t("organization.queueHint") }}</p>
+        <CloudUpload class="mx-auto mb-4 text-primary" :size="32" />
+        <p class="mb-2 text-sm font-medium">{{ t("ui.dropImagesHere") }}</p>
+        <p class="mb-5 text-xs text-muted-foreground">
+          {{ t("ui.orPasteFromYourClipboard") }}
+        </p>
+        <Button :disabled="!profile" @click.stop="input?.click()">{{
+          t("ui.chooseFiles")
+        }}</Button>
+        <input
+          @click.stop
+          ref="input"
+          data-testid="upload-input"
+          type="file"
+          accept="image/*"
+          multiple
+          class="hidden"
+          @change="
+            add(Array.from(input?.files ?? []));
+            if (input) input.value = '';
+          "
+        />
+        <p v-if="profile" class="mt-4 text-xs text-muted-foreground">
+          {{ t("uploads.limit", { size: size(profile.maxUploadBytes) }) }} ·
+          {{
+            profile.allowedMimeTypes
+              .map((t) => t.replace("image/", ""))
+              .join(" / ")
+          }}
+        </p>
+      </div>
     </div>
+    <UploadOptions
+      :tags="tagPicker?.selectedItems ?? []"
+      :collections="collectionPicker?.selectedItems ?? []"
+      :signed-in="!!session"
+      :t="t"
+      @remove="
+        (kind, id) => {
+          if (kind === 'tags') tagIds = tagIds.filter((value) => value !== id);
+          else collectionIds = collectionIds.filter((value) => value !== id);
+        }
+      "
+    >
+      <template #profile>
+        <label class="upload-profile">
+          <select
+            v-model="selected"
+            @change="rememberSelection"
+            :aria-label="t('ui.uploadProfile')"
+          >
+            <option value="" disabled>{{ t("ui.selectAProfile") }}</option>
+            <option
+              v-for="p in profiles.data.value"
+              :key="p.id"
+              :value="p.id"
+              :disabled="!p.available"
+            >
+              {{ p.name
+              }}{{ p.available ? "" : ` · ${errorMessage(p.reasonCode)}` }}
+            </option>
+          </select>
+        </label>
+      </template>
+      <template #tags
+        ><OrganizationPicker
+          ref="tagPicker"
+          v-model="tagIds"
+          kind="tags"
+          compact
+      /></template>
+      <template #collections
+        ><OrganizationPicker
+          ref="collectionPicker"
+          v-model="collectionIds"
+          kind="collections"
+          compact
+      /></template>
+    </UploadOptions>
     <p v-if="defaults.error.value" class="error-box">
       {{ errorText(defaults.error.value) }}
     </p>
@@ -273,26 +319,7 @@ onUnmounted(() => window.removeEventListener("paste", paste));
               : t("users.noProfiles")
       }}
     </p>
-    <div class="flex flex-wrap items-center gap-4 border-b pb-6">
-      <label class="field flex-1">
-        {{ t("uploads.copyFormat") }}
-        <select
-          v-model="copyPreferences.format"
-          class="native-select"
-          :aria-label="t('uploads.copyFormat')"
-        >
-          <option v-for="format in copyFormats" :key="format" :value="format">
-            {{ format }}
-          </option>
-        </select>
-      </label>
-      <label class="flex items-center gap-2 text-sm">
-        <input type="checkbox" v-model="copyPreferences.auto" />{{
-          t("uploads.autoCopy")
-        }}
-      </label>
-    </div>
-    <div v-if="uploads.length" class="space-y-3">
+    <div v-if="uploads.length" class="space-y-3 border-t pt-4">
       <h3 class="text-sm font-medium">
         {{ t("ui.uploadQueue") }}
         <span class="text-muted-foreground"
@@ -382,6 +409,7 @@ onUnmounted(() => window.removeEventListener("paste", paste));
         </div>
         <CopyResult
           v-if="item.result"
+          compact
           class="mt-3"
           :url="item.result.url"
           :label="t('uploads.result')"

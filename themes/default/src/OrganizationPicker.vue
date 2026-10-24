@@ -24,6 +24,9 @@ const selected = computed(() =>
     ? snapshot.value.organization.tagIds
     : snapshot.value.organization.collectionIds,
 );
+const selectedItems = computed(() =>
+  selected.value.map((id) => ({ id, name: known.value.get(id) ?? id })),
+);
 let generation = 0;
 async function load() {
   const request = ++generation;
@@ -75,6 +78,7 @@ async function create() {
     busy.value = false;
   }
 }
+defineExpose({ selectedItems, toggle });
 </script>
 <template>
   <fieldset class="organization-picker" :disabled="busy">
@@ -85,16 +89,6 @@ async function create() {
         )
       }}
     </legend>
-    <div class="organization-chips">
-      <button
-        v-for="id in selected"
-        :key="id"
-        type="button"
-        @click="toggle(id)"
-      >
-        {{ known.get(id) ?? id }} ×
-      </button>
-    </div>
     <div class="organization-search">
       <input
         v-model="search"
@@ -142,18 +136,12 @@ async function create() {
 </template>
 <style scoped>
 .organization-picker {
-  border: 1px solid currentColor;
-  border-color: color-mix(in srgb, currentColor 20%, transparent);
-  border-radius: 8px;
-  padding: 10px;
   min-width: 0;
   font-size: 12px;
 }
 .organization-picker legend {
-  padding: 0 4px;
   font-weight: 500;
 }
-.organization-chips,
 .organization-search,
 .organization-options {
   display: flex;
@@ -178,8 +166,7 @@ async function create() {
   text-align: left;
   overflow-wrap: anywhere;
 }
-.organization-picker button[aria-pressed="true"],
-.organization-chips button {
+.organization-picker button[aria-pressed="true"] {
   background: color-mix(in srgb, currentColor 12%, transparent);
 }
 .organization-picker button:disabled {

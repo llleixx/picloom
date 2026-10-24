@@ -1,4 +1,13 @@
-import { test, expect, login } from "./fixtures";
+import {
+  test,
+  expect,
+  login,
+  selectImageFilter,
+  openImageFilters,
+  closeImageFilters,
+  openBatchRemoval,
+  expandDetails,
+} from "./fixtures";
 import sharp from "sharp";
 test("source filter and default last-copy deletion", async ({
   page,
@@ -74,20 +83,21 @@ test("source filter and default last-copy deletion", async ({
     )
     .toBe(2);
   await page.reload();
-  await page
-    .getByLabel("Storage Source", { exact: true })
-    .selectOption(source.id);
+  await selectImageFilter(page, "Storage Source", source.id);
   await expect(page.getByTestId("file-card")).toHaveCount(1);
   await page.reload();
+  await openImageFilters(page);
   await expect(page.getByLabel("Storage Source", { exact: true })).toHaveValue(
     source.id,
   );
+  await closeImageFilters(page);
   await page
     .getByTestId("file-card")
     .getByRole("button", { name: /^Open / })
     .click();
+  await expandDetails(page, "file-storage");
   const row = page
-    .locator("div.rounded-lg.border.p-3")
+    .getByTestId("replica-row")
     .filter({ hasText: "Extra copy" })
     .first();
   await row.getByRole("button", { name: "Delete Replica" }).click();
@@ -144,22 +154,19 @@ test("source filter and default last-copy deletion", async ({
   await page.getByRole("button", { name: "Close", exact: true }).click();
   // The source was removed through the API, outside this page's query cache.
   await page.reload();
-  await page
-    .getByLabel("Storage Source", { exact: true })
-    .selectOption(group.members[0].instanceId);
+  await selectImageFilter(page, "Storage Source", group.members[0].instanceId);
   await page
     .getByTestId("file-card")
     .getByRole("button", { name: /^Open / })
     .click();
+  await expandDetails(page, "file-storage");
   await expect(
     page.getByText(`Deleted storage source · ${source.id}`, { exact: false }),
   ).toBeVisible();
   await page.getByRole("button", { name: "Close", exact: true }).click();
   await expect(page.getByTestId("file-card")).toHaveCount(1);
   await page.getByTestId("file-card").getByRole("checkbox").check();
-  await page
-    .getByRole("button", { name: "Delete selected replicas", exact: true })
-    .click();
+  await openBatchRemoval(page, "Delete selected replicas");
   const dialog = page.getByRole("dialog");
   await expect(dialog.getByLabel("Operation")).toHaveValue("delete");
   await expect(dialog.getByLabel("Scope")).toHaveValue("false");
@@ -226,13 +233,15 @@ for (const operation of [
     await page.goto(
       `${service.url}/app/images?file=${image.id}${sourceFiltered ? `&source=${replica.instanceId}` : ""}`,
     );
+    if (operation !== "source-detail-delete")
+      await expandDetails(page, "file-storage");
     const entry =
       operation === "source-detail-delete"
         ? page
             .getByRole("button", { name: "Delete Replica", exact: true })
             .first()
         : page
-            .locator("div.rounded-lg.border.p-3")
+            .getByTestId("replica-row")
             .getByRole("button", { name: "Delete Replica", exact: true });
     await entry.click();
     const dialog = page.getByRole("dialog", {
@@ -243,9 +252,7 @@ for (const operation of [
     if (operation === "source-detail-delete") {
       await dialog.getByLabel("Scope").selectOption("true");
       await expect(dialog).toHaveAccessibleName("Delete image?");
-      await expect(dialog).toContainText(
-        "Delete storage files",
-      );
+      await expect(dialog).toContainText("Delete storage files");
       await dialog.getByLabel("Operation").selectOption("detach");
       await expect(dialog).toHaveAccessibleName("Detach image?");
       await expect(
@@ -353,15 +360,10 @@ for (const scope of ["images", "replicas"] as const) {
     for (const card of await page.getByTestId("file-card").all())
       await card.getByRole("checkbox").check();
     const open = async () => {
-      await page
-        .getByRole("button", {
-          name:
-            scope === "replicas"
-              ? "Delete selected replicas"
-              : "Delete selected",
-          exact: true,
-        })
-        .click();
+      await openBatchRemoval(
+        page,
+        scope === "replicas" ? "Delete selected replicas" : "Delete selected",
+      );
       return page.getByRole("dialog");
     };
     let dialog = await open();

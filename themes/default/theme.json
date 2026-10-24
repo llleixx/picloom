@@ -55,7 +55,9 @@
       "organization.collections": "Collections",
       "organization.search": "Search or enter a name",
       "organization.create": "Create",
-      "organization.queueHint": "Selections are fixed when each image enters the queue."
+      "organization.addTags": "Add tags",
+      "organization.addCollections": "Add collections",
+      "organization.removeItem": "Remove {name}"
     },
     "zh-CN": {
       "package.name": "默认主题",
@@ -103,7 +105,9 @@
       "organization.collections": "集合",
       "organization.search": "搜索或输入名称",
       "organization.create": "创建",
-      "organization.queueHint": "每张图片保留入队时的归类选择。"
+      "organization.addTags": "添加标签",
+      "organization.addCollections": "添加集合",
+      "organization.removeItem": "移除{name}"
     }
   },
   "pages": {

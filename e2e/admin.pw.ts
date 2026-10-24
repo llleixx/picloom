@@ -1,4 +1,10 @@
-import { test, expect, login } from "./fixtures";
+import {
+  test,
+  expect,
+  login,
+  selectImageFilter,
+  expandDetails,
+} from "./fixtures";
 import sharp from "sharp";
 import type { Page } from "@playwright/test";
 import { mkdir } from "node:fs/promises";
@@ -52,23 +58,22 @@ test("upload, preview, copy, transform, deletion and restart use the real backen
     { name: "vector.svg", mimeType: "image/svg+xml", buffer: svg },
   ]);
   await expect(page.getByTestId("file-card")).toHaveCount(2);
-  await page.getByLabel("Image type").selectOption("image/png");
+  await selectImageFilter(page, "Image type", "image/png");
   await expect(page.getByTestId("file-card")).toHaveCount(1);
   await page.getByRole("button", { name: /^Open / }).click();
-  await expect(
-    page.getByRole("heading", { name: "Image details" }),
-  ).toBeVisible();
+  await expect(page.getByRole("dialog")).toBeVisible();
   const originalUrl = await page
     .getByLabel("Access link", { exact: true })
     .inputValue();
   await page
     .getByRole("group", { name: "Copy", exact: true })
     .filter({ has: page.getByLabel("Access link", { exact: true }) })
-    .getByRole("button", { name: "Copy", exact: true })
+    .getByRole("button", { name: /^Copy (URL|Markdown|HTML|BBCode)$/ })
     .click();
   await expect
     .poll(() => page.evaluate(() => navigator.clipboard.readText()))
     .toBe(originalUrl);
+  await expandDetails(page, "link-parameters");
   for (const parameter of ["Width", "Output format"]) {
     await page
       .getByRole("button", { name: "Add parameter", exact: true })
@@ -113,12 +118,16 @@ test("upload, preview, copy, transform, deletion and restart use the real backen
     .getByRole("button", { name: "Confirm delete", exact: true })
     .click();
   await expect(
-    page.locator("dd").filter({ hasText: /^Removed$/ }),
+    page
+      .getByTestId("detail-body")
+      .getByRole("status")
+      .filter({ hasText: "Removed" }),
   ).toBeVisible();
   expect((await page.request.get(originalUrl)).status()).toBe(404);
   await page.getByRole("button", { name: "Close", exact: true }).click();
-  await page.getByLabel("Image type").selectOption("image/svg+xml");
+  await selectImageFilter(page, "Image type", "image/svg+xml");
   await page.getByRole("button", { name: /^Open / }).click();
+  await expandDetails(page, "link-parameters");
   await page
     .getByRole("button", { name: "Add parameter", exact: true })
     .click();
@@ -257,9 +266,7 @@ test.describe("pagination", () => {
       .inputValue();
     const id = new URL(url).pathname.split("/").pop()!.replace(".png", "");
     await page.reload();
-    await expect(
-      page.getByRole("heading", { name: "Image details" }),
-    ).toBeVisible();
+    await expect(page.getByRole("dialog")).toBeVisible();
     await page.getByRole("button", { name: "Close", exact: true }).click();
     await page.getByLabel("Search images").fill(id);
     await page.getByLabel("Search images").press("Enter");
@@ -408,9 +415,7 @@ test.describe("deletion failure", () => {
         await page.request.get(service.url + "/api/storage-sources")
       ).json()
     )[0];
-    await page
-      .getByLabel("Storage Source", { exact: true })
-      .selectOption(source.id);
+    await selectImageFilter(page, "Storage Source", source.id);
     const card = page.getByTestId("file-card");
     await expect(card).toHaveCount(1);
     await expect(card).toContainText("Replica issues");
@@ -420,8 +425,9 @@ test.describe("deletion failure", () => {
       .selectOption("replica_error");
     await expect(card).toHaveCount(1);
     await card.getByRole("button", { name: /^Open / }).click();
+    await expandDetails(page, "file-storage");
     const row = page
-      .locator("div.rounded-lg.border.p-3")
+      .getByTestId("replica-row")
       .filter({ hasText: source.name })
       .first();
     await row.getByRole("button", { name: "Retry", exact: true }).click();

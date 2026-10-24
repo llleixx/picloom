@@ -6,9 +6,13 @@ defineProps<{ results: ProcessingResult[] }>();
 const complex = (value: unknown) => value !== null && typeof value === "object";
 </script>
 <template>
-  <section v-if="results.length" class="mt-6 space-y-4 border-t pt-5">
-    <h3 class="font-medium">{{ t("processingResults.title") }}</h3>
-    <p class="subtle">{{ t("processingResults.hint") }}</p>
+  <details v-if="results.length" class="space-y-3">
+    <summary role="button" class="cursor-pointer text-sm font-medium">
+      {{ t("processingResults.title") }}
+    </summary>
+    <p class="text-xs text-muted-foreground">
+      {{ t("processingResults.hint") }}
+    </p>
     <div
       v-for="result in results"
       :key="result.stepId"
@@ -37,7 +41,9 @@ const complex = (value: unknown) => value !== null && typeof value === "object";
           JSON.stringify(result.organization, null, 2)
         }}</pre>
       </details>
-      <dl class="grid grid-cols-[7rem_minmax(0,1fr)] gap-x-4 gap-y-2">
+      <dl
+        class="grid grid-cols-1 gap-x-4 gap-y-2 sm:grid-cols-[6rem_minmax(0,1fr)]"
+      >
         <template v-for="(value, key) in result.details" :key="key">
           <dt class="break-all text-muted-foreground">{{ key }}</dt>
           <dd class="min-w-0 break-words">
@@ -54,5 +60,5 @@ const complex = (value: unknown) => value !== null && typeof value === "object";
         </template>
       </dl>
     </div>
-  </section>
+  </details>
 </template>

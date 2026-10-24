@@ -2,7 +2,7 @@
 import type { ParameterSchema } from "@picloom/plugin-sdk";
 import { computed, onUnmounted, reactive, ref, watch } from "vue";
 import { useQuery } from "@tanstack/vue-query";
-import { Link, Plus, X, ExternalLink, LoaderCircle } from "lucide-vue-next";
+import { ChevronRight, Plus, X, LoaderCircle } from "lucide-vue-next";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { api, response, errorText } from "@/lib/api";
@@ -165,22 +165,8 @@ async function showPreview() {
 }
 </script>
 <template>
-  <section class="my-6 space-y-4 border-t pt-5">
-    <div class="flex items-center justify-between gap-2">
-      <h3 class="flex items-center gap-2 font-medium">
-        <Link :size="17" />{{ t("linkBuilder.title") }}
-      </h3>
-      <Button
-        v-if="selected.length"
-        type="button"
-        variant="ghost"
-        @click="clearParameters"
-      >
-        {{ t("linkBuilder.clear") }}
-      </Button>
-    </div>
-    <CopyResult :url="url" :label="t('linkBuilder.title')" />
-    <p v-if="fields.size" class="subtle">{{ t("linkBuilder.hint") }}</p>
+  <section class="space-y-3">
+    <CopyResult :url="url" :label="t('linkBuilder.title')" open-link />
     <p v-if="query.error.value" class="error-box">
       {{ errorText(query.error.value) }}
       <Button variant="ghost" @click="query.refetch()">{{
@@ -192,16 +178,34 @@ async function showPreview() {
       class="animate-spin"
       :size="16"
     />
-    <template v-else-if="fields.size">
-      <form class="space-y-4" @submit.prevent="showPreview">
+    <details
+      v-else-if="fields.size"
+      class="group/parameters"
+      data-testid="link-parameters"
+    >
+      <summary
+        role="button"
+        class="flex cursor-pointer list-none flex-wrap items-center gap-2 text-sm font-medium [&::-webkit-details-marker]:hidden"
+      >
+        <ChevronRight :size="14" class="group-open/parameters:rotate-90" />
+        {{ t("linkBuilder.parameters") }}
+        <span
+          v-if="selected.length"
+          class="ml-auto text-xs font-normal text-muted-foreground"
+          >{{ selected.length }}</span
+        >
+      </summary>
+      <form class="mt-3 space-y-3" @submit.prevent="showPreview">
         <div
           v-for="field in active"
           :key="field.key"
           class="rounded-md border p-3"
         >
           <div class="mb-2 flex items-center justify-between gap-2">
-            <span class="subtle"
-              >{{ field.groups.join(" · ") }} <code>{{ field.key }}</code></span
+            <span
+              class="min-w-0 truncate text-xs text-muted-foreground"
+              :title="field.groups.join(' · ')"
+              >{{ field.key }}</span
             >
             <Button
               type="button"
@@ -281,20 +285,25 @@ async function showPreview() {
           </div>
         </div>
         <div class="flex flex-wrap gap-2">
-          <Button type="button" variant="outline" @click="picker = !picker"
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            @click="picker = !picker"
             ><Plus :size="16" />{{ t("linkBuilder.add") }}</Button
           >
-          <Button type="submit" variant="outline" :disabled="busy"
+          <Button type="submit" variant="outline" size="sm" :disabled="busy"
             ><LoaderCircle v-if="busy" class="animate-spin" :size="16" />{{
               t("ui.generatePreview")
             }}</Button
           >
-          <a
-            :href="url"
-            target="_blank"
-            rel="noopener noreferrer"
-            class="inline-flex items-center gap-1 px-2 text-sm text-primary"
-            ><ExternalLink :size="15" />{{ t("linkBuilder.open") }}</a
+          <Button
+            v-if="selected.length"
+            type="button"
+            variant="ghost"
+            size="sm"
+            @click="clearParameters"
+            >{{ t("linkBuilder.clear") }}</Button
           >
         </div>
       </form>
@@ -302,6 +311,6 @@ async function showPreview() {
       <div v-if="preview" class="h-52 overflow-hidden rounded-lg border">
         <ImagePreview :src="preview" :contain="true" />
       </div>
-    </template>
+    </details>
   </section>
 </template>

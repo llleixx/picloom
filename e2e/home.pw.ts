@@ -12,7 +12,9 @@ test("upload homepage, batch auto-copy and workspace navigation", async ({
   await page.getByLabel("Password", { exact: true }).fill("test-password-123");
   await page.getByRole("button", { name: "Sign in" }).click();
   await page.getByRole("link", { name: "Upload", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Picloom", exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Picloom", exact: true }),
+  ).toBeVisible();
   await expect(
     page.getByRole("button", { name: "Choose files", exact: true }),
   ).toBeEnabled();
@@ -23,8 +25,20 @@ test("upload homepage, batch auto-copy and workspace navigation", async ({
     .getByLabel("Upload profile", { exact: true })
     .boundingBox();
   expect(profile!.y).toBeGreaterThan(drop!.y + drop!.height);
-  await page.getByLabel("Copy format").first().selectOption("Markdown");
+  let fileChoosers = 0;
+  page.on("filechooser", () => fileChoosers++);
+  const copySettings = page.getByRole("button", { name: /^Copy format:/ });
+  const copyFormat = (name: string) =>
+    page.getByRole("button", { name, exact: true });
+  await copySettings.click();
+  await expect(copyFormat("URL")).toHaveAttribute("aria-pressed", "true");
+  await copyFormat("Markdown").click();
+  await expect(copyFormat("Markdown")).not.toBeVisible();
+  await copySettings.click();
   await page.getByLabel("Auto-copy after upload").check();
+  await page.keyboard.press("Escape");
+  await expect(copyFormat("Markdown")).not.toBeVisible();
+  expect(fileChoosers).toBe(0);
   const buffer = Buffer.from(
     '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24"><rect width="24" height="24" fill="green"/></svg>',
   );
@@ -36,16 +50,14 @@ test("upload homepage, batch auto-copy and workspace navigation", async ({
   await expect
     .poll(() => page.evaluate(() => navigator.clipboard.readText()))
     .toMatch(/^!\[\]\(https?:\/\/[^<>\n]+\)\n!\[\]\(https?:\/\/[^<>\n]+\)$/);
-  await page.getByLabel("Copy format").first().selectOption("HTML");
+  await copySettings.click();
+  await copyFormat("HTML").click();
   await page.getByRole("button", { name: "Copy all", exact: true }).click();
   await expect
     .poll(() => page.evaluate(() => navigator.clipboard.readText()))
     .toMatch(/^<img src=.+\n<img src=/);
-  await page
-    .getByRole("group", { name: "Copy", exact: true })
-    .first()
-    .getByLabel("Copy format")
-    .selectOption("BBCode");
+  await copySettings.click();
+  await copyFormat("BBCode").click();
   await page
     .getByRole("group", { name: "Copy", exact: true })
     .first()
@@ -69,8 +81,30 @@ test("upload homepage, batch auto-copy and workspace navigation", async ({
     ),
   ).toBe(true);
   await page.reload();
+  await copySettings.click();
   await expect(page.getByLabel("Auto-copy after upload")).toBeChecked();
-  await expect(page.getByLabel("Copy format")).toHaveValue("BBCode");
+  await expect(copyFormat("BBCode")).toHaveAttribute("aria-pressed", "true");
+  await page.keyboard.press("Escape");
+  for (const width of [320, 390]) {
+    await page.setViewportSize({ width, height: 844 });
+    await page.getByRole("button", { name: "Add tags", exact: true }).click();
+    await expect(
+      page.getByRole("group", { name: "Tags", exact: true }),
+    ).toBeVisible();
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= innerWidth,
+      ),
+    ).toBe(true);
+    await page.keyboard.press("Escape");
+    await copySettings.click();
+    const settingsBox = await page
+      .locator("details[open] .upload-popover-content")
+      .boundingBox();
+    expect(settingsBox!.x).toBeGreaterThanOrEqual(0);
+    expect(settingsBox!.x + settingsBox!.width).toBeLessThanOrEqual(width);
+    await page.keyboard.press("Escape");
+  }
 });
 
 test("app navigation shares groups and breadcrumbs on desktop and mobile", async ({

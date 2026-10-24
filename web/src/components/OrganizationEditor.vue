@@ -5,8 +5,27 @@ import { api, errorText, errorMessage, queryClient } from "@/lib/api";
 import { t } from "@/lib/i18n";
 import { Button } from "./ui/button";
 import OrganizationPicker from "./OrganizationPicker.vue";
+import UploadOptions from "../../../themes/default/src/UploadOptions.vue";
+import { Tag, Folder } from "lucide-vue-next";
 const props = defineProps<{ files: FileView[]; batch?: boolean }>();
 const emit = defineEmits<{ saved: [] }>();
+const editing = ref(false),
+  initialKind = ref<"tags" | "collections">();
+const tagPicker = ref<InstanceType<typeof OrganizationPicker>>(),
+  collectionPicker = ref<InstanceType<typeof OrganizationPicker>>();
+function startEditing(kind?: "tags" | "collections") {
+  resetDraft();
+  error.value = "";
+  summary.value = "";
+  initialKind.value = kind;
+  editing.value = true;
+}
+function cancel() {
+  resetDraft();
+  editing.value = false;
+  error.value = "";
+  summary.value = "";
+}
 const tagIds = ref<string[]>([]),
   collectionIds = ref<string[]>([]),
   busy = ref(false),
@@ -99,7 +118,10 @@ async function save(mode: "save" | "add" | "remove") {
         queryClient.invalidateQueries({ queryKey: [key] }),
       ),
     );
-    if (saved && !props.batch) resetDraft();
+    if (saved && !props.batch) {
+      resetDraft();
+      editing.value = false;
+    }
     busy.value = false;
   }
 }
@@ -108,43 +130,141 @@ async function save(mode: "save" | "add" | "remove") {
   <div class="space-y-3">
     <p v-if="!sameOwner" class="subtle">{{ t("organization.sameOwner") }}</p>
     <template v-else>
-      <OrganizationPicker
-        v-model="tagIds"
-        kind="tags"
-        :owner="owner"
-        :disabled="busy"
-        :items="batch ? undefined : files[0]?.tags"
-      />
-      <OrganizationPicker
-        v-model="collectionIds"
-        kind="collections"
-        :owner="owner"
-        :disabled="busy"
-        :items="batch ? undefined : files[0]?.collections"
-      />
-      <p v-if="files.some((file) => file.backgroundPending)" class="subtle">
-        {{ t("organization.processing") }}
-      </p>
-      <div class="flex gap-2">
-        <template v-if="batch"
-          ><Button
-            type="button"
-            variant="outline"
-            :disabled="busy || (!tagIds.length && !collectionIds.length)"
-            @click="save('add')"
-            >{{ t("organization.addSelected") }}</Button
-          ><Button
-            type="button"
-            variant="outline"
-            :disabled="busy || (!tagIds.length && !collectionIds.length)"
-            @click="save('remove')"
-            >{{ t("organization.removeSelected") }}</Button
-          ></template
-        ><Button v-else type="button" :loading="busy" @click="save('save')">{{
-          t("ui.save")
-        }}</Button>
+      <div
+        v-if="!batch && !editing"
+        class="flex flex-wrap items-center gap-1.5"
+      >
+        <span
+          v-for="tag in files[0]?.tags"
+          :key="tag.id"
+          class="upload-chip"
+          :title="tag.name"
+          ><Tag /><span class="truncate">{{ tag.name }}</span></span
+        >
+        <span
+          v-for="collection in files[0]?.collections"
+          :key="collection.id"
+          class="upload-chip"
+          :title="collection.name"
+          ><Folder /><span class="truncate">{{ collection.name }}</span></span
+        >
+        <Button
+          v-if="files[0]?.tags.length || files[0]?.collections?.length"
+          variant="ghost"
+          size="sm"
+          :aria-label="t('organization.edit')"
+          @click="startEditing()"
+          >{{ t("ui.edit") }}</Button
+        >
+        <template v-else>
+          <Button variant="ghost" size="sm" @click="startEditing('tags')"
+            ><Tag />{{ t("organization.addTags") }}</Button
+          >
+          <Button variant="ghost" size="sm" @click="startEditing('collections')"
+            ><Folder />{{ t("organization.addCollections") }}</Button
+          >
+        </template>
       </div>
-      <p v-if="summary" role="status" class="subtle">{{ summary }}</p>
+      <template v-else>
+        <template v-if="batch">
+          <OrganizationPicker
+            v-model="tagIds"
+            kind="tags"
+            :owner="owner"
+            :disabled="busy"
+          />
+          <OrganizationPicker
+            v-model="collectionIds"
+            kind="collections"
+            :owner="owner"
+            :disabled="busy"
+          />
+        </template>
+        <UploadOptions
+          v-else
+          :tags="tagPicker?.selectedItems ?? []"
+          :collections="collectionPicker?.selectedItems ?? []"
+          signed-in
+          :initial-kind="initialKind"
+          :t="t"
+          @remove="
+            (kind, id) => {
+              if (!busy) {
+                if (kind === 'tags')
+                  tagIds = tagIds.filter((value) => value !== id);
+                else
+                  collectionIds = collectionIds.filter((value) => value !== id);
+              }
+            }
+          "
+        >
+          <template #tags
+            ><OrganizationPicker
+              ref="tagPicker"
+              v-model="tagIds"
+              kind="tags"
+              :owner="owner"
+              :items="files[0]?.tags"
+              :disabled="busy"
+              compact
+          /></template>
+          <template #collections
+            ><OrganizationPicker
+              ref="collectionPicker"
+              v-model="collectionIds"
+              kind="collections"
+              :owner="owner"
+              :items="files[0]?.collections"
+              :disabled="busy"
+              compact
+          /></template>
+        </UploadOptions>
+        <p
+          v-if="files.some((file) => file.backgroundPending)"
+          class="text-xs text-muted-foreground"
+        >
+          {{ t("organization.processing") }}
+        </p>
+        <div class="flex gap-2">
+          <template v-if="batch">
+            <Button
+              type="button"
+              variant="outline"
+              :disabled="busy || (!tagIds.length && !collectionIds.length)"
+              @click="save('add')"
+              >{{ t("organization.addSelected") }}</Button
+            >
+            <Button
+              type="button"
+              variant="outline"
+              :disabled="busy || (!tagIds.length && !collectionIds.length)"
+              @click="save('remove')"
+              >{{ t("organization.removeSelected") }}</Button
+            >
+          </template>
+          <template v-else>
+            <Button
+              type="button"
+              size="sm"
+              :loading="busy"
+              :disabled="!dirty"
+              @click="save('save')"
+              >{{ t("ui.save") }}</Button
+            >
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              :disabled="busy"
+              @click="cancel"
+              >{{ t("ui.cancel") }}</Button
+            >
+          </template>
+        </div>
+      </template>
+      <p v-if="summary" role="status" class="text-xs text-muted-foreground">
+        {{ summary }}
+      </p>
       <p v-if="error" role="alert" class="error-box whitespace-pre-line">
         {{ error }}
       </p>

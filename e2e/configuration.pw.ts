@@ -1,4 +1,4 @@
-import { test, expect, login } from "./fixtures";
+import { test, expect, login, expandDetails } from "./fixtures";
 import { mkdir } from "node:fs/promises";
 test.use({ scenario: "configuration" });
 test("manage instances, groups, profiles and chains, then upload multiple copies and execute actions", async ({
@@ -159,6 +159,7 @@ test("manage instances, groups, profiles and chains, then upload multiple copies
     .getByRole("textbox", { name: "Access link", exact: true })
     .inputValue();
   expect(url).toContain("/managed/");
+  await expandDetails(page, "file-processing");
   await expect(
     page.getByText("Replication · Completed", { exact: true }),
   ).toHaveCount(2);
@@ -169,16 +170,17 @@ test("manage instances, groups, profiles and chains, then upload multiple copies
   await page.getByRole("dialog").evaluate(async (el) => {
     await Promise.all(el.getAnimations().map((a) => a.finished));
   });
-  await page
-    .getByRole("heading", { name: "Background operations", exact: true })
-    .scrollIntoViewIfNeeded();
+  await page.getByTestId("file-processing").scrollIntoViewIfNeeded();
   await page.screenshot({ path: "outputs/configuration-operations.png" });
   await page.getByRole("button", { name: "Delete image", exact: true }).click();
   await page
     .getByRole("button", { name: "Confirm delete", exact: true })
     .click();
   await expect(
-    page.locator("dd").filter({ hasText: /^Deleted$/ }),
+    page
+      .getByTestId("detail-body")
+      .getByRole("status")
+      .filter({ hasText: "Removed" }),
   ).toBeVisible();
   expect((await page.request.get(url)).status()).toBe(404);
   expect(errors).toEqual([]);

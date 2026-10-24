@@ -1,4 +1,4 @@
-import { test, expect, login } from "./fixtures";
+import { test, expect, login, expandDetails } from "./fixtures";
 import sharp from "sharp";
 test.use({ scenario: "moderation" });
 test("blocked images can be privately previewed and restored by an administrator", async ({
@@ -74,9 +74,10 @@ test("blocked images can be privately previewed and restored by an administrator
   await expect(dialog.getByLabel("Access link", { exact: true })).toHaveCount(
     0,
   );
-  await expect(
-    dialog.getByRole("heading", { name: "Processing Results" }),
-  ).toBeVisible();
+  await expandDetails(page, "file-processing");
+  await dialog
+    .getByRole("button", { name: "Processing Results", exact: true })
+    .click();
   await expect(dialog.getByText("Test content", { exact: true })).toBeVisible();
   await expect(dialog.getByText("82", { exact: true })).toBeVisible();
 

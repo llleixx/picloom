@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import OrganizationPicker from "./OrganizationPicker.vue";
+import CopySettings from "./CopySettings.vue";
+import UploadOptions from "./UploadOptions.vue";
 import { ref, onUnmounted, computed } from "vue";
 import type { ThemeContext } from "@picloom/theme-sdk";
 const props = defineProps<{ context: ThemeContext }>();
@@ -22,6 +24,8 @@ function size(value: number) {
     (unit === 1 ? " B" : unit === 1024 ? " KB" : " MB")
   );
 }
+const tagPicker = ref<InstanceType<typeof OrganizationPicker>>(),
+  collectionPicker = ref<InstanceType<typeof OrganizationPicker>>();
 const input = ref<HTMLInputElement>(),
   username = ref(""),
   password = ref(""),
@@ -74,7 +78,7 @@ async function login() {
     :class="{ dark: s.dark }"
   >
     <header
-      class="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-5 py-6"
+      class="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-5 py-4 sm:py-6"
     >
       <a
         href="/"
@@ -87,13 +91,13 @@ async function login() {
           class="size-8"
         />{{ s.site.name }}</a
       >
-      <div class="flex items-center gap-4">
+      <div class="flex max-w-full flex-wrap items-center gap-2 sm:gap-4">
         <select
           v-if="s.locales.length > 1"
           :value="s.locale"
           :aria-label="t('themes.language')"
           @change="ctx.setLocale(($event.target as HTMLSelectElement).value)"
-          class="native-select"
+          class="native-select px-2 text-xs sm:px-3 sm:text-sm"
         >
           <option
             v-for="language in s.languages"
@@ -114,7 +118,7 @@ async function login() {
                 | 'auto',
             )
           "
-          class="native-select"
+          class="native-select px-2 text-xs sm:px-3 sm:text-sm"
         >
           <option value="auto">{{ t("themes.auto") }}</option>
           <option value="light">{{ t("ui.lightMode") }}</option>
@@ -122,6 +126,7 @@ async function login() {
         </select>
         <a
           v-if="s.page === 'home'"
+          class="whitespace-nowrap text-sm sm:text-base"
           :href="s.user ? '/app/images' : '/login?return=/app/images'"
           @click.prevent="ctx.navigate(s.user ? 'app' : 'login')"
           >{{ s.user ? t("ui.app") : t("ui.signIn") }}
@@ -129,13 +134,10 @@ async function login() {
         >
       </div>
     </header>
-    <main
-      v-if="s.page === 'home'"
-      class="mx-auto max-w-3xl px-5 py-12 sm:py-20"
-    >
+    <main v-if="s.page === 'home'" class="mx-auto max-w-3xl px-5 py-8 sm:py-20">
       <div
         v-if="s.site.homeTitle || s.site.description"
-        class="mb-10 text-center"
+        class="mb-8 text-center sm:mb-10"
       >
         <h1
           v-if="s.site.homeTitle"
@@ -152,17 +154,10 @@ async function login() {
         {{ s.error }}
         <button @click="ctx.refresh()">{{ t("ui.retry") }}</button>
       </p>
-      <div class="space-y-6">
+      <div class="space-y-4">
         <div
-          class="cursor-pointer rounded-2xl border-2 border-dashed px-6 py-16 text-center"
+          class="upload-dropzone"
           :class="dragging ? 'border-primary bg-primary/5' : 'border-border'"
-          role="button"
-          tabindex="0"
-          :aria-label="t('ui.dropImagesHere')"
-          :aria-disabled="!profile"
-          @click="profile && input?.click()"
-          @keydown.enter.self.prevent="profile && input?.click()"
-          @keydown.space.self.prevent="profile && input?.click()"
           @dragover.prevent="dragging = true"
           @dragleave.prevent="dragging = false"
           @drop.prevent="
@@ -170,63 +165,100 @@ async function login() {
             files($event.dataTransfer?.files ?? null);
           "
         >
-          <p class="mb-2 font-medium">{{ t("ui.dropImagesHere") }}</p>
-          <p class="mb-5 text-sm text-muted-foreground">
-            {{ t("ui.orPasteFromYourClipboard") }}
-          </p>
-          <button
-            class="rounded-lg bg-primary px-5 py-2 text-primary-foreground disabled:opacity-50"
-            :disabled="!profile"
-            @click.stop="input?.click()"
+          <div class="absolute top-2 right-2 z-10">
+            <CopySettings
+              :format="s.copy.format"
+              :formats="s.copy.formats"
+              :auto="s.copy.auto"
+              :t="t"
+              @change="(format, auto) => ctx.links.setPreferences(format, auto)"
+            />
+          </div>
+          <div
+            class="cursor-pointer rounded-2xl px-4 pt-16 pb-8 text-center sm:px-6 sm:pb-12"
+            role="button"
+            tabindex="0"
+            :aria-label="t('ui.dropImagesHere')"
+            :aria-disabled="!profile"
+            @click="profile && input?.click()"
+            @keydown.enter.self.prevent="profile && input?.click()"
+            @keydown.space.self.prevent="profile && input?.click()"
           >
-            {{ t("ui.chooseFiles") }}
-          </button>
-          <input
-            ref="input"
-            type="file"
-            data-testid="upload-input"
-            accept="image/*"
-            multiple
-            hidden
-            @click.stop
-            @change="
-              files(input?.files ?? null);
-              if (input) input.value = '';
-            "
-          />
-          <p v-if="profile" class="mt-4 text-xs text-muted-foreground">
-            {{ t("uploads.limit", { size: size(profile.maxUploadBytes) }) }} ·
-            {{ profile.allowedMimeTypes.join(" / ") }}
-          </p>
-        </div>
-        <label class="field"
-          >{{ t("ui.uploadProfile")
-          }}<select
-            class="native-select"
-            :aria-label="t('ui.uploadProfile')"
-            :value="s.selectedProfileId"
-            @change="
-              ctx.selectProfile(($event.target as HTMLSelectElement).value)
-            "
-          >
-            <option value="" disabled>{{ t("ui.selectAProfile") }}</option>
-            <option
-              v-for="p in s.profiles"
-              :key="p.id"
-              :value="p.id"
-              :disabled="!p.available"
+            <p class="mb-2 font-medium">{{ t("ui.dropImagesHere") }}</p>
+            <p class="mb-5 text-sm text-muted-foreground">
+              {{ t("ui.orPasteFromYourClipboard") }}
+            </p>
+            <button
+              class="rounded-lg bg-primary px-5 py-2 text-primary-foreground disabled:opacity-50"
+              :disabled="!profile"
+              @click.stop="input?.click()"
             >
-              {{ p.name }}{{ p.reason ? " · " + p.reason : "" }}
-            </option>
-          </select></label
-        >
-        <div v-if="s.user" class="space-y-3">
-          <OrganizationPicker :context="ctx" kind="tags" /><OrganizationPicker
-            :context="ctx"
-            kind="collections"
-          />
-          <p class="subtle">{{ t("organization.queueHint") }}</p>
+              {{ t("ui.chooseFiles") }}
+            </button>
+            <input
+              ref="input"
+              type="file"
+              data-testid="upload-input"
+              accept="image/*"
+              multiple
+              hidden
+              @click.stop
+              @change="
+                files(input?.files ?? null);
+                if (input) input.value = '';
+              "
+            />
+            <p v-if="profile" class="mt-4 text-xs text-muted-foreground">
+              {{ t("uploads.limit", { size: size(profile.maxUploadBytes) }) }} ·
+              {{
+                profile.allowedMimeTypes
+                  .map((type) => type.replace("image/", ""))
+                  .join(" / ")
+              }}
+            </p>
+          </div>
         </div>
+        <UploadOptions
+          :tags="tagPicker?.selectedItems ?? []"
+          :collections="collectionPicker?.selectedItems ?? []"
+          :signed-in="!!s.user"
+          :t="t"
+          @remove="
+            (kind, id) =>
+              (kind === 'tags' ? tagPicker : collectionPicker)?.toggle(id)
+          "
+        >
+          <template #profile>
+            <label class="upload-profile">
+              <select
+                :aria-label="t('ui.uploadProfile')"
+                :value="s.selectedProfileId"
+                @change="
+                  ctx.selectProfile(($event.target as HTMLSelectElement).value)
+                "
+              >
+                <option value="" disabled>{{ t("ui.selectAProfile") }}</option>
+                <option
+                  v-for="p in s.profiles"
+                  :key="p.id"
+                  :value="p.id"
+                  :disabled="!p.available"
+                >
+                  {{ p.name }}{{ p.reason ? " · " + p.reason : "" }}
+                </option>
+              </select>
+            </label>
+          </template>
+          <template #tags
+            ><OrganizationPicker ref="tagPicker" :context="ctx" kind="tags"
+          /></template>
+          <template #collections
+            ><OrganizationPicker
+              ref="collectionPicker"
+              :context="ctx"
+              kind="collections"
+          /></template>
+        </UploadOptions>
         <p v-if="!s.loading && !profile" class="error-box">
           {{
             s.profiles.some((p) => p.available)
@@ -236,38 +268,7 @@ async function login() {
                 : t("users.noProfiles")
           }}
         </p>
-        <div class="flex flex-wrap items-center gap-4 border-b pb-6">
-          <label class="field flex-1"
-            >{{ t("uploads.copyFormat")
-            }}<select
-              class="native-select"
-              :aria-label="t('uploads.copyFormat')"
-              :value="s.copy.format"
-              @change="
-                ctx.links.setPreferences(
-                  ($event.target as HTMLSelectElement).value,
-                  s.copy.auto,
-                )
-              "
-            >
-              <option v-for="f in s.copy.formats" :key="f">{{ f }}</option>
-            </select></label
-          >
-          <label
-            ><input
-              type="checkbox"
-              :checked="s.copy.auto"
-              @change="
-                ctx.links.setPreferences(
-                  s.copy.format,
-                  ($event.target as HTMLInputElement).checked,
-                )
-              "
-            />
-            {{ t("uploads.autoCopy") }}</label
-          >
-        </div>
-        <div v-if="s.uploads.length" class="space-y-3">
+        <div v-if="s.uploads.length" class="space-y-3 border-t pt-4">
           <h2>
             {{ t("ui.uploadQueue") }} ·
             {{ s.uploads.filter((u) => u.status === "success").length }} /
@@ -331,22 +332,8 @@ async function login() {
               :aria-label="t('ui.copy')"
               class="mt-3 flex flex-wrap gap-2"
             >
-              <select
-                class="native-select"
-                :aria-label="t('uploads.copyFormat')"
-                :value="s.copy.format"
-                @change="
-                  ctx.links.setPreferences(
-                    ($event.target as HTMLSelectElement).value,
-                    s.copy.auto,
-                  )
-                "
-              >
-                <option v-for="format in s.copy.formats" :key="format">
-                  {{ format }}
-                </option></select
-              ><input
-                class="native-select min-w-0 flex-1"
+              <input
+                class="native-select min-w-0 flex-1 text-xs"
                 readonly
                 :value="ctx.links.format(u.result.url)"
                 :aria-label="t('uploads.result')"

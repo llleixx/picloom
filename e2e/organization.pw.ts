@@ -1,4 +1,10 @@
-import { test, expect, login } from "./fixtures";
+import {
+  test,
+  expect,
+  login,
+  openImageFilters,
+  closeImageFilters,
+} from "./fixtures";
 
 const image = {
   name: "organized.svg",
@@ -36,12 +42,15 @@ test("empty category management, collection upload, detail and batch organizatio
   await expect(
     page.getByRole("button", { name: "Remove Trips", exact: true }),
   ).toBeVisible();
+  await page.getByRole("button", { name: "Add tags", exact: true }).click();
   const tagPicker = page.getByRole("group", { name: "Tags", exact: true });
   await tagPicker.getByLabel("Search tags", { exact: true }).fill("Summer");
   await tagPicker.getByRole("button", { name: "Create", exact: true }).click();
   await expect(
-    tagPicker.getByRole("button", { name: "Remove Summer", exact: true }),
+    page.getByRole("button", { name: "Remove Summer", exact: true }),
   ).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("dialog")).toBeVisible();
   await page.getByTestId("upload-input").setInputFiles(image);
   await expect(page.getByText("Uploaded", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Close", exact: true }).click();
@@ -61,13 +70,14 @@ test("empty category management, collection upload, detail and batch organizatio
   });
   await page.getByRole("button", { name: /^Open / }).click();
   const detail = page.getByRole("dialog");
-  await expect(
-    detail.getByRole("button", { name: "Remove Trips", exact: true }),
-  ).toBeVisible();
+  await expect(detail.getByText("Trips", { exact: true })).toBeVisible();
   await expect(detail.locator("img").first()).toHaveJSProperty(
     "complete",
     true,
   );
+  await detail
+    .getByRole("button", { name: "Edit organization", exact: true })
+    .click();
   await detail
     .getByRole("button", { name: "Remove Summer", exact: true })
     .click();
@@ -84,9 +94,13 @@ test("empty category management, collection upload, detail and batch organizatio
     detail.getByRole("button", { name: "Remove Trips", exact: true }),
   ).toHaveCount(0);
   await detail
+    .getByRole("button", { name: "Add collections", exact: true })
+    .click();
+  await detail
     .getByRole("group", { name: "Collections", exact: true })
     .getByRole("button", { name: "Trips", exact: true })
     .click();
+  await page.keyboard.press("Escape");
   await detail.getByRole("button", { name: "Save", exact: true }).click();
   await expect(
     detail.getByText("Changes saved.", { exact: true }),
@@ -108,7 +122,7 @@ test("empty category management, collection upload, detail and batch organizatio
   ).toBeVisible();
   await page.getByRole("button", { name: "Close", exact: true }).click();
   await expect(page.getByTestId("file-card")).toContainText("Summer");
-  await page.getByText("Filters & sort", { exact: true }).click();
+  await openImageFilters(page);
   await page.getByRole("checkbox", { name: "Untagged", exact: true }).check();
   await expect(page.getByTestId("file-card")).toHaveCount(0);
   await page.getByRole("checkbox", { name: "Untagged", exact: true }).uncheck();
@@ -121,6 +135,7 @@ test("empty category management, collection upload, detail and batch organizatio
     .getByRole("checkbox", { name: "Not in a collection", exact: true })
     .uncheck();
   await expect(page.getByTestId("file-card")).toHaveCount(1);
+  await closeImageFilters(page);
   await page.getByRole("link", { name: "Collections", exact: true }).click();
   await expect(page.getByRole("article")).toContainText("Available images: 1");
   await expect(page.getByRole("article").locator("img")).toHaveJSProperty(
@@ -202,7 +217,7 @@ test("other users’ collections never offer uploading and homepage snapshots ea
   ).toBeVisible();
   await expect(page.locator('option[value="guest"]')).toHaveCount(0);
   await page.goto(service.url + "/app/images?owner=guest");
-  await page.getByText("Filters & sort", { exact: true }).click();
+  await openImageFilters(page);
   await expect(
     page.getByRole("group", { name: "Tags", exact: true }),
   ).toHaveCount(0);
@@ -217,6 +232,7 @@ test("other users’ collections never offer uploading and homepage snapshots ea
     page.getByRole("checkbox", { name: "Not in a collection", exact: true }),
   ).toHaveCount(0);
   await expect(page.getByLabel("Order", { exact: true })).toBeVisible();
+  await closeImageFilters(page);
   await page.goto(service.url + "/app/images?collection=" + foreign.id);
   await expect(
     page.getByRole("heading", { name: "Member collection", exact: true }),
@@ -230,12 +246,14 @@ test("other users’ collections never offer uploading and homepage snapshots ea
     });
   });
   await page.goto(service.url + "/");
+  await page.getByRole("button", { name: "Add tags", exact: true }).click();
   const tags = page.getByRole("group", { name: "Tags", exact: true });
   await tags.getByRole("textbox").fill("First batch");
   await tags.getByRole("button", { name: "Create", exact: true }).click();
   await expect(
-    tags.getByRole("button", { name: "First batch ×", exact: true }),
+    page.getByRole("button", { name: "Remove First batch", exact: true }),
   ).toBeVisible();
+  await page.keyboard.press("Escape");
   const requests: string[] = [];
   let releaseFirst!: () => void;
   const firstTransfer = new Promise<void>((resolve) => {
@@ -251,8 +269,8 @@ test("other users’ collections never offer uploading and homepage snapshots ea
   await page
     .getByTestId("upload-input")
     .setInputFiles({ ...image, name: "queued.svg" });
-  await tags
-    .getByRole("button", { name: "First batch ×", exact: true })
+  await page
+    .getByRole("button", { name: "Remove First batch", exact: true })
     .click();
   await page
     .getByTestId("upload-input")

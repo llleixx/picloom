@@ -118,4 +118,23 @@
   .error-box {
     @apply rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive;
   }
+  .upload-dropzone {
+    @apply relative min-w-0 rounded-2xl border border-dashed transition-colors hover:border-primary;
+  }
+  .upload-control {
+    @apply inline-flex h-9 max-w-full cursor-pointer items-center gap-1.5 rounded-full px-2.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60;
+  }
+  .upload-control svg,
+  .upload-chip svg {
+    @apply size-3.5 shrink-0;
+  }
+  .upload-chip {
+    @apply inline-flex min-h-8 max-w-full items-center gap-1.5 rounded-full border border-border/60 bg-muted/60 px-2.5 py-1 text-xs transition-colors hover:bg-muted;
+  }
+  .upload-profile {
+    @apply inline-flex h-9 min-w-0 max-w-full items-center gap-1 rounded-full border bg-muted/40 pl-3 pr-2 text-xs;
+  }
+  .upload-profile select {
+    @apply h-full min-w-0 max-w-52 truncate bg-transparent pr-1 text-xs outline-none;
+  }
 }

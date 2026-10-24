@@ -1,5 +1,5 @@
 import sharp from "sharp";
-import { test, expect, login } from "./fixtures";
+import { test, expect, login, expandDetails } from "./fixtures";
 import { mkdir, writeFile, access } from "node:fs/promises";
 import { join } from "node:path";
 test("import from a source, rescan, preview and delete the original", async ({
@@ -51,8 +51,9 @@ test("import from a source, rescan, preview and delete the original", async ({
   );
   expect(original.headers()["content-type"]).toContain("image/png");
   await expect(
-    page.getByRole("button", { name: "Remove Legacy", exact: true }),
+    page.getByRole("dialog").getByText("Legacy", { exact: true }),
   ).toBeVisible();
+  await expandDetails(page, "link-parameters");
   await page
     .getByRole("button", { name: "Add parameter", exact: true })
     .click();

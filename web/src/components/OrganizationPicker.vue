@@ -14,6 +14,7 @@ const props = withDefaults(
     create?: boolean;
     max?: number;
     items?: readonly OrganizationItem[];
+    compact?: boolean;
   }>(),
   { create: true, max: 100 },
 );
@@ -23,6 +24,10 @@ const search = ref(""),
   busy = ref(false),
   error = ref("");
 const known = ref(new Map<string, OrganizationItem>());
+const selectedItems = computed(() =>
+  model.value.map((id) => known.value.get(id) ?? { id, name: id }),
+);
+defineExpose({ selectedItems });
 watch(
   () => props.items,
   (items) => {
@@ -102,14 +107,15 @@ async function create() {
 <template>
   <fieldset
     :disabled="disabled || busy"
-    class="min-w-0 space-y-2 rounded-lg border p-3"
+    class="min-w-0 space-y-2"
+    :class="!compact && 'rounded-lg border p-3'"
   >
     <legend class="px-1 text-sm font-medium">
       {{
         t(kind === "tags" ? "organization.tags" : "organization.collections")
       }}
     </legend>
-    <div v-if="model.length" class="flex flex-wrap gap-1">
+    <div v-if="!compact && model.length" class="flex flex-wrap gap-1">
       <button
         v-for="id in model"
         :key="id"

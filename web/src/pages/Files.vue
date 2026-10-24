@@ -11,6 +11,11 @@ import {
   Image,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
+  Check,
+  X,
+  Tag,
+  Folder,
 } from "lucide-vue-next";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -31,6 +36,23 @@ import {
 } from "@/lib/api";
 import { date, size, statuses, fileStatus } from "@/lib/utils";
 import ImagePreview from "@/components/ImagePreview.vue";
+import ImageFilters from "@/components/ImageFilters.vue";
+import {
+  DropdownMenuRoot,
+  DropdownMenuTrigger,
+  DropdownMenuPortal,
+  DropdownMenuContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuItemIndicator,
+  ComboboxRoot,
+  ComboboxAnchor,
+  ComboboxInput,
+  ComboboxTrigger,
+  ComboboxContent,
+  ComboboxItem,
+  ComboboxItemIndicator,
+} from "reka-ui";
 import UploadPanel from "@/components/UploadPanel.vue";
 import {
   Dialog,
@@ -38,36 +60,18 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
-import { copyFormats, copyPreferences, formatLink } from "@/lib/link-formats";
+import {
+  copyFormats,
+  copyPreferences,
+  formatLink,
+  type CopyFormat,
+} from "@/lib/link-formats";
 import { dateBoundary, localDate } from "@/lib/date-range";
 import DeleteScope from "@/components/DeleteScope.vue";
 import OrganizationPicker from "@/components/OrganizationPicker.vue";
 import OrganizationEditor from "@/components/OrganizationEditor.vue";
 import type { CollectionView } from "../../../shared/organization";
 import FileDetail from "@/components/FileDetail.vue";
-const ownerSearch = ref("");
-const owners = useQuery({
-  queryKey: computed(() => ["users", "picker", ownerSearch.value]),
-  enabled: isAdmin,
-  queryFn: () =>
-    api<{ items: UserView[] }>(
-      "/api/users?limit=30&q=" + encodeURIComponent(ownerSearch.value),
-    ),
-});
-const sources = useQuery({
-  queryKey: ["storage-sources"],
-  enabled: isAdmin,
-  queryFn: () =>
-    api<Array<{ id: string; name: string }>>("/api/storage-sources"),
-});
-const sourceId = computed(() =>
-  isAdmin.value && typeof route.query.source === "string"
-    ? route.query.source
-    : "",
-);
-const deleteWhole = ref(false),
-  includeLast = ref(true),
-  removalMode = ref<"delete" | "detach">("delete");
 const pageSize = 24;
 const route = useRoute(),
   router = useRouter(),
@@ -83,21 +87,154 @@ const collection = useQuery({
       "/api/collections/" + encodeURIComponent(collectionId.value),
     ),
 });
+type ImageScope = "mine" | "all";
+const rememberedScope = ref<ImageScope>("mine");
+const scopePreferenceKey = computed(
+  () => `imageScope:${session.value?.user.id ?? ""}`,
+);
+watch(
+  scopePreferenceKey,
+  (key) => {
+    try {
+      rememberedScope.value =
+        localStorage.getItem(key) === "all" ? "all" : "mine";
+    } catch {
+      rememberedScope.value = "mine";
+    }
+  },
+  { immediate: true },
+);
+const imageScope = computed<ImageScope>(() => {
+  if (!isAdmin.value) return "mine";
+  if (route.query.scope === "mine" || route.query.scope === "all")
+    return route.query.scope;
+  if (route.query.source) return "all";
+  if (typeof route.query.owner === "string" && route.query.owner)
+    return ["me", session.value?.user.id].includes(route.query.owner)
+      ? "mine"
+      : "all";
+  if (collection.data.value)
+    return collection.data.value.ownerId === session.value?.user.id
+      ? "mine"
+      : "all";
+  return rememberedScope.value;
+});
+const allImages = computed(() => imageScope.value === "all");
+watch(
+  [scopePreferenceKey, () => route.query.scope],
+  ([key, scope]) => {
+    if (!isAdmin.value || (scope !== "mine" && scope !== "all")) return;
+    rememberedScope.value = scope;
+    try {
+      localStorage.setItem(key, scope);
+    } catch {}
+  },
+  { immediate: true },
+);
+function selectScope(value: string) {
+  update({
+    scope: value,
+    owner: undefined,
+    source: undefined,
+    tag: undefined,
+    tagMode: undefined,
+    collection: undefined,
+    untagged: undefined,
+    uncollected: undefined,
+  });
+}
+const ownerSearch = ref(""),
+  ownerOpen = ref(false);
+const tagPicker = ref<InstanceType<typeof OrganizationPicker>>();
+const ownerNames = ref(new Map<string, string>());
+const owners = useQuery({
+  queryKey: computed(() => ["users", "picker", ownerSearch.value]),
+  enabled: allImages,
+  queryFn: () =>
+    api<{ items: UserView[] }>(
+      "/api/users?limit=30&q=" + encodeURIComponent(ownerSearch.value),
+    ),
+});
+watch(
+  owners.data,
+  (value) => {
+    for (const user of value?.items ?? [])
+      ownerNames.value.set(user.id, user.username);
+  },
+  { immediate: true },
+);
+const sources = useQuery({
+  queryKey: ["storage-sources"],
+  enabled: allImages,
+  queryFn: () =>
+    api<Array<{ id: string; name: string }>>("/api/storage-sources"),
+});
+function ownerLabel(value: unknown) {
+  return value === "all" || !value
+    ? t("users.allUsers")
+    : value === "me"
+      ? t("users.myImages")
+      : value === "guest"
+        ? t("users.guest")
+        : (ownerNames.value.get(String(value)) ?? String(value));
+}
+const ownerOptions = computed(() => {
+  const search = ownerSearch.value.trim().toLocaleLowerCase();
+  const shortcuts = [
+    { id: "all", name: t("users.allUsers") },
+    { id: "me", name: t("users.myImages") },
+    { id: "guest", name: t("users.guest") },
+  ].filter((item) => !search || item.name.toLocaleLowerCase().includes(search));
+  return [
+    ...shortcuts,
+    ...(owners.data.value?.items ?? []).map((user) => ({
+      id: user.id,
+      name: user.username,
+    })),
+  ];
+});
+function setOwnerOpen(value: boolean) {
+  ownerOpen.value = value;
+  if (value) ownerSearch.value = "";
+}
+function selectOwner(value: unknown) {
+  update({
+    owner: value === "all" ? undefined : String(value),
+    tag: undefined,
+    collection: undefined,
+    tagMode: undefined,
+    untagged: undefined,
+    uncollected: undefined,
+    page: "1",
+  });
+}
+function ownerEscape(event: KeyboardEvent) {
+  if (event.key !== "Escape" || !ownerOpen.value) return;
+  event.preventDefault();
+  event.stopPropagation();
+  ownerOpen.value = false;
+}
+const sourceId = computed(() =>
+  allImages.value && typeof route.query.source === "string"
+    ? route.query.source
+    : "",
+);
+const deleteWhole = ref(false),
+  includeLast = ref(true),
+  removalMode = ref<"delete" | "detach">("delete");
 const canUpload = computed(
   () =>
     !collectionId.value ||
     collection.data.value?.ownerId === session.value?.user.id,
 );
-const filterOwner = computed(() =>
-  collectionId.value
-    ? collection.data.value?.ownerId
-    : route.query.owner === "guest"
-      ? null
-      : typeof route.query.owner === "string" &&
-          !["", "me"].includes(route.query.owner)
-        ? route.query.owner
-        : undefined,
-);
+const filterOwner = computed(() => {
+  if (!allImages.value) return undefined;
+  if (collection.data.value) return collection.data.value.ownerId;
+  const owner = route.query.owner;
+  if (owner === "guest") return null;
+  if (owner === "me") return undefined;
+  return typeof owner === "string" && owner ? owner : null;
+});
 const tagFilters = computed({
   get: () =>
     (Array.isArray(route.query.tag)
@@ -142,12 +279,11 @@ const params = computed(() => {
     limit: String(pageSize),
     offset: String((page.value - 1) * pageSize),
   });
-  if (
-    isAdmin.value &&
-    typeof route.query.owner === "string" &&
-    route.query.owner
-  )
-    p.set("owner", route.query.owner);
+  if (isAdmin.value) {
+    if (!allImages.value) p.set("owner", "me");
+    else if (typeof route.query.owner === "string" && route.query.owner)
+      p.set("owner", route.query.owner);
+  }
   if (sourceId.value) p.set("source", sourceId.value);
   if (status.value !== "all") p.set("status", status.value);
   if (mime.value) p.set("mimeType", mime.value);
@@ -184,7 +320,13 @@ const files = useQuery<{ items: FileView[]; total: number }>({
 });
 function update(values: Record<string, string | string[] | undefined>) {
   void router.push({
-    query: { ...route.query, page: undefined, file: undefined, ...values },
+    query: {
+      ...route.query,
+      ...(isAdmin.value ? { scope: imageScope.value } : {}),
+      page: undefined,
+      file: undefined,
+      ...values,
+    },
   });
 }
 const selected = computed(() =>
@@ -230,6 +372,115 @@ function applyDates() {
   } catch {
     dateError.value = t("images.invalidDates");
   }
+}
+type FilterChip = {
+  key: string;
+  label: string;
+  icon?: "tag" | "collection";
+  remove: () => void;
+};
+const filterChips = computed(() => {
+  const chips: FilterChip[] = [];
+  if (mime.value)
+    chips.push({
+      key: "mime",
+      label:
+        mime.value === "image/svg+xml"
+          ? "SVG"
+          : mime.value.replace("image/", "").toUpperCase(),
+      remove: () => update({ mimeType: undefined }),
+    });
+  if (route.query.from || route.query.to) {
+    const label =
+      range.value === "1"
+        ? t("images.today")
+        : range.value === "7"
+          ? t("images.last7")
+          : range.value === "30"
+            ? t("images.last30")
+            : `${route.query.from ?? "…"} – ${route.query.to ?? "…"}`;
+    chips.push({ key: "time", label, remove: () => chooseRange("all") });
+  }
+  for (const id of tagFilters.value)
+    chips.push({
+      key: `tag:${id}`,
+      icon: "tag",
+      label:
+        tagPicker.value?.selectedItems.find((item) => item.id === id)?.name ??
+        id,
+      remove: () => {
+        tagFilters.value = tagFilters.value.filter((value) => value !== id);
+      },
+    });
+  if (tagFilters.value.length > 1 && route.query.tagMode === "any")
+    chips.push({
+      key: "tagMode",
+      label: t("organization.anyTag"),
+      remove: () => update({ tagMode: undefined }),
+    });
+  if (collectionId.value)
+    chips.push({
+      key: "collection",
+      icon: "collection",
+      label: collection.data.value?.name ?? collectionId.value,
+      remove: () => update({ collection: undefined }),
+    });
+  if (route.query.untagged === "true")
+    chips.push({
+      key: "untagged",
+      label: t("organization.untagged"),
+      remove: () => update({ untagged: undefined }),
+    });
+  if (route.query.uncollected === "true")
+    chips.push({
+      key: "uncollected",
+      label: t("organization.uncollected"),
+      remove: () => update({ uncollected: undefined }),
+    });
+  if (sourceId.value)
+    chips.push({
+      key: "source",
+      label: `${t("replicas.source")}: ${sources.data.value?.find((source) => source.id === sourceId.value)?.name ?? sourceId.value}`,
+      remove: () => update({ source: undefined }),
+    });
+  if (allImages.value && route.query.owner) {
+    const id = String(route.query.owner);
+    const label =
+      id === "me"
+        ? t("users.myImages")
+        : id === "guest"
+          ? t("users.guest")
+          : (ownerNames.value.get(id) ?? id);
+    chips.push({
+      key: "owner",
+      label: `${t("users.owner")}: ${label}`,
+      remove: () =>
+        update({ owner: undefined, tag: undefined, collection: undefined }),
+    });
+  }
+  if (route.query.order === "asc")
+    chips.push({
+      key: "order",
+      label: t("organization.oldest"),
+      remove: () => update({ order: undefined }),
+    });
+  return chips;
+});
+function resetFilters() {
+  update({
+    mimeType: undefined,
+    range: undefined,
+    from: undefined,
+    to: undefined,
+    tag: undefined,
+    tagMode: undefined,
+    collection: undefined,
+    untagged: undefined,
+    uncollected: undefined,
+    source: undefined,
+    owner: undefined,
+    order: undefined,
+  });
 }
 const checked = ref(new Map<string, FileView>()),
   bulkBusy = ref(false),
@@ -302,6 +553,7 @@ function togglePage() {
 }
 watch(
   [
+    () => imageScope.value,
     () => route.query.tag,
     () => route.query.collection,
     () => route.query.untagged,
@@ -341,6 +593,9 @@ watch(
 const copyable = computed(() =>
   [...checked.value.values()].filter((f) => f.status === "ready"),
 );
+function setCopyFormat(format: unknown) {
+  copyPreferences.format = format as CopyFormat;
+}
 function copySelected() {
   void copy(
     copyable.value
@@ -471,10 +726,22 @@ async function navigate(direction: -1 | 1) {
 <template>
   <section>
     <div class="mb-7 flex items-start justify-between gap-4">
-      <div>
-        <h1 class="page-heading">
-          {{ collection.data.value?.name ?? t("ui.images") }}
-        </h1>
+      <div class="min-w-0">
+        <div class="flex min-w-0 flex-wrap items-center gap-2">
+          <h1 class="page-heading break-all">
+            {{ collection.data.value?.name ?? t("ui.images") }}
+          </h1>
+          <select
+            v-if="isAdmin"
+            :value="imageScope"
+            :aria-label="t('images.scope')"
+            class="h-8 max-w-32 rounded-md border-0 bg-muted/50 px-2 text-xs"
+            @change="selectScope(($event.target as HTMLSelectElement).value)"
+          >
+            <option value="mine">{{ t("users.myImages") }}</option>
+            <option value="all">{{ t("users.allImages") }}</option>
+          </select>
+        </div>
         <template v-if="collection.data.value"
           ><p
             class="mt-2 max-w-xl whitespace-pre-line text-sm text-muted-foreground"
@@ -504,9 +771,9 @@ async function navigate(direction: -1 | 1) {
         }}</Button
       >
     </div>
-    <div class="mb-6 flex flex-wrap items-center gap-3 border-b pb-5">
+    <div class="mb-3 flex flex-wrap items-center gap-2">
       <form
-        class="relative min-w-40 flex-1"
+        class="relative min-w-32 flex-1"
         @submit.prevent="update({ q: search || undefined })"
       >
         <Search
@@ -520,119 +787,247 @@ async function navigate(direction: -1 | 1) {
           maxlength="2048"
         />
       </form>
-      <select
-        :value="status"
-        :aria-label="t('ui.fileStatus')"
-        class="native-select"
-        @change="update({ status: ($event.target as HTMLSelectElement).value })"
-      >
-        <option value="all">{{ t("ui.allStatuses") }}</option>
-        <option
-          v-for="key in [
-            'ready',
-            'blocked',
-            'preparing',
-            'failed',
-            'deleting',
-            'delete_failed',
-            'deleted',
-          ] as const"
-          :key="key"
-          :value="key"
+      <div class="order-2 flex shrink-0 items-center gap-2 sm:contents">
+        <select
+          :value="status"
+          :aria-label="t('ui.fileStatus')"
+          class="native-select order-1 max-w-36 shrink-0 px-2 text-xs shadow-none sm:text-sm"
+          @change="
+            update({ status: ($event.target as HTMLSelectElement).value })
+          "
         >
-          {{ statuses[key] }}
-        </option>
-        <option disabled>────────</option>
-        <option value="replica_error">{{ t("images.replicaError") }}</option>
-      </select>
-      <select
-        :value="mime"
-        :aria-label="t('ui.imageType')"
-        class="native-select"
-        @change="
-          update({
-            mimeType: ($event.target as HTMLSelectElement).value || undefined,
-          })
-        "
-      >
-        <option value="">{{ t("ui.allTypes") }}</option>
-        <option
-          v-for="t in ['jpeg', 'png', 'webp', 'svg+xml', 'gif', 'avif', 'tiff']"
-          :key="t"
-          :value="'image/' + t"
+          <option value="all">{{ t("ui.allStatuses") }}</option>
+          <option
+            v-for="key in [
+              'ready',
+              'blocked',
+              'preparing',
+              'failed',
+              'deleting',
+              'delete_failed',
+              'deleted',
+            ] as const"
+            :key="key"
+            :value="key"
+          >
+            {{ statuses[key] }}
+          </option>
+          <option disabled>────────</option>
+          <option value="replica_error">{{ t("images.replicaError") }}</option>
+        </select>
+        <div class="order-3 flex shrink-0 gap-0.5 rounded-md border p-0.5">
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            :aria-label="t('ui.gridView')"
+            :aria-pressed="mode === 'grid'"
+            :class="mode === 'grid' && 'bg-muted text-primary'"
+            @click="mode = 'grid'"
+            ><LayoutGrid /></Button
+          ><Button
+            variant="ghost"
+            size="icon-sm"
+            :aria-label="t('ui.listView')"
+            :aria-pressed="mode === 'list'"
+            :class="mode === 'list' && 'bg-muted text-primary'"
+            @click="mode = 'list'"
+            ><List
+          /></Button>
+        </div>
+      </div>
+      <ImageFilters :count="filterChips.length" @reset="resetFilters">
+        <div v-if="allImages" class="field">
+          <span>{{ t("users.owner") }}</span>
+          <ComboboxRoot
+            :model-value="String(route.query.owner || 'all')"
+            :open="ownerOpen"
+            open-on-click
+            ignore-filter
+            @update:open="setOwnerOpen"
+            @update:model-value="selectOwner"
+            @keydown.capture="ownerEscape"
+          >
+            <ComboboxAnchor
+              class="native-select flex items-center gap-2 focus-within:ring-1 focus-within:ring-ring"
+            >
+              <ComboboxInput
+                :model-value="
+                  ownerOpen ? ownerSearch : ownerLabel(route.query.owner)
+                "
+                :display-value="ownerLabel"
+                :aria-label="t('users.owner')"
+                :placeholder="t('users.search')"
+                autocomplete="off"
+                class="min-w-0 flex-1 bg-transparent outline-none focus-visible:outline-none"
+                @update:model-value="ownerSearch = $event"
+              />
+              <ComboboxTrigger
+                :aria-label="t('users.owner')"
+                class="shrink-0 rounded p-0.5"
+                ><ChevronDown :size="14"
+              /></ComboboxTrigger>
+            </ComboboxAnchor>
+            <ComboboxContent
+              position="popper"
+              align="start"
+              :side-offset="4"
+              class="z-50 max-h-[min(13rem,var(--reka-combobox-content-available-height))] w-[var(--reka-combobox-trigger-width)] overflow-y-auto rounded-lg border bg-background p-1 shadow-lg"
+            >
+              <ComboboxItem
+                v-for="owner in ownerOptions"
+                :key="owner.id"
+                :value="owner.id"
+                class="relative cursor-default rounded py-2 pr-2 pl-7 text-sm outline-none data-[highlighted]:bg-muted"
+              >
+                <ComboboxItemIndicator class="absolute left-2"
+                  ><Check :size="14" /></ComboboxItemIndicator
+                >{{ owner.name }}
+              </ComboboxItem>
+              <p
+                v-if="owners.isPending.value"
+                class="px-2 py-2 text-xs text-muted-foreground"
+              >
+                {{ t("ui.loading") }}
+              </p>
+              <p
+                v-else-if="owners.error.value"
+                role="alert"
+                class="px-2 py-2 text-xs text-destructive"
+              >
+                {{ errorText(owners.error.value) }}
+              </p>
+              <p
+                v-else-if="!ownerOptions.length"
+                class="px-2 py-2 text-xs text-muted-foreground"
+              >
+                {{ t("users.empty") }}
+              </p>
+            </ComboboxContent>
+          </ComboboxRoot>
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <label class="field"
+            >{{ t("ui.imageType") }}
+            <select
+              :value="mime"
+              :aria-label="t('ui.imageType')"
+              class="native-select"
+              @change="
+                update({
+                  mimeType:
+                    ($event.target as HTMLSelectElement).value || undefined,
+                })
+              "
+            >
+              <option value="">{{ t("ui.allTypes") }}</option>
+              <option
+                v-for="t in [
+                  'jpeg',
+                  'png',
+                  'webp',
+                  'svg+xml',
+                  'gif',
+                  'avif',
+                  'tiff',
+                ]"
+                :key="t"
+                :value="'image/' + t"
+              >
+                {{ t === "svg+xml" ? "SVG" : t.toUpperCase() }}
+              </option>
+            </select>
+          </label>
+          <label class="field"
+            >{{ t("images.uploadedTime") }}
+            <select
+              :value="range"
+              :aria-label="t('images.uploadedTime')"
+              class="native-select"
+              @change="chooseRange(($event.target as HTMLSelectElement).value)"
+            >
+              <option value="all">{{ t("images.anyTime") }}</option>
+              <option value="1">{{ t("images.today") }}</option>
+              <option value="7">{{ t("images.last7") }}</option>
+              <option value="30">{{ t("images.last30") }}</option>
+              <option value="custom">{{ t("images.customDates") }}</option>
+            </select>
+          </label>
+          <form
+            v-if="range === 'custom'"
+            class="col-span-2 grid grid-cols-2 items-end gap-3"
+            @submit.prevent="applyDates"
+          >
+            <label class="field"
+              >{{ t("images.from") }}<Input v-model="from" type="date"
+            /></label>
+            <label class="field"
+              >{{ t("images.to") }}<Input v-model="to" type="date"
+            /></label>
+            <Button variant="outline" type="submit">{{
+              t("images.applyDates")
+            }}</Button>
+            <p v-if="dateError" role="alert" class="error-box">
+              {{ dateError }}
+            </p>
+          </form>
+          <label class="field col-span-2"
+            >{{ t("organization.order")
+            }}<select
+              :value="route.query.order ?? 'desc'"
+              class="native-select"
+              :aria-label="t('organization.order')"
+              @change="
+                update({ order: ($event.target as HTMLSelectElement).value })
+              "
+            >
+              <option value="desc">{{ t("organization.newest") }}</option>
+              <option value="asc">{{ t("organization.oldest") }}</option>
+            </select></label
+          >
+        </div>
+        <div v-if="filterOwner !== null" class="space-y-2">
+          <details class="rounded-lg border p-2.5" name="image-organization">
+            <summary
+              role="button"
+              class="flex cursor-pointer list-none items-center gap-2 text-sm [&::-webkit-details-marker]:hidden"
+            >
+              <Tag :size="14" />{{ t("organization.addTags")
+              }}<ChevronDown :size="14" class="ml-auto" />
+            </summary>
+            <OrganizationPicker
+              ref="tagPicker"
+              v-model="tagFilters"
+              kind="tags"
+              :owner="filterOwner"
+              :create="false"
+              compact
+              class="mt-3"
+            />
+          </details>
+          <details class="rounded-lg border p-2.5" name="image-organization">
+            <summary
+              role="button"
+              class="flex cursor-pointer list-none items-center gap-2 text-sm [&::-webkit-details-marker]:hidden"
+            >
+              <Folder :size="14" />{{ t("organization.addCollections")
+              }}<ChevronDown :size="14" class="ml-auto" />
+            </summary>
+            <OrganizationPicker
+              v-model="collectionFilter"
+              kind="collections"
+              :owner="filterOwner"
+              :create="false"
+              :max="1"
+              compact
+              class="mt-3"
+            />
+          </details>
+        </div>
+        <div
+          v-if="filterOwner !== null"
+          class="flex flex-wrap items-center gap-3 text-xs"
         >
-          {{ t === "svg+xml" ? "SVG" : t.toUpperCase() }}
-        </option>
-      </select>
-      <select
-        :value="range"
-        :aria-label="t('images.uploadedTime')"
-        class="native-select"
-        @change="chooseRange(($event.target as HTMLSelectElement).value)"
-      >
-        <option value="all">{{ t("images.anyTime") }}</option>
-        <option value="1">{{ t("images.today") }}</option>
-        <option value="7">{{ t("images.last7") }}</option>
-        <option value="30">{{ t("images.last30") }}</option>
-        <option value="custom">{{ t("images.customDates") }}</option>
-      </select>
-      <form
-        v-if="range === 'custom'"
-        class="flex w-full flex-wrap items-end gap-3"
-        @submit.prevent="applyDates"
-      >
-        <label class="field"
-          >{{ t("images.from") }}<Input v-model="from" type="date"
-        /></label>
-        <label class="field"
-          >{{ t("images.to") }}<Input v-model="to" type="date"
-        /></label>
-        <Button variant="outline" type="submit">{{
-          t("images.applyDates")
-        }}</Button>
-        <p v-if="dateError" role="alert" class="error-box">{{ dateError }}</p>
-      </form>
-      <div class="flex gap-1 border-l pl-3">
-        <Button
-          variant="ghost"
-          size="icon"
-          :aria-label="t('ui.gridView')"
-          :aria-pressed="mode === 'grid'"
-          :class="mode === 'grid' && 'bg-muted text-primary'"
-          @click="mode = 'grid'"
-          ><LayoutGrid /></Button
-        ><Button
-          variant="ghost"
-          size="icon"
-          :aria-label="t('ui.listView')"
-          :aria-pressed="mode === 'list'"
-          :class="mode === 'list' && 'bg-muted text-primary'"
-          @click="mode = 'list'"
-          ><List
-        /></Button>
-      </div>
-    </div>
-    <details class="mb-4 rounded-lg border p-3">
-      <summary class="cursor-pointer text-sm">
-        {{ t("organization.filters") }}
-      </summary>
-      <div v-if="filterOwner !== null" class="mt-3 grid gap-3 sm:grid-cols-2">
-        <OrganizationPicker
-          v-model="tagFilters"
-          kind="tags"
-          :owner="filterOwner"
-          :create="false"
-        /><OrganizationPicker
-          v-model="collectionFilter"
-          kind="collections"
-          :owner="filterOwner"
-          :create="false"
-          :max="1"
-        />
-      </div>
-      <div class="mt-3 flex flex-wrap items-center gap-4 text-sm">
-        <template v-if="filterOwner !== null"
-          ><select
+          <select
             :value="route.query.tagMode ?? 'all'"
             class="native-select"
             :aria-label="t('organization.tagMode')"
@@ -641,7 +1036,9 @@ async function navigate(direction: -1 | 1) {
             "
           >
             <option value="all">{{ t("organization.allTags") }}</option>
-            <option value="any">{{ t("organization.anyTag") }}</option></select
+            <option value="any">
+              {{ t("organization.anyTag") }}
+            </option></select
           ><label class="flex items-center gap-2"
             ><input
               type="checkbox"
@@ -668,26 +1065,61 @@ async function navigate(direction: -1 | 1) {
                 })
               "
             />{{ t("organization.uncollected") }}</label
-          ></template
-        ><select
-          :value="route.query.order ?? 'desc'"
-          class="native-select"
-          :aria-label="t('organization.order')"
-          @change="
-            update({ order: ($event.target as HTMLSelectElement).value })
-          "
-        >
-          <option value="desc">{{ t("organization.newest") }}</option>
-          <option value="asc">{{ t("organization.oldest") }}</option>
-        </select>
-      </div>
-    </details>
-    <p v-if="collection.error.value" role="alert" class="mb-4 error-box">
-      {{ errorText(collection.error.value) }}
-    </p>
+          >
+        </div>
+        <div v-if="allImages" class="space-y-3 border-t pt-4">
+          <label class="field"
+            >{{ t("replicas.source") }}
+            <select
+              :value="sourceId"
+              :aria-label="t('replicas.source')"
+              class="native-select"
+              @change="
+                update({
+                  source: ($event.target as HTMLSelectElement).value,
+                  page: '1',
+                })
+              "
+            >
+              <option value="">{{ t("replicas.allSources") }}</option>
+              <option
+                v-for="source in sources.data.value"
+                :key="source.id"
+                :value="source.id"
+              >
+                {{ source.name }}
+              </option>
+            </select>
+          </label>
+        </div>
+      </ImageFilters>
+    </div>
+    <div
+      v-if="filterChips.length"
+      class="mb-4 flex min-w-0 flex-wrap items-center gap-1.5"
+    >
+      <button
+        v-for="chip in filterChips"
+        :key="chip.key"
+        type="button"
+        class="upload-chip"
+        :title="chip.label"
+        :aria-label="t('images.removeFilter', { name: chip.label })"
+        @click="chip.remove()"
+      >
+        <Tag v-if="chip.icon === 'tag'" /><Folder
+          v-else-if="chip.icon === 'collection'"
+        />
+        <span class="truncate">{{ chip.label }}</span
+        ><X :size="12" class="shrink-0 text-muted-foreground" />
+      </button>
+      <Button variant="ghost" size="sm" @click="resetFilters">{{
+        t("images.resetFilters")
+      }}</Button>
+    </div>
     <div
       v-if="selectable.length || checked.size"
-      class="mb-4 flex flex-wrap items-center gap-3 text-sm"
+      class="mb-4 flex flex-wrap items-center gap-2 border-b pb-3 text-xs"
     >
       <label class="flex items-center gap-2"
         ><input
@@ -702,26 +1134,66 @@ async function navigate(direction: -1 | 1) {
         />{{ t("images.selectPage") }}</label
       >
       <template v-if="checked.size">
-        <span>{{ t("images.selectedCount", { count: checked.size }) }}</span>
-        <select
-          v-model="copyPreferences.format"
-          :aria-label="t('uploads.copyFormat')"
-          class="native-select"
-        >
-          <option v-for="format in copyFormats" :key="format" :value="format">
-            {{ format }}
-          </option>
-        </select>
+        <span class="text-muted-foreground">{{
+          t("images.selectedCount", { count: checked.size })
+        }}</span>
+        <div class="inline-flex rounded-md border">
+          <Button
+            variant="ghost"
+            size="sm"
+            class="rounded-r-none"
+            :disabled="
+              !copyable.length || copyable.length !== checked.size || bulkBusy
+            "
+            @click="copySelected"
+            >{{ t("images.copySelected") }}</Button
+          >
+          <DropdownMenuRoot>
+            <DropdownMenuTrigger as-child
+              ><Button
+                variant="ghost"
+                size="icon-sm"
+                class="rounded-l-none border-l"
+                :disabled="bulkBusy"
+                :aria-label="t('uploads.copyFormat')"
+                ><ChevronDown /></Button
+            ></DropdownMenuTrigger>
+            <DropdownMenuPortal
+              ><DropdownMenuContent
+                align="start"
+                :side-offset="6"
+                class="z-50 min-w-40 rounded-lg border bg-background p-1 shadow-lg"
+              >
+                <DropdownMenuRadioGroup
+                  :model-value="copyPreferences.format"
+                  @update:model-value="setCopyFormat"
+                >
+                  <DropdownMenuRadioItem
+                    v-for="format in copyFormats"
+                    :key="format"
+                    :value="format"
+                    class="relative flex cursor-default items-center rounded px-7 py-2 text-sm outline-none data-[highlighted]:bg-muted"
+                  >
+                    <DropdownMenuItemIndicator class="absolute left-2"
+                      ><Check :size="14" /></DropdownMenuItemIndicator
+                    >{{ format }}
+                  </DropdownMenuRadioItem>
+                </DropdownMenuRadioGroup>
+              </DropdownMenuContent></DropdownMenuPortal
+            >
+          </DropdownMenuRoot>
+        </div>
         <Button
-          variant="outline"
-          :disabled="
-            !copyable.length || copyable.length !== checked.size || bulkBusy
-          "
-          @click="copySelected"
-          >{{ t("images.copySelected") }}</Button
+          variant="ghost"
+          size="sm"
+          :disabled="bulkBusy || !sameOwner"
+          @click="organizing = true"
+          >{{ t("organization.edit") }}</Button
         >
         <Button
-          variant="outline"
+          variant="ghost"
+          size="sm"
+          class="text-destructive hover:bg-destructive/10 hover:text-destructive"
           :disabled="bulkBusy"
           @click="
             deleteWhole = false;
@@ -729,93 +1201,32 @@ async function navigate(direction: -1 | 1) {
             removalMode = 'delete';
             confirmDelete = true;
           "
-          >{{
+        >
+          {{
             t(
               sourceId
                 ? "images.deleteSelectedReplicas"
                 : "images.deleteSelected",
             )
-          }}</Button
-        >
+          }}
+        </Button>
         <Button
-          variant="outline"
-          :disabled="bulkBusy || !sameOwner"
-          @click="organizing = true"
-          >{{ t("organization.edit") }}</Button
-        ><span v-if="!sameOwner" class="subtle">{{
+          variant="ghost"
+          size="sm"
+          :disabled="bulkBusy"
+          @click="checked.clear()"
+          >{{ t("images.clearSelection") }}</Button
+        >
+        <span v-if="!sameOwner" class="w-full text-xs text-muted-foreground">{{
           t("organization.sameOwner")
         }}</span>
-        <Button variant="ghost" :disabled="bulkBusy" @click="checked.clear()">{{
-          t("images.clearSelection")
-        }}</Button>
-        <p v-if="copyable.length !== checked.size" class="subtle">
+        <p
+          v-if="copyable.length !== checked.size"
+          class="w-full text-xs text-muted-foreground"
+        >
           {{ t("images.copyReadyOnly") }}
         </p>
       </template>
-    </div>
-    <div v-if="isAdmin" class="mb-4 flex flex-wrap gap-3">
-      <select
-        :value="sourceId"
-        :aria-label="t('replicas.source')"
-        class="native-select"
-        @change="
-          update({
-            source: ($event.target as HTMLSelectElement).value,
-            page: '1',
-          })
-        "
-      >
-        <option value="">{{ t("replicas.allSources") }}</option>
-        <option
-          v-for="source in sources.data.value"
-          :key="source.id"
-          :value="source.id"
-        >
-          {{ source.name }}
-        </option>
-      </select>
-      <select
-        :value="route.query.owner ?? ''"
-        :aria-label="t('users.owner')"
-        class="native-select"
-        @change="
-          update({
-            owner: ($event.target as HTMLSelectElement).value,
-            tag: undefined,
-            collection: undefined,
-            page: '1',
-          })
-        "
-      >
-        <option value="">{{ t("users.allImages") }}</option>
-        <option value="me">{{ t("users.myImages") }}</option>
-        <option value="guest">{{ t("users.guest") }}</option>
-        <option
-          v-if="
-            route.query.owner &&
-            !['me', 'guest'].includes(String(route.query.owner)) &&
-            !owners.data.value?.items.some((u) => u.id === route.query.owner)
-          "
-          :value="route.query.owner"
-        >
-          {{ t("users.selectUser") }}
-        </option>
-        <optgroup :label="t('users.title')">
-          <option
-            v-for="owner in owners.data.value?.items"
-            :key="owner.id"
-            :value="owner.id"
-          >
-            {{ owner.username }}
-          </option>
-        </optgroup>
-      </select>
-      <Input
-        v-model="ownerSearch"
-        class="max-w-56"
-        :aria-label="t('users.search')"
-        :placeholder="t('users.search')"
-      />
     </div>
     <div v-if="acceptedCount !== null" class="mb-4 space-y-2" role="status">
       <p class="subtle">
@@ -909,37 +1320,57 @@ async function navigate(direction: -1 | 1) {
         </div>
         <button
           class="min-w-0 text-left focus-visible:bg-muted"
-          :class="mode === 'grid' ? 'block w-full p-4' : 'flex-1 p-1'"
+          :class="mode === 'grid' ? 'block w-full p-3' : 'flex-1 p-1'"
           @click="update({ file: file.id, page: String(page) })"
           :aria-label="t('images.openLabel', { name: file.logicalKey })"
         >
           <p class="truncate text-sm font-medium" :title="file.logicalKey">
             {{ file.logicalKey.split("/").pop() }}
           </p>
-          <p class="mt-1 truncate text-[11px] text-muted-foreground">
-            {{ file.logicalKey }}
-          </p>
           <p
+            v-if="file.status !== 'ready' || file.replicaIssue"
             class="mt-1 flex flex-wrap items-center gap-x-1 text-[11px] text-muted-foreground"
           >
-            <span>{{ fileStatus(file) }}</span>
+            <span v-if="file.status !== 'ready'">{{ fileStatus(file) }}</span>
             <span
               v-if="file.replicaIssue"
               class="text-amber-600 dark:text-amber-400"
-              >· {{ t("images.replicaError") }}</span
+              >{{ t("images.replicaError") }}</span
             >
           </p>
-          <div v-if="file.tags?.length" class="mt-2 flex flex-wrap gap-1">
+          <div
+            v-if="file.tags?.length"
+            class="mt-2 flex min-w-0 items-center gap-1"
+          >
             <span
-              v-for="tag in file.tags"
+              v-for="tag in file.tags.slice(0, 2)"
               :key="tag.id"
-              class="max-w-full truncate rounded bg-muted px-1.5 py-0.5 text-[11px]"
+              class="min-w-0 max-w-[45%] truncate rounded bg-muted px-1.5 py-0.5 text-[11px]"
+              :title="tag.name"
               >{{ tag.name }}</span
+            >
+            <span
+              v-if="file.tags.length > 2"
+              class="shrink-0 text-[11px] text-muted-foreground"
+              :title="
+                file.tags
+                  .slice(2)
+                  .map((tag) => tag.name)
+                  .join(' · ')
+              "
+              >+{{ file.tags.length - 2 }}</span
             >
           </div>
           <div
-            class="mt-3 flex flex-wrap items-center justify-between gap-1 text-xs text-muted-foreground"
+            class="mt-2 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[11px] text-muted-foreground"
           >
+            <span
+              v-if="allImages"
+              class="max-w-28 truncate"
+              :title="file.ownerName ?? file.ownerId ?? t('users.guest')"
+              >{{ file.ownerName ?? file.ownerId ?? t("users.guest") }}</span
+            >
+            <span v-if="allImages">·</span>
             <span
               >{{
                 (
@@ -947,7 +1378,7 @@ async function navigate(direction: -1 | 1) {
                 ).toUpperCase()
               }}
               <span class="mx-1">·</span> {{ size(file.byteSize) }}</span
-            ><span>{{ file.width ?? "—" }} × {{ file.height ?? "—" }}</span>
+            ><span>· {{ file.width ?? "—" }} × {{ file.height ?? "—" }}</span>
           </div>
         </button>
         <span

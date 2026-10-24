@@ -107,3 +107,44 @@ export async function login(page: Page, url: string) {
     page.getByRole("heading", { name: "Images", exact: true }),
   ).toBeVisible();
 }
+export async function openImageFilters(page: Page) {
+  const trigger = page.getByRole("button", {
+    name: "Filters & sort",
+    exact: true,
+  });
+  if ((await trigger.getAttribute("aria-expanded")) !== "true")
+    await trigger.click();
+}
+export async function closeImageFilters(page: Page) {
+  await page
+    .getByRole("dialog", { name: "Filters & sort", exact: true })
+    .getByRole("button", { name: "Done", exact: true })
+    .click();
+}
+export async function selectImageFilter(
+  page: Page,
+  label: string,
+  value: string,
+) {
+  if (label === "Storage Source") {
+    const scope = page.getByRole("combobox", {
+      name: "Image scope",
+      exact: true,
+    });
+    if ((await scope.inputValue()) !== "all") await scope.selectOption("all");
+  }
+  await openImageFilters(page);
+  await page
+    .getByRole("combobox", { name: label, exact: true })
+    .selectOption(value);
+  await closeImageFilters(page);
+}
+export async function openBatchRemoval(page: Page, name = "Delete selected") {
+  await page.getByRole("button", { name, exact: true }).click();
+}
+
+export async function expandDetails(page: Page, testId: string) {
+  const details = page.getByTestId(testId);
+  if ((await details.getAttribute("open")) === null)
+    await details.locator("summary").first().click();
+}

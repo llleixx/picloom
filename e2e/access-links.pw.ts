@@ -1,4 +1,4 @@
-import { test, expect, login } from "./fixtures";
+import { test, expect, login, expandDetails } from "./fixtures";
 test.use({ scenario: "seed" });
 test("shared access parameters ignore presentation hints but retain constraint conflicts", async ({
   page,
@@ -41,6 +41,7 @@ test("shared access parameters ignore presentation hints but retain constraint c
     .getByRole("button", { name: /^Open / })
     .first()
     .click();
+  await expandDetails(page, "link-parameters");
   await page
     .getByRole("button", { name: "Add parameter", exact: true })
     .click();
@@ -85,6 +86,7 @@ test("access links preserve empty, false and zero and do not pick conflicting de
     .getByRole("button", { name: /^Open / })
     .first()
     .click();
+  await expandDetails(page, "link-parameters");
   async function add(key: string) {
     await page
       .getByRole("button", { name: "Add parameter", exact: true })

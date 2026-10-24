@@ -63,9 +63,7 @@ test("Vite proxy keeps login, upload URL and image access on the browser origin"
     expect(url).toMatch(/^http:\/\/127\.0\.0\.1:5173\/i\//);
     expect((await page.request.get(url)).status()).toBe(200);
     await page.reload();
-    await expect(
-      page.getByRole("heading", { name: "Image details" }),
-    ).toBeVisible();
+    await expect(page.getByRole("dialog")).toBeVisible();
   } finally {
     if (child.exitCode === null)
       await new Promise<void>((done) => {

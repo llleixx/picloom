@@ -707,6 +707,22 @@ export function handler(app: Application) {
           filter = await app.organization.fileFilter(auth, filter);
           const result = await app.db.read(async (r) => {
             const files = await r.files(limit, offset, filter);
+            const ownerNames = isSiteAdmin(auth.user.role)
+              ? new Map(
+                  await Promise.all(
+                    [
+                      ...new Set(
+                        files
+                          .map((file) => file.owner_id)
+                          .filter((id): id is string => id !== null),
+                      ),
+                    ].map(
+                      async (id) =>
+                        [id, (await r.user(id))?.username ?? id] as const,
+                    ),
+                  ),
+                )
+              : null;
             const tags = await r.fileTags(files.map((f) => f.id));
             const issues = new Set(
               await r.filesWithReplicaIssues(
@@ -720,6 +736,10 @@ export function handler(app: Application) {
             return {
               items: files.map((f) => {
                 const item = view(f, app.config.imageOrigin || requestOrigin);
+                if (ownerNames)
+                  item.ownerName = f.owner_id
+                    ? (ownerNames.get(f.owner_id) ?? null)
+                    : null;
                 item.tags = (tags.get(f.id) ?? []).map(({ id, name }) => ({
                   id,
                   name,
