@@ -12,12 +12,22 @@ A self-hosted image hosting service with multiple storage backends and configura
 
 ## Features
 
-- **Multiple storage backends and replicas.** Connect multiple storage backends. Choose storage targets and the number of copies through storage groups. Writes run concurrently; uploads return after the first copy is saved.
-- **Separate public and storage paths.** Organize files in sharded directories while keeping public URLs flat. Replicas share one public path.
-- **Processing at three stages.** Resize or watermark images before saving, generate variants on access, and run moderation or notifications after saving. Combine steps into reusable pipelines.
-- **Import existing images in place.** Scan supported storage sources without uploading again. Preserve existing links by matching the domain and public paths.
-- **Reusable upload profiles.** Choose storage, path rules and processing once, then select a profile when uploading through the web interface or API. Upload tokens can be restricted to specific profiles.
-- **Web management.** Manage images, replicas and background tasks; use chunked uploads and built-in SQLite backups. Add capabilities with path, storage and processing plugins.
+- **Self-hosted deployment.** Deploy with Docker and choose SQLite or PostgreSQL as your database.
+- **Customizable themes.** Customize your homepage and login page to give your image hosting site its own look.
+- **Plugin extensions.** Extend storage, image processing and path rules as needed:
+  - Connect multiple storage backends, or import images from supported storage sources to take over an existing library.
+  - Compress, resize, convert formats and add watermarks during upload, with automatic tagging and collection assignment.
+  - Moderate images after upload and send notifications based on processing results.
+  - Generate image variants through URL parameters while preserving the original.
+  - Customize public URLs and storage paths with dates, random strings or your own plugin-defined rules.
+- **Multiple upload profiles.** Combine storage, path and processing plugins into distinct upload rules for different uses.
+- **Replicated storage.** Write images to multiple storage sources concurrently. Replicas share one public URL and improve image availability.
+- **Tags and collections.** Organize images with flexible categorization, filtering and batch management.
+- **Replace images without changing links.** Update image content without editing published references.
+- **Multi-user and guest uploads.** Manage multiple users, control upload permissions and apply rate limits to guest uploads.
+- **Upload tools and API integration.** Upload with PicGo or ShareX, or use the HTTP API to integrate your own applications and workflows.
+- **Chunked uploads.** Split files into chunks to support large file uploads.
+- **Multilingual support.** Chinese and English interfaces, with support for adding more languages to serve users worldwide.
 
 ## Getting started
 
