@@ -157,7 +157,10 @@ test("empty category management, collection upload, detail and batch organizatio
   const empty = page.getByRole("article").filter({
     has: page.getByRole("button", { name: "Empty tag", exact: true }),
   });
-  await empty.getByRole("button", { name: "Edit", exact: true }).click();
+  await empty
+    .getByRole("button", { name: "Manage Empty tag", exact: true })
+    .click();
+  await page.getByRole("menuitem", { name: "Rename tag", exact: true }).click();
   await page.getByLabel("Name", { exact: true }).fill("Renamed tag");
   await page.getByRole("button", { name: "Save", exact: true }).click();
   await expect(
@@ -168,9 +171,9 @@ test("empty category management, collection upload, detail and batch organizatio
     .filter({
       has: page.getByRole("button", { name: "Renamed tag", exact: true }),
     })
-    .getByRole("button", { name: "Edit", exact: true })
+    .getByRole("button", { name: "Manage Renamed tag", exact: true })
     .click();
-  await page.getByRole("button", { name: "Delete", exact: true }).click();
+  await page.getByRole("menuitem", { name: "Delete", exact: true }).click();
   await expect(
     page.getByText(
       "Deleting this definition removes its relationships. Images are kept.",
@@ -215,7 +218,15 @@ test("other users’ collections never offer uploading and homepage snapshots ea
   await expect(
     page.getByRole("heading", { name: "Collections", exact: true }),
   ).toBeVisible();
-  await expect(page.locator('option[value="guest"]')).toHaveCount(0);
+  const owner = page.getByRole("combobox", { name: "Owner", exact: true });
+  await owner.click();
+  await expect(
+    page.getByRole("option", { name: "Guest", exact: true }),
+  ).toHaveCount(0);
+  await owner.fill("mem");
+  await page.getByRole("option", { name: "member", exact: true }).click();
+  await expect(owner).toHaveValue("member");
+  await expect(page.getByRole("article")).toContainText("Member collection");
   await page.goto(service.url + "/app/images?owner=guest");
   await openImageFilters(page);
   await expect(

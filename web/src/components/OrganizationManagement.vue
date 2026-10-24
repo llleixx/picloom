@@ -2,7 +2,29 @@
 import { computed, ref, watch } from "vue";
 import { useQuery } from "@tanstack/vue-query";
 import { useRoute, useRouter } from "vue-router";
-import { Folder, Plus } from "lucide-vue-next";
+import {
+  ArrowUpDown,
+  Check,
+  Copy,
+  Folder,
+  MoreHorizontal,
+  Pencil,
+  Plus,
+  Search,
+  Tag,
+  Trash2,
+} from "lucide-vue-next";
+import {
+  DropdownMenuRoot,
+  DropdownMenuTrigger,
+  DropdownMenuPortal,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuItemIndicator,
+} from "reka-ui";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -37,6 +59,21 @@ const search = ref(""),
   offset = ref(0),
   sort = ref("name"),
   order = ref("asc");
+const sortOptions = computed(() => [
+  { value: "name.asc", label: t("organization.nameAscending") },
+  { value: "name.desc", label: t("organization.nameDescending") },
+  { value: "createdAt.desc", label: t("organization.recentlyCreated") },
+  { value: "createdAt.asc", label: t("organization.earliestCreated") },
+]);
+const sorting = computed({
+  get: () => `${sort.value}.${order.value}`,
+  set: (value: string) => {
+    [sort.value, order.value] = value.split(".") as [string, string];
+  },
+});
+const sortLabel = computed(
+  () => sortOptions.value.find((item) => item.value === sorting.value)?.label,
+);
 watch([kind, owner, search, sort, order], () => (offset.value = 0));
 const list = useQuery({
   queryKey: computed(() => [
@@ -67,21 +104,47 @@ const list = useQuery({
   },
 });
 const editing = ref(false),
+  removing = ref(false),
   target = ref<TagView | CollectionView>(),
   name = ref(""),
   description = ref(""),
   error = ref(""),
-  busy = ref(false),
-  deleting = ref(false);
+  busy = ref(false);
+const createLabel = computed(() =>
+  t(
+    kind.value === "tags"
+      ? "organization.newTag"
+      : "organization.newCollection",
+  ),
+);
+const editLabel = computed(() =>
+  t(
+    kind.value === "tags"
+      ? "organization.renameTag"
+      : "organization.editCollection",
+  ),
+);
+const deleteLabel = computed(() =>
+  t(
+    kind.value === "tags"
+      ? "organization.deleteTag"
+      : "organization.deleteCollection",
+  ),
+);
 function edit(item?: TagView | CollectionView) {
   target.value = item;
   name.value = item?.name ?? "";
   description.value = item && "description" in item ? item.description : "";
   error.value = "";
-  deleting.value = false;
   editing.value = true;
 }
+function confirmRemoval(item: TagView | CollectionView) {
+  target.value = item;
+  error.value = "";
+  removing.value = true;
+}
 async function save() {
+  if (busy.value) return;
   busy.value = true;
   error.value = "";
   try {
@@ -107,12 +170,12 @@ async function save() {
   }
 }
 async function remove() {
-  if (!target.value) return;
+  if (!target.value || busy.value) return;
   busy.value = true;
   error.value = "";
   try {
     await api(`/api/${kind.value}/${target.value.id}`, { method: "DELETE" });
-    editing.value = false;
+    removing.value = false;
     await Promise.all(
       ["organization", "files", "file"].map((key) =>
         queryClient.invalidateQueries({ queryKey: [key] }),
@@ -135,52 +198,103 @@ function browse(item: TagView | CollectionView) {
 }
 </script>
 <template>
-  <section>
-    <div class="mb-6 flex items-center justify-between gap-3">
-      <h1 class="page-heading">
-        {{
-          t(kind === "tags" ? "organization.tags" : "organization.collections")
-        }}
-      </h1>
-      <Button @click="edit()"
-        ><Plus />{{
-          t(
-            kind === "tags"
-              ? "organization.newTag"
-              : "organization.newCollection",
-          )
-        }}</Button
+  <section class="space-y-4">
+    <header class="flex items-start justify-between gap-3">
+      <div class="flex min-w-0 flex-wrap items-center gap-2">
+        <h1 class="page-heading text-xl sm:text-2xl">
+          {{
+            t(
+              kind === "tags"
+                ? "organization.tags"
+                : "organization.collections",
+            )
+          }}
+        </h1>
+        <OrganizationOwner
+          v-model="owner"
+          :mine-label="
+            t(
+              kind === 'tags'
+                ? 'organization.myTags'
+                : 'organization.myCollections',
+            )
+          "
+        />
+      </div>
+      <Button
+        size="sm"
+        class="shrink-0"
+        :aria-label="createLabel"
+        @click="edit()"
       >
-    </div>
-    <div class="mb-6 space-y-3">
-      <OrganizationOwner v-model="owner" />
-      <div class="flex flex-wrap gap-2">
+        <Plus />
+        <span class="hidden sm:inline">{{ createLabel }}</span>
+        <span class="sm:hidden">{{ t("organization.new") }}</span>
+      </Button>
+    </header>
+    <div class="flex min-w-0 items-center gap-2">
+      <div class="relative min-w-0 flex-1">
+        <Search
+          :size="16"
+          class="pointer-events-none absolute left-3 top-2.5 text-muted-foreground"
+        />
         <Input
           v-model="search"
-          class="max-w-sm"
-          :placeholder="t('organization.search')"
-          :aria-label="t('organization.search')"
-        /><template v-if="kind === 'collections'"
-          ><select
-            v-model="sort"
-            class="native-select"
+          class="pl-9"
+          :placeholder="
+            t(
+              kind === 'tags'
+                ? 'organization.searchTags'
+                : 'organization.searchCollections',
+            )
+          "
+          :aria-label="
+            t(
+              kind === 'tags'
+                ? 'organization.searchTags'
+                : 'organization.searchCollections',
+            )
+          "
+        />
+      </div>
+      <DropdownMenuRoot v-if="kind === 'collections'">
+        <DropdownMenuTrigger as-child>
+          <Button
+            variant="outline"
+            class="shrink-0 px-3"
             :aria-label="t('organization.sort')"
           >
-            <option value="name">{{ t("organization.name") }}</option>
-            <option value="createdAt">{{ t("ui.created") }}</option></select
-          ><select
-            v-model="order"
-            class="native-select"
-            :aria-label="t('organization.order')"
+            <ArrowUpDown />{{ sortLabel }}
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuPortal>
+          <DropdownMenuContent
+            align="end"
+            :side-offset="6"
+            class="z-50 min-w-44 rounded-lg border bg-background p-1 shadow-lg"
           >
-            <option value="asc">{{ t("organization.asc") }}</option>
-            <option value="desc">{{ t("organization.desc") }}</option>
-          </select></template
-        >
-      </div>
+            <DropdownMenuRadioGroup
+              :model-value="sorting"
+              @update:model-value="sorting = String($event)"
+            >
+              <DropdownMenuRadioItem
+                v-for="option in sortOptions"
+                :key="option.value"
+                :value="option.value"
+                class="relative cursor-default rounded py-2 pr-3 pl-7 text-sm outline-none data-[highlighted]:bg-muted"
+              >
+                <DropdownMenuItemIndicator class="absolute left-2"
+                  ><Check :size="14"
+                /></DropdownMenuItemIndicator>
+                {{ option.label }}
+              </DropdownMenuRadioItem>
+            </DropdownMenuRadioGroup>
+          </DropdownMenuContent>
+        </DropdownMenuPortal>
+      </DropdownMenuRoot>
     </div>
     <p v-if="list.isPending.value" class="subtle">{{ t("ui.loading") }}</p>
-    <p v-else-if="list.error.value" class="error-box">
+    <p v-else-if="list.error.value" role="alert" class="error-box">
       {{ errorText(list.error.value) }}
     </p>
     <p v-else-if="!list.data.value?.items.length" class="subtle">
@@ -189,97 +303,140 @@ function browse(item: TagView | CollectionView) {
     <div
       :class="
         kind === 'collections'
-          ? 'grid gap-4 sm:grid-cols-2 xl:grid-cols-3'
-          : 'divide-y border-y'
+          ? 'grid gap-3 sm:grid-cols-2 xl:grid-cols-3'
+          : 'grid gap-x-6 md:grid-cols-2 xl:grid-cols-3'
       "
     >
       <article
         v-for="item in list.data.value?.items"
         :key="item.id"
+        class="flex min-w-0 gap-2"
         :class="
           kind === 'collections'
-            ? 'panel overflow-hidden'
-            : 'flex flex-wrap items-center gap-3 py-3'
+            ? 'items-start rounded-lg border p-3 transition-colors hover:bg-muted/30'
+            : 'items-center border-b py-2.5'
         "
       >
         <button
-          v-if="'preview' in item"
-          class="block aspect-[2/1] w-full bg-muted"
-          @click="browse(item)"
+          class="flex min-w-0 flex-1 items-center gap-3 rounded-md text-left outline-none focus-visible:ring-1 focus-visible:ring-ring"
           :aria-label="item.name"
+          :title="item.name"
+          @click="browse(item)"
         >
-          <ImagePreview
-            v-if="item.preview"
-            thumbnail
-            :src="item.preview.thumbnailUrl"
-            :alt="item.name"
-          /><Folder v-else class="mx-auto text-muted-foreground" :size="30" />
+          <template v-if="'preview' in item">
+            <div
+              class="flex size-16 shrink-0 items-center justify-center overflow-hidden rounded-md bg-muted sm:size-20 [&>div]:min-h-0"
+            >
+              <ImagePreview
+                v-if="item.preview"
+                thumbnail
+                :src="item.preview.thumbnailUrl"
+                :alt="item.name"
+              />
+              <Folder v-else class="text-muted-foreground" :size="24" />
+            </div>
+            <div class="min-w-0 flex-1 space-y-1">
+              <p class="line-clamp-2 break-words text-sm font-medium">
+                {{ item.name }}
+              </p>
+              <p
+                v-if="item.description"
+                class="truncate text-xs text-muted-foreground"
+              >
+                {{ item.description }}
+              </p>
+              <p class="text-xs text-muted-foreground">
+                {{
+                  t("organization.readyCount", { count: item.readyFileCount })
+                }}
+              </p>
+            </div>
+          </template>
+          <span v-else class="upload-chip max-w-full"
+            ><Tag /><span class="truncate">{{ item.name }}</span></span
+          >
         </button>
-        <div
-          :class="kind === 'collections' ? 'space-y-2 p-4' : 'min-w-0 flex-1'"
-        >
-          <button
-            class="break-all text-left font-medium hover:underline"
-            @click="browse(item)"
-          >
-            {{ item.name }}
-          </button>
-          <p
-            v-if="'description' in item && item.description"
-            class="line-clamp-2 whitespace-pre-line text-sm text-muted-foreground"
-          >
-            {{ item.description }}
-          </p>
-          <p v-if="'readyFileCount' in item" class="subtle">
-            {{ t("organization.readyCount", { count: item.readyFileCount }) }}
-          </p>
-        </div>
-        <div class="flex gap-2" :class="kind === 'collections' && 'px-4 pb-4'">
-          <Button size="sm" variant="outline" @click="edit(item)">{{
-            t("ui.edit")
-          }}</Button
-          ><Button size="sm" variant="ghost" @click="copy(item.id)">{{
-            t("organization.copyId")
-          }}</Button>
-        </div>
+        <DropdownMenuRoot>
+          <DropdownMenuTrigger as-child>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              class="shrink-0 text-muted-foreground hover:text-foreground"
+              :aria-label="t('organization.actions', { name: item.name })"
+            >
+              <MoreHorizontal />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuPortal>
+            <DropdownMenuContent
+              align="end"
+              :side-offset="6"
+              class="z-50 min-w-40 rounded-lg border bg-background p-1 shadow-lg"
+            >
+              <DropdownMenuItem
+                class="flex cursor-default items-center gap-2 rounded px-2 py-2 text-sm outline-none data-[highlighted]:bg-muted"
+                @select="edit(item)"
+              >
+                <Pencil :size="14" />{{ editLabel }}
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                class="flex cursor-default items-center gap-2 rounded px-2 py-2 text-sm outline-none data-[highlighted]:bg-muted"
+                @select="copy(item.id)"
+              >
+                <Copy :size="14" />{{ t("organization.copyId") }}
+              </DropdownMenuItem>
+              <DropdownMenuSeparator class="my-1 border-t" />
+              <DropdownMenuItem
+                class="flex cursor-default items-center gap-2 rounded px-2 py-2 text-sm text-destructive outline-none data-[highlighted]:bg-destructive/10"
+                @select="confirmRemoval(item)"
+              >
+                <Trash2 :size="14" />{{ t("ui.delete") }}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenuPortal>
+        </DropdownMenuRoot>
       </article>
     </div>
-    <div
+    <footer
       v-if="(list.data.value?.total ?? 0) > 24"
-      class="mt-5 flex items-center justify-between"
+      class="flex items-center justify-between gap-2"
     >
       <Button
+        size="sm"
         variant="outline"
         :disabled="offset === 0"
         @click="offset -= 24"
         >{{ t("organization.previous") }}</Button
-      ><span class="subtle"
+      >
+      <span class="text-xs text-muted-foreground"
         >{{ offset + 1 }}–{{ offset + (list.data.value?.items.length ?? 0) }} /
         {{ list.data.value?.total }}</span
-      ><Button
+      >
+      <Button
+        size="sm"
         variant="outline"
         :disabled="offset + 24 >= (list.data.value?.total ?? 0)"
         @click="offset += 24"
         >{{ t("organization.next") }}</Button
       >
-    </div>
-    <Dialog v-model:open="editing"
-      ><DialogContent :busy="busy"
-        ><DialogTitle>{{
-          t(
-            target
-              ? "organization.edit"
-              : kind === "tags"
-                ? "organization.newTag"
-                : "organization.newCollection",
-          )
-        }}</DialogTitle
-        ><DialogDescription>{{ t("organization.logical") }}</DialogDescription>
-        <form class="space-y-4" @submit.prevent="save">
+    </footer>
+    <Dialog v-model:open="editing">
+      <DialogContent
+        :busy="busy"
+        class="max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] overflow-y-auto rounded-lg p-4 sm:p-6"
+      >
+        <DialogTitle class="pr-6">{{
+          target ? editLabel : createLabel
+        }}</DialogTitle>
+        <DialogDescription class="sr-only">{{
+          t("organization.logical")
+        }}</DialogDescription>
+        <form class="space-y-3" @submit.prevent="save">
           <label class="field"
             >{{ t("organization.name")
-            }}<Input v-model="name" required :disabled="busy" /></label
-          ><label v-if="kind === 'collections'" class="field"
+            }}<Input v-model="name" required :disabled="busy"
+          /></label>
+          <label v-if="kind === 'collections'" class="field"
             >{{ t("organization.description")
             }}<textarea
               v-model="description"
@@ -288,35 +445,51 @@ function browse(item: TagView | CollectionView) {
               :disabled="busy"
             />
           </label>
-          <p v-if="deleting" class="subtle">
-            {{ t("organization.deleteHint") }}
-          </p>
           <p v-if="error" role="alert" class="error-box">{{ error }}</p>
-          <div class="flex flex-wrap justify-end gap-2">
+          <div class="flex justify-end gap-2">
             <Button
-              v-if="target && !deleting"
-              type="button"
-              variant="ghost"
-              :disabled="busy"
-              @click="deleting = true"
-              >{{ t("ui.delete") }}</Button
-            ><Button
-              v-if="deleting"
-              type="button"
-              variant="destructive"
-              :loading="busy"
-              @click="remove"
-              >{{ t("ui.confirmDelete") }}</Button
-            ><Button
               type="button"
               variant="outline"
+              size="sm"
               :disabled="busy"
               @click="editing = false"
               >{{ t("ui.cancel") }}</Button
-            ><Button type="submit" :loading="busy">{{ t("ui.save") }}</Button>
+            >
+            <Button type="submit" size="sm" :loading="busy">{{
+              t("ui.save")
+            }}</Button>
           </div>
-        </form></DialogContent
-      ></Dialog
-    >
+        </form>
+      </DialogContent>
+    </Dialog>
+    <Dialog v-model:open="removing">
+      <DialogContent
+        :busy="busy"
+        class="max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] overflow-y-auto rounded-lg p-4 sm:p-6"
+      >
+        <DialogTitle class="pr-6">{{ deleteLabel }}</DialogTitle>
+        <p class="break-all text-sm font-medium">{{ target?.name }}</p>
+        <DialogDescription>{{
+          t("organization.deleteHint")
+        }}</DialogDescription>
+        <p v-if="error" role="alert" class="error-box">{{ error }}</p>
+        <div class="flex justify-end gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            :disabled="busy"
+            @click="removing = false"
+            >{{ t("ui.cancel") }}</Button
+          >
+          <Button
+            variant="destructive"
+            size="sm"
+            :loading="busy"
+            @click="remove"
+            >{{ t("ui.confirmDelete") }}</Button
+          >
+        </div>
+      </DialogContent>
+    </Dialog>
   </section>
 </template>
