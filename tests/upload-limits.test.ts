@@ -9,8 +9,16 @@ function form(f: Awaited<ReturnType<typeof fixture>>) {
   return b;
 }
 
-test("account limits apply to concurrent uploads and tokens; deletion and restart keep daily usage", async () => {
-  const f = await fixture();
+test("admitted concurrent uploads finish and count once; later uploads obey the daily limit", async () => {
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => (release = resolve));
+  let admitted = 0;
+  const f = await fixture({
+    beforePublish: async () => {
+      if (++admitted === 3) release();
+      await gate;
+    },
+  });
   try {
     const user = (await (await f.request("/api/auth/session")).json()).user;
     await f.app.db.transaction((r) =>
@@ -21,8 +29,7 @@ test("account limits apply to concurrent uploads and tokens; deletion and restar
     // Exercise the daily quota with all three requests admitted.
     f.app.config.uploadConcurrency = 3;
     const results = await Promise.all([f.upload(), f.upload(), f.upload()]);
-    expect(results.filter((r) => r.status === 201)).toHaveLength(2);
-    expect(results.filter((r) => r.status === 429)).toHaveLength(1);
+    expect(results.map((r) => r.status)).toEqual([201, 201, 201]);
     const image = await results.find((r) => r.status === 201)!.json();
     expect((await f.request("/api/files/" + image.id, "DELETE")).status).toBe(
       202,
@@ -43,8 +50,9 @@ test("account limits apply to concurrent uploads and tokens; deletion and restar
           new Date().toISOString().slice(0, 10),
         ),
       ),
-    ).toBe(2);
+    ).toBe(3);
   } finally {
+    release();
     await f.close();
   }
 });
@@ -120,6 +128,13 @@ test("guest settings, normalized IP and chunk session bind one successful file t
     expect((await f.app.db.read((r) => r.file(image.id)))?.guest_ip).toBe(
       "203.0.113.8",
     );
+    await f.app.db.transaction(async (r) => {
+      const current = (await r.profile(f.profileId))!;
+      await r.saveProfile(
+        { ...current, allow_guest_upload: false },
+        current.config_version,
+      );
+    });
     expect(
       (
         await guest(
@@ -131,6 +146,13 @@ test("guest settings, normalized IP and chunk session bind one successful file t
         )
       ).status,
     ).toBe(200);
+    await f.app.db.transaction(async (r) => {
+      const current = (await r.profile(f.profileId))!;
+      await r.saveProfile(
+        { ...current, allow_guest_upload: true },
+        current.config_version,
+      );
+    });
     expect(
       (await guest("/api/files", "POST", form(f), "203.0.113.8")).status,
     ).toBe(429);

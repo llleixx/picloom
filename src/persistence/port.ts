@@ -237,11 +237,7 @@ export interface Repositories {
   saveCleanupItem(value: CleanupItem): Promise<void>;
   retryCleanupItems(jobId: string): Promise<void>;
   dailyUploadCount(subject: string, day: string): Promise<number>;
-  consumeDailyUpload(
-    subject: string,
-    day: string,
-    limit: number | null,
-  ): Promise<boolean>;
+  recordSuccessfulUpload(subject: string, day: string): Promise<void>;
   clearDailyUploads(before: string): Promise<void>;
   setUserUploadLimits(
     id: string,
@@ -315,7 +311,7 @@ export interface Repositories {
   deleteInstance(id: string): Promise<void>;
   instance(id: string): Promise<Instance | null>;
   storageUsage(ids: string[]): Promise<Map<string, number>>;
-  storageUsedBytes(id: string, excludeReplicaId?: string): Promise<number>;
+  storageUsedBytes(id: string): Promise<number>;
   saveInstance(value: Instance, expectedVersion?: number): Promise<void>;
   initError(id: string, error: string | null): Promise<void>;
   updateSecrets(

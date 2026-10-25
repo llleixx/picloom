@@ -186,7 +186,9 @@ export class Imports {
             issue(key, "PATH_CONFLICT");
             continue;
           }
-          await this.organization.write(r, file.id, ownerId, organization);
+          await this.organization.write(r, file.id, ownerId, organization, {
+            ignoreMissing: true,
+          });
           await r.insertReplica({
             ...entity(),
             file_id: file.id,

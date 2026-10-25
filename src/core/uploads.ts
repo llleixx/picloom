@@ -263,12 +263,12 @@ export class Uploads {
     try {
       return await this.exclusive(id, async () => {
         const session = await this.owned(id, key);
+        if (session.status === "completed") return this.result(session);
         const identity = {
           ownerId: session.owner_id,
           sourceTokenId: session.source_token_id,
         };
         await this.auth.authorizeUpload(identity, session.profile_id);
-        if (session.status === "completed") return this.result(session);
         if (session.status !== "pending")
           throw new AppError(
             "UPLOAD_CLOSED",
@@ -343,6 +343,7 @@ export class Uploads {
             session.guest_ip,
             inputPath,
             session.owner_id === null ? undefined : session.organization_json,
+            true,
           );
           session.status = "completed";
           await this.db.transaction((r) => r.saveUploadSession(session));

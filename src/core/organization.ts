@@ -134,6 +134,7 @@ export class Organization {
     r: Repositories,
     ownerId: string | null,
     value: unknown,
+    options: { ignoreMissing?: boolean } = {},
   ): Promise<FileOrganization> {
     const selection = parseOrganizationSelection(value);
     if (
@@ -149,20 +150,26 @@ export class Organization {
       collections: Collection[] = [];
     for (const id of selection.tagIds) {
       const tag = await r.tag(id);
+      if (!tag && options.ignoreMissing) continue;
       if (!tag || tag.owner_id !== ownerId)
         throw invalid("Tag does not exist in this owner scope");
       tags.push(tag);
     }
     for (const id of selection.collectionIds) {
       const collection = await r.collection(id);
+      if (!collection && options.ignoreMissing) continue;
       if (!collection || collection.owner_id !== ownerId)
         throw invalid("Collection does not exist in this owner scope");
       collections.push(collection);
     }
     return { tags: tags.map(item), collections: collections.map(item) };
   }
-  resolve(ownerId: string | null, value?: unknown) {
-    return this.db.read((r) => this.snapshot(r, ownerId, value));
+  resolve(
+    ownerId: string | null,
+    value?: unknown,
+    options: { ignoreMissing?: boolean } = {},
+  ) {
+    return this.db.read((r) => this.snapshot(r, ownerId, value, options));
   }
   async applyUpdate(
     ownerId: string | null,

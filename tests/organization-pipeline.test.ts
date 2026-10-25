@@ -438,7 +438,7 @@ test("upload ownership stays with the uploader and guests cannot select organiza
   }
 });
 
-test("chunks retain initial IDs, resolve current names and fail completion when a selected target was deleted", async () => {
+test("chunks retain initial IDs, resolve current names and skip selected targets deleted before completion", async () => {
   const f = await fixture();
   try {
     const tag = await create(f, "tags", { name: "Before" });
@@ -471,12 +471,17 @@ test("chunks retain initial IDs, resolve current names and fail completion when 
     expect((await relations(f, image.id)).tags.map((x) => x.id)).toEqual([
       tag.id,
     ]);
-    const rejected = await chunk(f, { tagIds: [tag.id] });
+    const pending = await chunk(f, { tagIds: [tag.id] });
+    await configure(f);
     expect((await f.request(`/api/tags/${tag.id}`, "DELETE")).status).toBe(200);
-    expect(
-      (await f.request(`/api/uploads/${rejected.id}/complete`, "POST")).status,
-    ).toBe(400);
-    expect(await f.app.db.read((r) => r.countFiles())).toBe(1);
+    const response = await f.request(
+      `/api/uploads/${pending.id}/complete`,
+      "POST",
+    );
+    expect(response.status).toBe(200);
+    const saved = await response.json();
+    expect((await relations(f, saved.id)).tags).toEqual([]);
+    expect(await f.app.db.read((r) => r.countFiles())).toBe(2);
   } finally {
     await f.close();
   }

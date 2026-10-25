@@ -2,13 +2,38 @@ import { expect, test } from "bun:test";
 import sharp from "sharp";
 import { fixture } from "./helpers";
 
-test("replacement atomically preserves the public link and cleans only the old objects", async () => {
+test("replacement preserves the public link despite ended replica failure and cleans only the old objects", async () => {
   const f = await fixture();
   try {
     const old = await (await f.upload()).json();
     const bytes = await sharp(f.png).resize(12, 6).png().toBuffer();
     const next = await (await f.upload(undefined, bytes)).json();
     await f.app.files.sweep();
+    const source = await (
+      await f.request("/api/storage-sources", "POST", {
+        pluginId: "builtin.local",
+        version: "1.0.0",
+        name: "Removed copy",
+        config: { root: `${f.root}/removed-copy` },
+      })
+    ).json();
+    await f.app.db.transaction(async (r) => {
+      const replica = {
+        ...(await r.replicas(old.id))[0]!,
+        id: crypto.randomUUID(),
+        storage_instance_id: source.id,
+        status: "deleted" as const,
+      };
+      await r.insertReplica(replica);
+      await r.insertTask({
+        ...(await r.tasks(old.id))[0]!,
+        id: crypto.randomUUID(),
+        replica_id: replica.id,
+        kind: "delete",
+        status: "failed",
+        last_error: "DELETE_FAILED",
+      });
+    });
     const before = (await f.app.db.read((r) => r.file(old.id)))!;
     const payload = {
       replacementId: next.id,

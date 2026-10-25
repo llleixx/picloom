@@ -390,7 +390,7 @@ test("removing a running action deletes configuration immediately while the acqu
   }
 });
 
-test("shared pipeline edits affect future uploads and changed in-flight plans never publish", async () => {
+test("shared pipeline edits affect future uploads without rejecting in-flight uploads", async () => {
   let change: (() => Promise<void>) | undefined;
   const f = await fixture({
     beforePublish: async () => {
@@ -421,14 +421,12 @@ test("shared pipeline edits affect future uploads and changed in-flight plans ne
         chain.id,
       );
     };
-    expect((await f.upload()).status).toBe(409);
-    const failed = (
-      await f.app.db.read((r) => r.filesInStates(["failed"]))
-    )[0]!;
-    expect(failed).toBeDefined();
-    expect(
-      (await f.request(failed.public_prefix + failed.logical_key)).status,
-    ).toBe(404);
+    const admitted = await f.upload();
+    expect(admitted.status).toBe(201);
+    const image = await admitted.json();
+    const access = await f.request(new URL(image.url).pathname);
+    expect(access.status).toBe(200);
+    await access.arrayBuffer();
     chain = await f.app.configuration.savePipeline(
       { ...chain, steps: [], expectedVersion: chain.configVersion },
       chain.id,

@@ -2,7 +2,6 @@ import type { FileContext } from "@picloom/plugin-sdk";
 import type { OrganizationUpdate } from "../../shared/organization";
 import type { Organization } from "./organization";
 import { messageText } from "../../shared/package-localization";
-import { checkStorageCapacity } from "./storage-capacity";
 import { pluginErrorCode } from "./errors";
 import type { TemporarySpace } from "../infra/temporary-space";
 import { isPluginError } from "@picloom/plugin-sdk";
@@ -673,12 +672,6 @@ export class TaskExecutor {
                 "File no longer accepts writes",
                 409,
               );
-            await checkStorageCapacity(
-              r,
-              replica!.storage_instance_id,
-              file.byte_size!,
-              replica!.id,
-            );
             await r.saveReplica(replica!);
           });
           const scope = scopedInput(

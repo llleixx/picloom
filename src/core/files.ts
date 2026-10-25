@@ -444,11 +444,6 @@ export class Files {
         actions: p.post_save_pipeline_id
           ? await r.steps(p.post_save_pipeline_id)
           : [],
-        pipelines: await Promise.all(
-          [p.upload_pipeline_id, p.post_save_pipeline_id]
-            .filter((id): id is string => !!id)
-            .map(async (id) => requireValue(await r.pipeline(id))),
-        ),
       };
     });
     const leases: Array<{ release(): Promise<void> }> = [];
@@ -537,10 +532,14 @@ export class Files {
     )
       throw new AppError("TOO_LARGE", "Invalid upload size", 413);
   }
-  async uploadOrganization(ownerId: string | null, value: unknown) {
+  async uploadOrganization(
+    ownerId: string | null,
+    value: unknown,
+    options: { ignoreMissing?: boolean } = {},
+  ) {
     if (ownerId === null && value !== undefined)
       throw new AppError("FORBIDDEN", "Guests cannot select organization", 403);
-    return this.organization.resolve(ownerId, value);
+    return this.organization.resolve(ownerId, value, options);
   }
   async upload(
     blob: Pick<File, "size" | "stream" | "name">,
@@ -552,6 +551,7 @@ export class Files {
     guestIp: string | null = null,
     inputPath?: string,
     organization?: unknown,
+    organizationValidated = false,
   ) {
     const prepared = inputPath
       ? { path: inputPath, adopted: false }
@@ -571,6 +571,7 @@ export class Files {
           guestIp,
           prepared,
           organization,
+          organizationValidated,
         );
       } finally {
         end();
@@ -590,23 +591,23 @@ export class Files {
     guestIp: string | null = null,
     prepared?: { path: string; adopted: boolean },
     organization?: unknown,
+    organizationValidated = false,
   ) {
+    const maxUploadBytes = this.config.maxUploadBytes;
     await this.auth.authorizeUpload(identity, profileId);
     await this.auth.checkUploadQuota(identity, blob.size, guestIp);
     const plan = await this.uploadPlan(profileId, blob.size);
     if (
       blob.size === 0 ||
       blob.size >
-        Math.min(
-          plan.profile.max_upload_bytes ?? Infinity,
-          this.config.maxUploadBytes,
-        )
+        Math.min(plan.profile.max_upload_bytes ?? Infinity, maxUploadBytes)
     )
       throw new AppError("TOO_LARGE", "Invalid upload size", 413);
     const ownerId = this.auth.uploadOwner(identity).ownerId;
     const initialOrganization = await this.uploadOrganization(
       ownerId,
       organization,
+      { ignoreMissing: organizationValidated },
     );
     const base = { ...entity(), ...(fileId ? { id: fileId } : {}) };
     const initialRecord: FileContext = {
@@ -657,10 +658,7 @@ export class Files {
         await this.temporary.write(
           temp,
           blob.stream(),
-          Math.min(
-            plan.profile.max_upload_bytes ?? Infinity,
-            this.config.maxUploadBytes,
-          ),
+          Math.min(plan.profile.max_upload_bytes ?? Infinity, maxUploadBytes),
           signal,
         );
       }
@@ -679,7 +677,7 @@ export class Files {
           initialRecord,
         );
       }, signal);
-      if (current.metadata.byteSize! > this.config.maxUploadBytes)
+      if (current.metadata.byteSize! > maxUploadBytes)
         throw new AppError("TOO_LARGE", "Processed upload exceeds limit", 413);
       if (
         !plan.profile.allowed_mime_types.includes(current.metadata.mimeType!) ||
@@ -724,17 +722,22 @@ export class Files {
       };
       signal.throwIfAborted();
       await this.db.transaction(async (r) => {
-        await this.auth.authorizeUpload(identity, profileId, r);
         prefix(record!.public_prefix);
         for (const id of plan.targets)
           await checkStorageCapacity(r, id, record!.byte_size!);
         await r.insertFile(record!);
-        await this.organization.write(r, base.id, ownerId, {
-          tagIds: current.record.organization.tags.map((x) => x.id),
-          collectionIds: current.record.organization.collections.map(
-            (x) => x.id,
-          ),
-        });
+        await this.organization.write(
+          r,
+          base.id,
+          ownerId,
+          {
+            tagIds: current.record.organization.tags.map((x) => x.id),
+            collectionIds: current.record.organization.collections.map(
+              (x) => x.id,
+            ),
+          },
+          { ignoreMissing: true },
+        );
         for (const replica of replicas) {
           await r.insertReplica(replica);
           await r.insertTask({
@@ -765,24 +768,7 @@ export class Files {
           )
         )
           throw new AppError("UPLOAD_FAILED", "No available copy", 502);
-        await this.auth.authorizeUpload(identity, profileId, r);
-        const p = requireValue(await r.profile(plan.profile.id));
-        if (!p.enabled || p.config_version !== plan.profile.config_version)
-          throw new AppError(
-            "PROFILE_CHANGED",
-            "Upload configuration changed",
-            409,
-          );
-        for (const pipeline of plan.pipelines) {
-          const current = await r.pipeline(pipeline.id);
-          if (!current || current.config_version !== pipeline.config_version)
-            throw new AppError(
-              "PROFILE_CHANGED",
-              "Pipeline changed during upload",
-              409,
-            );
-        }
-        await this.auth.checkUploadQuota(identity, blob.size, guestIp, r, true);
+        await this.auth.recordSuccessfulUpload(identity, guestIp, r);
         record!.status = "ready";
         await r.saveFile(record!, "preparing");
         if (plan.actions.length)
@@ -1359,12 +1345,25 @@ export class Files {
         );
       for (const file of [old, next]) {
         const replicas = await r.replicas(file.id);
+        const deletedReplicas = new Set(
+          replicas
+            .filter((replica) => replica.status === "deleted")
+            .map((replica) => replica.id),
+        );
         if (
           !replicas.some((replica) => replica.status === "ready") ||
           replicas.some(
             (replica) => !["ready", "deleted"].includes(replica.status),
           ) ||
-          (await r.tasks(file.id)).some((task) => task.status !== "success")
+          (await r.tasks(file.id)).some(
+            (task) =>
+              task.status !== "success" &&
+              !(
+                (task.status === "failed" || task.status === "cancelled") &&
+                task.replica_id !== null &&
+                deletedReplicas.has(task.replica_id)
+              ),
+          )
         )
           throw new AppError(
             "REPLACEMENT_BUSY",

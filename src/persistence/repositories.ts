@@ -181,22 +181,16 @@ export class SqlRepositories implements Repositories {
       .executeTakeFirst();
     return row ? integer(row.upload_count) : 0;
   }
-  async consumeDailyUpload(subject: string, day: string, limit: number | null) {
-    if (limit === 0) return false;
-    const row = await this.db
+  async recordSuccessfulUpload(subject: string, day: string) {
+    await this.db
       .insertInto("daily_upload_usage")
       .values({ subject, day, upload_count: 1 })
-      .onConflict((oc) => {
-        const update = oc.columns(["subject", "day"]).doUpdateSet({
+      .onConflict((oc) =>
+        oc.columns(["subject", "day"]).doUpdateSet({
           upload_count: sql`daily_upload_usage.upload_count + 1`,
-        });
-        return limit === null
-          ? update
-          : update.where("daily_upload_usage.upload_count", "<", limit);
-      })
-      .returning("upload_count")
-      .executeTakeFirst();
-    return !!row;
+        }),
+      )
+      .execute();
   }
   async clearDailyUploads(before: string) {
     await this.db
@@ -818,14 +812,13 @@ export class SqlRepositories implements Repositories {
       rows.map((row) => [row.storage_instance_id, integer(row.bytes)]),
     );
   }
-  async storageUsedBytes(id: string, excludeReplicaId?: string) {
-    let query = this.db
+  async storageUsedBytes(id: string) {
+    const query = this.db
       .selectFrom("file_replicas as r")
       .innerJoin("files as f", "f.id", "r.file_id")
       .select(sql<string | number>`coalesce(sum(f.byte_size),0)`.as("bytes"))
       .where("r.storage_instance_id", "=", id)
       .where("r.status", "!=", "deleted");
-    if (excludeReplicaId) query = query.where("r.id", "!=", excludeReplicaId);
     return integer((await query.executeTakeFirstOrThrow()).bytes);
   }
   async saveInstance(v: Instance, expected?: number) {

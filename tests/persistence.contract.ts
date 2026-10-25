@@ -193,17 +193,16 @@ export function persistenceContract(
         await f.close();
       }
     });
-    test("daily upload counters enforce concurrent limits, rollback, date isolation and cleanup", async () => {
+    test("successful upload counters preserve concurrent increments, rollback, date isolation and cleanup", async () => {
       const f = await open();
       try {
-        const results = await Promise.all(
-          Array.from({ length: 4 }, () =>
+        await Promise.all(
+          Array.from({ length: 2 }, () =>
             f.db.transaction((r) =>
-              r.consumeDailyUpload("g:203.0.113.1", "2026-10-17", 2),
+              r.recordSuccessfulUpload("g:203.0.113.1", "2026-10-17"),
             ),
           ),
         );
-        expect(results.filter(Boolean)).toHaveLength(2);
         expect(
           await f.db.read((r) =>
             r.dailyUploadCount("g:203.0.113.1", "2026-10-17"),
@@ -211,23 +210,21 @@ export function persistenceContract(
         ).toBe(2);
         await expect(
           f.db.transaction(async (r) => {
-            await r.consumeDailyUpload("u:test", "2026-10-17", 1);
+            await r.recordSuccessfulUpload("u:test", "2026-10-17");
             throw new Error("rollback");
           }),
         ).rejects.toThrow("rollback");
         expect(
           await f.db.read((r) => r.dailyUploadCount("u:test", "2026-10-17")),
         ).toBe(0);
+        await f.db.transaction((r) =>
+          r.recordSuccessfulUpload("g:203.0.113.1", "2026-10-18"),
+        );
         expect(
-          await f.db.transaction((r) =>
-            r.consumeDailyUpload("g:203.0.113.1", "2026-10-18", 2),
+          await f.db.read((r) =>
+            r.dailyUploadCount("g:203.0.113.1", "2026-10-18"),
           ),
-        ).toBe(true);
-        expect(
-          await f.db.transaction((r) =>
-            r.consumeDailyUpload("u:zero", "2026-10-18", 0),
-          ),
-        ).toBe(false);
+        ).toBe(1);
         await f.db.transaction((r) => r.clearDailyUploads("2026-10-18"));
         expect(
           await f.db.read((r) =>
@@ -298,7 +295,7 @@ export function persistenceContract(
           profile_id: crypto.randomUUID(),
           source_name: "",
           params_json: { quality: 80, enabled: false },
-          organization_json: {tagIds:[], collectionIds:[]},
+          organization_json: { tagIds: [], collectionIds: [] },
           byte_size: 101,
           part_size: 100,
           status: "pending" as const,
@@ -766,9 +763,6 @@ export function persistenceContract(
           expect(
             await f.db.read((r) => r.instanceReplicaCount(storage.id)),
           ).toBe(1);
-          expect(
-            await f.db.read((r) => r.storageUsedBytes(storage.id, replica.id)),
-          ).toBe(0);
         }
         await f.db.transaction(async (r) => {
           await r.saveTask({ ...task, status: "failed", next_run_at: null });

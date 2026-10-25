@@ -362,7 +362,7 @@ test("tokens intersect grants; account disable revokes credentials; password res
   }
 });
 
-test("revocation before publication leaves no ready file", async () => {
+test("upload permission changes affect new uploads, not admitted uploads", async () => {
   let revoke = async () => {};
   const f = await fixture({ beforePublish: async () => revoke() });
   try {
@@ -370,9 +370,10 @@ test("revocation before publication leaves no ready file", async () => {
     revoke = async () => {
       await f.app.db.transaction((r) => r.replaceUserProfiles(a.id, []));
     };
+    expect((await a.request("/api/files", "POST", form(f))).status).toBe(201);
     expect((await a.request("/api/files", "POST", form(f))).status).toBe(403);
     expect(await f.app.db.read((r) => r.countFiles({ status: "ready" }))).toBe(
-      0,
+      1,
     );
     await f.app.files.sweep();
   } finally {

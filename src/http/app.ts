@@ -193,6 +193,7 @@ export function handler(app: Application) {
                 guestIp,
                 inputPath,
                 input.organization,
+                true,
               ),
               201,
             );
@@ -271,12 +272,6 @@ export function handler(app: Application) {
               const profileId = await app.auth.resolveUploadProfile(
                 profile ?? undefined,
                 auth,
-              );
-              await app.files.validateUpload(
-                profileId,
-                blob.size,
-                auth,
-                guestIp,
               );
               handedOff = true;
               return json(

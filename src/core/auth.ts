@@ -329,10 +329,8 @@ export class Auth {
     identity: UploadIdentity,
     size: number,
     guestIp: string | null,
-    repositories?: Repositories,
-    consume = false,
   ) {
-    const check = async (r: Repositories) => {
+    return this.db.read(async (r) => {
       const limits = await this.uploadLimits(identity, r);
       if (size > limits.maxBytes)
         throw new AppError("TOO_LARGE", "File exceeds upload limit", 413);
@@ -341,18 +339,27 @@ export class Auth {
         throw new AppError("INVALID_INPUT", "Guest IP is required");
       const subject = owner ? "u:" + owner : "g:" + guestIp;
       const day = new Date().toISOString().slice(0, 10);
-      const allowed = consume
-        ? await r.consumeDailyUpload(subject, day, limits.daily)
-        : limits.daily === null ||
-          (await r.dailyUploadCount(subject, day)) < limits.daily;
+      const allowed =
+        limits.daily === null ||
+        (await r.dailyUploadCount(subject, day)) < limits.daily;
       if (!allowed)
         throw new AppError(
           "DAILY_UPLOAD_LIMIT",
           "Daily upload limit reached",
           429,
         );
-    };
-    return repositories ? check(repositories) : this.db.read(check);
+    });
+  }
+  async recordSuccessfulUpload(
+    identity: UploadIdentity,
+    guestIp: string | null,
+    r: Repositories,
+  ) {
+    const owner = this.uploadOwner(identity).ownerId;
+    await r.recordSuccessfulUpload(
+      owner ? "u:" + owner : "g:" + guestIp,
+      new Date().toISOString().slice(0, 10),
+    );
   }
   async listUsers(limit: number, offset: number, q = "", status = "") {
     return this.db.read(async (r) => {

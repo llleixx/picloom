@@ -86,7 +86,7 @@ test("in-flight writes consume capacity and deleted replicas release it", async 
   }
 });
 
-test("capacity rejects invalid values and rechecks lowered limits for pending writes", async () => {
+test("capacity rejects invalid values", async () => {
   const f = await fixture();
   try {
     const source = (await f.app.plugins.storageViews())[0]!;
@@ -102,23 +102,12 @@ test("capacity rejects invalid values and rechecks lowered limits for pending wr
       );
       expect(response.status).toBe(400);
     }
-    await limit(f, null);
-    const response = await f.upload();
-    expect(response.ok).toBe(true);
-    const file = await response.json();
-    await limit(f, f.png.length - 1);
-    await expect(
-      f.app.db.transaction(async (r) => {
-        const replica = (await r.replicas(file.id))[0]!;
-        await checkStorageCapacity(r, source.id, f.png.length, replica.id);
-      }),
-    ).rejects.toMatchObject({ code: "STORAGE_CAPACITY_EXCEEDED" });
   } finally {
     await f.close();
   }
 });
 
-test("full sources are skipped and background writes obey a lowered limit", async () => {
+test("lowered capacity affects new admissions, not already registered writes", async () => {
   const f = await fixture();
   try {
     const first = (await f.app.plugins.storageViews())[0]!;
@@ -174,7 +163,7 @@ test("full sources are skipped and background writes obey a lowered limit", asyn
     const replicas = await f.app.db.read((r) => r.replicas(file.id));
     expect(
       replicas.find((r) => r.storage_instance_id === second.id)?.status,
-    ).toBe("write_failed");
+    ).toBe("ready");
     const tasks = await f.app.db.read((r) => r.tasks(file.id));
     expect(
       tasks.find(
@@ -182,7 +171,7 @@ test("full sources are skipped and background writes obey a lowered limit", asyn
           t.replica_id ===
           replicas.find((r) => r.storage_instance_id === second.id)!.id,
       )?.last_error,
-    ).toBe("STORAGE_CAPACITY_EXCEEDED");
+    ).toBeNull();
     await f.app.configuration.saveGroup(
       {
         ...group,

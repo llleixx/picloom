@@ -89,7 +89,7 @@ test("deletion exhausts one budget, survives restart, and resumes only on explic
   }
 });
 
-test("repair reads another replica after temp cleanup, respects capacity, and releases repair temp", async () => {
+test("registered repair reads another replica after temp cleanup despite a lowered limit and releases repair temp", async () => {
   const { f, source } = await redundant();
   const lease = f.app.plugins.acquire(source.id, "storage");
   const write = spyOn(lease.runtime, "write");
@@ -108,20 +108,6 @@ test("repair reads another replica after temp cleanup, respects capacity, and re
       const instance = (await r.instance(source.id))!;
       await r.saveInstance(
         { ...instance, max_storage_bytes: 1 },
-        instance.config_version,
-      );
-    });
-    await f.app.files.tasks.retry(task!.id);
-    await f.app.files.sweep();
-    expect(await f.app.db.read((r) => r.task(task!.id))).toMatchObject({
-      status: "failed",
-      last_error: "STORAGE_CAPACITY_EXCEEDED",
-    });
-    expect(f.app.files.temporary.bytes).toBe(0);
-    await f.app.db.transaction(async (r) => {
-      const instance = (await r.instance(source.id))!;
-      await r.saveInstance(
-        { ...instance, max_storage_bytes: f.png.length },
         instance.config_version,
       );
     });
