@@ -1,6 +1,7 @@
 export interface FileOrigin {
   kind: "upload" | "import";
   userId: string | null;
+  userName: string | null;
 }
 export interface OrganizationItem {
   id: string;

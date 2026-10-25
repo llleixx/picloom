@@ -330,7 +330,6 @@ export class TaskExecutor {
     await this.db.transaction(async (r) => {
       const current = requireValue(await r.file(fileId));
       current.temp_path = null;
-      current.temp_status = "cleaned";
       await r.saveFile(current, current.status);
     });
   }
@@ -823,10 +822,6 @@ export class TaskExecutor {
           );
         }
         await r.saveTask(t, "running");
-        if (error instanceof AppError && error.code === "TEMP_MISSING") {
-          f.temp_status = "missing";
-          await r.saveFile(f, f.status);
-        }
       });
       if (decision === "delete") this.cancel(file.id);
     } finally {

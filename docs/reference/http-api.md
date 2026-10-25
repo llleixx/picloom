@@ -198,7 +198,7 @@ curl --fail-with-body "$PICLOOM_URL/api/files?limit=20&offset=0&status=ready" \
 | `collection` | 集合 ID |
 | `sort` / `order` | `sort=createdAt`（创建时间）或 `size`（已知大小，降序时未知大小排最后）；`order=asc` 或 `desc`（默认） |
 
-分类条件与其他条件取交集，必须处于同一归属；与显式 `owner` 冲突或同时指定标签与 `untagged=true`、集合与 `uncollected=true` 会被拒绝。管理员通过分类筛选自动限定该分类归属。列表返回 `tags`，以及表示当前副本最终失败的 `replicaIssue` 和保存后处理最终失败的 `postSaveIssue`；详情另外返回 `collections` 与内容来源 `origin: { kind: "upload" | "import", userId }`。
+分类条件与其他条件取交集，必须处于同一归属；与显式 `owner` 冲突或同时指定标签与 `untagged=true`、集合与 `uncollected=true` 会被拒绝。管理员通过分类筛选自动限定该分类归属。列表返回 `tags`，以及表示当前副本最终失败的 `replicaIssue` 和保存后处理最终失败的 `postSaveIssue`；详情另外返回 `collections` 与内容来源 `origin: { kind: "upload" | "import", userId, userName }`；管理员的列表与详情还返回 `guestIp`，仅访客上传记录 IP，其他图片为 `null`。
 
 删除图片时携带 CSRF，接受请求返回 `202`：
 

@@ -59,7 +59,6 @@ test("local in-place import preserves paths, metadata, duplicate safety, reads, 
       mime_type: null,
       width: null,
       temp_path: null,
-      temp_status: "cleaned",
     });
     expect(await f.app.db.read((r) => r.tasks(file.id))).toEqual([]);
     expect(

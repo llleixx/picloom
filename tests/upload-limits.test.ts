@@ -128,6 +128,14 @@ test("guest settings, normalized IP and chunk session bind one successful file t
     expect((await f.app.db.read((r) => r.file(image.id)))?.guest_ip).toBe(
       "203.0.113.8",
     );
+    const detail = await (await f.request(`/api/files/${image.id}`)).json();
+    expect(detail.guestIp).toBe("203.0.113.8");
+    const images = await (await f.request("/api/files")).json();
+    expect(
+      images.find((item: { id: string }) => item.id === image.id).guestIp,
+    ).toBe("203.0.113.8");
+    expect((await guest(`/api/files/${image.id}`)).status).toBe(401);
+
     await f.app.db.transaction(async (r) => {
       const current = (await r.profile(f.profileId))!;
       await r.saveProfile(

@@ -439,7 +439,6 @@ async function addFile(
       height: 1,
       status,
       temp_path: null,
-      temp_status: "cleaned",
       last_error: null,
       processing_results_json: null,
     };

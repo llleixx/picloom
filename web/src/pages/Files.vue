@@ -1403,8 +1403,18 @@ async function navigate(direction: -1 | 1) {
             <span
               v-if="allImages"
               class="max-w-28 truncate"
-              :title="file.ownerName ?? file.ownerId ?? t('users.guest')"
-              >{{ file.ownerName ?? file.ownerId ?? t("users.guest") }}</span
+              :title="
+                file.ownerName ??
+                file.guestIp ??
+                file.ownerId ??
+                t('users.guest')
+              "
+              >{{
+                file.ownerName ??
+                file.guestIp ??
+                file.ownerId ??
+                t("users.guest")
+              }}</span
             >
             <span v-if="allImages">·</span>
             <span

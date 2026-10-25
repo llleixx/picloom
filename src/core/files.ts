@@ -715,7 +715,6 @@ export class Files {
         height: current.metadata.height,
         status: "preparing",
         temp_path: current.path.split(/[\\/]/).pop()!,
-        temp_status: "available",
         last_error: null,
         processing_results_json: null,
       };

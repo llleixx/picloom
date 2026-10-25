@@ -39,7 +39,6 @@ test("statistics aggregate ready images by creation date and reflect deletion", 
       origin_user_id: record.owner_id,
       byte_size: null,
       temp_path: null,
-      temp_status: "cleaned" as const,
     };
     await f.app.db.transaction(async (r) => {
       await r.insertFile(imported);

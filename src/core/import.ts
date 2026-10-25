@@ -176,7 +176,6 @@ export class Imports {
             height: null,
             status: "ready" as const,
             temp_path: null,
-            temp_status: "cleaned" as const,
             last_error: null,
             processing_results_json: null,
           };

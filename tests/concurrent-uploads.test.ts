@@ -101,9 +101,9 @@ test("writes start concurrently; first success returns while the other write con
       (await f.app.db.read((r) => r.replicas(image.id))).map((r) => r.status),
     ).toEqual(["ready", "ready"]);
     expect(calls).toEqual([1, 1]);
-    expect((await f.app.db.read((r) => r.file(image.id)))!.temp_status).toBe(
-      "cleaned",
-    );
+    expect(
+      (await f.app.db.read((r) => r.file(image.id)))!.temp_path,
+    ).toBeNull();
     const operations = await (
       await f.request(`/api/files/${image.id}/operations`)
     ).json();

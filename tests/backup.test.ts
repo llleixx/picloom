@@ -383,7 +383,7 @@ test("backup restores retained temporary files and resumes replication retries i
       r.saveTask({ ...retry, next_run_at: Date.now() + 3600000 }),
     );
     const file = (await app.db.read((r) => r.file(id)))!;
-    expect(file.temp_status).toBe("available");
+    expect(file.temp_path).not.toBeNull();
     const tempName = file.temp_path!;
     expect(await readFile(join(source.root, "temp", tempName), "utf8")).toBe(
       content,
@@ -483,9 +483,10 @@ test("restore rejects temporary paths outside the flat temporary directory", asy
     ]) {
       const db = new Database(path);
       try {
-        db.query(
-          "UPDATE files SET temp_path=?,temp_status='available' WHERE id=?",
-        ).run(name, uploaded.json().id);
+        db.query("UPDATE files SET temp_path=? WHERE id=?").run(
+          name,
+          uploaded.json().id,
+        );
       } finally {
         db.close();
       }

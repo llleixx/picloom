@@ -714,10 +714,12 @@ export function handler(app: Application) {
             return {
               items: files.map((f) => {
                 const item = view(f, app.config.imageOrigin || requestOrigin);
-                if (ownerNames)
+                if (ownerNames) {
                   item.ownerName = f.owner_id
                     ? (ownerNames.get(f.owner_id) ?? null)
                     : null;
+                  item.guestIp = f.guest_ip;
+                }
                 item.tags = (tags.get(f.id) ?? []).map(({ id, name }) => ({
                   id,
                   name,
@@ -894,18 +896,25 @@ export function handler(app: Application) {
               const organization = await app.organization.read(r, id);
               result.tags = [...organization.tags];
               result.collections = [...organization.collections];
-              result.origin = { kind: f.origin_kind, userId: f.origin_user_id };
+              result.origin = {
+                kind: f.origin_kind,
+                userId: f.origin_user_id,
+                userName: f.origin_user_id
+                  ? requireValue(await r.user(f.origin_user_id)).username
+                  : null,
+              };
               const tasks = await r.tasks(id);
               result.uploadProfileId = f.upload_profile_id;
               result.backgroundPending = tasks.some((task) =>
                 ["pending", "running"].includes(task.status),
               );
-              if (isSiteAdmin(auth.user.role))
+              if (isSiteAdmin(auth.user.role)) {
+                result.guestIp = f.guest_ip;
                 result.processingResults = f.processing_results_json;
-              if (isSiteAdmin(auth.user.role))
                 result.ownerName = f.owner_id
                   ? ((await r.user(f.owner_id))?.username ?? null)
                   : null;
+              }
               return result;
             });
             return json(data);

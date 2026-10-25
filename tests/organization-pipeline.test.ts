@@ -540,6 +540,12 @@ test("replacement inherits the old owner's relations and preserves the new uploa
     expect(changed.origin_user_id).toBe(originalNext.origin_user_id);
     expect(changed.origin_kind).toBe("upload");
     expect(changed.origin_user_id).not.toBe(member.id);
+    const detail = await (await f.request(`/api/files/${next.id}`)).json();
+    expect(detail.ownerName).toBe("member");
+    expect(detail.origin.userName).toBe(
+      (await f.app.db.read((r) => r.user(originalNext.origin_user_id!)))!
+        .username,
+    );
     expect((await relations(f, next.id)).tags.map((x) => x.id)).toEqual([
       tag.id,
     ]);

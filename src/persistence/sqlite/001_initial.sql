@@ -132,9 +132,7 @@ CREATE TABLE files (
   height INTEGER CHECK(height>0),
   status TEXT NOT NULL CHECK(status IN ('preparing','ready','blocked','failed','deleting','delete_failed','deleted')),
   temp_path TEXT,
-  temp_status TEXT NOT NULL CHECK(temp_status IN ('available','missing','cleaned')),
   last_error TEXT,
-  CHECK((temp_status='cleaned' AND temp_path IS NULL) OR (temp_status<>'cleaned' AND temp_path IS NOT NULL)),
   CHECK(origin_kind <> 'import' OR origin_user_id IS NOT NULL),
   UNIQUE(public_prefix,logical_key)
 );

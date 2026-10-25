@@ -17,6 +17,8 @@ export interface FileView {
   id: string;
   ownerId: string | null;
   ownerName?: string | null;
+  /** Administrator list/detail responses only; guest uploads. */
+  guestIp?: string | null;
   tags: OrganizationItem[];
   /** Detail response only. */
   collections?: OrganizationItem[];

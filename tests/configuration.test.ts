@@ -336,7 +336,7 @@ test("redundancy uses temporary results, publishes tasks atomically, runs post-s
     const result = await upload(f),
       record = (await f.app.db.read((r) => r.file(result.id)))!;
     expect(record.status).toBe("ready");
-    expect(record.temp_status).toBe("available");
+    expect(record.temp_path).not.toBeNull();
     expect(
       (await f.app.db.read((r) => r.tasks(result.id)))
         .map((t) => t.kind)
@@ -348,9 +348,9 @@ test("redundancy uses temporary results, publishes tasks atomically, runs post-s
         (r) => r.status === "ready",
       ),
     ).toBe(true);
-    expect((await f.app.db.read((r) => r.file(result.id)))?.temp_status).toBe(
-      "cleaned",
-    );
+    expect(
+      (await f.app.db.read((r) => r.file(result.id)))?.temp_path,
+    ).toBeNull();
     expect(calls.length).toBe(1);
     expect(calls[0]!.body.url).toBe(result.url);
     expect(calls[0]!.key).toStartWith(
@@ -455,9 +455,9 @@ test("post-save retry restarts the whole pipeline with stable operation IDs", as
     expect(
       (await f.request("/api/tasks/" + tasks[0]!.id + "/skip", "POST")).status,
     ).toBe(404);
-    expect((await f.app.db.read((r) => r.file(result.id)))?.temp_status).toBe(
-      "cleaned",
-    );
+    expect(
+      (await f.app.db.read((r) => r.file(result.id)))?.temp_path,
+    ).toBeNull();
   } finally {
     await receiver.stop(true);
     await f.close();
@@ -527,9 +527,9 @@ test("failed redundant writes retry directly with the original task ID", async (
     )!;
     expect(task.id).toBe(operation);
     expect(task.status).toBe("pending");
-    expect((await f.app.db.read((r) => r.file(result.id)))?.temp_status).toBe(
-      "available",
-    );
+    expect(
+      (await f.app.db.read((r) => r.file(result.id)))?.temp_path,
+    ).not.toBeNull();
     await f.app.db.transaction((r) =>
       r.saveTask({ ...task, next_run_at: Date.now() }),
     );
@@ -584,9 +584,9 @@ test("restart restores pending redundant work and profile deletion waits for exi
     expect((await f.app.db.read((r) => r.task(pending.id)))?.status).toBe(
       "success",
     );
-    expect((await f.app.db.read((r) => r.file(result.id)))?.temp_status).toBe(
-      "cleaned",
-    );
+    expect(
+      (await f.app.db.read((r) => r.file(result.id)))?.temp_path,
+    ).toBeNull();
   } finally {
     await f.close();
   }

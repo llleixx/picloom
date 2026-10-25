@@ -102,7 +102,6 @@ export interface FileRecord extends Entity {
     | "delete_failed"
     | "deleted";
   temp_path: string | null;
-  temp_status: "available" | "missing" | "cleaned";
   last_error: string | null;
 }
 export type ReplicaStatus =

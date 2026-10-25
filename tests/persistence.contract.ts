@@ -56,7 +56,6 @@ export function persistenceContract(
             height: 1,
             status,
             temp_path: null,
-            temp_status: "cleaned",
             last_error: null,
             processing_results_json: null,
           };
@@ -268,7 +267,6 @@ export function persistenceContract(
             height: null,
             status: "ready",
             temp_path: null,
-            temp_status: "cleaned",
             last_error: null,
             processing_results_json: null,
           };
@@ -373,7 +371,6 @@ export function persistenceContract(
               height: null,
               status: i < 2 ? "ready" : "failed",
               temp_path: null,
-              temp_status: "cleaned",
               last_error: null,
               processing_results_json: null,
             };
@@ -441,7 +438,6 @@ export function persistenceContract(
           height: null,
           status: "ready",
           temp_path: "source",
-          temp_status: "available",
           last_error: null,
           processing_results_json: null,
         };
@@ -807,12 +803,8 @@ export function persistenceContract(
           "deleting",
           "deleted",
         ] as const) {
-          for (const temp_status of [
-            "cleaned",
-            "available",
-            "missing",
-          ] as const) {
-            const key = `${status}-${temp_status}.png`;
+          for (const hasTemp of [false, true]) {
+            const key = `${status}-${hasTemp}.png`;
             files.push({
               ...entity(),
               owner_id: null,
@@ -829,8 +821,7 @@ export function persistenceContract(
               width: 1,
               height: 1,
               status,
-              temp_status,
-              temp_path: temp_status === "cleaned" ? null : key,
+              temp_path: hasTemp ? key : null,
               last_error: null,
               processing_results_json: null,
             });
@@ -851,12 +842,12 @@ export function persistenceContract(
         );
         expect(
           candidates
-            .slice(0, 6)
+            .slice(0, 4)
             .every((file) => ["failed", "deleting"].includes(file.status)),
         ).toBe(true);
         expect(
           candidates
-            .slice(6)
+            .slice(4)
             .every((file) =>
               ["ready", "blocked", "deleted"].includes(file.status),
             ),
@@ -886,7 +877,6 @@ export function persistenceContract(
           height: null,
           status: "ready",
           temp_path: null,
-          temp_status: "cleaned",
           last_error: null,
           processing_results_json: null,
         };
