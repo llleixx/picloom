@@ -21,7 +21,7 @@
 | `preparing` | 上传已登记，尚未发布 | 不公开；等待首份成功并通过发布校验 |
 | `ready` | 已发布 | 允许公开访问；其余写入和保存后任务可继续 |
 | `blocked` | 已发布，但被保存后处理屏蔽 | 不公开；保留管理员私密预览，其余写入可继续 |
-| `failed` | 本次上传未能发布 | 不公开；清理残留，保留上传失败结果 |
+| `failed` | 本次上传未能发布 | 不公开；等待后台转入整图删除 |
 | `deleting` | 已接受整图删除 | 不公开；停止写入和保存后工作，清理全部副本 |
 | `delete_failed` | 整图删除的任务已停止，仍有未终结副本 | 等待删除重试或人工标记为已删除 |
 | `deleted` | 全部副本已终结，相关任务已停止 | 不再执行文件任务 |
@@ -37,7 +37,7 @@ stateDiagram-v2
     blocked --> ready: 解除屏蔽
     ready --> deleting: 整图删除
     blocked --> deleting: 整图删除
-    failed --> deleting: 整图删除
+    failed --> deleting: 后台清理或整图删除
     deleting --> delete_failed: 任务停止，副本未全部终结
     deleting --> deleted: 任务停止，副本全部终结
     delete_failed --> deleting: 重试
@@ -56,7 +56,7 @@ stateDiagram-v2
 
 保存后任务可以屏蔽或删除文件。后续步骤失败仍保留已接受的处置，因此文件可以为 `blocked`，同时保存后任务为 `failed`。解除屏蔽只恢复文件为 `ready`；处置的累计规则见[保存后处理](./processors/post-save.md#如何形成累计处置)。
 
-整图删除包括用户删除、保存后删除和替换旧图：先持久化删除意图，停止公开访问，再清理副本。仅对 `deleting/delete_failed` 文件判断整图是否终结：
+整图删除包括上传失败后的后台清理、用户删除、保存后删除和替换旧图：先持久化删除意图，停止公开访问，再清理副本。后台扫描到 `failed` 文件时，将其转为 `deleting` 并清除原上传错误，复用整图删除流程。仅对 `deleting/delete_failed` 文件判断整图是否终结：
 
 | 当前条件 | 文件结果 |
 | --- | --- |
@@ -64,7 +64,7 @@ stateDiagram-v2
 | 任务均停止，仍有非 `deleted` 副本 | `delete_failed` |
 | 任务均停止，副本全部为 `deleted` | `deleted`，设置 `deleted_at` |
 
-停止的任务可以是 `success/failed/cancelled`。文件 `failed` 的残留清理即使全部完成，也保持 `failed`；用户显式整图删除后，才参加上述终结判断。
+停止的任务可以是 `success/failed/cancelled`。
 
 ## 副本状态机
 
@@ -239,8 +239,8 @@ stateDiagram-v2
 | 全部写入成功，无屏蔽或删除处置 | `ready` | 副本均 `ready`，写入任务均 `success` |
 | 至少一份发布，其余写入失败 | `ready` | 成功副本 `ready`；失败副本 `write_failed`，写入任务 `failed` |
 | 保存后处理已屏蔽，后续步骤失败 | `blocked` | 保存后任务 `failed`，已成功的副本保持 `ready` |
-| 上传失败，清理未完成 | `failed` | 存在 `delete_failed` 副本与失败删除任务 |
-| 上传失败，剩余副本全部人工标记为已删除 | `failed` | 副本均 `deleted`，失败删除任务仍为 `failed` |
+| 上传失败，清理最终失败 | `delete_failed` | 存在 `delete_failed` 副本与失败删除任务 |
+| 上传失败，剩余副本全部人工标记为已删除 | `deleted` | 副本均 `deleted`，失败删除任务仍为 `failed` |
 | 单副本删除失败，其他副本可用 | 原 `ready/blocked` | 目标副本 `delete_failed`，删除任务 `failed` |
 | 整图删除停止，仍有未终结副本 | `delete_failed` | 等待删除重试或人工标记为已删除 |
 | 整图删除成功 | `deleted` | 副本均 `deleted`，删除任务均 `success`，其他任务已停止 |

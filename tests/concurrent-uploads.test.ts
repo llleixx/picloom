@@ -127,7 +127,7 @@ test("all first attempts fail once without background retries or quota consumpti
     expect((await f.upload()).status).toBe(502);
     await f.app.files.sweep();
     const [file] = await f.app.db.read((r) => r.files(10, 0));
-    expect(file!.status).toBe("failed");
+    expect(file!.status).toBe("delete_failed");
     const tasks = await f.app.db.read((r) => r.tasks(file!.id));
     expect(
       tasks.filter((t) => t.kind === "write").map((t) => t.attempts),
@@ -273,7 +273,7 @@ test("cancellation before publication preserves late write locations for cleanup
     });
     await f.app.files.sweep();
     const [file] = await f.app.db.read((r) => r.files(10, 0));
-    expect(file!.status).toBe("failed");
+    expect(file!.status).toBe("deleted");
     expect(await Bun.file(storedPath).exists()).toBe(false);
     expect((await f.app.db.read((r) => r.replicas(file!.id)))[0]!.status).toBe(
       "deleted",

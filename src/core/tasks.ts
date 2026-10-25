@@ -336,6 +336,11 @@ export class TaskExecutor {
       await this.db.transaction(async (r) => {
         const current = requireValue(await r.file(file.id));
         if (!["failed", "deleting"].includes(current.status)) return;
+        if (current.status === "failed") {
+          current.status = "deleting";
+          current.last_error = null;
+          await r.saveFile(current, "failed");
+        }
         const replicas = await r.replicas(file.id),
           tasks = await r.tasks(file.id);
         for (const task of tasks) {

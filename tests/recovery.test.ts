@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { fixture } from "./helpers";
 import { handler } from "../src/http/app";
 import { PluginError } from "../src/plugins/api";
-test("process exit after storage commit retains an unpublished object until manual termination", async () => {
+test("process exit after storage commit enters deletion failure until the replica is marked deleted", async () => {
   const f = await fixture();
   try {
     await f.app.close();
@@ -28,7 +28,7 @@ test("process exit after storage commit retains an unpublished object until manu
     await f.restart();
     const rows = await f.app.db.read((r) => r.files(10, 0));
     expect(rows).toHaveLength(1);
-    expect(rows[0]!.status).toBe("failed");
+    expect(rows[0]!.status).toBe("delete_failed");
     const replicas = await f.app.db.read((r) => r.replicas(rows[0]!.id));
     const replica = replicas[0]!;
     expect(replica.status).toBe("delete_failed");
@@ -41,7 +41,7 @@ test("process exit after storage commit retains an unpublished object until manu
     expect(deletion).toMatchObject({ status: "failed", attempts: 1 });
     await f.app.files.terminateReplica(rows[0]!.id, replica.id);
     expect(await f.app.db.read((r) => r.file(rows[0]!.id))).toMatchObject({
-      status: "failed",
+      status: "deleted",
     });
     expect(await f.app.db.read((r) => r.task(deletion.id))).toEqual(deletion);
     expect(await object.exists()).toBe(true);
@@ -49,7 +49,7 @@ test("process exit after storage commit retains an unpublished object until manu
     await f.close();
   }
 }, 15000);
-test("failed upload remains failed after termination, until explicit whole-file deletion", async () => {
+test("failed upload cleanup finishes when the remaining replica is marked deleted", async () => {
   const f = await fixture({
     beforeWrite: async () => {
       throw new PluginError("NETWORK", "Before write", false);
@@ -62,7 +62,7 @@ test("failed upload remains failed after termination, until explicit whole-file 
     expect((await f.upload()).status).toBe(502);
     await f.app.files.sweep();
     const rows = await f.app.db.read((r) => r.files(10, 0));
-    expect(rows[0]!.status).toBe("failed");
+    expect(rows[0]!.status).toBe("delete_failed");
     const replica = (await f.app.db.read((r) => r.replicas(rows[0]!.id)))[0]!;
     expect(replica.status).toBe("delete_failed");
     const failedDelete = (
@@ -76,15 +76,10 @@ test("failed upload remains failed after termination, until explicit whole-file 
     ).toBe(f.png.length);
     await f.app.files.terminateReplica(rows[0]!.id, replica.id);
     expect((await f.app.db.read((r) => r.file(rows[0]!.id)))?.status).toBe(
-      "failed",
+      "deleted",
     );
     expect(await f.app.db.read((r) => r.task(failedDelete.id))).toEqual(
       failedDelete,
-    );
-    await f.app.files.delete(rows[0]!.id);
-    await f.app.files.sweep();
-    expect((await f.app.db.read((r) => r.file(rows[0]!.id)))?.status).toBe(
-      "deleted",
     );
   } finally {
     await f.close();
