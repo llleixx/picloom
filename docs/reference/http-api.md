@@ -233,7 +233,7 @@ curl --fail-with-body "$PICLOOM_URL/api/files/$PICLOOM_FILE_ID" \
 
 标签定义返回 `id`、`ownerId`、`name`、`createdAt`、`updatedAt`；集合另外返回 `description`、`readyFileCount` 和 `preview`。预览为最新可用图片的 `{ fileId, thumbnailUrl }`，无可用图片时为 `null`，缩略图需要会话认证。
 
-批量接口也用于单图。`ids` 为 1–100 个不同图片 ID，`add`、`remove` 为分类 ID 数组，不能重叠且至少有一项操作。每张图片最多 100 个标签和 100 个集合，按移除后添加的最终结果校验。响应为 `{ "results": [{ "id": "…", "accepted": true }, { "id": "…", "accepted": false, "error": "错误码" }] }`。分类无效整体拒绝，图片不存在、权限或归属不符逐项失败。访客图片不能添加分类，管理员也不例外。其他关联保留，删除中或已删除图片只能移除关联。
+批量接口也用于单图。`ids` 为 1–100 个不同图片 ID，`add`、`remove` 为分类 ID 数组，不能重叠且至少有一项操作。每张图片最多 100 个标签和 100 个集合，按移除后添加的最终结果校验。响应为 `{ "results": [{ "id": "…", "accepted": true }, { "id": "…", "accepted": false, "error": "错误码" }] }`。分类无效整体拒绝，图片不存在、权限或归属不符逐项失败。访客图片不能添加分类，管理员也不例外。其他关联保留，删除中的图片只能移除关联。
 
 ### 删除与解除关联的范围
 
@@ -247,7 +247,7 @@ curl --fail-with-body "$PICLOOM_URL/api/files/$PICLOOM_FILE_ID" \
 | `POST /api/files/:id/replicas/:replicaId/detach` | `confirm`，可选 `includeLast`（默认 `true`） |
 | `POST /api/files/batch-detach` | `confirm`、`ids`（1–100 个不同 ID），可选 `sourceId`、`includeLast`（默认 `true`） |
 
-解除关联不调用存储插件，不删除存储文件；会结束管理、取消关联的非运行任务、释放容量，保留记录与历史。按源或副本处理时，有其他 `ready` 副本就只处理目标；否则 `includeLast:true` 处理整张图片及其他失败副本，`false` 返回 `LAST_REPLICA`。上传、写入或相关任务运行期间返回 `BUSY`（409），可稍后重试。删除使用异步任务，成功接收不等于远端删除成功。
+解除关联不调用存储插件，不删除存储文件；会结束管理、取消关联的非运行任务、释放容量；仅终结单个副本时保留其记录。按源或副本处理时，有其他 `ready` 副本就只处理目标；否则 `includeLast:true` 处理整张图片及其他失败副本，`false` 返回 `LAST_REPLICA`。上传、写入或相关任务运行期间返回 `BUSY`（409），可稍后重试。删除使用异步任务，成功接收不等于远端删除成功。
 
 ### 存储源清理任务
 
@@ -261,7 +261,7 @@ curl --fail-with-body "$PICLOOM_URL/api/files/$PICLOOM_FILE_ID" \
 | `GET /api/storage-sources/:id/cleanups/:jobId` | `limit` 默认 25、范围 1–100，`offset` 默认 0；返回 `job`、`counts`、分页 `items`、当前 `remaining` 引用数与 `groups` |
 | `POST /api/storage-sources/:id/cleanups/:jobId/retry` | 202；只重试原任务的失败项 |
 
-提交要求此源不再被存储组引用，否则返回 `SOURCE_IN_USE`（409）。每源同时只有一个活动任务，重复提交返回现有任务。提交事务固定当前未终结副本，不扫描未登记对象；后续新增引用和配置变化不影响固定范围。任务持久化并在重启后继续，状态为 `active` 或 `finished`；项目状态为 `pending`、`running`、`success`、`kept`、`failed`。只有管理结束才计为成功，整图操作需等待所有副本结束；保留条件在逐项开始时检查。删除重试复用原删除任务，不创建新的自动重试预算。
+提交要求此源不再被存储组引用，否则返回 `SOURCE_IN_USE`（409）。每源同时只有一个活动任务，重复提交返回现有任务。提交事务固定当前未终结副本，不扫描未登记对象；后续新增引用和配置变化不影响固定范围。任务持久化并在重启后继续，状态为 `active` 或 `finished`；项目状态为 `pending`、`running`、`success`、`kept`、`failed`。只有管理结束才计为成功；整图操作结束后对应明细随图片清除，已完成数量仍计入任务汇总。保留条件在逐项开始时检查。删除重试复用原删除任务，不创建新的自动重试预算。
 
 任务结束不代表此源当前无引用。删除源配置仍需满足原配置引用、副本和运行调用条件，并单独调用 `DELETE /api/storage-sources/:id`。切换操作方式需在当前任务结束后提交新任务；其他清理活动期间重试旧任务返回 409。
 
@@ -285,7 +285,7 @@ curl --fail-with-body "$PICLOOM_URL/api/files/$PICLOOM_FILE_ID" \
 
 存储组的 `replicaCount` 表示总副本数，范围为 `1` 到成员数量。副本详情按存储源和状态展示。
 
-人工标记要求副本为 `delete_failed` 且无关联运行任务，已为 `deleted` 时重复请求成功。此操作保留历史并结束管理，不保证远端删除；标记后的失败任务不可重试。副本响应的 `instanceDeleted` 表示存储源配置已删除，`instanceId` 保留原标识；配置不存在时 `name` 回退为该标识。存储源的 `usedStorageBytes` 按全部未终结副本统计，`replicaCount` 表示未终结副本数量。
+人工标记要求副本为 `delete_failed` 且无关联运行任务，已为 `deleted` 时重复请求成功。此操作结束管理，不保证远端删除；标记后的失败任务不可重试。整图进入 `deleted` 后自动清除图片及其副本、任务、上传会话、分类关联和源清理明细，释放公开路径，不保留历史；后续详情及重复操作返回 404。副本响应的 `instanceDeleted` 表示存储源配置已删除，`instanceId` 保留原标识；配置不存在时 `name` 回退为该标识。存储源的 `usedStorageBytes` 按全部未终结副本统计，`replicaCount` 表示未终结副本数量。
 
 配置修改使用接口要求的 `expectedVersion` 防止覆盖并发更新；遇到 `CONFLICT` 先重新读取。`PUT /api/settings` 接收完整设置对象，不是局部补丁，可先 GET 后修改对应字段再提交。
 

@@ -87,9 +87,7 @@ if (connectionString) {
         202,
       );
       await f.app.files.sweep();
-      expect((await f.app.db.read((r) => r.file(file.id)))?.status).toBe(
-        "deleted",
-      );
+      expect(await f.app.db.read((r) => r.file(file.id))).toBeNull();
       expect((await f.request(path)).status).toBe(404);
     } finally {
       await f.close();

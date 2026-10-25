@@ -7,7 +7,7 @@ import { prefix, scopedInput } from "../src/infra/files";
 import { cacheKey } from "../src/core/cache";
 import { ImageCache } from "../src/core/cache";
 import { join } from "node:path";
-test("path collision never overwrites existing image or tombstone", async () => {
+test("path collision protects managed images and deletion releases the path", async () => {
   const f = await fixture();
   try {
     const def: Definition<"path"> = {
@@ -65,7 +65,7 @@ test("path collision never overwrites existing image or tombstone", async () => 
     ).toEqual(new Uint8Array(f.png));
     await f.app.files.delete(v.id);
     await f.app.files.sweep();
-    expect((await upload()).status).toBe(409);
+    expect((await upload()).status).toBe(201);
     expect(await f.app.db.read((r) => r.files(10, 0))).toHaveLength(1);
   } finally {
     await f.close();

@@ -122,7 +122,9 @@ test.each(["deleted", "blocked"] as const)(
       const response = await t.f.request(t.path);
       expect(response.status).toBe(404);
       expect((await response.json()).error.code).toBe("NOT_FOUND");
-      expect((await read((r) => r.file(t.file.id)))?.status).toBe(status);
+      if (status === "deleted")
+        expect(await read((r) => r.file(t.file.id))).toBeNull();
+      else expect((await read((r) => r.file(t.file.id)))?.status).toBe(status);
       expect(first).not.toHaveBeenCalled();
       expect(second).not.toHaveBeenCalled();
     } finally {

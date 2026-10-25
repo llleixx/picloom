@@ -216,9 +216,7 @@ for (const multipart of [false, true])
       const file = (await f.app.db.read((r) => r.files(10, 0)))[0]!;
       await f.request(`/api/files/${file.id}`, "DELETE");
       await f.app.files.tasks.sweep();
-      expect((await f.app.db.read((r) => r.file(file.id)))?.status).toBe(
-        "deleted",
-      );
+      expect(await f.app.db.read((r) => r.file(file.id))).toBeNull();
     } finally {
       await client
         .send(new DeleteObjectCommand({ Bucket, Key }))

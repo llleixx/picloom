@@ -153,9 +153,11 @@ export class SourceCleanups {
   private async process(job: CleanupJob, item: CleanupItem) {
     try {
       const state = await this.db.read(async (r) => ({
-        file: requireValue(await r.file(item.file_id)),
-        replica: requireValue(await r.replica(item.replica_id)),
+        file: await r.file(item.file_id),
+        replica: await r.replica(item.replica_id),
       }));
+      // Whole-image completion removes its cleanup items along with the image.
+      if (!state.file || !state.replica) return;
       if (item.status === "pending") {
         if (
           job.mode === "delete" &&
@@ -195,10 +197,11 @@ export class SourceCleanups {
       }
       if (item.status !== "running") return;
       const current = await this.db.read(async (r) => ({
-        file: requireValue(await r.file(item.file_id)),
-        replica: requireValue(await r.replica(item.replica_id)),
+        file: await r.file(item.file_id),
+        replica: await r.replica(item.replica_id),
         tasks: await r.tasks(item.file_id),
       }));
+      if (!current.file || !current.replica) return;
       if (
         item.whole_file
           ? current.file.status === "deleted"

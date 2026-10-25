@@ -178,7 +178,6 @@ export class Imports {
             temp_path: null,
             temp_status: "cleaned" as const,
             last_error: null,
-            deleted_at: null,
             processing_results_json: null,
           };
           if (!(await r.insertFileIfPathFree(file))) {

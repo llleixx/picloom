@@ -264,19 +264,15 @@ test("moderation followed by Telegram preserves block/delete even when delivery 
       const image = await (await f.upload()).json();
       await f.app.files.sweep();
       const file = (await f.app.db.read((r) => r.file(image.id)))!;
-      expect(file.status).toBe(
-        current === "pass"
-          ? "ready"
-          : current === "block"
-            ? "blocked"
-            : "deleted",
-      );
+      if (current === "delete") expect(file).toBeNull();
+      else expect(file.status).toBe(current === "pass" ? "ready" : "blocked");
       if (current === "pass") expect(texts).toHaveLength(0);
       else expect(texts.at(-1)).toContain(`"suggestion": "${current}"`);
       const task = (await f.app.db.read((r) => r.tasks(image.id))).find(
         (t) => t.kind === "action",
       )!;
-      expect(task.status).toBe(fail ? "failed" : "success");
+      if (current === "delete") expect(task).toBeUndefined();
+      else expect(task.status).toBe("success");
     }
   } finally {
     fetcher.mockRestore();

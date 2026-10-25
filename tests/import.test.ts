@@ -95,7 +95,7 @@ test("local in-place import preserves paths, metadata, duplicate safety, reads, 
     await f.app.files.tasks.sweep();
     expect(await Bun.file(join(root, "2024/中文.png")).exists()).toBe(false);
     await Bun.write(join(root, "2024/中文.png"), f.png);
-    expect((await scan(f, src.id)).conflicts).toBe(1);
+    expect((await scan(f, src.id)).imported).toBe(1);
   } finally {
     await f.close();
   }

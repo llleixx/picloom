@@ -41,13 +41,8 @@ test("HTTP upload, transform, cache, restart and durable deletion", async () => 
     expect((await f.request(path)).status).toBe(404);
     await f.app.files.sweep();
     const row = await f.app.db.read((r) => r.file(value.id));
-    expect(row?.status).toBe("deleted");
-    expect(row?.temp_status).toBe("cleaned");
-    expect(
-      (await f.app.db.read((r) => r.tasks(value.id))).find(
-        (t) => t.kind === "delete",
-      )?.status,
-    ).toBe("success");
+    expect(row).toBeNull();
+    expect(await f.app.db.read((r) => r.tasks(value.id))).toEqual([]);
   } finally {
     await f.close();
   }
@@ -136,9 +131,7 @@ test("write completed but publication failed is cleaned after restart", async ()
       (await f.app.db.read((r) => r.replicas(rows[0]!.id)))[0]?.status,
     ).toBe("ready");
     await f.restart();
-    expect((await f.app.db.read((r) => r.file(rows[0]!.id)))?.status).toBe(
-      "failed",
-    );
+    expect(await f.app.db.read((r) => r.file(rows[0]!.id))).toBeNull();
   } finally {
     await f.close();
   }
@@ -169,9 +162,7 @@ test("failed deletion remains pending and succeeds on retry", async () => {
       await r.saveTask(t);
     });
     await f.restart();
-    expect((await f.app.db.read((r) => r.file(value.id)))?.status).toBe(
-      "deleted",
-    );
+    expect(await f.app.db.read((r) => r.file(value.id))).toBeNull();
   } finally {
     await f.close();
   }

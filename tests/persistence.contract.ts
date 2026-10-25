@@ -58,7 +58,6 @@ export function persistenceContract(
             temp_path: null,
             temp_status: "cleaned",
             last_error: null,
-            deleted_at: status === "deleted" ? 1 : null,
             processing_results_json: null,
           };
           const task: Task = {
@@ -272,7 +271,6 @@ export function persistenceContract(
             temp_status: "cleaned",
             last_error: null,
             processing_results_json: null,
-            deleted_at: null,
           };
           await f.db.transaction((r) => r.insertFile(file));
         }
@@ -377,7 +375,6 @@ export function persistenceContract(
               temp_path: null,
               temp_status: "cleaned",
               last_error: null,
-              deleted_at: null,
               processing_results_json: null,
             };
             await r.insertFile(file);
@@ -446,7 +443,6 @@ export function persistenceContract(
           temp_path: "source",
           temp_status: "available",
           last_error: null,
-          deleted_at: null,
           processing_results_json: null,
         };
         const replica = {
@@ -836,7 +832,6 @@ export function persistenceContract(
               temp_status,
               temp_path: temp_status === "cleaned" ? null : key,
               last_error: null,
-              deleted_at: status === "deleted" ? Date.now() : null,
               processing_results_json: null,
             });
           }
@@ -847,7 +842,7 @@ export function persistenceContract(
         const candidates = await f.db.read((r) => r.filesNeedingCleanup());
         const expected = files.filter(
           (file) =>
-            ["failed", "deleting"].includes(file.status) ||
+            ["failed", "deleting", "deleted"].includes(file.status) ||
             (["ready", "blocked"].includes(file.status) &&
               file.temp_path !== null),
         );
@@ -862,7 +857,9 @@ export function persistenceContract(
         expect(
           candidates
             .slice(6)
-            .every((file) => ["ready", "blocked"].includes(file.status)),
+            .every((file) =>
+              ["ready", "blocked", "deleted"].includes(file.status),
+            ),
         ).toBe(true);
       } finally {
         await f.close();
@@ -891,7 +888,6 @@ export function persistenceContract(
           temp_path: null,
           temp_status: "cleaned",
           last_error: null,
-          deleted_at: null,
           processing_results_json: null,
         };
         const second = {

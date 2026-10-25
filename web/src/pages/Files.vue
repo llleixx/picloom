@@ -813,7 +813,6 @@ async function navigate(direction: -1 | 1) {
               'failed',
               'deleting',
               'delete_failed',
-              'deleted',
             ] as const"
             :key="key"
             :value="key"

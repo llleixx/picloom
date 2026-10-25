@@ -372,14 +372,8 @@ test("redundancy uses temporary results, publishes tasks atomically, runs post-s
     await response.arrayBuffer();
     await f.request("/api/files/" + result.id, "DELETE");
     await f.app.files.sweep();
-    expect((await f.app.db.read((r) => r.file(result.id)))?.status).toBe(
-      "deleted",
-    );
-    expect(
-      (await f.app.db.read((r) => r.replicas(result.id))).every(
-        (r) => r.status === "deleted",
-      ),
-    ).toBe(true);
+    expect(await f.app.db.read((r) => r.file(result.id))).toBeNull();
+    expect(await f.app.db.read((r) => r.replicas(result.id))).toEqual([]);
     await f.app.configuration.deleteProfile(p.id);
     await f.app.configuration.deleteGroup(g.id);
     await f.app.plugins.remove(second.id);
@@ -688,14 +682,8 @@ test("deleting during an action stops the chain and cleans temporary data after 
     await f.app.files.delete(result.id);
     await sweep;
     await f.app.files.sweep();
-    expect((await f.app.db.read((r) => r.file(result.id)))?.status).toBe(
-      "deleted",
-    );
-    expect(
-      (await f.app.db.read((r) => r.tasks(result.id))).find(
-        (t) => t.kind === "action",
-      )?.status,
-    ).toBe("cancelled");
+    expect(await f.app.db.read((r) => r.file(result.id))).toBeNull();
+    expect(await f.app.db.read((r) => r.tasks(result.id))).toEqual([]);
   } finally {
     await f.close();
   }

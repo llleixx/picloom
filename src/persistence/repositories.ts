@@ -2,7 +2,7 @@ import type { OrganizationQuery } from "../../shared/organization";
 import { publicPath, publicPathKey } from "../infra/files";
 import { integer } from "./values";
 import { isDeepStrictEqual } from "node:util";
-import { sql, type Kysely } from "kysely";
+import { sql, type Generated, type Kysely } from "kysely";
 import { Conflict } from "../core/errors";
 import type {
   Repositories,
@@ -64,7 +64,9 @@ export interface Schema {
   collections: Stored<Collection>;
   file_tags: { file_id: string; tag_id: string };
   collection_files: { collection_id: string; file_id: string };
-  source_cleanup_jobs: Stored<CleanupJob>;
+  source_cleanup_jobs: Stored<CleanupJob> & {
+    removed_item_count: Generated<number>;
+  };
   source_cleanup_items: Stored<CleanupItem>;
   daily_upload_usage: { subject: string; day: string; upload_count: number };
   users: Stored<User>;
@@ -675,7 +677,7 @@ export class SqlRepositories implements Repositories {
   async saveCleanupJob(value: CleanupJob) {
     await this.db
       .updateTable("source_cleanup_jobs")
-      .set(encode({ ...value, updated_at: Date.now() }))
+      .set({ status: value.status, updated_at: Date.now() })
       .where("id", "=", value.id)
       .execute();
   }
@@ -704,6 +706,12 @@ export class SqlRepositories implements Repositories {
       .groupBy("status")
       .execute();
     for (const row of rows) counts[row.status] = integer(row.n);
+    const job = await this.db
+      .selectFrom("source_cleanup_jobs")
+      .select("removed_item_count")
+      .where("id", "=", jobId)
+      .executeTakeFirstOrThrow();
+    counts.success += integer(job.removed_item_count);
     return counts;
   }
   async insertCleanupItem(value: CleanupItem) {
@@ -1513,6 +1521,39 @@ export class SqlRepositories implements Repositories {
       .executeTakeFirstOrThrow();
     return result.numInsertedOrUpdatedRows === 1n;
   }
+  async deleteFile(id: string) {
+    const items = await this.db
+      .selectFrom("source_cleanup_items")
+      .select("job_id")
+      .select((eb) => eb.fn.countAll<string | number>().as("n"))
+      .where("file_id", "=", id)
+      .groupBy("job_id")
+      .execute();
+    for (const item of items) {
+      await this.db
+        .updateTable("source_cleanup_jobs")
+        .set({
+          removed_item_count: sql`removed_item_count + ${integer(item.n)}`,
+        })
+        .where("id", "=", item.job_id)
+        .execute();
+    }
+    await this.db
+      .deleteFrom("source_cleanup_items")
+      .where("file_id", "=", id)
+      .execute();
+    await this.db.deleteFrom("tasks").where("file_id", "=", id).execute();
+    await this.db
+      .deleteFrom("file_replicas")
+      .where("file_id", "=", id)
+      .execute();
+    await this.db
+      .deleteFrom("upload_sessions")
+      .where("file_id", "=", id)
+      .execute();
+    // Organization links cascade; shared tags, collections and configuration remain.
+    await this.db.deleteFrom("files").where("id", "=", id).execute();
+  }
   async filesNeedingCleanup() {
     return this.rows<FileRecord>(
       this.db
@@ -1520,7 +1561,7 @@ export class SqlRepositories implements Repositories {
         .selectAll()
         .where((eb) =>
           eb.or([
-            eb("status", "in", ["failed", "deleting"]),
+            eb("status", "in", ["failed", "deleting", "deleted"]),
             eb.and([
               eb("status", "in", ["ready", "blocked"]),
               eb("temp_path", "is not", null),

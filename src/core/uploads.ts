@@ -346,7 +346,10 @@ export class Uploads {
             true,
           );
           session.status = "completed";
-          await this.db.transaction((r) => r.saveUploadSession(session));
+          await this.db.transaction(async (r) => {
+            if (await r.uploadSession(session.id))
+              await r.saveUploadSession(session);
+          });
           return result;
         } catch (error) {
           // Publication may have succeeded before the response/session update failed.
@@ -355,7 +358,10 @@ export class Uploads {
             file && ["ready", "blocked"].includes(file.status)
               ? "completed"
               : "failed";
-          await this.db.transaction((r) => r.saveUploadSession(session));
+          await this.db.transaction(async (r) => {
+            if (await r.uploadSession(session.id))
+              await r.saveUploadSession(session);
+          });
           if (session.status === "completed") return this.result(session);
           throw error;
         } finally {

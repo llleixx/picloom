@@ -441,7 +441,6 @@ async function addFile(
       temp_path: null,
       temp_status: "cleaned",
       last_error: null,
-      deleted_at: status === "deleted" ? 1 : null,
       processing_results_json: null,
     };
   await db.transaction((r) => r.insertFile(file));

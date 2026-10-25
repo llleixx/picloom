@@ -85,7 +85,7 @@ test("batch delete checks admin and CSRF, reports partial results and is idempot
         .accepted,
     ).toBe(true);
     await f.app.files.sweep();
-    expect((await f.app.db.read((r) => r.file(a.id)))!.status).toBe("deleted");
+    expect(await f.app.db.read((r) => r.file(a.id))).toBeNull();
   } finally {
     await f.close();
   }
@@ -204,7 +204,6 @@ test("abnormal images use final failures across sources and keep counts consiste
           ...current,
           status: "deleted",
           last_error: null,
-          deleted_at: Date.now(),
         },
         current.status,
       );

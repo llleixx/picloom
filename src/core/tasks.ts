@@ -194,15 +194,13 @@ export class TaskExecutor {
       if (whole && file.status !== "deleted") {
         const previous = file.status;
         file.status = "deleted";
-        file.deleted_at = Date.now();
         file.last_error = null;
         await r.saveFile(file, previous);
       }
       return whole;
     });
     if (whole) {
-      await this.releaseTemporary(fileId);
-      await this.cache.remove(fileId);
+      await this.cleanupMutex.run(() => this.removeDeleted(fileId));
     }
     return { whole };
   }
@@ -236,7 +234,7 @@ export class TaskExecutor {
         }),
       ),
     );
-    if (deleted) await this.cache.remove(fileId);
+    if (deleted) await this.cleanupMutex.run(() => this.removeDeleted(fileId));
   }
   async retryError(
     r: Repositories,
@@ -309,6 +307,13 @@ export class TaskExecutor {
         });
       }),
     );
+  }
+  private async removeDeleted(fileId: string) {
+    if (!(await this.db.read((r) => r.file(fileId)))) return;
+    await this.releaseTemporary(fileId);
+    await this.flight.wait(fileId);
+    await this.cache.remove(fileId);
+    await this.db.transaction((r) => r.deleteFile(fileId));
   }
   private async releaseTemporary(fileId: string) {
     const file = requireValue(await this.db.read((r) => r.file(fileId)));
@@ -388,10 +393,11 @@ export class TaskExecutor {
     const deleted = await this.db.transaction((r) =>
       this.finishDeletion(r, file.id),
     );
-    if (deleted) await this.cache.remove(file.id);
+    if (deleted) await this.removeDeleted(file.id);
   }
   private async finishDeletion(r: Repositories, fileId: string) {
     const current = requireValue(await r.file(fileId));
+    if (current.status === "deleted") return true;
     if (!["deleting", "delete_failed"].includes(current.status)) return false;
     const tasks = await r.tasks(fileId);
     if (tasks.some((t) => !terminal(t))) return false;
@@ -404,7 +410,6 @@ export class TaskExecutor {
     const previous = current.status;
     current.status = status;
     current.last_error = error;
-    if (!unresolved) current.deleted_at = Date.now();
     await r.saveFile(current, previous);
     return !unresolved;
   }

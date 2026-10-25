@@ -40,10 +40,8 @@ test("process exit after storage commit enters deletion failure until the replic
     )!;
     expect(deletion).toMatchObject({ status: "failed", attempts: 1 });
     await f.app.files.terminateReplica(rows[0]!.id, replica.id);
-    expect(await f.app.db.read((r) => r.file(rows[0]!.id))).toMatchObject({
-      status: "deleted",
-    });
-    expect(await f.app.db.read((r) => r.task(deletion.id))).toEqual(deletion);
+    expect(await f.app.db.read((r) => r.file(rows[0]!.id))).toBeNull();
+    expect(await f.app.db.read((r) => r.task(deletion.id))).toBeNull();
     expect(await object.exists()).toBe(true);
   } finally {
     await f.close();
@@ -78,12 +76,8 @@ test("failed upload cleanup finishes when the remaining replica is marked delete
       ),
     ).toBe(f.png.length);
     await f.app.files.terminateReplica(rows[0]!.id, replica.id);
-    expect((await f.app.db.read((r) => r.file(rows[0]!.id)))?.status).toBe(
-      "deleted",
-    );
-    expect(await f.app.db.read((r) => r.task(failedDelete.id))).toEqual(
-      failedDelete,
-    );
+    expect(await f.app.db.read((r) => r.file(rows[0]!.id))).toBeNull();
+    expect(await f.app.db.read((r) => r.task(failedDelete.id))).toBeNull();
     expect(
       await f.app.db.read((r) => r.countFiles({ status: "attention" })),
     ).toBe(0);
@@ -122,9 +116,7 @@ test("delete racing with upload prevents publication and retains cleanup locator
       next_run_at: null,
     });
     await f.app.files.sweep();
-    expect((await f.app.db.read((r) => r.file(file.id)))!.status).toBe(
-      "deleted",
-    );
+    expect(await f.app.db.read((r) => r.file(file.id))).toBeNull();
   } finally {
     release();
     await f.close();

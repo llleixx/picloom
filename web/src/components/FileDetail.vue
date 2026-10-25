@@ -25,6 +25,7 @@ import {
 import type { FileView } from "../../../shared/api";
 import {
   api,
+  ApiError,
   errorMessage,
   errorText,
   queryClient,
@@ -59,6 +60,12 @@ const detail = useQuery({
       : query.state.data?.backgroundPending
         ? 3000
         : false,
+});
+watch(detail.error, (error) => {
+  if (error instanceof ApiError && error.status === 404) {
+    void queryClient.invalidateQueries({ queryKey: ["files"] });
+    emit("close");
+  }
 });
 const restoring = ref(false);
 async function restoreAccess() {

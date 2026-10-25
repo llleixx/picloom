@@ -228,9 +228,7 @@ test("failed-write cleanup runs as a bounded deletion while unrelated tasks cont
     });
     await f.app.files.sweep();
     expect(deleted).toEqual([b.file.storage_key, a.file.storage_key]);
-    expect((await f.app.db.read((r) => r.file(a.file.id)))!.status).toBe(
-      "deleted",
-    );
+    expect(await f.app.db.read((r) => r.file(a.file.id))).toBeNull();
   } finally {
     blocked.release();
     await cleaning;

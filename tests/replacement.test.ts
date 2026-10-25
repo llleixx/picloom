@@ -50,9 +50,7 @@ test("replacement preserves the public link despite ended replica failure and cl
       before.storage_key,
     );
     await f.app.files.sweep();
-    expect((await f.app.db.read((r) => r.file(old.id)))!.status).toBe(
-      "deleted",
-    );
+    expect(await f.app.db.read((r) => r.file(old.id))).toBeNull();
     const response = await f.request(new URL(old.url).pathname);
     expect(response.status).toBe(200);
     expect(Buffer.from(await response.arrayBuffer()).equals(bytes)).toBe(true);

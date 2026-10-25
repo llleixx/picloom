@@ -717,7 +717,6 @@ export class Files {
         temp_path: current.path.split(/[\\/]/).pop()!,
         temp_status: "available",
         last_error: null,
-        deleted_at: null,
         processing_results_json: null,
       };
       signal.throwIfAborted();

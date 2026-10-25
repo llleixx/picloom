@@ -71,7 +71,6 @@ test("thumbnail requests share eight slots and pagination discards queued images
         logicalKey: `${id}.png`,
         storageKey: `${id}.png`,
         createdAt: 1,
-        deletedAt: null,
         error: null,
         url: `${service.url}/${id}.png`,
       };

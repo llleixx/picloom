@@ -313,3 +313,42 @@ test("partial batch failure retains failed selections for retry", async ({
     page.getByRole("button", { name: "Clear selection", exact: true }),
   ).toHaveCount(0);
 });
+
+for (const mode of ["delete", "detach"] as const) {
+  test(`${mode} closes image detail after automatic record cleanup`, async ({
+    page,
+    service,
+  }) => {
+    await login(page, service.url);
+    const status = page.getByRole("combobox", {
+      name: "File status",
+      exact: true,
+    });
+    await expect(status.locator('option[value="deleted"]')).toHaveCount(0);
+    const files = await (
+      await page.request.get(service.url + "/api/files?limit=1")
+    ).json();
+    const id = files[0].id;
+    await page.goto(service.url + `/app/images?file=${id}`);
+    await page
+      .getByRole("button", { name: "Delete image", exact: true })
+      .click();
+    const confirmation = page.getByRole("dialog").last();
+    if (mode === "detach")
+      await confirmation
+        .getByRole("combobox", { name: "Operation", exact: true })
+        .selectOption("detach");
+    await confirmation
+      .getByRole("button", {
+        name: mode === "detach" ? "Confirm detach" : "Confirm delete",
+        exact: true,
+      })
+      .click();
+    await expect(page).not.toHaveURL(/file=/);
+    await expect
+      .poll(async () =>
+        (await page.request.get(service.url + `/api/files/${id}`)).status(),
+      )
+      .toBe(404);
+  });
+}

@@ -143,9 +143,7 @@ test("explicit preserve-last concurrent deletion keeps one copy; source batch de
       ).results[0].accepted,
     ).toBe(true);
     await f.app.files.sweep();
-    expect((await f.app.db.read((r) => r.file(image.id)))!.status).toBe(
-      "deleted",
-    );
+    expect(await f.app.db.read((r) => r.file(image.id))).toBeNull();
     expect((await f.request(new URL(image.url).pathname)).status).toBe(404);
   } finally {
     await f.close();
@@ -322,9 +320,7 @@ test("one failed replica deletion does not block deletion of healthy replicas", 
       await r.saveTask({ ...task, next_run_at: Date.now() });
     });
     await f.app.files.sweep();
-    expect((await f.app.db.read((r) => r.file(image.id)))?.status).toBe(
-      "deleted",
-    );
+    expect(await f.app.db.read((r) => r.file(image.id))).toBeNull();
   } finally {
     recovery?.mockRestore();
     await f.close();

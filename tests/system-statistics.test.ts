@@ -140,7 +140,6 @@ test("attention counts distinct images and storage retains pending and failed re
           {
             ...file,
             status,
-            deleted_at: status === "deleted" ? Date.now() : null,
           },
           file.status,
         );

@@ -128,16 +128,14 @@ test("detach is confirmed and admin only, keeps storage files with unavailable p
           })
         ).status,
       ).toBe(200);
-      expect((await f.app.db.read((r) => r.file(image.id)))!.status).toBe(
-        "deleted",
-      );
+      expect(await f.app.db.read((r) => r.file(image.id))).toBeNull();
     } finally {
       acquire.mockRestore();
     }
     expect(
       (await f.request(`/api/storage-sources/${source.id}`, "DELETE")).status,
     ).toBe(200);
-    expect(await f.app.db.read((r) => r.replica(replica.id))).not.toBeNull();
+    expect(await f.app.db.read((r) => r.replica(replica.id))).toBeNull();
   } finally {
     await f.close();
   }
@@ -170,14 +168,8 @@ test("replica default deletes whole last image including failed replicas; preser
       ).status,
     ).toBe(200);
     await f.app.files.sweep();
-    expect((await f.app.db.read((r) => r.file(image.id)))!.status).toBe(
-      "deleted",
-    );
-    expect(
-      (await f.app.db.read((r) => r.replicas(image.id))).every(
-        (r) => r.status === "deleted",
-      ),
-    ).toBe(true);
+    expect(await f.app.db.read((r) => r.file(image.id))).toBeNull();
+    expect(await f.app.db.read((r) => r.replicas(image.id))).toEqual([]);
   } finally {
     await f.close();
   }
@@ -234,7 +226,7 @@ test("cleanup snapshots, duplicate submission, backend batches, pagination and r
     const detail = await f.app.cleanups.detail(source.id, job.id, 25, 100);
     expect(detail.job.status).toBe("finished");
     expect(detail.counts.success).toBe(105);
-    expect(detail.items).toHaveLength(5);
+    expect(detail.items).toHaveLength(0);
     expect(detail.remaining).toBe(1);
     expect(
       await Bun.file(join(f.root, "target", "unregistered.png")).exists(),
@@ -340,17 +332,12 @@ test("whole-image cleanup waits for all failed replicas across restart and retri
     expect(failed.remaining).toBe(0);
     await f.app.cleanups.retry(source.id, job.id);
     await complete(f);
-    expect(
-      (await f.app.cleanups.detail(source.id, job.id)).counts.success,
-    ).toBe(1);
-    expect((await f.app.db.read((r) => r.file(image.id)))!.status).toBe(
-      "deleted",
-    );
-    expect(
-      (await f.app.db.read((r) => r.tasks(image.id))).filter(
-        (t) => t.kind === "delete",
-      ),
-    ).toHaveLength(2);
+    const finished = await f.app.cleanups.detail(source.id, job.id);
+    expect(finished.job.status).toBe("finished");
+    expect(finished.items).toEqual([]);
+    expect(finished.counts.success).toBe(1);
+    expect(await f.app.db.read((r) => r.file(image.id))).toBeNull();
+    expect(await f.app.db.read((r) => r.tasks(image.id))).toEqual([]);
   } finally {
     await f.close();
   }
@@ -424,9 +411,9 @@ test("cleanup remains active during automatic deletion retry and completes witho
       r.saveTask({ ...task, next_run_at: Date.now() }),
     );
     await complete(f);
-    expect(
-      (await f.app.cleanups.detail(source.id, job.id)).counts.success,
-    ).toBe(1);
+    const finished = await f.app.cleanups.detail(source.id, job.id);
+    expect(finished.job.status).toBe("finished");
+    expect(finished.counts.success).toBe(1);
     expect((await f.app.db.read((r) => r.task(task.id)))!.attempts).toBe(2);
     deletion.mockRestore();
     await lease.release();

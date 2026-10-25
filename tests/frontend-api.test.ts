@@ -314,7 +314,6 @@ test("reserved prefixes disable UI without rewriting old image links, including 
         logical_key: "old.png",
         storage_key: "old.png",
         status: "deleted",
-        deleted_at: Date.now(),
       }),
     );
     await f.restart();

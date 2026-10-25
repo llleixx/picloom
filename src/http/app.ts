@@ -71,7 +71,6 @@ const view = (f: FileRecord, origin: string): FileView => ({
   logicalKey: f.logical_key,
   storageKey: f.storage_key,
   createdAt: f.created_at,
-  deletedAt: f.deleted_at,
   error: f.last_error,
   url: origin + publicPath(f.public_prefix, f.logical_key),
 });

@@ -286,14 +286,8 @@ test("delete records successful action and existing cleanup retries across resta
     });
     await f.restart();
     await f.app.files.sweep();
-    expect((await f.app.db.read((r) => r.file(uploaded.id)))!.status).toBe(
-      "deleted",
-    );
-    expect(
-      (await f.app.db.read((r) => r.replicas(uploaded.id))).every(
-        (r) => r.status === "deleted",
-      ),
-    ).toBe(true);
+    expect(await f.app.db.read((r) => r.file(uploaded.id))).toBeNull();
+    expect(await f.app.db.read((r) => r.replicas(uploaded.id))).toEqual([]);
     expect(await readdir(join(f.root, "temp"))).toEqual([]);
     expect(await readdir(join(f.root, "cache"))).not.toContain(uploaded.id);
   } finally {
@@ -342,14 +336,8 @@ test("execution errors retry, pass continues, and an interrupted decision never 
     await race.app.files.delete(uploaded.id);
     release();
     await running;
-    expect(
-      (await race.app.db.read((r) => r.file(uploaded.id)))!.status,
-    ).not.toBe("blocked");
-    expect(
-      (await race.app.db.read((r) => r.tasks(uploaded.id))).find(
-        (t) => t.kind === "action",
-      )!.status,
-    ).toBe("cancelled");
+    expect(await race.app.db.read((r) => r.file(uploaded.id))).toBeNull();
+    expect(await race.app.db.read((r) => r.tasks(uploaded.id))).toEqual([]);
   } finally {
     release?.();
     await race.close();
@@ -537,6 +525,13 @@ test("later execution or invalid-result failures preserve block/delete and do no
         ]);
         const image = await (await f.upload()).json();
         await f.app.files.sweep();
+        if (status === "delete") {
+          expect(await f.app.db.read((r) => r.file(image.id))).toBeNull();
+          expect(await f.app.db.read((r) => r.tasks(image.id))).toEqual([]);
+          await f.restart();
+          expect(await f.app.db.read((r) => r.file(image.id))).toBeNull();
+          continue;
+        }
         const action = (await f.app.db.read((r) => r.tasks(image.id))).find(
           (t) => t.kind === "action",
         )!;
@@ -546,7 +541,7 @@ test("later execution or invalid-result failures preserve block/delete and do no
           invalid ? "PLUGIN_RESULT" : "ACTION_FAILED",
         );
         const file = (await f.app.db.read((r) => r.file(image.id)))!;
-        expect(file.status).toBe(status === "block" ? "blocked" : "deleted");
+        expect(file.status).toBe("blocked");
         expect(file.processing_results_json).toHaveLength(1);
         expect(file.processing_results_json![0]!.disposition!.value).toBe(
           status,
@@ -554,7 +549,7 @@ test("later execution or invalid-result failures preserve block/delete and do no
         await f.restart();
         await f.app.files.sweep();
         expect((await f.app.db.read((r) => r.file(image.id)))!.status).toBe(
-          status === "block" ? "blocked" : "deleted",
+          "blocked",
         );
         expect((await f.app.db.read((r) => r.task(action.id)))!.status).toBe(
           "failed",

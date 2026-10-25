@@ -104,7 +104,6 @@ export interface FileRecord extends Entity {
   temp_path: string | null;
   temp_status: "available" | "missing" | "cleaned";
   last_error: string | null;
-  deleted_at: number | null;
 }
 export type ReplicaStatus =
   | "pending"
@@ -399,6 +398,7 @@ export interface Repositories {
     value: FileRecord,
     expectedStatus: FileRecord["status"],
   ): Promise<void>;
+  deleteFile(id: string): Promise<void>;
   replicas(fileId: string): Promise<Replica[]>;
   replica(id: string): Promise<Replica | null>;
   insertReplica(value: Replica): Promise<void>;

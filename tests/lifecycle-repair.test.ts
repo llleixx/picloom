@@ -80,9 +80,7 @@ test("deletion exhausts one budget, survives restart, and resumes only on explic
       "deleting",
     );
     await f.app.files.sweep();
-    expect((await f.app.db.read((r) => r.file(image.id)))?.status).toBe(
-      "deleted",
-    );
+    expect(await f.app.db.read((r) => r.file(image.id))).toBeNull();
     expect(calls).toBe(3);
   } finally {
     await f.close();
@@ -180,7 +178,7 @@ test("failed write retries directly with its task ID and rejects a missing sourc
   }
 });
 
-test("failed-write cleanup has a bounded delete budget and termination keeps failed history", async () => {
+test("failed-write cleanup has a bounded delete budget and termination clears finished image records", async () => {
   const { f, source } = await redundant();
   const lease = f.app.plugins.acquire(source.id, "storage");
   const write = spyOn(lease.runtime, "write").mockRejectedValue(
@@ -216,15 +214,11 @@ test("failed-write cleanup has a bounded delete budget and termination keeps fai
         (t) => t.kind === "delete",
       ),
     ).toBe(false);
-    expect((await f.app.db.read((r) => r.file(image.id)))?.status).toBe(
-      "deleted",
-    );
-    expect(await f.app.db.read((r) => r.task(failedDelete.id))).toEqual(
-      failedDelete,
-    );
+    expect(await f.app.db.read((r) => r.file(image.id))).toBeNull();
+    expect(await f.app.db.read((r) => r.task(failedDelete.id))).toBeNull();
     await expect(
       f.app.files.tasks.retry(failedDelete.id),
-    ).rejects.toMatchObject({ code: "CONFLICT" });
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
     expect(await f.app.db.read((r) => r.storageUsedBytes(source.id))).toBe(
       f.png.length,
     );
@@ -355,9 +349,7 @@ test("restart makes exhausted tasks recoverable even before their replica operat
       ).toBe(200);
     }
     await f.app.files.sweep();
-    expect((await f.app.db.read((r) => r.file(image.id)))?.status).toBe(
-      "deleted",
-    );
+    expect(await f.app.db.read((r) => r.file(image.id))).toBeNull();
   } finally {
     await f.close();
   }

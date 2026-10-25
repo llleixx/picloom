@@ -134,9 +134,7 @@ CREATE TABLE files (
   temp_path TEXT,
   temp_status TEXT NOT NULL CHECK(temp_status IN ('available','missing','cleaned')),
   last_error TEXT,
-  deleted_at BIGINT,
   CHECK((temp_status='cleaned' AND temp_path IS NULL) OR (temp_status<>'cleaned' AND temp_path IS NOT NULL)),
-  CHECK((status='deleted' AND deleted_at IS NOT NULL) OR (status<>'deleted' AND deleted_at IS NULL)),
   CHECK(origin_kind <> 'import' OR origin_user_id IS NOT NULL),
   UNIQUE(public_prefix,logical_key)
 );
@@ -230,7 +228,8 @@ CREATE TABLE source_cleanup_jobs (
   source_id TEXT NOT NULL,
   mode TEXT NOT NULL CHECK(mode IN ('delete','detach')),
   include_last INTEGER NOT NULL CHECK(include_last IN (0,1)),
-  status TEXT NOT NULL CHECK(status IN ('active','finished'))
+  status TEXT NOT NULL CHECK(status IN ('active','finished')),
+  removed_item_count BIGINT NOT NULL DEFAULT 0 CHECK(removed_item_count>=0)
 );
 CREATE UNIQUE INDEX active_source_cleanup ON source_cleanup_jobs(source_id) WHERE status='active';
 CREATE INDEX source_cleanup_latest ON source_cleanup_jobs(source_id,created_at,id);

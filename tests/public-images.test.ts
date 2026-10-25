@@ -68,9 +68,7 @@ test("separate image origin, HEAD and ETag preserve public paths and deletion", 
     await f.request("/api/files/" + uploaded.id, "DELETE");
     expect((await conditional()).status).toBe(404);
     await f.app.files.sweep();
-    expect((await f.app.db.read((r) => r.file(uploaded.id)))!.status).toBe(
-      "deleted",
-    );
+    expect(await f.app.db.read((r) => r.file(uploaded.id))).toBeNull();
   } finally {
     await f.close();
   }

@@ -273,11 +273,9 @@ test("cancellation before publication preserves late write locations for cleanup
     });
     await f.app.files.sweep();
     const [file] = await f.app.db.read((r) => r.files(10, 0));
-    expect(file!.status).toBe("deleted");
+    expect(file).toBeUndefined();
     expect(await Bun.file(storedPath).exists()).toBe(false);
-    expect((await f.app.db.read((r) => r.replicas(file!.id)))[0]!.status).toBe(
-      "deleted",
-    );
+    expect(await f.app.db.read((r) => r.replicas(unpublished!.id))).toEqual([]);
   } finally {
     release.release();
     await f.app.files.tasks.drain();

@@ -92,6 +92,6 @@ TEST_POSTGRES_URL=postgresql://picloom:password@127.0.0.1:5432/picloom_test bun 
 
 ## 源清理持久化
 
-初始 SQLite 与 PostgreSQL 定义均包含 `source_cleanup_jobs`、`source_cleanup_items`。前者用部分唯一索引限制每个源只有一个 `active` 任务；后者以 `(job_id, replica_id)` 唯一标识固定目标，以 `(replica_id, file_id)` 外键保证副本归属。源标识不关联可删除的插件配置，历史在源配置删除后保留。布尔字段沿用 0/1 编码。
+初始 SQLite 与 PostgreSQL 定义均包含 `source_cleanup_jobs`、`source_cleanup_items`。前者用部分唯一索引限制每个源只有一个 `active` 任务；后者以 `(job_id, replica_id)` 唯一标识固定目标，以 `(replica_id, file_id)` 外键保证副本归属。源标识不关联可删除的插件配置，源配置删除不清除清理任务；整图终结清理会删除该图片的清理明细，并在同一事务将明细数量累加到所属任务的 `removed_item_count`；已完成汇总为该计数与现存成功明细数之和，不保留已清除图片的标识。布尔字段沿用 0/1 编码。
 
 `SourceCleanups` 通过异步仓储接口原子检查存储组引用并保存快照，维护周期每批处理最多 50 个待处理项和 50 个运行项，轮转运行项分页。删除调用共享副本删除能力并复用任务重试；解除关联通过 `TaskExecutor` 现有调度与清理锁准入，在同一事务结束副本和关联非运行任务。重启后的运行项按副本与整图状态继续核对，目标副本结束不代表整图其他副本已结束。

@@ -39,7 +39,6 @@ export interface FileView {
   logicalKey: string;
   storageKey: string;
   createdAt: number;
-  deletedAt: number | null;
   /** Error code for the current file lifecycle state. */
   error: string | null;
   url: string;
