@@ -189,11 +189,14 @@ async function resetPassword() {
       >
     </div>
     <Sheet v-model:open="open"
-      ><SheetContent class="editor-sheet"
-        ><SheetTitle>{{
-          draft.id ? t("users.edit") : t("users.create")
-        }}</SheetTitle
-        ><SheetDescription>{{ t("users.description") }}</SheetDescription>
+      ><SheetContent
+        class="flex w-full flex-col overflow-hidden p-0 sm:max-w-sm"
+        ><div class="shrink-0 px-6 pt-6 pr-12">
+          <SheetTitle>{{
+            draft.id ? t("users.edit") : t("users.create")
+          }}</SheetTitle
+          ><SheetDescription>{{ t("users.description") }}</SheetDescription>
+        </div>
         <form class="flex min-h-0 flex-1 flex-col" @submit.prevent="save">
           <div class="editor-body">
             <p v-if="error" role="alert" class="error-box">{{ error }}</p>
