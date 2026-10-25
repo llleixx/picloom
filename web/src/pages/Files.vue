@@ -822,7 +822,6 @@ async function navigate(direction: -1 | 1) {
           </option>
           <option disabled>────────</option>
           <option value="attention">{{ t("statistics.attention") }}</option>
-          <option value="replica_error">{{ t("images.replicaError") }}</option>
         </select>
         <div class="order-3 flex shrink-0 gap-0.5 rounded-md border p-0.5">
           <Button
@@ -1351,15 +1350,30 @@ async function navigate(direction: -1 | 1) {
             {{ file.logicalKey.split("/").pop() }}
           </p>
           <p
-            v-if="file.status !== 'ready' || file.replicaIssue"
+            v-if="
+              file.status !== 'ready' || file.replicaIssue || file.postSaveIssue
+            "
             class="mt-1 flex flex-wrap items-center gap-x-1 text-[11px] text-muted-foreground"
           >
-            <span v-if="file.status !== 'ready'">{{ fileStatus(file) }}</span>
+            <span
+              v-if="file.status !== 'ready'"
+              :class="{
+                'text-amber-600 dark:text-amber-400':
+                  file.status === 'blocked' || file.status === 'delete_failed',
+              }"
+              >{{ fileStatus(file) }}</span
+            >
             <span
               v-if="file.replicaIssue"
               class="text-amber-600 dark:text-amber-400"
               >{{ t("images.replicaError") }}</span
             >
+            <span
+              v-if="file.postSaveIssue"
+              class="text-amber-600 dark:text-amber-400"
+            >
+              {{ t("images.postSaveFailed") }}
+            </span>
           </p>
           <div
             v-if="file.tags?.length"

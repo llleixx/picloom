@@ -1316,29 +1316,21 @@ export class SqlRepositories implements Repositories {
   }
   private fileFilter(filter: FileFilter = {}) {
     let q = this.db.selectFrom("files");
-    if (filter.storageInstanceId || filter.status === "replica_error")
-      q = q.where((eb) => {
-        let replicas = eb
-          .selectFrom("file_replicas as r")
-          .select("r.id")
-          .whereRef("r.file_id", "=", "files.id");
-        if (filter.storageInstanceId)
-          replicas = replicas.where(
-            "r.storage_instance_id",
-            "=",
-            filter.storageInstanceId,
-          );
-        replicas =
-          filter.status === "replica_error"
-            ? replicas.where("r.status", "in", [
-                "write_failed",
-                "delete_failed",
-              ])
-            : filter.status === "deleted"
-              ? replicas.where("r.status", "=", "deleted")
-              : replicas.where("r.status", "!=", "deleted");
-        return eb.exists(replicas);
-      });
+    if (filter.storageInstanceId)
+      q = q.where((eb) =>
+        eb.exists(
+          eb
+            .selectFrom("file_replicas as r")
+            .select("r.id")
+            .whereRef("r.file_id", "=", "files.id")
+            .where("r.storage_instance_id", "=", filter.storageInstanceId!)
+            .where(
+              "r.status",
+              filter.status === "deleted" ? "=" : "!=",
+              "deleted",
+            ),
+        ),
+      );
     if (filter.ownerId !== undefined)
       q = q.where(
         "owner_id",
@@ -1350,33 +1342,19 @@ export class SqlRepositories implements Repositories {
     if (filter.createdBefore !== undefined)
       q = q.where("created_at", "<", filter.createdBefore);
     if (filter.status === "attention")
-      q = q
-        .where("status", "!=", "deleted")
-        .where((eb) =>
-          eb.or([
-            eb("status", "in", ["blocked", "failed", "delete_failed"]),
-            eb.exists(
-              eb
-                .selectFrom("tasks as t")
-                .select("t.id")
-                .whereRef("t.file_id", "=", "files.id")
-                .where("t.status", "=", "failed"),
+      q = q.where((eb) =>
+        eb.or([
+          eb("status", "in", ["blocked", "delete_failed"]),
+          eb.exists(
+            this.currentFailedTasks().where(
+              "t.file_id",
+              "=",
+              eb.ref("files.id"),
             ),
-            eb.exists(
-              eb
-                .selectFrom("file_replicas as r")
-                .select("r.id")
-                .whereRef("r.file_id", "=", "files.id")
-                .where("r.status", "in", ["write_failed", "delete_failed"]),
-            ),
-          ]),
-        );
-    if (
-      filter.status &&
-      filter.status !== "replica_error" &&
-      filter.status !== "attention"
-    )
-      q = q.where("status", "=", filter.status);
+          ),
+        ]),
+      );
+    else if (filter.status) q = q.where("status", "=", filter.status);
     if (filter.mimeType) q = q.where("mime_type", "=", filter.mimeType);
     if (filter.q)
       q = q.where((eb) =>
@@ -1457,17 +1435,44 @@ export class SqlRepositories implements Repositories {
         .offset(offset),
     );
   }
-  async filesWithReplicaIssues(fileIds: string[], storageInstanceId?: string) {
+  private currentFailedTasks() {
+    return this.db
+      .selectFrom("tasks as t")
+      .innerJoin("files as f", "f.id", "t.file_id")
+      .leftJoin("file_replicas as r", "r.id", "t.replica_id")
+      .select(["t.file_id as fileId", "t.kind"])
+      .where("t.status", "=", "failed")
+      .where((eb) =>
+        eb.or([
+          eb.and([
+            eb("f.status", "in", ["ready", "blocked"]),
+            eb.or([
+              eb("t.kind", "=", "action"),
+              eb.and([
+                eb("t.kind", "=", "write"),
+                eb("r.status", "=", "write_failed"),
+              ]),
+            ]),
+          ]),
+          eb.and([
+            eb("f.status", "in", [
+              "ready",
+              "blocked",
+              "deleting",
+              "delete_failed",
+            ]),
+            eb("t.kind", "=", "delete"),
+            eb("r.status", "=", "delete_failed"),
+          ]),
+        ]),
+      );
+  }
+  async fileTaskIssues(fileIds: string[]) {
     if (!fileIds.length) return [];
-    let query = this.db
-      .selectFrom("file_replicas")
-      .select("file_id")
+    return this.currentFailedTasks()
+      .where("t.file_id", "in", fileIds)
       .distinct()
-      .where("file_id", "in", fileIds)
-      .where("status", "in", ["write_failed", "delete_failed"]);
-    if (storageInstanceId)
-      query = query.where("storage_instance_id", "=", storageInstanceId);
-    return (await query.execute()).map((row) => row.file_id);
+      .execute();
   }
   async pendingFileDeletions(fileIds: string[]) {
     if (!fileIds.length) return [];

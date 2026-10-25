@@ -91,7 +91,7 @@ test("batch delete checks admin and CSRF, reports partial results and is idempot
   }
 });
 
-test("replica issue filter matches the selected source and keeps counts consistent", async () => {
+test("abnormal images use final failures across sources and keep counts consistent", async () => {
   const f = await fixture();
   try {
     const file = await (await f.upload()).json();
@@ -110,12 +110,28 @@ test("replica issue filter matches the selected source and keeps counts consiste
       id: crypto.randomUUID(),
       storage_instance_id: source.id,
     };
-    await f.app.db.transaction((r) => r.insertReplica(replica));
+    const task = {
+      ...(await f.app.db.read((r) => r.tasks(file.id)))[0]!,
+      id: crypto.randomUUID(),
+      replica_id: replica.id,
+      status: "failed" as const,
+    };
+    await f.app.db.transaction(async (r) => {
+      await r.insertReplica(replica);
+      await r.insertTask(task);
+    });
     for (const status of ["write_failed", "delete_failed"] as const) {
-      await f.app.db.transaction((r) => r.saveReplica({ ...replica, status }));
+      await f.app.db.transaction(async (r) => {
+        await r.saveReplica({ ...replica, status });
+        await r.saveTask({
+          ...task,
+          kind: status === "write_failed" ? "write" : "delete",
+        });
+      });
       for (const query of [
-        "status=replica_error",
-        `status=replica_error&source=${source.id}`,
+        "status=attention",
+        `status=attention&source=${source.id}`,
+        `status=attention&source=${primary.storage_instance_id}`,
       ]) {
         const result = await f.request(`/api/files?${query}&limit=1`);
         expect(result.status).toBe(200);
@@ -132,31 +148,20 @@ test("replica issue filter matches the selected source and keeps counts consiste
       expect(
         normalSource.find((item: { id: string }) => item.id === file.id)
           .replicaIssue,
-      ).toBe(false);
-      const allSources = await (
-        await f.request("/api/files?status=ready")
-      ).json();
-      expect(
-        allSources.find((item: { id: string }) => item.id === file.id)
-          .replicaIssue,
       ).toBe(true);
-      const healthy = await f.request(
-        `/api/files?status=replica_error&source=${primary.storage_instance_id}`,
-      );
-      expect(healthy.headers.get("X-Total-Count")).toBe("0");
-      expect(await healthy.json()).toEqual([]);
-    }
-    for (const status of [
-      "pending",
-      "writing",
-      "ready",
-      "delete_pending",
-      "deleting",
-    ] as const) {
-      await f.app.db.transaction((r) => r.saveReplica({ ...replica, status }));
-      const result = await f.request("/api/files?status=replica_error");
-      expect(result.headers.get("X-Total-Count")).toBe("0");
-      expect(await result.json()).toEqual([]);
+      for (const taskStatus of ["pending", "running", "cancelled"] as const) {
+        await f.app.db.transaction((r) =>
+          r.saveTask({
+            ...task,
+            kind: status === "write_failed" ? "write" : "delete",
+            status: taskStatus,
+            next_run_at: taskStatus === "pending" ? Date.now() + 60_000 : null,
+          }),
+        );
+        const result = await f.request("/api/files?status=attention");
+        expect(result.headers.get("X-Total-Count")).toBe("0");
+        expect(await result.json()).toEqual([]);
+      }
     }
     // An unfinished source matches deletion failure, but a cleaned source does not.
     await f.app.db.transaction(async (r) => {
@@ -166,6 +171,7 @@ test("replica issue filter matches the selected source and keeps counts consiste
         current.status,
       );
       await r.saveReplica({ ...replica, status: "delete_failed" });
+      await r.saveTask({ ...task, kind: "delete" });
       await r.saveReplica({ ...primary, status: "deleted" });
     });
     const unfinished = await f.request(
@@ -183,6 +189,15 @@ test("replica issue filter matches the selected source and keeps counts consiste
     expect(cleaned.headers.get("X-Total-Count")).toBe("0");
     await f.app.db.transaction(async (r) => {
       const current = (await r.file(file.id))!;
+      await r.saveFile({ ...current, status: "deleting" }, current.status);
+    });
+    expect(
+      (await f.request("/api/files?status=attention")).headers.get(
+        "X-Total-Count",
+      ),
+    ).toBe("1");
+    await f.app.db.transaction(async (r) => {
+      const current = (await r.file(file.id))!;
       await r.saveReplica({ ...replica, status: "deleted" });
       await r.saveFile(
         {
@@ -194,6 +209,11 @@ test("replica issue filter matches the selected source and keeps counts consiste
         current.status,
       );
     });
+    expect(
+      (await f.request("/api/files?status=attention")).headers.get(
+        "X-Total-Count",
+      ),
+    ).toBe("0");
     const history = await f.request(
       `/api/files?status=deleted&source=${source.id}`,
     );

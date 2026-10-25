@@ -382,10 +382,9 @@ export interface Repositories {
     offset: number,
     filter?: FileFilter,
   ): Promise<FileRecord[]>;
-  filesWithReplicaIssues(
+  fileTaskIssues(
     fileIds: string[],
-    storageInstanceId?: string,
-  ): Promise<string[]>;
+  ): Promise<Array<{ fileId: string; kind: Task["kind"] }>>;
   pendingFileDeletions(fileIds: string[]): Promise<string[]>;
   countFiles(filter?: FileFilter): Promise<number>;
   filesInStates(states: FileRecord["status"][]): Promise<FileRecord[]>;
@@ -432,7 +431,7 @@ export interface FileFilter {
   ownerId?: string | null;
   createdFrom?: number;
   createdBefore?: number;
-  status?: FileRecord["status"] | "replica_error" | "attention";
+  status?: FileRecord["status"] | "attention";
   mimeType?: string;
   q?: string;
 }

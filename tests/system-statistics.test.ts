@@ -98,8 +98,7 @@ test("attention counts distinct images and storage retains pending and failed re
     await f.app.db.transaction(async (r) => {
       const file = (await r.file(upload.id))!;
       await r.saveFile({ ...file, status: "blocked" }, "ready");
-      const replica = (await r.replicas(file.id))[0]!;
-      await r.saveReplica({ ...replica, status: "write_failed" });
+      expect(await r.countFiles({ status: "attention" })).toBe(1);
       const pipeline = {
         ...entity(),
         name: "Post-save",
@@ -132,6 +131,25 @@ test("attention counts distinct images and storage retains pending and failed re
     const list = await (await f.request("/api/files?status=attention")).json();
     expect(list.map((x: { id: string }) => x.id)).toEqual([upload.id]);
     expect(JSON.stringify(stats)).not.toContain("private failure");
+    expect(list[0]).toMatchObject({ postSaveIssue: true, replicaIssue: false });
+    // Post-save failures remain actionable after unblocking, but not during cleanup.
+    for (const status of ["ready", "failed", "deleting", "deleted"] as const) {
+      await f.app.db.transaction(async (r) => {
+        const file = (await r.file(upload.id))!;
+        await r.saveFile(
+          {
+            ...file,
+            status,
+            deleted_at: status === "deleted" ? Date.now() : null,
+          },
+          file.status,
+        );
+      });
+      const result = await f.request("/api/files?status=attention");
+      expect(result.headers.get("X-Total-Count")).toBe(
+        status === "ready" ? "1" : "0",
+      );
+    }
   } finally {
     await f.close();
   }

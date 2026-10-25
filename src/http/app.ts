@@ -629,7 +629,6 @@ export function handler(app: Application) {
           if (status !== null) {
             if (
               ![
-                "replica_error",
                 "attention",
                 "preparing",
                 "ready",
@@ -703,11 +702,12 @@ export function handler(app: Application) {
                 )
               : null;
             const tags = await r.fileTags(files.map((f) => f.id));
-            const issues = new Set(
-              await r.filesWithReplicaIssues(
-                files.map((f) => f.id),
-                filter.storageInstanceId,
-              ),
+            const issues = await r.fileTaskIssues(files.map((f) => f.id));
+            const replicaIssues = new Set(
+              issues.filter((t) => t.kind !== "action").map((t) => t.fileId),
+            );
+            const postSaveIssues = new Set(
+              issues.filter((t) => t.kind === "action").map((t) => t.fileId),
             );
             const pending = filter.storageInstanceId
               ? new Set(await r.pendingFileDeletions(files.map((f) => f.id)))
@@ -723,7 +723,8 @@ export function handler(app: Application) {
                   id,
                   name,
                 }));
-                item.replicaIssue = issues.has(f.id);
+                item.replicaIssue = replicaIssues.has(f.id);
+                item.postSaveIssue = postSaveIssues.has(f.id);
                 if (pending) item.backgroundPending = pending.has(f.id);
                 return item;
               }),

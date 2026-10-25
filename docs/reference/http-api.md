@@ -188,17 +188,17 @@ curl --fail-with-body "$PICLOOM_URL/api/files?limit=20&offset=0&status=ready" \
 | 查询参数 | 用途 |
 | --- | --- |
 | `limit` / `offset` | 默认 50 / 0；`limit` 为 1–100 |
-| `status` | 文件状态：`preparing`、`ready`、`blocked`、`failed`、`deleting`、`delete_failed`、`deleted`；另可用 `replica_error` 筛选存在写入或删除失败副本的文件，`attention` 筛选受阻、上传或删除失败、任务或副本失败的未删除图片 |
+| `status` | 文件状态：`preparing`、`ready`、`blocked`、`failed`、`deleting`、`delete_failed`、`deleted`；另可用 `attention` 筛选异常图片：已屏蔽、整图删除失败，或存在尚未处理的最终失败任务（副本写入、保存后处理、删除）；自动重试和上传失败清理期间不因原失败计入 |
 | `mimeType` / `q` | 按图片 MIME 类型，或文件 ID／逻辑路径关键词筛选 |
 | `createdFrom` / `createdBefore` | 上传时间范围，Unix 毫秒时间戳，前闭后开 |
 | `owner` | 管理员按用户 ID、`me` 或 `guest` 筛选 |
-| `source` | 管理员按存储源 ID 筛选 |
+| `source` | 管理员按存储源 ID 筛选图片归属；异常判断针对整张图片 |
 | `tag` / `tagMode` | 标签 ID 可重复，例如 `tag=A&tag=B`；匹配 `all`（默认）或 `any` |
 | `untagged` / `uncollected` | `true` 筛选未打标签或未加入集合的图片 |
 | `collection` | 集合 ID |
 | `sort` / `order` | `sort=createdAt`（创建时间）或 `size`（已知大小，降序时未知大小排最后）；`order=asc` 或 `desc`（默认） |
 
-分类条件与其他条件取交集，必须处于同一归属；与显式 `owner` 冲突或同时指定标签与 `untagged=true`、集合与 `uncollected=true` 会被拒绝。管理员通过分类筛选自动限定该分类归属。列表返回 `tags`，详情另外返回 `collections` 与内容来源 `origin: { kind: "upload" | "import", userId }`。
+分类条件与其他条件取交集，必须处于同一归属；与显式 `owner` 冲突或同时指定标签与 `untagged=true`、集合与 `uncollected=true` 会被拒绝。管理员通过分类筛选自动限定该分类归属。列表返回 `tags`，以及表示当前副本最终失败的 `replicaIssue` 和保存后处理最终失败的 `postSaveIssue`；详情另外返回 `collections` 与内容来源 `origin: { kind: "upload" | "import", userId }`。
 
 删除图片时携带 CSRF，接受请求返回 `202`：
 

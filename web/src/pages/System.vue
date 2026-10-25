@@ -112,7 +112,7 @@ const kinds = computed(() => ({
       role="tabpanel"
       aria-labelledby="statistics-tab"
     >
-      <StatisticsPanel :status="status" />
+      <StatisticsPanel />
     </div>
     <div
       v-if="tab === 'system'"

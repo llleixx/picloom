@@ -396,7 +396,7 @@ test("terminating a deletion-failed replica retains history and releases capacit
       expect(await f.app.db.read((r) => r.storageUsedBytes(source.id))).toBe(0);
       expect(
         (
-          await f.request(`/api/files?status=replica_error&source=${source.id}`)
+          await f.request(`/api/files?status=attention&source=${source.id}`)
         ).headers.get("X-Total-Count"),
       ).toBe("0");
       await f.app.files.sweep();

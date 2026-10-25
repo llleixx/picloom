@@ -94,7 +94,11 @@ const operations = useQuery({
       : false,
 });
 watch(
-  () => operations.data.value?.replicas.map((r) => r.status).join(","),
+  () =>
+    JSON.stringify([
+      operations.data.value?.replicas.map((r) => r.status),
+      operations.data.value?.tasks.map((t) => t.status),
+    ]),
   (value, old) => {
     if (old !== undefined && value !== old)
       void queryClient.invalidateQueries({ queryKey: ["files"] });
@@ -102,27 +106,37 @@ watch(
 );
 const storagePanel = ref<HTMLDetailsElement>(),
   processingPanel = ref<HTMLDetailsElement>();
-const failedTaskCount = computed(
-  () =>
-    operations.data.value?.tasks.filter((task) => task.status === "failed")
-      .length ?? 0,
-);
+const failedTasks = computed(() => {
+  const status = file.value?.status;
+  const current = operations.data.value;
+  if (!status || !current) return [];
+  return current.tasks.filter((task) => {
+    if (task.status !== "failed") return false;
+    const replica = current.replicas.find((r) => r.id === task.replicaId);
+    if (task.kind === "delete")
+      return (
+        ["ready", "blocked", "deleting", "delete_failed"].includes(status) &&
+        replica?.status === "delete_failed"
+      );
+    if (!["ready", "blocked"].includes(status)) return false;
+    return (
+      task.kind === "action" ||
+      (task.kind === "write" && replica?.status === "write_failed")
+    );
+  });
+});
+const failedTaskCount = computed(() => failedTasks.value.length);
 const activeTaskCount = computed(
   () =>
     operations.data.value?.tasks.filter((task) =>
       ["pending", "running"].includes(task.status),
     ).length ?? 0,
 );
-const replicaIssue = computed(
-  () =>
-    operations.data.value?.replicas.some((replica) =>
-      ["write_failed", "delete_failed"].includes(replica.status),
-    ) ?? false,
+const replicaIssue = computed(() =>
+  failedTasks.value.some((task) => task.kind !== "action"),
 );
 function inspectOperations() {
-  const panel = failedTaskCount.value
-    ? processingPanel.value
-    : storagePanel.value;
+  const panel = processingPanel.value;
   if (panel) {
     panel.open = true;
     panel.scrollIntoView({ block: "nearest" });
@@ -492,16 +506,12 @@ async function remove() {
             {{ operationError }}
           </p>
           <Button
-            v-if="isAdmin && (failedTaskCount || replicaIssue)"
+            v-if="isAdmin && failedTaskCount"
             variant="link"
             size="sm"
             class="h-auto p-0 text-destructive"
             @click="inspectOperations"
-            >{{
-              failedTaskCount
-                ? t("images.failedTasks", { count: failedTaskCount })
-                : t("images.replicaError")
-            }}</Button
+            >{{ t("images.failedTasks", { count: failedTaskCount }) }}</Button
           >
           <AccessLinkBuilder
             v-if="file.status === 'ready'"

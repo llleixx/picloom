@@ -422,7 +422,7 @@ test.describe("deletion failure", () => {
     await expect(card.getByRole("checkbox")).toBeDisabled();
     await page
       .getByLabel("File status", { exact: true })
-      .selectOption("replica_error");
+      .selectOption("attention");
     await expect(card).toHaveCount(1);
     await card.getByRole("button", { name: /^Open / }).click();
     await expandDetails(page, "file-storage");

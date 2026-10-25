@@ -63,6 +63,9 @@ test("failed upload cleanup finishes when the remaining replica is marked delete
     await f.app.files.sweep();
     const rows = await f.app.db.read((r) => r.files(10, 0));
     expect(rows[0]!.status).toBe("delete_failed");
+    expect(
+      await f.app.db.read((r) => r.countFiles({ status: "attention" })),
+    ).toBe(1);
     const replica = (await f.app.db.read((r) => r.replicas(rows[0]!.id)))[0]!;
     expect(replica.status).toBe("delete_failed");
     const failedDelete = (
@@ -81,6 +84,9 @@ test("failed upload cleanup finishes when the remaining replica is marked delete
     expect(await f.app.db.read((r) => r.task(failedDelete.id))).toEqual(
       failedDelete,
     );
+    expect(
+      await f.app.db.read((r) => r.countFiles({ status: "attention" })),
+    ).toBe(0);
   } finally {
     await f.close();
   }

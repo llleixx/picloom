@@ -23,8 +23,10 @@ export interface FileView {
   origin?: FileOrigin;
   /** Detail response only; pending/running background operations. */
   backgroundPending?: boolean;
-  /** List response; scoped to the selected storage source, if any. */
+  /** List response; current final failures across all replicas. */
   replicaIssue?: boolean;
+  /** List response; current final post-save failure. */
+  postSaveIssue?: boolean;
   uploadProfileId?: string | null;
   /** Administrator detail response only. */
   processingResults?: ProcessingResult[] | null;

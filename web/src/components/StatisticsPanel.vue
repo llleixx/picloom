@@ -1,13 +1,12 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import { useQuery } from "@tanstack/vue-query";
-import type { SystemStatistics, SystemStatus } from "../../../shared/api";
+import type { SystemStatistics } from "../../../shared/api";
 import { api, errorText } from "@/lib/api";
 import { t, formatNumber, locale } from "@/lib/i18n";
 import { localDayBoundaries, localDate } from "@/lib/date-range";
 import { date, size } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-defineProps<{ status?: SystemStatus }>();
 const days = ref(30);
 const measure = ref<"count" | "bytes">("count");
 const composition = ref<"count" | "bytes">("bytes");
@@ -449,56 +448,6 @@ const additions = (day?: number) =>
           >
         </section>
       </div>
-      <section class="border-t pt-6">
-        <div class="flex flex-wrap items-center justify-between gap-3">
-          <h2 class="font-medium">{{ t("statistics.attention") }}</h2>
-          <RouterLink
-            v-if="stats.attentionFiles"
-            class="text-sm text-primary hover:underline"
-            :to="images({ status: 'attention' })"
-            >{{ t("statistics.viewImages") }} →</RouterLink
-          >
-        </div>
-        <p v-if="!stats.attentionFiles" class="subtle mt-3">
-          {{ t("statistics.noAttention") }}
-        </p>
-        <div v-if="stats.attentionFiles" class="mt-3 flex flex-wrap gap-2">
-          <RouterLink
-            v-for="key in [
-              'failed',
-              'blocked',
-              'delete_failed',
-              'replica_error',
-            ]"
-            :key="key"
-            :to="images({ status: key })"
-            class="rounded-md border px-3 py-1.5 text-sm hover:bg-muted"
-            >{{
-              t(
-                key === "failed"
-                  ? "ui.uploadFailed"
-                  : key === "blocked"
-                    ? "images.blocked"
-                    : key === "delete_failed"
-                      ? "ui.deleteFailed"
-                      : "images.replicaError",
-              )
-            }}</RouterLink
-          >
-        </div>
-        <div v-if="status?.failures.length" class="mt-3 divide-y">
-          <RouterLink
-            v-for="failure in status.failures.slice(0, 3)"
-            :key="failure.id"
-            :to="images({ status: 'all', file: failure.fileId })"
-            class="flex flex-wrap items-center justify-between gap-2 py-3 text-sm hover:text-primary"
-            ><span class="break-all">{{ failure.logicalKey }}</span
-            ><span class="text-muted-foreground">{{
-              date(failure.updatedAt)
-            }}</span></RouterLink
-          >
-        </div>
-      </section>
       <p class="subtle">
         {{ t("system.checked", { time: date(stats.checkedAt) }) }}
       </p>
