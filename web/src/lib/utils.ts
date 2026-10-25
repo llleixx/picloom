@@ -6,10 +6,13 @@ export function cn(...inputs: ClassValue[]) {
 }
 export function size(n: number | null | undefined) {
   if (n == null) return t("ui.unknown");
-  if (n < 1024) return `${formatNumber(n)} B`;
-  if (n < 1024 ** 2)
-    return `${formatNumber(n / 1024, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} KB`;
-  return `${formatNumber(n / 1024 ** 2, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} MB`;
+  const units = ["B", "KB", "MB", "GB", "TB", "PB"];
+  let unit = 0;
+  while (n >= 1024 && unit < units.length - 1) {
+    n /= 1024;
+    unit++;
+  }
+  return `${formatNumber(n, { minimumFractionDigits: unit ? 1 : 0, maximumFractionDigits: unit ? 1 : 0 })} ${units[unit]}`;
 }
 export const date = (n: number | null | undefined) =>
   n == null ? t("ui.unknown") : formatDate(n);

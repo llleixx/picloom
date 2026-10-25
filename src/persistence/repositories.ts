@@ -243,6 +243,95 @@ export class SqlRepositories implements Repositories {
   async deleteUploadSession(id: string) {
     await this.db.deleteFrom("upload_sessions").where("id", "=", id).execute();
   }
+  async systemStatistics(boundaries: number[]) {
+    const formats = await this.db
+      .selectFrom("files")
+      .select("mime_type")
+      .select((eb) => [
+        eb.fn.countAll<string | number>().as("count"),
+        sql<string | number>`coalesce(sum(byte_size),0)`.as("bytes"),
+        sql<
+          string | number
+        >`coalesce(sum(case when byte_size is null then 1 else 0 end),0)`.as(
+          "unknown",
+        ),
+      ])
+      .where("status", "=", "ready")
+      .groupBy("mime_type")
+      .execute();
+    const starts = boundaries.slice(0, -1);
+    const day = sql<number>`case ${sql.join(
+      starts.map(
+        (start, i) =>
+          sql`when created_at < ${boundaries[i + 1]!} then cast(${start} as bigint)`,
+      ),
+      sql` `,
+    )} end`;
+    const rows = await this.db
+      .selectFrom("files")
+      .select([day.as("day"), "origin_kind"])
+      .select((eb) => [
+        eb.fn.countAll<string | number>().as("count"),
+        sql<string | number>`coalesce(sum(byte_size),0)`.as("bytes"),
+        sql<
+          string | number
+        >`coalesce(sum(case when byte_size is null then 1 else 0 end),0)`.as(
+          "unknown",
+        ),
+      ])
+      .where("created_at", ">=", boundaries[0]!)
+      .where("created_at", "<", boundaries.at(-1)!)
+      .where("status", "=", "ready")
+      .groupBy(["day", "origin_kind"])
+      .execute();
+    const trend = new Map<
+      number,
+      import("../../shared/api").SystemStatistics["trend"][number]
+    >();
+    for (const [i, day] of starts.entries())
+      trend.set(day, {
+        day,
+        before: boundaries[i + 1]!,
+        uploads: 0,
+        imports: 0,
+        uploadBytes: 0,
+        importBytes: 0,
+        unknownBytes: 0,
+      });
+    for (const row of rows) {
+      const item = trend.get(integer(row.day))!;
+      item[row.origin_kind === "upload" ? "uploads" : "imports"] = integer(
+        row.count,
+      );
+      item[row.origin_kind === "upload" ? "uploadBytes" : "importBytes"] =
+        integer(row.bytes);
+      item.unknownBytes += integer(row.unknown);
+    }
+    const instances = (await this.instances()).filter(
+      (i) => i.kind === "storage",
+    );
+    const usage = await this.storageUsage(instances.map((i) => i.id));
+    return {
+      readyFiles: formats.reduce((sum, f) => sum + integer(f.count), 0),
+      originalBytes: formats.reduce((sum, f) => sum + integer(f.bytes), 0),
+      unknownBytes: formats.reduce((sum, f) => sum + integer(f.unknown), 0),
+      attentionFiles: await this.countFiles({ status: "attention" }),
+      trend: [...trend.values()],
+      formats: formats.map((f) => ({
+        mimeType: f.mime_type,
+        count: integer(f.count),
+        bytes: integer(f.bytes),
+      })),
+      storage: instances
+        .map((i) => ({
+          id: i.id,
+          name: i.name,
+          bytes: usage.get(i.id) ?? 0,
+          limit: i.max_storage_bytes ?? null,
+        }))
+        .sort((a, b) => b.bytes - a.bytes),
+    };
+  }
   async systemSummary(): Promise<SystemSummary> {
     const files = await this.db
       .selectFrom("files")
@@ -1267,7 +1356,33 @@ export class SqlRepositories implements Repositories {
       q = q.where("created_at", ">=", filter.createdFrom);
     if (filter.createdBefore !== undefined)
       q = q.where("created_at", "<", filter.createdBefore);
-    if (filter.status && filter.status !== "replica_error")
+    if (filter.status === "attention")
+      q = q
+        .where("status", "!=", "deleted")
+        .where((eb) =>
+          eb.or([
+            eb("status", "in", ["blocked", "failed", "delete_failed"]),
+            eb.exists(
+              eb
+                .selectFrom("tasks as t")
+                .select("t.id")
+                .whereRef("t.file_id", "=", "files.id")
+                .where("t.status", "=", "failed"),
+            ),
+            eb.exists(
+              eb
+                .selectFrom("file_replicas as r")
+                .select("r.id")
+                .whereRef("r.file_id", "=", "files.id")
+                .where("r.status", "in", ["write_failed", "delete_failed"]),
+            ),
+          ]),
+        );
+    if (
+      filter.status &&
+      filter.status !== "replica_error" &&
+      filter.status !== "attention"
+    )
       q = q.where("status", "=", filter.status);
     if (filter.mimeType) q = q.where("mime_type", "=", filter.mimeType);
     if (filter.q)
@@ -1338,7 +1453,12 @@ export class SqlRepositories implements Repositories {
     return this.rows<FileRecord>(
       this.fileFilter(filter)
         .selectAll()
-        .orderBy("created_at", filter?.order ?? "desc")
+        .orderBy(
+          filter?.sort === "size"
+            ? sql`coalesce(byte_size, -1)`
+            : sql.ref("created_at"),
+          filter?.order ?? "desc",
+        )
         .orderBy("id", filter?.order ?? "desc")
         .limit(limit)
         .offset(offset),

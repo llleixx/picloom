@@ -254,6 +254,11 @@ export interface Repositories {
   saveUploadSession(value: UploadSession): Promise<void>;
   deleteUploadSession(id: string): Promise<void>;
   systemSummary(): Promise<SystemSummary>;
+  systemStatistics(
+    boundaries: number[],
+  ): Promise<
+    Omit<import("../../shared/api").SystemStatistics, "checkedAt" | "days">
+  >;
   user(id: string): Promise<User | null>;
   userByName(name: string): Promise<User | null>;
   userCount(): Promise<number>;
@@ -425,13 +430,13 @@ export interface FileFilter {
   untagged?: boolean;
   collectionId?: string;
   uncollected?: boolean;
-  sort?: "createdAt";
+  sort?: "createdAt" | "size";
   order?: "asc" | "desc";
   storageInstanceId?: string;
   ownerId?: string | null;
   createdFrom?: number;
   createdBefore?: number;
-  status?: FileRecord["status"] | "replica_error";
+  status?: FileRecord["status"] | "replica_error" | "attention";
   mimeType?: string;
   q?: string;
 }

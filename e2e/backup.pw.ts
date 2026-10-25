@@ -5,7 +5,7 @@ test("Owner creates, downloads, uploads and restores a backup through System", a
   service,
 }) => {
   await login(page, service.url);
-  await page.goto(service.url + "/app/system");
+  await page.goto(service.url + "/app/system?view=system");
   await page
     .getByRole("button", { name: "Create Backup", exact: true })
     .click();

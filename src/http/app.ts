@@ -502,6 +502,28 @@ export function handler(app: Application) {
             )
           : null;
         if (configuration) return configuration;
+        if (path === "/api/system/statistics" && method === "GET") {
+          const raw = url.searchParams.getAll("boundary");
+          const boundaries = raw.map(Number);
+          if (
+            ![8, 31, 91].includes(boundaries.length) ||
+            boundaries.some(
+              (value, i) =>
+                !raw[i]!.trim() ||
+                !Number.isSafeInteger(value) ||
+                value < 0 ||
+                value > 8640000000000000 ||
+                (i > 0 &&
+                  (value <= boundaries[i - 1]! ||
+                    value - boundaries[i - 1]! > 172800000)),
+            )
+          )
+            throw new AppError(
+              "INVALID_INPUT",
+              "Invalid statistics boundaries",
+            );
+          return json(await app.system.statistics(boundaries));
+        }
         if (path === "/api/system/status" && method === "GET")
           return json(await app.system.get());
         if (path === "/api/settings" && method === "GET")
@@ -618,6 +640,12 @@ export function handler(app: Application) {
             filter.createdFrom >= filter.createdBefore
           )
             throw new AppError("INVALID_INPUT", "Invalid date range");
+          if (url.searchParams.has("sort")) {
+            const sort = url.searchParams.get("sort");
+            if (sort !== "createdAt" && sort !== "size")
+              throw new AppError("INVALID_INPUT", "Invalid sort");
+            filter.sort = sort;
+          }
           const status = url.searchParams.get("status"),
             mimeType = url.searchParams.get("mimeType"),
             q = url.searchParams.get("q");
@@ -625,6 +653,7 @@ export function handler(app: Application) {
             if (
               ![
                 "replica_error",
+                "attention",
                 "preparing",
                 "ready",
                 "blocked",
@@ -670,11 +699,6 @@ export function handler(app: Application) {
                 "Invalid organization filter",
               );
             filter[key] = value === "true";
-          }
-          if (url.searchParams.has("sort")) {
-            if (url.searchParams.get("sort") !== "createdAt")
-              throw new AppError("INVALID_INPUT", "Invalid sorting");
-            filter.sort = "createdAt";
           }
           if (url.searchParams.has("order")) {
             const order = url.searchParams.get("order");

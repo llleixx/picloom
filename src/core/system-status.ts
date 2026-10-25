@@ -22,6 +22,11 @@ export class SystemMonitor {
     private database: "sqlite" | "postgres",
     private plugins: PluginManager,
   ) {}
+  async statistics(boundaries: number[]) {
+    const checkedAt = Date.now();
+    const summary = await this.db.read((r) => r.systemStatistics(boundaries));
+    return { ...summary, checkedAt, days: boundaries.length - 1 };
+  }
   async get(): Promise<SystemStatus> {
     const { summary, roots, rootsKnown } = await this.db.read(async (r) => {
       const summary = await r.systemSummary();

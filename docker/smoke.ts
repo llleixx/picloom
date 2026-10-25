@@ -275,7 +275,7 @@ PUBLISH_ADDRESS=127.0.0.1
       (
         await request("/api/settings", "PUT", {
           ...settings,
-          siteName: "Persistent Picloom",
+          imageCacheMaxAge: 123,
         })
       ).status,
       200,
@@ -293,8 +293,8 @@ PUBLISH_ADDRESS=127.0.0.1
       png,
     );
     assert.equal(
-      (await (await request("/api/settings")).json()).siteName,
-      "Persistent Picloom",
+      (await (await request("/api/settings")).json()).imageCacheMaxAge,
+      123,
     );
     // Abnormal exit leaves service.lock behind; a recreated container may reuse its PID.
     await compose("kill", "-s", "SIGKILL", "picloom");

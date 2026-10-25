@@ -301,6 +301,7 @@ const params = computed(() => {
   if (route.query.untagged === "true") p.set("untagged", "true");
   if (collectionId.value) p.set("collection", collectionId.value);
   if (route.query.uncollected === "true") p.set("uncollected", "true");
+  if (route.query.sort === "size") p.set("sort", "size");
   p.set("order", route.query.order === "asc" ? "asc" : "desc");
   return p.toString();
 });
@@ -458,6 +459,12 @@ const filterChips = computed(() => {
         update({ owner: undefined, tag: undefined, collection: undefined }),
     });
   }
+  if (route.query.sort === "size")
+    chips.push({
+      key: "size",
+      label: t("statistics.largeFiles"),
+      remove: () => update({ sort: undefined }),
+    });
   if (route.query.order === "asc")
     chips.push({
       key: "order",
@@ -480,6 +487,7 @@ function resetFilters() {
     source: undefined,
     owner: undefined,
     order: undefined,
+    sort: undefined,
   });
 }
 const checked = ref(new Map<string, FileView>()),
@@ -813,6 +821,7 @@ async function navigate(direction: -1 | 1) {
             {{ statuses[key] }}
           </option>
           <option disabled>────────</option>
+          <option value="attention">{{ t("statistics.attention") }}</option>
           <option value="replica_error">{{ t("images.replicaError") }}</option>
         </select>
         <div class="order-3 flex shrink-0 gap-0.5 rounded-md border p-0.5">
@@ -973,15 +982,29 @@ async function navigate(direction: -1 | 1) {
           <label class="field col-span-2"
             >{{ t("organization.order")
             }}<select
-              :value="route.query.order ?? 'desc'"
+              :value="
+                route.query.sort === 'size'
+                  ? 'size'
+                  : (route.query.order ?? 'desc')
+              "
               class="native-select"
               :aria-label="t('organization.order')"
               @change="
-                update({ order: ($event.target as HTMLSelectElement).value })
+                update({
+                  sort:
+                    ($event.target as HTMLSelectElement).value === 'size'
+                      ? 'size'
+                      : undefined,
+                  order:
+                    ($event.target as HTMLSelectElement).value === 'asc'
+                      ? 'asc'
+                      : 'desc',
+                })
               "
             >
               <option value="desc">{{ t("organization.newest") }}</option>
               <option value="asc">{{ t("organization.oldest") }}</option>
+              <option value="size">{{ t("statistics.largeFiles") }}</option>
             </select></label
           >
         </div>

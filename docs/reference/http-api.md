@@ -188,7 +188,7 @@ curl --fail-with-body "$PICLOOM_URL/api/files?limit=20&offset=0&status=ready" \
 | 查询参数 | 用途 |
 | --- | --- |
 | `limit` / `offset` | 默认 50 / 0；`limit` 为 1–100 |
-| `status` | 文件状态：`preparing`、`ready`、`blocked`、`failed`、`deleting`、`delete_failed`、`deleted`；另可用 `replica_error` 筛选存在写入或删除失败副本的文件 |
+| `status` | 文件状态：`preparing`、`ready`、`blocked`、`failed`、`deleting`、`delete_failed`、`deleted`；另可用 `replica_error` 筛选存在写入或删除失败副本的文件，`attention` 筛选受阻、上传或删除失败、任务或副本失败的未删除图片 |
 | `mimeType` / `q` | 按图片 MIME 类型，或文件 ID／逻辑路径关键词筛选 |
 | `createdFrom` / `createdBefore` | 上传时间范围，Unix 毫秒时间戳，前闭后开 |
 | `owner` | 管理员按用户 ID、`me` 或 `guest` 筛选 |
@@ -196,7 +196,7 @@ curl --fail-with-body "$PICLOOM_URL/api/files?limit=20&offset=0&status=ready" \
 | `tag` / `tagMode` | 标签 ID 可重复，例如 `tag=A&tag=B`；匹配 `all`（默认）或 `any` |
 | `untagged` / `uncollected` | `true` 筛选未打标签或未加入集合的图片 |
 | `collection` | 集合 ID |
-| `sort` / `order` | `sort=createdAt`；`order=asc` 或 `desc`（默认） |
+| `sort` / `order` | `sort=createdAt`（创建时间）或 `size`（已知大小，降序时未知大小排最后）；`order=asc` 或 `desc`（默认） |
 
 分类条件与其他条件取交集，必须处于同一归属；与显式 `owner` 冲突或同时指定标签与 `untagged=true`、集合与 `uncollected=true` 会被拒绝。管理员通过分类筛选自动限定该分类归属。列表返回 `tags`，详情另外返回 `collections` 与内容来源 `origin: { kind: "upload" | "import", userId }`。
 
@@ -277,6 +277,7 @@ curl --fail-with-body "$PICLOOM_URL/api/files/$PICLOOM_FILE_ID" \
 | `POST /api/files/:id/replicas/:replicaId/terminate` | 管理员将删除失败的副本人工标记为已删除，JSON：`{"confirm":true}`，返回 `{"ok":true}` |
 | `POST /api/tasks/:id/retry` | 管理员重试符合条件的失败任务 |
 | `GET /api/settings`、`PUT /api/settings` | 读取、保存全套运行设置 |
+| `GET /api/system/statistics` | 管理员查看统计；重复传入 `boundary` 毫秒时间戳，分别为浏览器本地每日零点及最后一天的下一日零点；8/31/91 个边界对应 7/30/90 天，返回的 `trend.day` / `trend.before` 是每桶的起止时间（前闭后开） |
 | `GET /api/system/status` | 管理员查看系统运行状态 |
 | `POST /api/storage-sources/:id/import` | 管理员分页导入，JSON：`publicPrefix`、`mimeTypes`，可选 `scope`、`cursor`、`stripDirectories`（默认 `0`，非负整数）、`organization`（与上传相同，只用于新记录；限定执行导入者范围，每页沿用选择） |
 | `/api/storage-sources`、`/api/storage-groups` | 管理存储源和存储组 |

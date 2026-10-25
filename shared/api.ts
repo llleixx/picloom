@@ -123,6 +123,31 @@ export interface LocalUsage {
   temporary: number | null;
   cache: number | null;
 }
+export interface SystemStatistics {
+  checkedAt: number;
+  days: number;
+  readyFiles: number;
+  originalBytes: number;
+  unknownBytes: number;
+  attentionFiles: number;
+  trend: Array<{
+    day: number;
+    before: number;
+    uploads: number;
+    imports: number;
+    uploadBytes: number;
+    importBytes: number;
+    unknownBytes: number;
+  }>;
+  formats: Array<{ mimeType: string | null; count: number; bytes: number }>;
+  storage: Array<{
+    id: string;
+    name: string;
+    bytes: number;
+    limit: number | null;
+  }>;
+}
+
 export interface SystemStatus {
   database: "sqlite" | "postgres";
   checkedAt: number;

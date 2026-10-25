@@ -10,7 +10,8 @@ test("system status shows usage, supports deep links and mobile navigation", asy
   await expect(
     page.getByRole("heading", { name: "System", exact: true }),
   ).toBeVisible();
-  await expect(page.getByTestId("ready-images")).toHaveText("0");
+  await page.getByRole("tab", { name: "Maintenance", exact: true }).click();
+  await expect(page.getByTestId("service-uptime")).toBeVisible();
   await expect(page.getByTestId("usage-diskTotal")).not.toHaveText(
     /Calculating|Unavailable/,
   );
@@ -70,7 +71,7 @@ test("PostgreSQL hides backup actions without requesting the backup list", async
       requests.push(request.url());
   });
   await login(page, service.url);
-  await page.goto(service.url + "/app/system");
+  await page.goto(service.url + "/app/system?view=system");
   await expect(
     page.getByText("Backup and restore are unavailable for PostgreSQL.", {
       exact: true,

@@ -14,3 +14,13 @@ export function dateBoundary(
   if (nextDay) date.setDate(date.getDate() + 1);
   return date.getTime();
 }
+
+export function localDayBoundaries(days: number, now = new Date()): number[] {
+  return Array.from({ length: days + 1 }, (_, i) =>
+    new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate() - days + 1 + i,
+    ).getTime(),
+  );
+}
