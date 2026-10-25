@@ -98,24 +98,6 @@ export function handler(app: Application) {
       const url = new URL(req.url);
       const path = url.pathname;
       const method = req.method;
-      if (path === "/favicon.ico") {
-        if (!["GET", "HEAD"].includes(method))
-          throw new AppError("METHOD", "Method not allowed", 405);
-        const icon = app.delivery.get().siteFaviconUrl;
-        const target = icon ? new URL(icon, url) : null;
-        const self =
-          target?.pathname === path &&
-          [url.origin, app.config.origin, app.config.imageOrigin].includes(
-            target.origin,
-          );
-        return new Response(null, {
-          status: target && !self ? 302 : 404,
-          headers: {
-            "cache-control": "no-store",
-            ...(target && !self ? { location: target.href } : {}),
-          },
-        });
-      }
       const themeAsset = path.match(
         /^\/assets\/themes\/([^/]+)\/([^/]+)\/(.+)$/,
       );
