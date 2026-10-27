@@ -6,6 +6,8 @@ import { useRoute } from "vue-router";
 import { useQuery } from "@tanstack/vue-query";
 import { Plus, RefreshCw } from "lucide-vue-next";
 import { Button } from "@/components/ui/button";
+import ActionMenu from "@/components/ActionMenu.vue";
+import ActionMenuItem from "@/components/ActionMenuItem.vue";
 import { Input } from "@/components/ui/input";
 import {
   Sheet,
@@ -257,8 +259,8 @@ async function remove() {
 </script>
 <template>
   <section>
-    <div class="mb-7 flex items-start justify-between gap-4">
-      <div>
+    <div class="page-header">
+      <div class="min-w-0">
         <h1 class="page-heading">{{ t("ui.storageSources") }}</h1>
         <p class="mt-2 subtle">{{ t("ui.configureStorageConnections") }}</p>
       </div>
@@ -267,7 +269,9 @@ async function remove() {
     <div v-if="loading" class="subtle">{{ t("ui.loading") }}</div>
     <div v-else-if="loadError" class="error-box">
       {{ errorText(loadError)
-      }}<Button variant="ghost" @click="refresh">{{ t("ui.retry") }}</Button>
+      }}<Button variant="ghost" size="sm" @click="refresh">{{
+        t("ui.retry")
+      }}</Button>
     </div>
     <div v-else-if="!rows?.length" class="py-16 text-center subtle">
       {{ t("configuration.empty") }}
@@ -331,14 +335,7 @@ async function remove() {
             </div>
           </div>
         </div>
-        <div class="flex shrink-0 flex-wrap gap-2 sm:max-w-72 sm:justify-end">
-          <Button
-            v-if="item.canImport"
-            size="sm"
-            variant="outline"
-            @click="importSource = item"
-            >{{ t("import.title") }}</Button
-          >
+        <div class="flex shrink-0 flex-wrap items-center gap-2 sm:justify-end">
           <Button
             v-if="!item.ready"
             size="sm"
@@ -346,21 +343,29 @@ async function remove() {
             :disabled="busy"
             @click="initialize(item.id)"
             ><RefreshCw />{{ t("ui.retryInitialization") }}</Button
-          ><Button size="sm" variant="outline" @click="cleanupSource = item">{{
-            t("cleanup.title")
-          }}</Button
-          ><Button size="sm" variant="outline" @click="edit(item.id)">{{
-            t("ui.edit")
-          }}</Button
-          ><Button
-            size="sm"
-            variant="ghost"
-            @click="
-              deleting = item.id;
-              error = '';
-            "
-            >{{ t("ui.delete") }}</Button
           >
+          <Button size="sm" variant="outline" @click="edit(item.id)">{{
+            t("ui.edit")
+          }}</Button>
+          <ActionMenu :label="t('ui.moreActions', { name: item.name })">
+            <ActionMenuItem
+              v-if="item.canImport"
+              @select="importSource = item"
+              >{{ t("import.title") }}</ActionMenuItem
+            >
+            <ActionMenuItem @select="cleanupSource = item">{{
+              t("cleanup.title")
+            }}</ActionMenuItem>
+            <ActionMenuItem
+              destructive
+              separator
+              @select="
+                deleting = item.id;
+                error = '';
+              "
+              >{{ t("ui.delete") }}</ActionMenuItem
+            >
+          </ActionMenu>
         </div>
       </article>
     </div>
@@ -473,6 +478,16 @@ async function remove() {
 
             <div v-if="error" role="alert" class="error-box">
               {{ error }}
+              <Button
+                v-if="conflict"
+                type="button"
+                variant="outline"
+                size="sm"
+                class="mt-3"
+                :disabled="busy"
+                @click="edit(instance?.id)"
+                >{{ t("ui.reload") }}</Button
+              >
             </div>
           </div>
           <div class="editor-footer">
@@ -488,13 +503,6 @@ async function remove() {
               :loading="busy"
               :disabled="busy || !editorReady"
               >{{ busy ? t("ui.saving") : t("ui.save") }}</Button
-            ><Button
-              v-if="conflict"
-              type="button"
-              variant="outline"
-              :disabled="busy"
-              @click="edit(instance?.id)"
-              >{{ t("ui.reload") }}</Button
             >
           </div>
         </form>

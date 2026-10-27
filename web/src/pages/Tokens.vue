@@ -135,11 +135,15 @@ async function revoke() {
 }
 </script>
 <template>
-  <div class="max-w-4xl">
-    <h1 class="page-heading">{{ t("ui.uploadTokens") }}</h1>
-    <p class="mt-2 mb-7 subtle">
-      {{ t("ui.uploadOnlyAccessForScriptsAndApps") }}
-    </p>
+  <div class="max-w-2xl">
+    <header class="page-header">
+      <div class="min-w-0">
+        <h1 class="page-heading">{{ t("ui.uploadTokens") }}</h1>
+        <p class="mt-2 subtle">
+          {{ t("ui.uploadOnlyAccessForScriptsAndApps") }}
+        </p>
+      </div>
+    </header>
     <form class="mb-6 space-y-2 border-b pb-6" @submit.prevent="saveDefault">
       <div class="flex items-end gap-2">
         <label class="field flex-1"
@@ -196,7 +200,7 @@ async function revoke() {
         {{ t("ui.saved") }}
       </p>
     </form>
-    <form class="mb-6 space-y-4 border-b pb-6" @submit.prevent="create">
+    <form class="mb-6 space-y-5 border-b pb-6" @submit.prevent="create">
       <div class="grid gap-4 sm:grid-cols-2">
         <label class="field min-w-0"
           >{{ t("ui.tokenName")
@@ -239,9 +243,13 @@ async function revoke() {
         </p>
         <div v-else-if="profiles.error.value" role="alert" class="error-box">
           {{ errorText(profiles.error.value)
-          }}<Button type="button" variant="ghost" @click="profiles.refetch()">{{
-            t("ui.retry")
-          }}</Button>
+          }}<Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            @click="profiles.refetch()"
+            >{{ t("ui.retry") }}</Button
+          >
         </div>
         <p v-else-if="!profiles.data.value?.length" class="subtle">
           {{ t("configuration.empty") }}
@@ -266,7 +274,7 @@ async function revoke() {
     <p v-if="tokens.isPending.value" class="subtle">{{ t("ui.loading") }}</p>
     <div v-else-if="tokens.error.value" class="error-box">
       {{ errorText(tokens.error.value)
-      }}<Button variant="ghost" @click="tokens.refetch()">{{
+      }}<Button variant="ghost" size="sm" @click="tokens.refetch()">{{
         t("ui.retry")
       }}</Button>
     </div>
@@ -282,8 +290,8 @@ async function revoke() {
         class="flex flex-wrap items-center justify-between gap-2 py-3"
       >
         <div>
-          <p class="text-sm font-medium">{{ token.name }}</p>
-          <p class="mt-2 text-xs text-muted-foreground">
+          <p class="break-words font-medium">{{ token.name }}</p>
+          <p class="mt-1 text-xs text-muted-foreground">
             ••••{{ token.hint }} ·
             {{
               token.expiresAt === null

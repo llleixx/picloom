@@ -174,7 +174,7 @@ function move(index: number, delta: number) {
       <div class="flex items-center justify-between gap-2">
         <label
           :for="id"
-          class="relative pr-3 text-sm font-medium"
+          class="relative pr-3 text-sm"
           :class="{ 'required-label': required }"
           >{{ label
           }}<span v-if="hint.groupKey" class="ml-2 subtle">{{
@@ -241,7 +241,7 @@ function move(index: number, delta: number) {
         </option>
       </select>
       <template v-else-if="schema.type === 'object'">
-        <div class="space-y-4" :class="path ? 'border-l pl-4' : ''">
+        <div class="space-y-5" :class="path ? 'border-l pl-4' : ''">
           <Button
             v-if="value === undefined && children.length === 0"
             type="button"

@@ -78,9 +78,13 @@ function edit(id?: string) {
     </p>
     <div v-if="pipelines.error.value" role="alert" class="error-box">
       {{ errorText(pipelines.error.value)
-      }}<Button type="button" variant="ghost" @click="pipelines.refetch()">{{
-        t("ui.retry")
-      }}</Button>
+      }}<Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        @click="pipelines.refetch()"
+        >{{ t("ui.retry") }}</Button
+      >
     </div>
     <div class="flex gap-2">
       <Button type="button" variant="outline" size="sm" @click="edit()"
@@ -88,7 +92,7 @@ function edit(id?: string) {
       >
       <Button
         type="button"
-        variant="ghost"
+        variant="outline"
         size="sm"
         :disabled="!selected"
         @click="edit(model!)"

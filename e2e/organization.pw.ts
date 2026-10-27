@@ -158,7 +158,7 @@ test("empty category management, collection upload, detail and batch organizatio
     has: page.getByRole("button", { name: "Empty tag", exact: true }),
   });
   await empty
-    .getByRole("button", { name: "Manage Empty tag", exact: true })
+    .getByRole("button", { name: "More actions for Empty tag", exact: true })
     .click();
   await page.getByRole("menuitem", { name: "Rename tag", exact: true }).click();
   await page.getByLabel("Name", { exact: true }).fill("Renamed tag");
@@ -166,12 +166,18 @@ test("empty category management, collection upload, detail and batch organizatio
   await expect(
     page.getByRole("button", { name: "Renamed tag", exact: true }),
   ).toBeVisible();
+  await expect(
+    page.getByRole("button", {
+      name: "More actions for Renamed tag",
+      exact: true,
+    }),
+  ).toBeFocused();
   await page
     .getByRole("article")
     .filter({
       has: page.getByRole("button", { name: "Renamed tag", exact: true }),
     })
-    .getByRole("button", { name: "Manage Renamed tag", exact: true })
+    .getByRole("button", { name: "More actions for Renamed tag", exact: true })
     .click();
   await page.getByRole("menuitem", { name: "Delete", exact: true }).click();
   await expect(

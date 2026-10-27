@@ -5,12 +5,17 @@ import { api, ApiError, errorText, notify } from "../lib/api";
 import PackageUploadStatus from "../components/PackageUploadStatus.vue";
 import { usePackageUpload } from "../lib/package-upload";
 import { t, locale } from "../lib/i18n";
+import { Plus } from "lucide-vue-next";
+import { Button } from "@/components/ui/button";
+import ActionMenu from "@/components/ActionMenu.vue";
+import ActionMenuItem from "@/components/ActionMenuItem.vue";
 import { messageText } from "../../../shared/package-localization";
 function themeName(manifest: Manifest) {
   return messageText(manifest, locale.value, manifest.nameKey);
 }
 import { languages } from "../../../shared/locales";
 import ThemeField from "../components/ThemeField.vue";
+const packageInput = ref<HTMLInputElement>();
 const themes = shallowRef<InstalledTheme[]>([]),
   selected = shallowRef<InstalledTheme | null>(null),
   config = shallowRef<Config>({});
@@ -103,215 +108,250 @@ function preview(page: string) {
 onMounted(() => run(load));
 </script>
 <template>
-  <div class="space-y-6">
-    <h1 class="text-2xl font-semibold">{{ t("themes.title") }}</h1>
-    <p class="subtle">{{ t("themes.trust") }}</p>
-    <p v-if="error" role="alert" class="error-box">{{ error }}</p>
-    <div class="panel flex flex-wrap items-center gap-4 p-4">
-      <label class="field"
-        >{{ t("themes.upload")
-        }}<input
-          type="file"
-          accept=".zip"
-          :disabled="busy"
-          @change="
-            inspect(($event.target as HTMLInputElement).files?.[0]);
-            ($event.target as HTMLInputElement).value = '';
-          "
-      /></label>
-      <button
-        class="native-select"
-        :disabled="busy"
-        @click="
-          run(async () => {
-            await api('/api/theme', {
-              method: 'PUT',
-              body: JSON.stringify({ id: null }),
-            });
-            await load();
-          })
-        "
-      >
-        {{ t("themes.restore") }}
-      </button>
-      <span v-if="!themes.some((v) => v.active)" class="subtle">{{
-        t("themes.defaultActive")
-      }}</span>
-    </div>
-    <PackageUploadStatus v-if="packageUpload" :state="packageUpload" />
-    <div v-if="inspected" class="panel space-y-4 p-4">
-      <p>
-        {{ themeName(inspected.manifest) }} · {{ inspected.manifest.version }}
-        <span v-if="inspected.manifest.author">
-          · {{ inspected.manifest.author }}</span
-        >
-      </p>
-      <label class="flex gap-2"
-        ><input type="checkbox" v-model="confirmed" />{{
-          t("themes.confirmTrust")
-        }}</label
-      ><button
-        class="native-select"
-        :disabled="busy || !confirmed"
-        @click="
-          run(async () => {
-            await api('/api/themes/install', {
-              method: 'POST',
-              body: JSON.stringify({ ticket: inspected!.ticket, confirmed }),
-            });
-            inspected = null;
-            await load();
-          })
-        "
-      >
-        {{ t("themes.install") }}
-      </button>
-    </div>
-    <div class="grid gap-4 md:grid-cols-2">
-      <div
-        v-for="theme in themes"
-        :key="theme.manifest.id + theme.manifest.version"
-        class="panel space-y-3 p-4"
-      >
-        <img
-          v-if="theme.manifest.preview"
-          :src="theme.baseUrl + theme.manifest.preview"
-          alt=""
-          class="h-36 w-full rounded object-cover"
-        />
-        <h2 class="font-semibold">
-          {{ themeName(theme.manifest) }} · {{ theme.manifest.version }}
-          <span v-if="theme.active">✓ {{ t("themes.active") }}</span>
-        </h2>
-        <p class="subtle">
-          {{ theme.manifest.id }}
-          <span v-if="theme.manifest.author">
-            · {{ theme.manifest.author }}</span
-          >
-        </p>
-        <p v-if="!theme.compatible" class="error-box">
-          {{ t("themes.incompatible") }}
-        </p>
-        <button
-          class="native-select"
-          :disabled="busy || !theme.compatible"
-          @click="edit(theme)"
-        >
-          {{ t("themes.configure") }}
-        </button>
-        <button
-          class="ml-3 text-destructive"
-          :disabled="busy || theme.active"
-          @click="
-            run(async () => {
-              await api(
-                `/api/themes/${theme.manifest.id}/${theme.manifest.version}`,
-                { method: 'DELETE' },
-              );
-              if (
-                selected?.manifest.id === theme.manifest.id &&
-                selected?.manifest.version === theme.manifest.version
-              )
-                selected = null;
-              await load();
-            })
-          "
-        >
-          {{ t("themes.uninstall") }}
-        </button>
+  <div>
+    <header class="page-header">
+      <div class="min-w-0">
+        <h1 class="page-heading">{{ t("themes.title") }}</h1>
+        <p class="mt-2 subtle">{{ t("themes.trust") }}</p>
       </div>
-    </div>
-    <fieldset v-if="selected" :disabled="busy" class="panel space-y-5 p-5">
-      <h2 class="text-xl font-semibold">
-        {{ themeName(selected.manifest) }} · {{ selected.manifest.version }}
-      </h2>
-      <p class="subtle">{{ t("themes.draftHelp") }}</p>
-      <section class="space-y-3">
-        <label class="field"
-          >{{ t("settings.defaultLocale") }}
-          <select v-model="defaultLocale" class="native-select">
-            <option value="" disabled>{{ t("themes.chooseLanguage") }}</option>
-            <option
-              v-for="lang in defaultLanguages"
-              :key="lang.tag"
-              :value="lang.tag"
-            >
-              {{ lang.name }}
-            </option>
-          </select>
-        </label>
-        <p class="subtle">{{ t("themes.siteLanguageHelp") }}</p>
-        <p v-if="!defaultLanguages.length" role="alert">
-          {{ t("themes.enableLanguage") }}
-        </p>
-        <p
-          v-if="
-            selected.draftLanguage &&
-            selected.draftLanguage.defaultLocale !== selected.siteDefaultLocale
-          "
-          class="subtle"
-        >
-          {{ t("themes.draftLanguageDifference") }}:
-          {{ selected.draftLanguage.defaultLocale }}
-        </p>
-      </section>
-      <section v-if="selected.manifest.configSchema" class="space-y-4">
-        <ThemeField
-          :key="editSession"
-          :field="selected.manifest.configSchema"
-          :localization="selected.manifest"
-          :value="config"
-          :editing-locale="
-            defaultLocale || selected.manifest.supportedLocales[0]!
-          "
-          :enabled-locales="selected.enabledLocales"
-          @change="config = $event as Config"
-        />
-      </section>
-      <p v-if="!selected.manifest.configSchema" class="subtle">
-        {{ t("themes.noConfig") }}
-      </p>
-      <div class="flex flex-wrap gap-4">
-        <button
-          class="native-select"
-          :disabled="busy || !validDefault"
-          @click="run(save)"
-        >
-          {{ t("themes.saveDraft") }}</button
-        ><button :disabled="busy" @click="preview('home')">
-          {{ t("themes.previewHome") }}</button
-        ><button :disabled="busy" @click="preview('login')">
-          {{ t("themes.previewLogin") }}</button
-        ><button
-          class="rounded-lg bg-primary px-4 py-2 text-primary-foreground"
-          :disabled="busy || !validDefault"
+      <Button class="shrink-0" :disabled="busy" @click="packageInput?.click()">
+        <Plus />{{ t("themes.uploadPackage") }}
+      </Button>
+      <input
+        ref="packageInput"
+        type="file"
+        accept=".zip"
+        class="hidden"
+        :aria-label="t('themes.upload')"
+        :disabled="busy"
+        @change="
+          inspect(($event.target as HTMLInputElement).files?.[0]);
+          ($event.target as HTMLInputElement).value = '';
+        "
+      />
+    </header>
+    <div class="space-y-6">
+      <p v-if="error" role="alert" class="error-box">{{ error }}</p>
+      <div class="flex flex-wrap items-center gap-3">
+        <span class="subtle">{{ t("themes.packageHint") }}</span>
+        <Button
+          variant="outline"
+          :disabled="busy"
           @click="
             run(async () => {
-              await save();
               await api('/api/theme', {
                 method: 'PUT',
-                body: JSON.stringify({
-                  id: selected!.manifest.id,
-                  version: selected!.manifest.version,
-                  defaultLocale,
-                  languageRevision,
-                }),
+                body: JSON.stringify({ id: null }),
               });
               await load();
-              edit(
-                themes.find(
-                  (v) =>
-                    v.manifest.id === selected!.manifest.id &&
-                    v.manifest.version === selected!.manifest.version,
-                )!,
-              );
-              notify({ key: 'themes.applied' });
             })
           "
         >
-          {{ t("themes.apply") }}
-        </button>
+          {{ t("themes.restore") }}
+        </Button>
+        <span v-if="!themes.some((v) => v.active)" class="subtle">{{
+          t("themes.defaultActive")
+        }}</span>
       </div>
-    </fieldset>
+      <PackageUploadStatus v-if="packageUpload" :state="packageUpload" />
+      <div v-if="inspected" class="panel space-y-4 p-4">
+        <p>
+          {{ themeName(inspected.manifest) }} · {{ inspected.manifest.version }}
+          <span v-if="inspected.manifest.author">
+            · {{ inspected.manifest.author }}</span
+          >
+        </p>
+        <label class="flex items-center gap-2 text-sm"
+          ><input type="checkbox" v-model="confirmed" />{{
+            t("themes.confirmTrust")
+          }}</label
+        ><Button
+          :disabled="busy || !confirmed"
+          @click="
+            run(async () => {
+              await api('/api/themes/install', {
+                method: 'POST',
+                body: JSON.stringify({ ticket: inspected!.ticket, confirmed }),
+              });
+              inspected = null;
+              await load();
+            })
+          "
+        >
+          {{ t("themes.install") }}
+        </Button>
+      </div>
+      <div class="grid gap-4 md:grid-cols-2">
+        <div
+          v-for="theme in themes"
+          :key="theme.manifest.id + theme.manifest.version"
+          class="panel space-y-3 p-4"
+        >
+          <img
+            v-if="theme.manifest.preview"
+            :src="theme.baseUrl + theme.manifest.preview"
+            alt=""
+            class="h-36 w-full rounded object-cover"
+          />
+          <h2 class="font-medium">
+            {{ themeName(theme.manifest) }} · {{ theme.manifest.version }}
+            <span
+              v-if="theme.active"
+              class="text-xs font-normal text-muted-foreground"
+              >{{ t("themes.active") }}</span
+            >
+          </h2>
+          <p class="subtle">
+            {{ theme.manifest.id }}
+            <span v-if="theme.manifest.author">
+              · {{ theme.manifest.author }}</span
+            >
+          </p>
+          <p v-if="!theme.compatible" class="error-box">
+            {{ t("themes.incompatible") }}
+          </p>
+          <div class="flex items-center gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              :disabled="busy || !theme.compatible"
+              @click="edit(theme)"
+            >
+              {{ t("themes.configure") }}
+            </Button>
+            <ActionMenu
+              :label="
+                t('ui.moreActions', {
+                  name:
+                    themeName(theme.manifest) + ' · v' + theme.manifest.version,
+                })
+              "
+            >
+              <ActionMenuItem
+                destructive
+                :disabled="busy || theme.active"
+                :description="theme.active ? t('themes.active') : undefined"
+                @select="
+                  run(async () => {
+                    await api(
+                      `/api/themes/${theme.manifest.id}/${theme.manifest.version}`,
+                      { method: 'DELETE' },
+                    );
+                    if (
+                      selected?.manifest.id === theme.manifest.id &&
+                      selected?.manifest.version === theme.manifest.version
+                    )
+                      selected = null;
+                    await load();
+                  })
+                "
+              >
+                {{ t("themes.uninstall") }}
+              </ActionMenuItem>
+            </ActionMenu>
+          </div>
+        </div>
+      </div>
+      <fieldset
+        v-if="selected"
+        :disabled="busy"
+        class="panel max-w-2xl space-y-5 p-6"
+      >
+        <div class="space-y-2">
+          <h2 class="section-heading">
+            {{ themeName(selected.manifest) }} · {{ selected.manifest.version }}
+          </h2>
+          <p class="subtle">{{ t("themes.draftHelp") }}</p>
+        </div>
+        <section class="space-y-2">
+          <label class="field"
+            >{{ t("settings.defaultLocale") }}
+            <select v-model="defaultLocale" class="native-select">
+              <option value="" disabled>
+                {{ t("themes.chooseLanguage") }}
+              </option>
+              <option
+                v-for="lang in defaultLanguages"
+                :key="lang.tag"
+                :value="lang.tag"
+              >
+                {{ lang.name }}
+              </option>
+            </select>
+          </label>
+          <p class="subtle">{{ t("themes.siteLanguageHelp") }}</p>
+          <p v-if="!defaultLanguages.length" role="alert">
+            {{ t("themes.enableLanguage") }}
+          </p>
+          <p
+            v-if="
+              selected.draftLanguage &&
+              selected.draftLanguage.defaultLocale !==
+                selected.siteDefaultLocale
+            "
+            class="subtle"
+          >
+            {{ t("themes.draftLanguageDifference") }}:
+            {{ selected.draftLanguage.defaultLocale }}
+          </p>
+        </section>
+        <section v-if="selected.manifest.configSchema" class="space-y-4">
+          <ThemeField
+            :key="editSession"
+            :field="selected.manifest.configSchema"
+            :localization="selected.manifest"
+            :value="config"
+            :editing-locale="
+              defaultLocale || selected.manifest.supportedLocales[0]!
+            "
+            :enabled-locales="selected.enabledLocales"
+            @change="config = $event as Config"
+          />
+        </section>
+        <p v-if="!selected.manifest.configSchema" class="subtle">
+          {{ t("themes.noConfig") }}
+        </p>
+        <div class="form-actions">
+          <Button
+            variant="outline"
+            :disabled="busy || !validDefault"
+            @click="run(save)"
+          >
+            {{ t("themes.saveDraft") }}</Button
+          ><Button variant="outline" :disabled="busy" @click="preview('home')">
+            {{ t("themes.previewHome") }}</Button
+          ><Button variant="outline" :disabled="busy" @click="preview('login')">
+            {{ t("themes.previewLogin") }}</Button
+          ><Button
+            :disabled="busy || !validDefault"
+            @click="
+              run(async () => {
+                await save();
+                await api('/api/theme', {
+                  method: 'PUT',
+                  body: JSON.stringify({
+                    id: selected!.manifest.id,
+                    version: selected!.manifest.version,
+                    defaultLocale,
+                    languageRevision,
+                  }),
+                });
+                await load();
+                edit(
+                  themes.find(
+                    (v) =>
+                      v.manifest.id === selected!.manifest.id &&
+                      v.manifest.version === selected!.manifest.version,
+                  )!,
+                );
+                notify({ key: 'themes.applied' });
+              })
+            "
+          >
+            {{ t("themes.apply") }}
+          </Button>
+        </div>
+      </fieldset>
+    </div>
   </div>
 </template>

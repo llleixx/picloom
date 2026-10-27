@@ -251,7 +251,7 @@ async function showPreview() {
     <CopyResult :url="url" :label="t('linkBuilder.title')" open-link />
     <p v-if="query.error.value" class="error-box">
       {{ errorText(query.error.value) }}
-      <Button variant="ghost" @click="query.refetch()">{{
+      <Button variant="ghost" size="sm" @click="query.refetch()">{{
         t("ui.retry")
       }}</Button>
     </p>

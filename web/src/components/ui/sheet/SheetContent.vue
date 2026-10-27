@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { t } from "@/lib/i18n";
+import { useMenuDialogFocus } from "@/lib/dialog-focus";
 import type { DialogContentEmits, DialogContentProps } from "reka-ui";
 import type { HTMLAttributes } from "vue";
 import type { SheetVariants } from ".";
@@ -39,6 +40,7 @@ const delegatedProps = reactiveOmit(
 );
 
 const forwarded = useForwardPropsEmits(delegatedProps, emits);
+const rememberMenuTrigger = useMenuDialogFocus();
 </script>
 
 <template>
@@ -47,6 +49,7 @@ const forwarded = useForwardPropsEmits(delegatedProps, emits);
       class="fixed inset-0 z-50 bg-black/60 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0"
     />
     <DialogContent
+      @open-auto-focus="rememberMenuTrigger"
       @escape-key-down="
         (event) => {
           if (busy) event.preventDefault();

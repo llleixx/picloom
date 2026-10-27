@@ -20,7 +20,14 @@ test("import from a source, rescan, preview and delete the original", async ({
   await page
     .getByRole("link", { name: "Storage Sources", exact: true })
     .click();
-  await page.getByRole("button", { name: "Import", exact: true }).click();
+  const sourceActions = page.getByRole("button", {
+    name: "More actions for Default local storage",
+    exact: true,
+  });
+  await sourceActions.focus();
+  await page.keyboard.press("Enter");
+  await page.getByRole("menuitem", { name: "Import", exact: true }).focus();
+  await page.keyboard.press("Enter");
   await page.getByLabel("Scan scope (optional)").fill("legacy/");
   await page.getByLabel("Public prefix", { exact: true }).fill("/old/");
   const importTags = page.getByRole("group", { name: "Tags", exact: true });
@@ -40,6 +47,7 @@ test("import from a source, rescan, preview and delete the original", async ({
     page.getByText(/Scanned 1 · Imported 0 · Skipped 1/),
   ).toBeVisible();
   await page.getByRole("button", { name: "Close", exact: true }).last().click();
+  await expect(sourceActions).toBeFocused();
   await page.getByRole("link", { name: "Images", exact: true }).click();
   await expect(page.getByTestId("file-card")).toHaveCount(1);
   await page.getByRole("button", { name: /^Open / }).click();

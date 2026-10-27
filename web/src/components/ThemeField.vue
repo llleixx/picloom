@@ -102,7 +102,7 @@ function confirm() {
       >
         <label
           :for="node.id"
-          class="relative pr-3 text-sm font-medium"
+          class="relative pr-3 text-sm"
           :class="{ 'required-label': node.required }"
         >
           {{ node.label

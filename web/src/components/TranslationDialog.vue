@@ -13,7 +13,7 @@ const emit = defineEmits<{ confirm: [] }>();
 </script>
 <template>
   <Dialog v-model:open="open">
-    <DialogContent class="max-h-[calc(100svh-2rem)] overflow-y-auto">
+    <DialogContent>
       <DialogTitle class="pr-6"
         >{{ t("ui.editTranslations") }} · {{ title }}</DialogTitle
       >

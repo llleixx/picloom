@@ -122,7 +122,7 @@ const additions = (day?: number) =>
 <template>
   <div class="space-y-7">
     <div class="flex flex-wrap items-center justify-between gap-3">
-      <h2 class="font-medium">{{ t("statistics.summary") }}</h2>
+      <h2 class="section-heading">{{ t("statistics.summary") }}</h2>
       <select
         v-model="days"
         class="native-select w-auto"
@@ -189,7 +189,7 @@ const additions = (day?: number) =>
       </dl>
       <section class="border-b pb-6">
         <div class="flex flex-wrap items-center justify-between gap-3">
-          <h2 class="font-medium">{{ t("statistics.trend") }}</h2>
+          <h2 class="section-heading">{{ t("statistics.trend") }}</h2>
           <div class="flex gap-1" :aria-label="t('statistics.measure')">
             <Button
               size="sm"
@@ -318,7 +318,7 @@ const additions = (day?: number) =>
       </section>
       <div class="grid gap-8 lg:grid-cols-2">
         <section class="min-w-0">
-          <h2 class="font-medium">{{ t("statistics.storage") }}</h2>
+          <h2 class="section-heading">{{ t("statistics.storage") }}</h2>
           <p v-if="!stats.storage.length" class="subtle mt-6">
             {{ t("statistics.noStorage") }}
           </p>
@@ -361,7 +361,7 @@ const additions = (day?: number) =>
         </section>
         <section class="min-w-0">
           <div class="flex flex-wrap items-center justify-between gap-3">
-            <h2 class="font-medium">{{ t("statistics.formats") }}</h2>
+            <h2 class="section-heading">{{ t("statistics.formats") }}</h2>
             <select
               v-model="composition"
               class="native-select w-auto"

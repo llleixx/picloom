@@ -5,6 +5,8 @@ import { api, errorText, queryClient, notify } from "@/lib/api";
 import { t } from "@/lib/i18n";
 import { Plus } from "lucide-vue-next";
 import { Button } from "@/components/ui/button";
+import ActionMenu from "@/components/ActionMenu.vue";
+import ActionMenuItem from "@/components/ActionMenuItem.vue";
 import {
   Dialog,
   DialogContent,
@@ -70,7 +72,7 @@ async function remove() {
 </script>
 <template>
   <section>
-    <div class="mb-7 flex items-center justify-between gap-4">
+    <div class="page-header">
       <h1 class="page-heading">{{ t("pipelines.title") }}</h1>
       <Button @click="edit()"><Plus />{{ t("ui.create") }}</Button>
     </div>
@@ -80,6 +82,7 @@ async function remove() {
       <Button
         v-if="pipelines.error.value"
         variant="ghost"
+        size="sm"
         @click="pipelines.refetch()"
         >{{ t("ui.retry") }}</Button
       >
@@ -94,7 +97,7 @@ async function remove() {
     >
       {{ t("configuration.empty") }}
     </p>
-    <div class="space-y-10">
+    <div class="space-y-7">
       <section
         v-for="group in groups"
         :key="group.kind"
@@ -102,7 +105,7 @@ async function remove() {
       >
         <h2
           :id="'pipelines-' + group.kind"
-          class="mb-3 flex items-center gap-3 text-lg font-semibold"
+          class="section-heading mb-3 flex items-center gap-3"
         >
           {{ group.label
           }}<span class="text-sm font-normal text-muted-foreground">{{
@@ -136,31 +139,35 @@ async function remove() {
                 }}
               </p>
             </div>
-            <div
-              class="flex shrink-0 flex-wrap gap-2 sm:max-w-72 sm:justify-end"
-            >
+            <div class="flex shrink-0 items-center gap-2 sm:justify-end">
               <Button size="sm" variant="outline" @click="edit(p.id)">{{
                 t("ui.edit")
               }}</Button>
-              <Button
+              <ActionMenu
                 v-if="p.kind !== 'access'"
-                size="sm"
-                variant="outline"
-                :disabled="busy"
-                @click="duplicate(p)"
-                >{{ t("pipelines.duplicate") }}</Button
+                :label="t('ui.moreActions', { name: p.name })"
               >
-              <Button
-                v-if="p.kind !== 'access'"
-                size="sm"
-                variant="ghost"
-                :disabled="busy || !!p.references.length"
-                @click="
-                  deleting = p;
-                  error = '';
-                "
-                >{{ t("ui.delete") }}</Button
-              >
+                <ActionMenuItem :disabled="busy" @select="duplicate(p)">{{
+                  t("pipelines.duplicate")
+                }}</ActionMenuItem>
+                <ActionMenuItem
+                  destructive
+                  separator
+                  :disabled="busy || !!p.references.length"
+                  :description="
+                    p.references.length
+                      ? t('pipelines.usedBy', {
+                          names: p.references.map((r) => r.name).join(', '),
+                        })
+                      : undefined
+                  "
+                  @select="
+                    deleting = p;
+                    error = '';
+                  "
+                  >{{ t("ui.delete") }}</ActionMenuItem
+                >
+              </ActionMenu>
             </div>
           </article>
         </div>

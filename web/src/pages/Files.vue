@@ -653,7 +653,7 @@ async function navigate(direction: -1 | 1) {
 </script>
 <template>
   <section>
-    <div class="mb-7 flex items-start justify-between gap-4">
+    <div class="page-header">
       <div class="min-w-0">
         <div class="flex min-w-0 flex-wrap items-center gap-2">
           <h1 class="page-heading break-all">
@@ -1118,7 +1118,7 @@ async function navigate(direction: -1 | 1) {
     </div>
     <div v-else-if="files.error.value" role="alert" class="error-box">
       {{ errorText(files.error.value)
-      }}<Button variant="ghost" @click="files.refetch()">{{
+      }}<Button variant="ghost" size="sm" @click="files.refetch()">{{
         t("ui.retry")
       }}</Button>
     </div>

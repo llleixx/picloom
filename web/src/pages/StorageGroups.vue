@@ -5,6 +5,8 @@ import { useRoute } from "vue-router";
 import { useQuery } from "@tanstack/vue-query";
 import { Plus } from "lucide-vue-next";
 import { Button } from "@/components/ui/button";
+import ActionMenu from "@/components/ActionMenu.vue";
+import ActionMenuItem from "@/components/ActionMenuItem.vue";
 import { Input } from "@/components/ui/input";
 import {
   Sheet,
@@ -130,8 +132,8 @@ async function remove() {
 </script>
 <template>
   <section>
-    <div class="mb-7 flex items-start justify-between gap-4">
-      <div>
+    <div class="page-header">
+      <div class="min-w-0">
         <h1 class="page-heading">{{ t("ui.storageGroups") }}</h1>
         <p class="mt-2 subtle">
           {{ t("ui.chooseStorageTargetsAndCopies") }}
@@ -142,7 +144,9 @@ async function remove() {
     <div v-if="loading" class="subtle">{{ t("ui.loading") }}</div>
     <div v-else-if="loadError" class="error-box">
       {{ errorText(loadError)
-      }}<Button variant="ghost" @click="refresh">{{ t("ui.retry") }}</Button>
+      }}<Button variant="ghost" size="sm" @click="refresh">{{
+        t("ui.retry")
+      }}</Button>
     </div>
     <div v-else-if="!rows?.length" class="py-16 text-center subtle">
       {{ t("configuration.empty") }}
@@ -170,19 +174,20 @@ async function remove() {
             }}
           </p>
         </div>
-        <div class="flex shrink-0 flex-wrap gap-2 sm:max-w-72 sm:justify-end">
+        <div class="flex shrink-0 items-center gap-2 sm:justify-end">
           <Button size="sm" variant="outline" @click="edit(item.id)">{{
             t("ui.edit")
-          }}</Button
-          ><Button
-            size="sm"
-            variant="ghost"
-            @click="
-              deleting = item.id;
-              error = '';
-            "
-            >{{ t("ui.delete") }}</Button
-          >
+          }}</Button>
+          <ActionMenu :label="t('ui.moreActions', { name: item.name })">
+            <ActionMenuItem
+              destructive
+              @select="
+                deleting = item.id;
+                error = '';
+              "
+              >{{ t("ui.delete") }}</ActionMenuItem
+            >
+          </ActionMenu>
         </div>
       </article>
     </div>
@@ -332,6 +337,16 @@ async function remove() {
 
             <div v-if="error" role="alert" class="error-box">
               {{ error }}
+              <Button
+                v-if="conflict"
+                type="button"
+                variant="outline"
+                size="sm"
+                class="mt-3"
+                :disabled="busy"
+                @click="edit(group?.id)"
+                >{{ t("ui.reload") }}</Button
+              >
             </div>
           </div>
           <div class="editor-footer">
@@ -344,15 +359,7 @@ async function remove() {
             >
             <Button type="submit" :loading="busy" :disabled="busy">{{
               busy ? t("ui.saving") : t("ui.save")
-            }}</Button
-            ><Button
-              v-if="conflict"
-              type="button"
-              variant="outline"
-              :disabled="busy"
-              @click="edit(group?.id)"
-              >{{ t("ui.reload") }}</Button
-            >
+            }}</Button>
           </div>
         </form>
       </SheetContent></Sheet

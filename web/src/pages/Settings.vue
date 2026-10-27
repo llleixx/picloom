@@ -249,7 +249,9 @@ async function save() {
 </script>
 <template>
   <div class="max-w-2xl">
-    <h1 class="page-heading">{{ t("settings.title") }}</h1>
+    <header class="page-header">
+      <h1 class="page-heading">{{ t("settings.title") }}</h1>
+    </header>
     <p v-if="query.isPending.value" class="subtle mt-6">
       {{ t("ui.loading") }}
     </p>
@@ -292,10 +294,10 @@ async function save() {
         </p>
       </div>
     </TranslationDialog>
-    <form v-if="loaded" class="mt-7" @submit.prevent="save">
+    <form v-if="loaded" @submit.prevent="save">
       <fieldset :disabled="busy" class="space-y-7">
-        <section class="border-t pt-6 space-y-4">
-          <h2 class="font-medium">{{ t("settings.website") }}</h2>
+        <section class="form-section">
+          <h2 class="section-heading">{{ t("settings.website") }}</h2>
           <div class="space-y-3">
             <p class="text-sm font-medium">
               {{ t("settings.enabledLocales") }}
@@ -357,7 +359,7 @@ async function save() {
               <div class="flex flex-wrap items-center justify-between gap-2">
                 <label
                   :for="contentId + '-' + field"
-                  class="relative pr-3 text-sm font-medium"
+                  class="relative pr-3 text-sm"
                 >
                   {{
                     t(
@@ -466,9 +468,9 @@ async function save() {
         <section
           v-for="group in limitGroups"
           :key="group.id"
-          class="border-t pt-6 space-y-4"
+          class="form-section"
         >
-          <h2 class="font-medium">{{ t(group.title) }}</h2>
+          <h2 class="section-heading">{{ t(group.title) }}</h2>
           <p class="subtle">{{ t(group.hint) }}</p>
           <template v-for="advanced in [false, true]" :key="String(advanced)">
             <Button
@@ -530,8 +532,8 @@ async function save() {
             </div>
           </template>
         </section>
-        <section class="border-t pt-6 space-y-4">
-          <h2 class="font-medium">{{ t("limits.guest") }}</h2>
+        <section class="form-section">
+          <h2 class="section-heading">{{ t("limits.guest") }}</h2>
           <p class="subtle">{{ t("limits.guestHint") }}</p>
           <div class="grid gap-4 sm:grid-cols-2">
             <label class="field"
@@ -596,8 +598,8 @@ async function save() {
             {{ t("settings.trustedProxiesHint") }}
           </p>
         </section>
-        <section class="border-t pt-6 space-y-4">
-          <h2 class="font-medium">{{ t("settings.imageDomain") }}</h2>
+        <section class="form-section">
+          <h2 class="section-heading">{{ t("settings.imageDomain") }}</h2>
           <label class="field"
             >{{ t("settings.domain") }}
             <Input
@@ -619,8 +621,8 @@ async function save() {
           <p id="domain-hint" class="subtle">{{ t("settings.domainHint") }}</p>
           <p class="subtle">{{ t("settings.domainEffect") }}</p>
         </section>
-        <section class="border-t pt-6 space-y-4">
-          <h2 class="font-medium">{{ t("settings.hotlink") }}</h2>
+        <section class="form-section">
+          <h2 class="section-heading">{{ t("settings.hotlink") }}</h2>
           <label class="flex items-center gap-2 text-sm"
             ><input
               v-model="draft.hotlinkEnabled"
@@ -659,8 +661,8 @@ async function save() {
             <p class="subtle">{{ t("settings.limitations") }}</p>
           </div>
         </section>
-        <section class="border-t pt-6 space-y-4">
-          <h2 class="font-medium">{{ t("settings.cache") }}</h2>
+        <section class="form-section">
+          <h2 class="section-heading">{{ t("settings.cache") }}</h2>
           <label class="field"
             >{{ t("settings.uploadTemp") }}
             <Input
@@ -755,7 +757,7 @@ async function save() {
         }}</a>
       </p>
       <p v-if="error" role="alert" class="error-box mt-5">{{ error }}</p>
-      <div class="mt-7 flex items-center gap-4 border-t pt-5">
+      <div class="form-actions mt-7 justify-start">
         <Button type="submit" :loading="busy">{{ t("ui.save") }}</Button>
         <p class="subtle">{{ t("settings.live") }}</p>
       </div>

@@ -58,12 +58,16 @@ async function change() {
 </script>
 <template>
   <div class="max-w-xl">
-    <h1 class="page-heading">{{ t("ui.account") }}</h1>
-    <p class="mt-2 mb-7 subtle">
-      {{ t("account.signedInAs", { name: session?.user.username ?? "" }) }}
-    </p>
-    <form class="space-y-5 border-y py-6" @submit.prevent="change">
-      <h2 class="flex items-center gap-2 font-medium">
+    <header class="page-header">
+      <div class="min-w-0">
+        <h1 class="page-heading">{{ t("ui.account") }}</h1>
+        <p class="mt-2 subtle">
+          {{ t("account.signedInAs", { name: session?.user.username ?? "" }) }}
+        </p>
+      </div>
+    </header>
+    <form class="form-section border-b pb-6" @submit.prevent="change">
+      <h2 class="section-heading flex items-center gap-2">
         <ShieldCheck :size="18" />{{ t("ui.changePassword") }}
       </h2>
       <p class="subtle">

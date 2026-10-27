@@ -82,8 +82,12 @@ async function prepare(page: Page, service: Service) {
       .filter({
         has: page.getByRole("heading", { name: source.name, exact: true }),
       })
-      .getByRole("button", { name: "Clean up images", exact: true })
+      .getByRole("button", {
+        name: "More actions for Retiring source",
+        exact: true,
+      })
       .click();
+    await page.getByRole("menuitem", { name: "Clean up", exact: true }).click();
     return page.getByRole("dialog");
   };
   return { source, image, group, headers, open, remove };
@@ -146,8 +150,12 @@ test.describe("cleanup restoration", () => {
           exact: true,
         }),
       })
-      .getByRole("button", { name: "Clean up images", exact: true })
+      .getByRole("button", {
+        name: "More actions for Retiring source",
+        exact: true,
+      })
       .click();
+    await page.getByRole("menuitem", { name: "Clean up", exact: true }).click();
     panel = page.getByRole("dialog");
     await expect(panel.getByLabel("Operation")).toHaveValue("detach");
     await expect(panel.getByRole("checkbox")).toBeChecked();
@@ -193,8 +201,12 @@ test.describe("failed cleanup", () => {
     await page
       .locator("article")
       .filter({ hasText: "Retiring source" })
-      .getByRole("button", { name: "Clean up images", exact: true })
+      .getByRole("button", {
+        name: "More actions for Retiring source",
+        exact: true,
+      })
       .click();
+    await page.getByRole("menuitem", { name: "Clean up", exact: true }).click();
     panel = page.getByRole("dialog");
     await expect(panel).toContainText("Failed: 1");
     await panel.getByRole("button", { name: "Retry failed items" }).click();

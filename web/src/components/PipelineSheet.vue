@@ -120,9 +120,13 @@ async function save() {
       </div>
       <div v-if="plugins.error.value" role="alert" class="error-box mx-6 mt-4">
         {{ errorText(plugins.error.value)
-        }}<Button type="button" variant="ghost" @click="plugins.refetch()">{{
-          t("ui.retry")
-        }}</Button>
+        }}<Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          @click="plugins.refetch()"
+          >{{ t("ui.retry") }}</Button
+        >
       </div>
       <form
         v-if="form"
@@ -167,7 +171,19 @@ async function save() {
             :stage="form.kind"
             :errors="fieldErrors"
           />
-          <p v-if="error" role="alert" class="error-box">{{ error }}</p>
+          <div v-if="error" role="alert" class="error-box">
+            {{ error }}
+            <Button
+              v-if="conflict"
+              type="button"
+              variant="outline"
+              size="sm"
+              class="mt-3"
+              :disabled="busy"
+              @click="load"
+              >{{ t("ui.reload") }}</Button
+            >
+          </div>
         </div>
         <div class="editor-footer">
           <Button
@@ -180,21 +196,18 @@ async function save() {
           <Button type="submit" :loading="busy">{{
             busy ? t("ui.saving") : t("ui.save")
           }}</Button>
-          <Button
-            v-if="conflict"
-            type="button"
-            variant="outline"
-            :disabled="busy"
-            @click="load"
-            >{{ t("ui.reload") }}</Button
-          >
         </div>
       </form>
       <div v-else-if="error" role="alert" class="error-box">
         {{ error }}
-        <Button type="button" variant="ghost" :disabled="busy" @click="load">{{
-          t("ui.retry")
-        }}</Button>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          :disabled="busy"
+          @click="load"
+          >{{ t("ui.retry") }}</Button
+        >
       </div>
       <p v-else class="subtle">{{ t("ui.loading") }}</p>
     </SheetContent></Sheet

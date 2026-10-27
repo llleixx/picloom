@@ -81,9 +81,11 @@ const kinds = computed(() => ({
 </script>
 <template>
   <div class="max-w-6xl">
-    <h1 class="page-heading">{{ t("system.title") }}</h1>
+    <header class="page-header">
+      <h1 class="page-heading">{{ t("system.title") }}</h1>
+    </header>
     <div
-      class="mt-5 mb-6 flex gap-1 border-b pb-3"
+      class="mb-6 flex gap-1 border-b pb-3"
       role="tablist"
       :aria-label="t('system.title')"
     >
@@ -136,7 +138,7 @@ const kinds = computed(() => ({
         </p>
         <section class="border-t pt-6">
           <div class="flex flex-wrap items-center justify-between gap-3">
-            <h2 class="font-medium">{{ t("system.local") }}</h2>
+            <h2 class="section-heading">{{ t("system.local") }}</h2>
             <Button
               variant="outline"
               size="sm"
@@ -213,7 +215,7 @@ const kinds = computed(() => ({
           </p>
         </section>
         <section class="border-t pt-6">
-          <h2 class="font-medium">{{ t("system.tasks") }}</h2>
+          <h2 class="section-heading">{{ t("system.tasks") }}</h2>
           <dl class="mt-5 grid grid-cols-3 gap-4">
             <div
               v-for="item in [

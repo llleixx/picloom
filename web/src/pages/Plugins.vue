@@ -5,6 +5,7 @@ import {
   type LocalizedPlugin,
 } from "../../../shared/plugin-localization";
 import { computed, ref } from "vue";
+import { useRouter } from "vue-router";
 import { useQuery } from "@tanstack/vue-query";
 import { comparePluginVersions } from "@/lib/plugin-versions";
 import PluginUpgradeSheet from "@/components/PluginUpgradeSheet.vue";
@@ -12,6 +13,8 @@ import PackageUploadStatus from "@/components/PackageUploadStatus.vue";
 import { usePackageUpload } from "@/lib/package-upload";
 import { Plus } from "lucide-vue-next";
 import { Button } from "@/components/ui/button";
+import ActionMenu from "@/components/ActionMenu.vue";
+import ActionMenuItem from "@/components/ActionMenuItem.vue";
 import {
   Dialog,
   DialogContent,
@@ -20,6 +23,7 @@ import {
 } from "@/components/ui/dialog";
 import { api, errorText, notify, queryClient } from "@/lib/api";
 import type { PackageView, PackageInspection } from "../../../shared/config";
+const router = useRouter();
 const packages = useQuery({
   queryKey: ["plugin-packages"],
   staleTime: 0,
@@ -198,13 +202,13 @@ async function uninstall() {
 }
 </script>
 <template>
-  <div class="space-y-6">
-    <div class="flex flex-wrap items-center justify-between gap-4">
-      <div>
+  <div>
+    <header class="page-header">
+      <div class="min-w-0">
         <h1 class="page-heading">
           {{ t("ui.plugins") }}
         </h1>
-        <p class="mt-1 text-sm text-muted-foreground">
+        <p class="mt-2 subtle">
           {{ t("ui.installPluginsForStoragePathsProcessingAnd") }}
         </p>
       </div>
@@ -228,256 +232,290 @@ async function uninstall() {
           @change="inspect"
         />
       </div>
-    </div>
-    <p class="text-sm text-muted-foreground">
-      {{ t("ui.zipOnlyUpTo20Mb512") }}
-    </p>
-    <PackageUploadStatus v-if="packageUpload" :state="packageUpload" />
-    <p
-      v-if="error"
-      role="alert"
-      class="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive"
-    >
-      {{ error }}
-    </p>
-    <p v-if="packages.isPending.value" class="text-muted-foreground">
-      {{ t("ui.loading") }}
-    </p>
-    <div v-else-if="packages.isError.value" role="alert">
-      <p>{{ errorText(packages.error.value) }}</p>
-      <Button variant="outline" @click="packages.refetch()">{{
-        t("ui.retry")
-      }}</Button>
-    </div>
-    <p v-else-if="!packages.data.value?.length" class="text-muted-foreground">
-      {{ t("ui.noPluginsInstalled") }}
-    </p>
-    <div v-else class="space-y-10">
-      <section
-        v-for="group in groups"
-        :key="group.kind"
-        :aria-labelledby="'plugins-' + group.kind"
+    </header>
+    <div class="space-y-6">
+      <p class="text-sm text-muted-foreground">
+        {{ t("ui.zipOnlyUpTo20Mb512") }}
+      </p>
+      <PackageUploadStatus v-if="packageUpload" :state="packageUpload" />
+      <p
+        v-if="error"
+        role="alert"
+        class="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive"
       >
-        <h2
-          :id="'plugins-' + group.kind"
-          class="mb-3 flex items-center gap-3 text-lg font-semibold"
+        {{ error }}
+      </p>
+      <p v-if="packages.isPending.value" class="subtle">
+        {{ t("ui.loading") }}
+      </p>
+      <div v-else-if="packages.isError.value" role="alert">
+        <p>{{ errorText(packages.error.value) }}</p>
+        <Button variant="outline" @click="packages.refetch()">{{
+          t("ui.retry")
+        }}</Button>
+      </div>
+      <p v-else-if="!packages.data.value?.length" class="subtle">
+        {{ t("ui.noPluginsInstalled") }}
+      </p>
+      <div v-else class="space-y-7">
+        <section
+          v-for="group in groups"
+          :key="group.kind"
+          :aria-labelledby="'plugins-' + group.kind"
         >
-          {{ group.label
-          }}<span class="text-sm font-normal text-muted-foreground">{{
-            group.items.length
-          }}</span>
-        </h2>
-        <div class="divide-y border-y">
-          <article
-            v-for="family in group.items"
-            :key="family.plugin.id"
-            class="space-y-2 py-3"
+          <h2
+            :id="'plugins-' + group.kind"
+            class="section-heading mb-3 flex items-center gap-3"
           >
-            <div class="flex flex-wrap items-start justify-between gap-4">
-              <div class="min-w-0 flex-1 space-y-1">
-                <h3 class="font-medium">{{ family.plugin.name }}</h3>
-                <p
-                  v-if="family.plugin.description"
-                  class="text-sm text-muted-foreground"
-                >
-                  {{ family.plugin.description }}
-                </p>
-                <div
-                  v-if="family.plugin.kind === 'processor'"
-                  class="flex flex-wrap gap-2"
-                >
-                  <span
-                    v-for="stage in [
-                      ...new Set(
-                        family.versions.flatMap((p) => p.supportedStages ?? []),
-                      ),
-                    ]"
-                    :key="stage"
-                    class="rounded-md bg-primary/5 px-2 py-1 text-xs text-primary"
-                    >{{ t(`plugins.stage.${stage}`) }}</span
+            {{ group.label
+            }}<span class="text-sm font-normal text-muted-foreground">{{
+              group.items.length
+            }}</span>
+          </h2>
+          <div class="divide-y border-y">
+            <article
+              v-for="family in group.items"
+              :key="family.plugin.id"
+              class="space-y-2 py-3"
+            >
+              <div class="flex flex-wrap items-start justify-between gap-4">
+                <div class="min-w-0 flex-1 space-y-1">
+                  <h3 class="font-medium">{{ family.plugin.name }}</h3>
+                  <p
+                    v-if="family.plugin.description"
+                    class="text-sm text-muted-foreground"
                   >
+                    {{ family.plugin.description }}
+                  </p>
+                  <div
+                    v-if="family.plugin.kind === 'processor'"
+                    class="flex flex-wrap gap-2"
+                  >
+                    <span
+                      v-for="stage in [
+                        ...new Set(
+                          family.versions.flatMap(
+                            (p) => p.supportedStages ?? [],
+                          ),
+                        ),
+                      ]"
+                      :key="stage"
+                      class="rounded-md bg-primary/5 px-2 py-1 text-xs text-primary"
+                      >{{ t(`plugins.stage.${stage}`) }}</span
+                    >
+                  </div>
+                </div>
+                <Button
+                  v-if="hasUpgrades(family.versions)"
+                  size="sm"
+                  variant="outline"
+                  @click="upgrade(family.plugin)"
+                  >{{ t("plugins.upgrade") }}</Button
+                >
+              </div>
+              <div
+                v-for="p in family.versions"
+                :key="p.version"
+                class="flex flex-wrap items-center justify-between gap-3"
+              >
+                <div
+                  class="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground"
+                >
+                  <span class="break-all">{{ p.id }}</span>
+                  <span class="font-medium text-foreground"
+                    >v{{ p.version }}</span
+                  >
+                  <span v-if="p.source === 'builtin'">{{
+                    t("ui.builtIn")
+                  }}</span>
+                  <span v-if="p.status === 'failed'" class="text-destructive">{{
+                    t("ui.loadFailed")
+                  }}</span>
+                  <span>{{
+                    t("plugins.usageCount", { count: p.instances.length })
+                  }}</span>
+                  <span v-if="family.versions.length > 1 && p.canUninstall">{{
+                    t("plugins.unusedVersion")
+                  }}</span>
+                </div>
+                <div class="flex flex-wrap items-center gap-2">
+                  <Button size="sm" variant="outline" @click="details = p">{{
+                    t("ui.details")
+                  }}</Button>
+                  <Button
+                    v-if="p.status === 'failed'"
+                    size="sm"
+                    variant="outline"
+                    :disabled="busy"
+                    @click="reload(p)"
+                    >{{ t("ui.retryLoading") }}</Button
+                  >
+                  <ActionMenu
+                    v-if="
+                      p.source === 'external' ||
+                      (p.status === 'loaded' && p.kind === 'storage')
+                    "
+                    :label="
+                      t('ui.moreActions', { name: p.name + ' · v' + p.version })
+                    "
+                  >
+                    <ActionMenuItem
+                      v-if="p.status === 'loaded' && p.kind === 'storage'"
+                      @select="
+                        router.push({
+                          path: '/app/config/sources',
+                          query: { plugin: p.id + '@' + p.version },
+                        })
+                      "
+                      >{{ t("ui.createSource") }}</ActionMenuItem
+                    >
+                    <ActionMenuItem
+                      v-if="p.source === 'external'"
+                      destructive
+                      :separator="p.status === 'loaded' && p.kind === 'storage'"
+                      :disabled="busy || !p.canUninstall"
+                      :description="
+                        !p.canUninstall
+                          ? t('plugins.usageCount', {
+                              count: p.instances.length,
+                            })
+                          : undefined
+                      "
+                      @select="remove = p"
+                      >{{ t("ui.uninstall") }}</ActionMenuItem
+                    >
+                  </ActionMenu>
                 </div>
               </div>
-              <Button
-                v-if="hasUpgrades(family.versions)"
-                size="sm"
-                @click="upgrade(family.plugin)"
-                >{{ t("plugins.upgrade") }}</Button
-              >
-            </div>
-            <div
-              v-for="p in family.versions"
-              :key="p.version"
-              class="flex flex-wrap items-center justify-between gap-3"
+            </article>
+          </div>
+        </section>
+      </div>
+      <PluginUpgradeSheet
+        v-if="upgradePlugin"
+        v-model="upgradeOpen"
+        :plugin-id="upgradePlugin.id"
+        :name="upgradePlugin.name"
+        :packages="packages.data.value ?? []"
+      />
+      <Dialog
+        :open="!!inspection"
+        @update:open="
+          (value) => {
+            if (!value && !busy) void cancel();
+          }
+        "
+        ><DialogContent :busy="busy"
+          ><DialogTitle>{{ t("ui.installPlugin") }}</DialogTitle
+          ><DialogDescription>{{
+            t("ui.packageStructureCheckedInstallingWillRunIts")
+          }}</DialogDescription>
+          <div v-if="inspection" class="space-y-3 text-sm">
+            <p>{{ inspection.id }}@{{ inspection.version }}</p>
+            <p>
+              {{ kinds[inspection.kind] }} ·
+              {{
+                t("plugins.archiveSize", {
+                  count: inspection.fileCount,
+                  size: (inspection.expandedBytes / 1024).toFixed(1),
+                })
+              }}
+            </p>
+            <p class="rounded-lg bg-muted p-3">
+              {{ t("ui.pluginsCanAccessServerFilesAndThe") }}
+            </p>
+            <label class="flex gap-2"
+              ><input v-model="trusted" type="checkbox" :disabled="busy" />{{
+                t("ui.iTrustThisPluginAndAllowIt")
+              }}</label
             >
-              <div
-                class="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground"
-              >
-                <span class="break-all">{{ p.id }}</span>
-                <span class="font-medium text-foreground"
-                  >v{{ p.version }}</span
-                >
-                <span v-if="p.source === 'builtin'">{{
-                  t("ui.builtIn")
-                }}</span>
-                <span v-if="p.status === 'failed'" class="text-destructive">{{
-                  t("ui.loadFailed")
-                }}</span>
-                <span>{{
-                  t("plugins.usageCount", { count: p.instances.length })
-                }}</span>
-                <span v-if="family.versions.length > 1 && p.canUninstall">{{
-                  t("plugins.unusedVersion")
-                }}</span>
-              </div>
-              <div class="flex flex-wrap gap-2">
-                <Button size="sm" variant="outline" @click="details = p">{{
-                  t("ui.details")
-                }}</Button>
-                <Button
-                  v-if="p.status === 'failed'"
-                  size="sm"
-                  variant="outline"
-                  :disabled="busy"
-                  @click="reload(p)"
-                  >{{ t("ui.retryLoading") }}</Button
-                >
-                <RouterLink
-                  v-if="p.status === 'loaded' && p.kind === 'storage'"
-                  :to="{
-                    path: '/app/config/sources',
-                    query: { plugin: p.id + '@' + p.version },
-                  }"
-                  class="inline-flex items-center px-2 text-sm text-primary"
-                  >{{ t("ui.createSource") }}</RouterLink
-                >
-                <Button
-                  v-if="p.source === 'external'"
-                  size="sm"
-                  variant="outline"
-                  :disabled="busy || !p.canUninstall"
-                  @click="remove = p"
-                  >{{ t("ui.uninstall") }}</Button
-                >
-              </div>
+            <p v-if="error" role="alert" class="text-destructive">
+              {{ error }}
+            </p>
+            <div class="flex justify-end gap-2">
+              <Button variant="outline" :disabled="busy" @click="cancel">{{
+                t("ui.cancel")
+              }}</Button
+              ><Button :loading="busy" :disabled="!trusted" @click="install">{{
+                busy ? t("ui.installing") : t("ui.install")
+              }}</Button>
             </div>
-          </article>
-        </div>
-      </section>
-    </div>
-    <PluginUpgradeSheet
-      v-if="upgradePlugin"
-      v-model="upgradeOpen"
-      :plugin-id="upgradePlugin.id"
-      :name="upgradePlugin.name"
-      :packages="packages.data.value ?? []"
-    />
-    <Dialog
-      :open="!!inspection"
-      @update:open="
-        (value) => {
-          if (!value && !busy) void cancel();
-        }
-      "
-      ><DialogContent :busy="busy"
-        ><DialogTitle>{{ t("ui.installPlugin") }}</DialogTitle
-        ><DialogDescription>{{
-          t("ui.packageStructureCheckedInstallingWillRunIts")
-        }}</DialogDescription>
-        <div v-if="inspection" class="space-y-3 text-sm">
-          <p>{{ inspection.id }}@{{ inspection.version }}</p>
-          <p>
-            {{ kinds[inspection.kind] }} ·
-            {{
-              t("plugins.archiveSize", {
-                count: inspection.fileCount,
-                size: (inspection.expandedBytes / 1024).toFixed(1),
-              })
-            }}
-          </p>
-          <p class="rounded-lg bg-muted p-3">
-            {{ t("ui.pluginsCanAccessServerFilesAndThe") }}
-          </p>
-          <label class="flex gap-2"
-            ><input v-model="trusted" type="checkbox" :disabled="busy" />{{
-              t("ui.iTrustThisPluginAndAllowIt")
-            }}</label
-          >
+          </div></DialogContent
+        ></Dialog
+      >
+      <Dialog
+        :open="!!remove"
+        @update:open="
+          (value) => {
+            if (!value && !busy) remove = null;
+          }
+        "
+        ><DialogContent :busy="busy"
+          ><DialogTitle>{{ t("ui.uninstallPlugin") }}</DialogTitle
+          ><DialogDescription>{{
+            t("ui.removesThisVersionOnlySettingsAndImages")
+          }}</DialogDescription>
+          <p>{{ remove?.name }} · {{ remove?.version }}</p>
           <p v-if="error" role="alert" class="text-destructive">{{ error }}</p>
           <div class="flex justify-end gap-2">
-            <Button variant="outline" :disabled="busy" @click="cancel">{{
+            <Button variant="outline" :disabled="busy" @click="remove = null">{{
               t("ui.cancel")
             }}</Button
-            ><Button :loading="busy" :disabled="!trusted" @click="install">{{
-              busy ? t("ui.installing") : t("ui.install")
+            ><Button variant="destructive" :loading="busy" @click="uninstall">{{
+              busy ? t("ui.uninstalling") : t("ui.uninstallPlugin2")
             }}</Button>
-          </div>
-        </div></DialogContent
-      ></Dialog
-    >
-    <Dialog
-      :open="!!remove"
-      @update:open="
-        (value) => {
-          if (!value && !busy) remove = null;
-        }
-      "
-      ><DialogContent :busy="busy"
-        ><DialogTitle>{{ t("ui.uninstallPlugin") }}</DialogTitle
-        ><DialogDescription>{{
-          t("ui.removesThisVersionOnlySettingsAndImages")
-        }}</DialogDescription>
-        <p>{{ remove?.name }} · {{ remove?.version }}</p>
-        <p v-if="error" role="alert" class="text-destructive">{{ error }}</p>
-        <div class="flex justify-end gap-2">
-          <Button variant="outline" :disabled="busy" @click="remove = null">{{
-            t("ui.cancel")
-          }}</Button
-          ><Button variant="destructive" :loading="busy" @click="uninstall">{{
-            busy ? t("ui.uninstalling") : t("ui.uninstallPlugin2")
-          }}</Button>
-        </div></DialogContent
-      ></Dialog
-    >
-    <Dialog
-      :open="!!details"
-      @update:open="
-        (value) => {
-          if (!value) details = null;
-        }
-      "
-      ><DialogContent
-        ><DialogTitle>{{ t("ui.pluginDetails") }}</DialogTitle
-        ><DialogDescription>{{ t("ui.statusAndUsage") }}</DialogDescription>
-        <div v-if="details" class="space-y-3 text-sm">
-          <p>{{ details.name }} · {{ details.id }}@{{ details.version }}</p>
-          <p>
-            <span v-if="details.source === 'builtin' || details.author">
-              {{ details.source === "builtin" ? t("ui.builtIn") : details.author }}
-              ·
-            </span>
-            {{
-              details.status === "loaded" ? t("ui.loaded") : t("ui.loadFailed")
-            }}
-          </p>
-          <p v-if="details.error" class="text-destructive">
-            {{ t("plugins.loadError") }}
-            <span class="block text-xs">{{ details.error }}</span>
-          </p>
-          <p v-if="!details.instances.length">{{ t("ui.notInUse") }}</p>
-          <ul v-else class="space-y-2">
-            <li v-for="i in details.instances" :key="i.id">
-              <RouterLink
-                v-if="details.kind === 'storage'"
-                :to="{ path: '/app/config/sources', query: { instance: i.id } }"
-                class="text-primary"
-                >{{ i.name }}</RouterLink
-              >
-              <span v-else>{{ i.name }}</span>
-            </li>
-          </ul>
-        </div></DialogContent
-      ></Dialog
-    >
+          </div></DialogContent
+        ></Dialog
+      >
+      <Dialog
+        :open="!!details"
+        @update:open="
+          (value) => {
+            if (!value) details = null;
+          }
+        "
+        ><DialogContent
+          ><DialogTitle>{{ t("ui.pluginDetails") }}</DialogTitle
+          ><DialogDescription>{{ t("ui.statusAndUsage") }}</DialogDescription>
+          <div v-if="details" class="space-y-3 text-sm">
+            <p>{{ details.name }} · {{ details.id }}@{{ details.version }}</p>
+            <p>
+              <span v-if="details.source === 'builtin' || details.author">
+                {{
+                  details.source === "builtin"
+                    ? t("ui.builtIn")
+                    : details.author
+                }}
+                ·
+              </span>
+              {{
+                details.status === "loaded"
+                  ? t("ui.loaded")
+                  : t("ui.loadFailed")
+              }}
+            </p>
+            <p v-if="details.error" class="text-destructive">
+              {{ t("plugins.loadError") }}
+              <span class="block text-xs">{{ details.error }}</span>
+            </p>
+            <p v-if="!details.instances.length">{{ t("ui.notInUse") }}</p>
+            <ul v-else class="space-y-2">
+              <li v-for="i in details.instances" :key="i.id">
+                <RouterLink
+                  v-if="details.kind === 'storage'"
+                  :to="{
+                    path: '/app/config/sources',
+                    query: { instance: i.id },
+                  }"
+                  class="text-primary"
+                  >{{ i.name }}</RouterLink
+                >
+                <span v-else>{{ i.name }}</span>
+              </li>
+            </ul>
+          </div></DialogContent
+        ></Dialog
+      >
+    </div>
   </div>
 </template>

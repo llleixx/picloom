@@ -26,7 +26,6 @@ export const en = {
   "organization.editCollection": "Edit collection",
   "organization.deleteTag": "Delete tag?",
   "organization.deleteCollection": "Delete collection?",
-  "organization.actions": "Manage {name}",
   "organization.nameAscending": "Name A–Z",
   "organization.nameDescending": "Name Z–A",
   "organization.recentlyCreated": "Recently created",
@@ -94,7 +93,7 @@ export const en = {
   "removal.deleteHint": "Delete storage files",
   "removal.detachHint": "Keep storage files",
   "removal.preserveLast": "Keep images with no other available replica",
-  "cleanup.title": "Clean up images",
+  "cleanup.title": "Clean up",
   "cleanup.preview":
     "{total} replicas; {last} have no other available replica.",
   "cleanup.groups":
@@ -143,6 +142,8 @@ export const en = {
   "themes.fallback": "Using the default theme.",
   "themes.trust":
     "Themes run trusted browser code and login themes can read entered credentials. Install only themes you trust.",
+  "themes.uploadPackage": "Upload theme package",
+  "themes.packageHint": "ZIP only. Up to 20 MB.",
   "themes.upload": "Upload ZIP (up to 20 MB)",
   "themes.restore": "Restore default theme",
   "themes.defaultActive": "Default theme active",
@@ -536,6 +537,7 @@ export const en = {
   "ui.deletingNow": "Deleting…",
   "ui.revoking": "Revoking…",
   "ui.signingOut": "Signing out…",
+  "ui.moreActions": "More actions for {name}",
   "ui.copyId": "Copy ID",
   "ui.copy": "Copy",
   "ui.uninstalling": "Uninstalling…",

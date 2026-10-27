@@ -87,7 +87,7 @@ async function restore() {
 </script>
 <template>
   <section v-if="owner" class="border-t pt-6">
-    <h2 class="font-medium">{{ t("backup.title") }}</h2>
+    <h2 class="section-heading">{{ t("backup.title") }}</h2>
     <p v-if="!available" class="subtle mt-2">{{ t("backup.unsupported") }}</p>
     <template v-else>
       <p class="subtle mt-2">{{ t("backup.hint") }}</p>

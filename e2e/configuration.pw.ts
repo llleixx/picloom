@@ -101,12 +101,16 @@ test("manage instances, groups, profiles and chains, then upload multiple copies
     .locator("..")
     .locator("..");
   await expect(sharedRow).toContainText("Managed upload");
-  await expect(
-    sharedRow.getByRole("button", { name: "Delete", exact: true }),
-  ).toBeDisabled();
   await sharedRow
-    .getByRole("button", { name: "Duplicate", exact: true })
+    .getByRole("button", {
+      name: "More actions for Optimize images",
+      exact: true,
+    })
     .click();
+  await expect(
+    page.getByRole("menuitem", { name: "Delete", exact: true }),
+  ).toBeDisabled();
+  await page.getByRole("menuitem", { name: "Duplicate", exact: true }).click();
   await page.getByLabel("Pipeline name").fill("Independent copy");
   await page.getByLabel("Quality", { exact: true }).fill("70");
   await page
@@ -118,7 +122,13 @@ test("manage instances, groups, profiles and chains, then upload multiple copies
     .getByRole("heading", { name: "Independent copy", exact: true })
     .locator("..")
     .locator("..");
-  await copyRow.getByRole("button", { name: "Delete", exact: true }).click();
+  await copyRow
+    .getByRole("button", {
+      name: "More actions for Independent copy",
+      exact: true,
+    })
+    .click();
+  await page.getByRole("menuitem", { name: "Delete", exact: true }).click();
   await page
     .getByRole("button", { name: "Confirm delete", exact: true })
     .click();
@@ -176,12 +186,7 @@ test("manage instances, groups, profiles and chains, then upload multiple copies
   await page
     .getByRole("button", { name: "Confirm delete", exact: true })
     .click();
-  await expect(
-    page
-      .getByTestId("detail-body")
-      .getByRole("status")
-      .filter({ hasText: "Removed" }),
-  ).toBeVisible();
+  await expect(page.getByTestId("detail-body")).toHaveCount(0);
   expect((await page.request.get(url)).status()).toBe(404);
   expect(errors).toEqual([]);
 });

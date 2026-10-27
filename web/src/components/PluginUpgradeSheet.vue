@@ -267,9 +267,13 @@ async function save() {
                 {{ p.version }}
               </option>
             </select>
-            <Button size="sm" :disabled="busy" @click="select(u)">{{
-              t("plugins.upgrade")
-            }}</Button>
+            <Button
+              size="sm"
+              variant="outline"
+              :disabled="busy"
+              @click="select(u)"
+              >{{ t("plugins.upgrade") }}</Button
+            >
           </div>
         </div>
       </div>

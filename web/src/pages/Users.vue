@@ -2,7 +2,7 @@
 import { canManageUser } from "../../../shared/roles";
 import { ref, reactive, computed } from "vue";
 import { useQuery } from "@tanstack/vue-query";
-import { Plus, Pencil } from "lucide-vue-next";
+import { Plus } from "lucide-vue-next";
 import { api, errorText, queryClient, session } from "@/lib/api";
 import { t } from "@/lib/i18n";
 import type { UserView, UploadProfileView } from "../../../shared/api";
@@ -116,7 +116,7 @@ async function resetPassword() {
 </script>
 <template>
   <section>
-    <div class="mb-6 flex items-center justify-between">
+    <div class="page-header">
       <h1 class="page-heading">{{ t("users.title") }}</h1>
       <Button @click="edit()"><Plus />{{ t("ui.create") }}</Button>
     </div>
@@ -140,7 +140,7 @@ async function resetPassword() {
     <p v-if="users.isPending.value" class="subtle">{{ t("ui.loading") }}</p>
     <p v-else-if="users.error.value" role="alert" class="error-box">
       {{ errorText(users.error.value)
-      }}<Button variant="ghost" @click="users.refetch()">{{
+      }}<Button variant="ghost" size="sm" @click="users.refetch()">{{
         t("ui.retry")
       }}</Button>
     </p>
@@ -151,11 +151,11 @@ async function resetPassword() {
       <article
         v-for="user in users.data.value.items"
         :key="user.id"
-        class="flex items-center justify-between gap-2 py-3"
+        class="flex items-start justify-between gap-4 py-3"
       >
-        <div>
-          <h2 class="font-medium">{{ user.username }}</h2>
-          <p class="subtle">
+        <div class="min-w-0">
+          <h2 class="break-words font-medium">{{ user.username }}</h2>
+          <p class="mt-1 subtle">
             {{
               user.role === "owner"
                 ? t("users.owner")
@@ -169,20 +169,29 @@ async function resetPassword() {
             }}
           </p>
         </div>
-        <Button v-if="canEdit(user)" variant="ghost" @click="edit(user)"
-          ><Pencil />{{ t("ui.edit") }}</Button
+        <Button
+          v-if="canEdit(user)"
+          size="sm"
+          variant="outline"
+          class="shrink-0"
+          @click="edit(user)"
+          >{{ t("ui.edit") }}</Button
         >
       </article>
     </div>
     <div class="mt-5 flex items-center justify-end gap-3">
-      <Button variant="ghost" :disabled="page === 1" @click="page--">{{
-        t("users.previous")
-      }}</Button
+      <Button
+        variant="outline"
+        size="sm"
+        :disabled="page === 1"
+        @click="page--"
+        >{{ t("users.previous") }}</Button
       ><span
         >{{ page }} /
         {{ Math.max(1, Math.ceil((users.data.value?.total ?? 0) / 30)) }}</span
       ><Button
-        variant="ghost"
+        variant="outline"
+        size="sm"
         :disabled="page * 30 >= (users.data.value?.total ?? 0)"
         @click="page++"
         >{{ t("users.next") }}</Button
@@ -258,14 +267,14 @@ async function resetPassword() {
             /></label>
             <p class="subtle">{{ t("limits.hint") }}</p>
             <fieldset v-if="draft.role === 'member'" class="space-y-3">
-              <legend class="mb-2 font-medium">
+              <legend class="mb-2 text-sm font-medium">
                 {{ t("ui.uploadProfiles") }}
               </legend>
               <p class="subtle">{{ t("users.profileHint") }}</p>
               <label
                 v-for="profile in profiles.data.value"
                 :key="profile.id"
-                class="flex items-center gap-2"
+                class="flex items-center gap-2 text-sm"
                 ><input
                   v-model="draft.profileIds"
                   type="checkbox"

@@ -15,12 +15,19 @@ test("install a ZIP, create an instance, block referenced uninstall, remove inst
     (plugin: { source: string }) => plugin.source === "builtin",
   ).length;
   expect(builtinCount).toBeGreaterThan(0);
-  await expect(page.getByText("Built-in · Protected")).toHaveCount(
+  await expect(page.getByText("Built-in", { exact: true })).toHaveCount(
     builtinCount,
   );
+  const builtinStorage = page.locator("article").filter({
+    has: page.getByText("builtin.local", { exact: true }),
+  });
+  await builtinStorage
+    .getByRole("button", { name: /^More actions for / })
+    .click();
   await expect(
-    page.getByRole("button", { name: "Uninstall", exact: true }),
+    page.getByRole("menuitem", { name: "Uninstall", exact: true }),
   ).toHaveCount(0);
+  await page.keyboard.press("Escape");
   await page.getByLabel("Upload package", { exact: true }).setInputFiles({
     name: "example.zip",
     mimeType: "application/zip",
@@ -43,7 +50,9 @@ test("install a ZIP, create an instance, block referenced uninstall, remove inst
       exact: true,
     }),
   });
-  await expect(card.getByText("Loaded", { exact: true })).toBeVisible();
+  await expect(
+    card.getByRole("button", { name: "Details", exact: true }),
+  ).toBeVisible();
   await expect(card.getByText("References: 0", { exact: true })).toBeVisible();
   await page.screenshot({
     path: "outputs/plugins-management.png",
@@ -68,22 +77,31 @@ test("install a ZIP, create an instance, block referenced uninstall, remove inst
   await page.getByRole("button", { name: "Save", exact: true }).click();
   await expect(page.getByRole("dialog")).toHaveCount(0);
   await page.getByRole("link", { name: "Plugins", exact: true }).click();
+  await card.getByRole("button", { name: /^More actions for / }).click();
   await expect(
-    card.getByRole("button", { name: "Uninstall", exact: true }),
+    page.getByRole("menuitem", { name: "Uninstall", exact: true }),
   ).toBeDisabled();
+  await page.keyboard.press("Escape");
   await page
     .getByRole("link", { name: "Upload Profiles", exact: true })
     .click();
   const ownerRow = page
     .getByRole("heading", { name: "Install test profile", exact: true })
     .locator("../..");
-  await ownerRow.getByRole("button", { name: "Delete", exact: true }).click();
+  await ownerRow
+    .getByRole("button", {
+      name: "More actions for Install test profile",
+      exact: true,
+    })
+    .click();
+  await page.getByRole("menuitem", { name: "Delete", exact: true }).click();
   await page
     .getByRole("button", { name: "Confirm delete", exact: true })
     .click();
   await expect(page.getByRole("dialog")).toHaveCount(0);
   await page.getByRole("link", { name: "Plugins", exact: true }).click();
-  await card.getByRole("button", { name: "Uninstall", exact: true }).click();
+  await card.getByRole("button", { name: /^More actions for / }).click();
+  await page.getByRole("menuitem", { name: "Uninstall", exact: true }).click();
   await page
     .getByRole("button", { name: "Uninstall plugin", exact: true })
     .click();

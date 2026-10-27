@@ -450,7 +450,7 @@ async function remove() {
         </p>
         <div v-else-if="detail.error.value" role="alert" class="error-box">
           {{ errorText(detail.error.value)
-          }}<Button variant="ghost" @click="detail.refetch()">{{
+          }}<Button variant="ghost" size="sm" @click="detail.refetch()">{{
             t("ui.retry")
           }}</Button>
         </div>
@@ -616,9 +616,12 @@ async function remove() {
             <div class="mt-3 space-y-3">
               <p v-if="operations.error.value" class="error-box">
                 {{ errorText(operations.error.value)
-                }}<Button variant="ghost" @click="operations.refetch()">{{
-                  t("ui.retry")
-                }}</Button>
+                }}<Button
+                  variant="ghost"
+                  size="sm"
+                  @click="operations.refetch()"
+                  >{{ t("ui.retry") }}</Button
+                >
               </p>
               <div
                 v-for="replica in operations.data.value?.replicas"
