@@ -1336,11 +1336,6 @@ export class Files {
       await this.auth.authorizeUpload(current, next.upload_profile_id, r);
       if (!(await r.profile(next.upload_profile_id))?.enabled)
         throw new Conflict("Upload profile unavailable");
-      if (!old.mime_type || old.mime_type !== next.mime_type)
-        throw new AppError(
-          "REPLACEMENT_FORMAT",
-          "Replacement must have the same image format",
-        );
       for (const file of [old, next]) {
         const replicas = await r.replicas(file.id);
         const deletedReplicas = new Set(

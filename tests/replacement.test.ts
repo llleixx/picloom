@@ -2,12 +2,12 @@ import { expect, test } from "bun:test";
 import sharp from "sharp";
 import { fixture } from "./helpers";
 
-test("replacement preserves the public link despite ended replica failure and cleans only the old objects", async () => {
+test("cross-format replacement preserves the public link despite ended replica failure and cleans only the old objects", async () => {
   const f = await fixture();
   try {
     const old = await (await f.upload()).json();
-    const bytes = await sharp(f.png).resize(12, 6).png().toBuffer();
-    const next = await (await f.upload(undefined, bytes)).json();
+    const bytes = await sharp(f.png).resize(12, 6).jpeg().toBuffer();
+    const next = await (await f.upload(undefined, bytes, "new.jpg")).json();
     await f.app.files.sweep();
     const source = await (
       await f.request("/api/storage-sources", "POST", {
@@ -53,6 +53,10 @@ test("replacement preserves the public link despite ended replica failure and cl
     expect(await f.app.db.read((r) => r.file(old.id))).toBeNull();
     const response = await f.request(new URL(old.url).pathname);
     expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toBe("image/jpeg");
+    const replacement = (await f.app.db.read((r) => r.file(next.id)))!;
+    expect(replacement.mime_type).toBe("image/jpeg");
+    expect([replacement.width, replacement.height]).toEqual([12, 6]);
     expect(Buffer.from(await response.arrayBuffer()).equals(bytes)).toBe(true);
     expect((await f.request(new URL(next.url).pathname)).status).toBe(404);
   } finally {
@@ -60,12 +64,10 @@ test("replacement preserves the public link despite ended replica failure and cl
   }
 });
 
-test("replacement rejects wrong formats, unsettled tasks, stale paths, and another user's image", async () => {
+test("replacement rejects unsettled tasks, stale paths, and another user's image", async () => {
   const f = await fixture();
   try {
     const old = await (await f.upload()).json();
-    const jpeg = await sharp(f.png).jpeg().toBuffer();
-    const other = await (await f.upload(undefined, jpeg, "new.jpg")).json();
     const next = await (await f.upload()).json();
     await f.app.files.sweep();
     const replace = (
@@ -76,7 +78,6 @@ test("replacement rejects wrong formats, unsettled tasks, stale paths, and anoth
         replacementId: candidate.id,
         replacementPath: path,
       });
-    expect((await replace(other)).status).toBe(400);
     expect((await replace(next, "/stale.png")).status).toBe(409);
     await f.app.db.transaction(async (r) => {
       const replicas = await r.replicas(next.id);

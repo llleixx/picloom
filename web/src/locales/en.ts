@@ -188,12 +188,10 @@ export const en = {
 
   "images.replace": "Replace image",
   "images.replaceHint":
-    "Keep the public link, original tags and collections. Use the same final format. Cached images may take time to refresh.",
+    "Keep the public link, original tags and collections. The URL extension may differ from the new format. Cached images may take time to refresh.",
   "images.replaceFailure":
     "Check Images before retrying; the new upload may already exist.",
   "images.replacing": "Uploading and waiting for background operations…",
-  "images.replaceFormat":
-    "The replacement must have the same final image format.",
   "images.replaceBusy":
     "Image background operations must finish successfully first.",
 

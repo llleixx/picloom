@@ -97,7 +97,6 @@ const messages: Record<string, MessageKey> = {
   DEFAULT_PROFILE_REQUIRED: "profiles.required",
   PIPELINE_MISSING: "errors.pipeline_missing",
   BUSY: "errors.busy",
-  REPLACEMENT_FORMAT: "images.replaceFormat",
   REPLACEMENT_BUSY: "images.replaceBusy",
   CONFLICT: "errors.conflict",
   DISABLED: "errors.disabled",
