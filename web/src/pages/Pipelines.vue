@@ -18,7 +18,7 @@ const pipelines = useQuery({
   queryFn: ({ signal }) => api<PipelineView[]>("/api/pipelines", { signal }),
 });
 const groups = computed(() =>
-  (["upload", "access", "post_save"] as const)
+  (["access", "upload", "post_save"] as const)
     .map((kind) => ({
       kind,
       label: t(`pipelines.group.${kind}`),
