@@ -972,6 +972,7 @@ async function navigate(direction: -1 | 1) {
         :key="chip.key"
         type="button"
         class="upload-chip"
+        :class="{ 'upload-chip-collection': chip.icon === 'collection' }"
         :title="chip.label"
         :aria-label="t('images.removeFilter', { name: chip.label })"
         @click="chip.remove()"
@@ -1223,29 +1224,6 @@ async function navigate(direction: -1 | 1) {
             </span>
           </p>
           <div
-            v-if="file.tags?.length"
-            class="mt-2 flex min-w-0 items-center gap-1"
-          >
-            <span
-              v-for="tag in file.tags.slice(0, 2)"
-              :key="tag.id"
-              class="min-w-0 max-w-[45%] truncate rounded bg-muted px-1.5 py-0.5 text-[11px]"
-              :title="tag.name"
-              >{{ tag.name }}</span
-            >
-            <span
-              v-if="file.tags.length > 2"
-              class="shrink-0 text-[11px] text-muted-foreground"
-              :title="
-                file.tags
-                  .slice(2)
-                  .map((tag) => tag.name)
-                  .join(' · ')
-              "
-              >+{{ file.tags.length - 2 }}</span
-            >
-          </div>
-          <div
             class="mt-2 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[11px] text-muted-foreground"
           >
             <span
@@ -1273,6 +1251,53 @@ async function navigate(direction: -1 | 1) {
               }}
               <span class="mx-1">·</span> {{ size(file.byteSize) }}</span
             ><span>· {{ file.width ?? "—" }} × {{ file.height ?? "—" }}</span>
+          </div>
+          <div
+            v-if="file.tags?.length || file.collections?.length"
+            class="mt-2 flex min-w-0 items-center gap-1 overflow-hidden"
+          >
+            <span
+              v-for="tag in file.tags.slice(0, 2)"
+              :key="tag.id"
+              class="upload-chip upload-chip-compact min-w-0 max-w-[45%]"
+              :title="t('organization.tags') + ': ' + tag.name"
+              ><Tag /><span class="truncate">{{ tag.name }}</span></span
+            >
+            <span
+              v-if="file.tags.length > 2"
+              class="shrink-0 text-[11px] text-muted-foreground"
+              :title="
+                t('organization.tags') +
+                ': ' +
+                file.tags
+                  .slice(2)
+                  .map((tag) => tag.name)
+                  .join(' · ')
+              "
+              >+{{ file.tags.length - 2 }}</span
+            >
+            <span
+              v-for="collection in file.collections?.slice(0, 2)"
+              :key="collection.id"
+              class="upload-chip upload-chip-compact upload-chip-collection min-w-0 max-w-[45%]"
+              :title="t('organization.collections') + ': ' + collection.name"
+              ><Folder /><span class="truncate">{{
+                collection.name
+              }}</span></span
+            >
+            <span
+              v-if="file.collections && file.collections.length > 2"
+              class="shrink-0 text-[11px] text-muted-foreground"
+              :title="
+                t('organization.collections') +
+                ': ' +
+                file.collections
+                  .slice(2)
+                  .map((collection) => collection.name)
+                  .join(' · ')
+              "
+              >+{{ file.collections.length - 2 }}</span
+            >
           </div>
         </button>
         <span

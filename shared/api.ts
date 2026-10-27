@@ -20,7 +20,7 @@ export interface FileView {
   /** Administrator list/detail responses only; guest uploads. */
   guestIp?: string | null;
   tags: OrganizationItem[];
-  /** Detail response only. */
+  /** List and detail responses. */
   collections?: OrganizationItem[];
   origin?: FileOrigin;
   /** Detail response only; pending/running background operations. */

@@ -131,6 +131,15 @@
   .upload-chip {
     @apply inline-flex min-h-8 max-w-full items-center gap-1.5 rounded-full border border-border/60 bg-muted/60 px-2.5 py-1 text-xs transition-colors hover:bg-muted;
   }
+  .upload-chip-collection {
+    @apply rounded-md border-border bg-muted/30 hover:bg-muted/60;
+  }
+  .upload-chip-compact {
+    @apply min-h-6 gap-1 px-1.5 py-0.5 text-[11px];
+  }
+  .upload-chip-compact svg {
+    @apply size-3;
+  }
   .upload-profile {
     @apply inline-flex h-9 min-w-0 max-w-full items-center gap-1 rounded-full border bg-muted/40 pl-3 pr-2 text-xs;
   }

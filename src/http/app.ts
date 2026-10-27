@@ -701,6 +701,7 @@ export function handler(app: Application) {
                 )
               : null;
             const tags = await r.fileTags(files.map((f) => f.id));
+            const collections = await r.fileCollections(files.map((f) => f.id));
             const issues = await r.fileTaskIssues(files.map((f) => f.id));
             const replicaIssues = new Set(
               issues.filter((t) => t.kind !== "action").map((t) => t.fileId),
@@ -724,6 +725,12 @@ export function handler(app: Application) {
                   id,
                   name,
                 }));
+                item.collections = (collections.get(f.id) ?? []).map(
+                  ({ id, name }) => ({
+                    id,
+                    name,
+                  }),
+                );
                 item.replicaIssue = replicaIssues.has(f.id);
                 item.postSaveIssue = postSaveIssues.has(f.id);
                 if (pending) item.backgroundPending = pending.has(f.id);

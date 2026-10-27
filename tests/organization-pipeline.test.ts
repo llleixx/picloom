@@ -240,6 +240,12 @@ test("upload ensure updates flow to the next step and path; post-save organizati
     const organized = await relations(f, file.id);
     expect(organized.tags.map((x) => x.id)).toEqual([savedTag]);
     expect(organized.collections.map((x) => x.id)).toEqual([uploadCollection]);
+    const listed = await f.request("/api/files");
+    expect(listed.status).toBe(200);
+    const items = (await listed.json()) as import("../shared/api").FileView[];
+    const listedFile = items.find((item) => item.id === file.id)!;
+    expect(listedFile.tags).toEqual([...organized.tags]);
+    expect(listedFile.collections).toEqual([...organized.collections]);
   } finally {
     await f.close();
   }

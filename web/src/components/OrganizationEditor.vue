@@ -144,7 +144,7 @@ async function save(mode: "save" | "add" | "remove") {
         <span
           v-for="collection in files[0]?.collections"
           :key="collection.id"
-          class="upload-chip"
+          class="upload-chip upload-chip-collection"
           :title="collection.name"
           ><Folder /><span class="truncate">{{ collection.name }}</span></span
         >
