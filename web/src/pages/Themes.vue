@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { ref, shallowRef, onMounted, computed } from "vue";
 import type { Config, InstalledTheme, Manifest } from "@picloom/theme-sdk";
-import { api, ApiError, errorText, notify, queryClient } from "../lib/api";
+import { api, ApiError, errorText, notify } from "../lib/api";
+import PackageUploadStatus from "../components/PackageUploadStatus.vue";
+import { usePackageUpload } from "../lib/package-upload";
 import { t, locale } from "../lib/i18n";
 import { messageText } from "../../../shared/package-localization";
 function themeName(manifest: Manifest) {
@@ -19,6 +21,7 @@ const inspected = shallowRef<{ ticket: string; manifest: Manifest } | null>(
   busy = ref(false),
   error = ref("");
 const editSession = ref(0);
+const { state: packageUpload, upload } = usePackageUpload();
 const defaultLocale = ref("");
 const languageRevision = ref(0);
 const editLanguages = computed(() =>
@@ -68,14 +71,11 @@ function edit(theme: InstalledTheme) {
 const path = () =>
   `/api/themes/${selected.value!.manifest.id}/${selected.value!.manifest.version}`;
 async function inspect(file?: File) {
-  if (!file) return;
+  if (!file || busy.value) return;
   inspected.value = null;
   confirmed.value = false;
   await run(async () => {
-    inspected.value = await api("/api/themes/inspect", {
-      method: "POST",
-      body: file,
-    });
+    inspected.value = await upload("/api/themes/inspect", file, file);
   });
 }
 async function save() {
@@ -138,6 +138,7 @@ onMounted(() => run(load));
         t("themes.defaultActive")
       }}</span>
     </div>
+    <PackageUploadStatus v-if="packageUpload" :state="packageUpload" />
     <div v-if="inspected" class="panel space-y-4 p-4">
       <p>
         {{ themeName(inspected.manifest) }} · {{ inspected.manifest.version }}

@@ -939,6 +939,8 @@ export const en = {
   "ui.processingOnServer": "Processing on server…",
   "ui.uploaded": "Uploaded",
   "ui.uploadProgress": "Upload progress",
+  "ui.uploadingPackage": "Uploading package…",
+  "ui.inspectingPackage": "Upload complete. Checking package…",
   "ui.actionPlugin": "Action plugin",
   "ui.processorPlugin": "Processor plugin",
   "ui.unsupportedBehavior": "Unsupported behavior",

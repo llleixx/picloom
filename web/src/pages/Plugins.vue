@@ -8,6 +8,8 @@ import { computed, ref } from "vue";
 import { useQuery } from "@tanstack/vue-query";
 import { comparePluginVersions } from "@/lib/plugin-versions";
 import PluginUpgradeSheet from "@/components/PluginUpgradeSheet.vue";
+import PackageUploadStatus from "@/components/PackageUploadStatus.vue";
+import { usePackageUpload } from "@/lib/package-upload";
 import { Plus } from "lucide-vue-next";
 import { Button } from "@/components/ui/button";
 import {
@@ -31,6 +33,7 @@ const packages = useQuery({
 });
 type DisplayPackage = LocalizedPlugin<PackageView>;
 const packageInput = ref<HTMLInputElement>();
+const { state: packageUpload, upload } = usePackageUpload();
 const inspection = ref<PackageInspection | null>(null),
   trusted = ref(false),
   busy = ref(false),
@@ -102,7 +105,7 @@ async function refresh() {
 async function inspect(event: Event) {
   const input = event.target as HTMLInputElement;
   const file = input.files?.[0];
-  if (!file) return;
+  if (!file || busy.value) return;
   busy.value = true;
   error.value = "";
   try {
@@ -110,10 +113,11 @@ async function inspect(event: Event) {
       throw new Error(t("ui.packageExceeds20Mb"));
     const form = new FormData();
     form.set("file", file);
-    inspection.value = await api<PackageInspection>("/api/plugins/inspect", {
-      method: "POST",
-      body: form,
-    });
+    inspection.value = await upload<PackageInspection>(
+      "/api/plugins/inspect",
+      file,
+      form,
+    );
     trusted.value = false;
   } catch (e) {
     error.value = errorText(e);
@@ -228,6 +232,7 @@ async function uninstall() {
     <p class="text-sm text-muted-foreground">
       {{ t("ui.zipOnlyUpTo20Mb512") }}
     </p>
+    <PackageUploadStatus v-if="packageUpload" :state="packageUpload" />
     <p
       v-if="error"
       role="alert"

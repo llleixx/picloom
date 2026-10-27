@@ -862,6 +862,8 @@ export const zhCN = {
   "ui.processingOnServer": "服务器处理中…",
   "ui.uploaded": "已上传",
   "ui.uploadProgress": "上传进度",
+  "ui.uploadingPackage": "正在上传安装包…",
+  "ui.inspectingPackage": "上传完成，正在检查安装包…",
   "ui.actionPlugin": "操作插件",
   "ui.processorPlugin": "处理器插件",
   "ui.unsupportedBehavior": "不支持时的行为",
