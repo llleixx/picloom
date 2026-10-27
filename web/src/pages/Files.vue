@@ -19,11 +19,7 @@ import {
 } from "lucide-vue-next";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import type {
-  FileView,
-  BatchDeleteResult,
-  UserView,
-} from "../../../shared/api";
+import type { FileView, BatchDeleteResult } from "../../../shared/api";
 import {
   api,
   isAdmin,
@@ -45,13 +41,6 @@ import {
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
   DropdownMenuItemIndicator,
-  ComboboxRoot,
-  ComboboxAnchor,
-  ComboboxInput,
-  ComboboxTrigger,
-  ComboboxContent,
-  ComboboxItem,
-  ComboboxItemIndicator,
 } from "reka-ui";
 import UploadPanel from "@/components/UploadPanel.vue";
 import {
@@ -68,6 +57,7 @@ import {
 } from "@/lib/link-formats";
 import { dateBoundary, localDate } from "@/lib/date-range";
 import DeleteScope from "@/components/DeleteScope.vue";
+import OrganizationOwner from "@/components/OrganizationOwner.vue";
 import OrganizationPicker from "@/components/OrganizationPicker.vue";
 import OrganizationEditor from "@/components/OrganizationEditor.vue";
 import type { CollectionView } from "../../../shared/organization";
@@ -131,89 +121,35 @@ watch(
   },
   { immediate: true },
 );
-function selectScope(value: string) {
-  update({
-    scope: value,
-    owner: undefined,
-    source: undefined,
-    tag: undefined,
-    tagMode: undefined,
-    collection: undefined,
-    untagged: undefined,
-    uncollected: undefined,
-  });
-}
-const ownerSearch = ref(""),
-  ownerOpen = ref(false);
-const tagPicker = ref<InstanceType<typeof OrganizationPicker>>();
-const ownerNames = ref(new Map<string, string>());
-const owners = useQuery({
-  queryKey: computed(() => ["users", "picker", ownerSearch.value]),
-  enabled: allImages,
-  queryFn: () =>
-    api<{ items: UserView[] }>(
-      "/api/users?limit=30&q=" + encodeURIComponent(ownerSearch.value),
-    ),
-});
-watch(
-  owners.data,
-  (value) => {
-    for (const user of value?.items ?? [])
-      ownerNames.value.set(user.id, user.username);
+const imageOwner = computed({
+  get: () => {
+    if (!allImages.value) return "me";
+    const owner = route.query.owner;
+    return typeof owner === "string" && owner
+      ? owner
+      : (collection.data.value?.ownerId ?? "all");
   },
-  { immediate: true },
-);
+  set: (value: string) => {
+    const mine = value === "me" || value === session.value?.user.id;
+    update({
+      scope: mine ? "mine" : "all",
+      owner: mine || value === "all" ? undefined : value,
+      source: mine ? undefined : sourceId.value || undefined,
+      tag: undefined,
+      tagMode: undefined,
+      collection: undefined,
+      untagged: undefined,
+      uncollected: undefined,
+    });
+  },
+});
+const tagPicker = ref<InstanceType<typeof OrganizationPicker>>();
 const sources = useQuery({
   queryKey: ["storage-sources"],
   enabled: allImages,
   queryFn: () =>
     api<Array<{ id: string; name: string }>>("/api/storage-sources"),
 });
-function ownerLabel(value: unknown) {
-  return value === "all" || !value
-    ? t("users.allUsers")
-    : value === "me"
-      ? t("users.myImages")
-      : value === "guest"
-        ? t("users.guest")
-        : (ownerNames.value.get(String(value)) ?? String(value));
-}
-const ownerOptions = computed(() => {
-  const search = ownerSearch.value.trim().toLocaleLowerCase();
-  const shortcuts = [
-    { id: "all", name: t("users.allUsers") },
-    { id: "me", name: t("users.myImages") },
-    { id: "guest", name: t("users.guest") },
-  ].filter((item) => !search || item.name.toLocaleLowerCase().includes(search));
-  return [
-    ...shortcuts,
-    ...(owners.data.value?.items ?? []).map((user) => ({
-      id: user.id,
-      name: user.username,
-    })),
-  ];
-});
-function setOwnerOpen(value: boolean) {
-  ownerOpen.value = value;
-  if (value) ownerSearch.value = "";
-}
-function selectOwner(value: unknown) {
-  update({
-    owner: value === "all" ? undefined : String(value),
-    tag: undefined,
-    collection: undefined,
-    tagMode: undefined,
-    untagged: undefined,
-    uncollected: undefined,
-    page: "1",
-  });
-}
-function ownerEscape(event: KeyboardEvent) {
-  if (event.key !== "Escape" || !ownerOpen.value) return;
-  event.preventDefault();
-  event.stopPropagation();
-  ownerOpen.value = false;
-}
 const sourceId = computed(() =>
   allImages.value && typeof route.query.source === "string"
     ? route.query.source
@@ -444,21 +380,6 @@ const filterChips = computed(() => {
       label: `${t("replicas.source")}: ${sources.data.value?.find((source) => source.id === sourceId.value)?.name ?? sourceId.value}`,
       remove: () => update({ source: undefined }),
     });
-  if (allImages.value && route.query.owner) {
-    const id = String(route.query.owner);
-    const label =
-      id === "me"
-        ? t("users.myImages")
-        : id === "guest"
-          ? t("users.guest")
-          : (ownerNames.value.get(id) ?? id);
-    chips.push({
-      key: "owner",
-      label: `${t("users.owner")}: ${label}`,
-      remove: () =>
-        update({ owner: undefined, tag: undefined, collection: undefined }),
-    });
-  }
   if (route.query.sort === "size")
     chips.push({
       key: "size",
@@ -485,7 +406,6 @@ function resetFilters() {
     untagged: undefined,
     uncollected: undefined,
     source: undefined,
-    owner: undefined,
     order: undefined,
     sort: undefined,
   });
@@ -739,16 +659,13 @@ async function navigate(direction: -1 | 1) {
           <h1 class="page-heading break-all">
             {{ collection.data.value?.name ?? t("ui.images") }}
           </h1>
-          <select
-            v-if="isAdmin"
-            :value="imageScope"
+          <OrganizationOwner
+            v-model="imageOwner"
+            :mine-label="t('users.myImages')"
+            :all-label="t('users.allImages')"
             :aria-label="t('images.scope')"
-            class="h-8 max-w-32 rounded-md border-0 bg-muted/50 px-2 text-xs"
-            @change="selectScope(($event.target as HTMLSelectElement).value)"
-          >
-            <option value="mine">{{ t("users.myImages") }}</option>
-            <option value="all">{{ t("users.allImages") }}</option>
-          </select>
+            include-guest
+          />
         </div>
         <template v-if="collection.data.value"
           ><p
@@ -843,75 +760,6 @@ async function navigate(direction: -1 | 1) {
         </div>
       </div>
       <ImageFilters :count="filterChips.length" @reset="resetFilters">
-        <div v-if="allImages" class="field">
-          <span>{{ t("users.owner") }}</span>
-          <ComboboxRoot
-            :model-value="String(route.query.owner || 'all')"
-            :open="ownerOpen"
-            open-on-click
-            ignore-filter
-            @update:open="setOwnerOpen"
-            @update:model-value="selectOwner"
-            @keydown.capture="ownerEscape"
-          >
-            <ComboboxAnchor
-              class="native-select flex items-center gap-2 focus-within:ring-1 focus-within:ring-ring"
-            >
-              <ComboboxInput
-                :model-value="
-                  ownerOpen ? ownerSearch : ownerLabel(route.query.owner)
-                "
-                :display-value="ownerLabel"
-                :aria-label="t('users.owner')"
-                :placeholder="t('users.search')"
-                autocomplete="off"
-                class="min-w-0 flex-1 bg-transparent outline-none focus-visible:outline-none"
-                @update:model-value="ownerSearch = $event"
-              />
-              <ComboboxTrigger
-                :aria-label="t('users.owner')"
-                class="shrink-0 rounded p-0.5"
-                ><ChevronDown :size="14"
-              /></ComboboxTrigger>
-            </ComboboxAnchor>
-            <ComboboxContent
-              position="popper"
-              align="start"
-              :side-offset="4"
-              class="z-50 max-h-[min(13rem,var(--reka-combobox-content-available-height))] w-[var(--reka-combobox-trigger-width)] overflow-y-auto rounded-lg border bg-background p-1 shadow-lg"
-            >
-              <ComboboxItem
-                v-for="owner in ownerOptions"
-                :key="owner.id"
-                :value="owner.id"
-                class="relative cursor-default rounded py-2 pr-2 pl-7 text-sm outline-none data-[highlighted]:bg-muted"
-              >
-                <ComboboxItemIndicator class="absolute left-2"
-                  ><Check :size="14" /></ComboboxItemIndicator
-                >{{ owner.name }}
-              </ComboboxItem>
-              <p
-                v-if="owners.isPending.value"
-                class="px-2 py-2 text-xs text-muted-foreground"
-              >
-                {{ t("ui.loading") }}
-              </p>
-              <p
-                v-else-if="owners.error.value"
-                role="alert"
-                class="px-2 py-2 text-xs text-destructive"
-              >
-                {{ errorText(owners.error.value) }}
-              </p>
-              <p
-                v-else-if="!ownerOptions.length"
-                class="px-2 py-2 text-xs text-muted-foreground"
-              >
-                {{ t("users.empty") }}
-              </p>
-            </ComboboxContent>
-          </ComboboxRoot>
-        </div>
         <div class="grid grid-cols-2 gap-3">
           <label class="field"
             >{{ t("ui.imageType") }}

@@ -60,7 +60,10 @@ test("administrator creates a member; member and guest upload with isolated work
     ).toHaveCount(0);
     await m.goto(service.url + "/app/settings/");
     await expect(m).toHaveURL(service.url + "/app/images");
-    await m.getByRole("link", { name: "Upload", exact: true }).click();
+    await m
+      .getByRole("button", { name: "Upload images", exact: true })
+      .first()
+      .click();
     const png = await sharp({
       create: { width: 24, height: 24, channels: 3, background: "green" },
     })
@@ -72,7 +75,7 @@ test("administrator creates a member; member and guest upload with isolated work
       buffer: png,
     });
     await expect(m.getByText("Uploaded", { exact: true })).toBeVisible();
-    await m.getByRole("link", { name: "App", exact: true }).click();
+    await m.getByRole("button", { name: "Close", exact: true }).click();
     await expect(m.getByTestId("file-card")).toHaveCount(1);
     await expect(
       m.getByRole("combobox", { name: "Image scope", exact: true }),
@@ -107,6 +110,11 @@ test("administrator creates a member; member and guest upload with isolated work
     await expect(g.getByText("Uploaded", { exact: true })).toBeVisible();
     expect(keys.length).toBeGreaterThan(1);
     expect(keys.every((key) => key.length > 30)).toBe(true);
+    const guestFiles = await (
+      await page.request.get(service.url + "/api/files?owner=guest")
+    ).json();
+    const guestLabel = guestFiles[0].guestIp;
+    expect(guestLabel).toBeTruthy();
     await m.reload();
     await expect(m.getByTestId("file-card")).toHaveCount(1);
     await page.getByRole("link", { name: "Images", exact: true }).click();
@@ -115,21 +123,23 @@ test("administrator creates a member; member and guest upload with isolated work
       name: "Image scope",
       exact: true,
     });
-    await expect(scope).toHaveValue("mine");
+    await expect(scope).toHaveValue("My Images");
     await expect(page.getByTestId("file-card")).toHaveCount(0);
-    await scope.selectOption("all");
+    await scope.click();
+    await page.getByRole("option", { name: "All Images", exact: true }).click();
     await expect(page.getByTestId("file-card")).toHaveCount(2);
     await expect(
       page.getByTestId("file-card").getByText("alice", { exact: true }),
     ).toBeVisible();
     await expect(
-      page.getByTestId("file-card").getByText("Guest", { exact: true }),
+      page.getByTestId("file-card").getByText(guestLabel, { exact: true }),
     ).toBeVisible();
     await page.goto(service.url + "/app/images");
-    await expect(scope).toHaveValue("all");
-    await scope.selectOption("mine");
+    await expect(scope).toHaveValue("All Images");
+    await scope.click();
+    await page.getByRole("option", { name: "My Images", exact: true }).click();
     await page.goto(service.url + "/app/images?owner=guest");
-    await expect(scope).toHaveValue("all");
+    await expect(scope).toHaveValue("Guest");
     await openImageFilters(page);
     const filters = page.getByRole("dialog", {
       name: "Filters & sort",
@@ -138,27 +148,29 @@ test("administrator creates a member; member and guest upload with isolated work
     await expect(
       filters.getByRole("button", { name: "Add tags", exact: true }),
     ).toHaveCount(0);
-    const owner = page.getByRole("combobox", { name: "Owner", exact: true });
+    await closeImageFilters(page);
+    const owner = scope;
     await owner.click();
-    await page.getByRole("option", { name: "All users", exact: true }).click();
-    await expect(scope).toHaveValue("all");
+    await page.getByRole("option", { name: "All Images", exact: true }).click();
+    await expect(scope).toHaveValue("All Images");
     await expect(page.getByTestId("file-card")).toHaveCount(2);
     await owner.click();
     await owner.fill("ali");
     await page.getByRole("option", { name: "alice", exact: true }).click();
+    await expect(scope).toHaveValue("alice");
+    await openImageFilters(page);
     await expect(
       filters.getByRole("button", { name: "Add tags", exact: true }),
     ).toBeVisible();
     await expect(page.getByTestId("file-card")).toHaveCount(1);
+    await closeImageFilters(page);
     await owner.click();
     await owner.fill("");
-    await page.getByRole("combobox", { name: "Owner", exact: true }).click();
     await page.getByRole("option", { name: "Guest", exact: true }).click();
-    await closeImageFilters(page);
     await expect(page.getByTestId("file-card")).toHaveCount(1);
     await page.getByRole("button", { name: /^Open / }).click();
     await expect(
-      page.getByRole("dialog").getByText("Guest", { exact: true }),
+      page.getByRole("dialog").getByText(guestLabel, { exact: true }),
     ).toBeVisible();
     await page.getByRole("button", { name: "Close", exact: true }).click();
     await page.getByRole("link", { name: "Users", exact: true }).click();

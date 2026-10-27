@@ -15,7 +15,12 @@ import {
 import { api, errorText, isAdmin, session } from "@/lib/api";
 import { t } from "@/lib/i18n";
 import type { UserView } from "../../../shared/api";
-const props = defineProps<{ mineLabel: string }>();
+const props = defineProps<{
+  mineLabel: string;
+  allLabel?: string;
+  includeGuest?: boolean;
+  ariaLabel?: string;
+}>();
 const model = defineModel<string>({ required: true });
 const search = ref(""),
   open = ref(false);
@@ -39,16 +44,21 @@ watch(
 );
 const options = computed(() => {
   const query = search.value.trim().toLocaleLowerCase();
+  const shortcuts = [
+    { id: "me", name: props.mineLabel },
+    ...(props.allLabel ? [{ id: "all", name: props.allLabel }] : []),
+    ...(props.includeGuest ? [{ id: "guest", name: t("users.guest") }] : []),
+  ].filter((item) => !query || item.name.toLocaleLowerCase().includes(query));
   return [
-    ...(!query || props.mineLabel.toLocaleLowerCase().includes(query)
-      ? [{ id: "me", name: props.mineLabel }]
-      : []),
+    ...shortcuts,
     ...(users.data.value?.items ?? [])
       .filter((user) => user.id !== session.value?.user.id)
       .map((user) => ({ id: user.id, name: user.username })),
   ];
 });
 function label(value: unknown) {
+  if (value === "all" && props.allLabel) return props.allLabel;
+  if (value === "guest" && props.includeGuest) return t("users.guest");
   return value === "me" || value === session.value?.user.id
     ? props.mineLabel
     : (names.value.get(String(value)) ?? String(value));
@@ -75,13 +85,16 @@ function setOpen(value: boolean) {
       <ComboboxInput
         :model-value="open ? search : label(model)"
         :display-value="label"
-        :aria-label="t('users.owner')"
+        :aria-label="ariaLabel ?? t('users.owner')"
         :placeholder="t('users.search')"
         autocomplete="off"
         class="min-w-0 flex-1 truncate bg-transparent outline-none"
         @update:model-value="search = $event"
       />
-      <ComboboxTrigger :aria-label="t('users.owner')" class="shrink-0">
+      <ComboboxTrigger
+        :aria-label="ariaLabel ?? t('users.owner')"
+        class="shrink-0"
+      >
         <ChevronDown :size="14" />
       </ComboboxTrigger>
     </ComboboxAnchor>

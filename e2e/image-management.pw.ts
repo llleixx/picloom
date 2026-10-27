@@ -62,7 +62,7 @@ test("applied filters, compact cards and mobile filter sheet", async ({
     name: "Image scope",
     exact: true,
   });
-  await expect(scope).toHaveValue("mine");
+  await expect(scope).toHaveValue("My Images");
   await expect(cards.getByText("admin", { exact: true })).toHaveCount(0);
   await expect(cards).toHaveCount(1);
   await expect(cards.getByText("+2", { exact: true })).toBeVisible();
@@ -108,7 +108,12 @@ test("applied filters, compact cards and mobile filter sheet", async ({
   await expect(cards).toHaveCount(24);
   for (const width of [320, 390]) {
     await page.setViewportSize({ width, height: 844 });
-    if ((await scope.inputValue()) !== "mine") await scope.selectOption("mine");
+    if ((await scope.inputValue()) !== "My Images") {
+      await scope.click();
+      await page
+        .getByRole("option", { name: "My Images", exact: true })
+        .click();
+    }
     await openImageFilters(page);
     const panel = page.getByRole("dialog", {
       name: "Filters & sort",
@@ -139,7 +144,8 @@ test("applied filters, compact cards and mobile filter sheet", async ({
       .getByRole("button", { name: "Remove filter: Product", exact: true })
       .click();
     await expect(cards).toHaveCount(24);
-    await scope.selectOption("all");
+    await scope.click();
+    await page.getByRole("option", { name: "All Images", exact: true }).click();
     await expect(
       cards.first().getByText("admin", { exact: true }),
     ).toBeVisible();
@@ -147,19 +153,21 @@ test("applied filters, compact cards and mobile filter sheet", async ({
     await expect(
       panel.getByRole("button", { name: "Add tags", exact: true }),
     ).toHaveCount(0);
-    const owner = panel.getByRole("combobox", { name: "Owner", exact: true });
-    await owner.click();
-    await owner.fill("adm");
-    await panel.getByRole("option", { name: "admin", exact: true }).click();
-    await expect(owner).toHaveValue("admin");
+    await expect(
+      panel.getByRole("combobox", { name: "Owner", exact: true }),
+    ).toHaveCount(0);
     await closeImageFilters(page);
-    await page
-      .getByRole("button", { name: "Remove filter: Owner: admin", exact: true })
-      .click();
-    await openImageFilters(page);
-    await owner.click();
+    await scope.click();
+    await scope.fill("my");
+    await page.getByRole("option", { name: "My Images", exact: true }).click();
+    await expect(scope).toHaveValue("My Images");
+    await scope.click();
     await page.keyboard.press("Escape");
-    await expect(panel).toBeVisible();
+    await expect(scope).toHaveAttribute("aria-expanded", "false");
+    await openImageFilters(page);
+    await expect(
+      panel.getByRole("button", { name: "Add tags", exact: true }),
+    ).toBeVisible();
     await page.keyboard.press("Escape");
     await expect(panel).not.toBeVisible();
     expect(
