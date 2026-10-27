@@ -27,6 +27,7 @@ curl -fL https://raw.githubusercontent.com/llleixx/picloom/main/docker/.env.exam
 编辑 `.env`：
 
 - `ENCRYPTION_KEY`：加密密钥，升级和恢复时保留原值。推荐用 `openssl rand -hex 32` 生成。
+- `INITIAL_OWNER_USERNAME`：初始管理员用户名，留空默认为 `admin`；名称规则见[环境变量参考](../reference/settings.md#部署参数)。
 - `INITIAL_OWNER_PASSWORD`：初始管理员密码，至少 6 个字符。
 - `POSTGRES_PASSWORD`：数据库密码，使用与加密密钥不同的值。
 
@@ -42,7 +43,7 @@ openssl rand -hex 32
 docker compose up -d
 ```
 
-访问 `http://localhost:7425`，用 `admin` 和初始密码登录。远程部署时将 `localhost` 换成服务器地址。默认存储与上传配置见 [快速开始](../guide/quick-start.md#_2-查看默认配置)。
+访问 `http://localhost:7425`，用配置的用户名（默认 `admin`）和初始密码登录。远程部署时将 `localhost` 换成服务器地址。默认存储与上传配置见 [快速开始](../guide/quick-start.md#_2-查看默认配置)。
 
 ## 数据存在哪里
 
@@ -78,7 +79,7 @@ HTTP_PORT=7425
 
 此时只能通过宿主机本地端口或反向代理访问。域名、HTTPS 与可信代理设置见 [域名与反向代理](./proxy.md)。
 
-修改 `.env` 后，在部署目录执行 `docker compose up -d` 应用配置。`INITIAL_OWNER_PASSWORD` 只在首次初始化时生效，不能用于重置已有账户密码。
+修改 `.env` 后，在部署目录执行 `docker compose up -d` 应用配置。`INITIAL_OWNER_USERNAME` 和 `INITIAL_OWNER_PASSWORD` 仅在数据库尚无用户时生效，不会修改已有账户的用户名或密码。
 
 ## 日常管理
 

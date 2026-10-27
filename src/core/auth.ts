@@ -34,11 +34,20 @@ export class Auth {
     private db: Persistence,
     private config: Settings,
   ) {}
-  async initializeOnStartup(password?: string): Promise<string | null> {
+  async initializeOnStartup(
+    password?: string,
+    username?: string,
+  ): Promise<string | null> {
     if (await this.db.read((r) => r.userCount())) return null;
+    const name = normalize(username ?? "") || "admin";
+    if (!/^[a-z0-9_.-]{1,64}$/.test(name))
+      throw new AppError(
+        "INVALID_INPUT",
+        "Initial Owner username must contain 1–64 letters, digits, underscores, dots or hyphens",
+      );
     const generated = !password;
     const value = password || randomBytes(24).toString("base64url");
-    const created = await this.initialize("admin", value);
+    const created = await this.initialize(name, value);
     return created && generated ? value : null;
   }
   async initialize(username: string, password: string) {

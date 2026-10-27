@@ -23,7 +23,7 @@ cp .env.example .env
 bun -e "console.log(require('node:crypto').randomBytes(32).toString('hex'))"
 ```
 
-将输出填入 `.env` 的 `ENCRYPTION_KEY`。单独设置 `INITIAL_OWNER_PASSWORD`，至少 6 个字符；首次启动时创建用户名为 `admin` 的 Owner。已有账号不会被这个变量修改。
+将输出填入 `.env` 的 `ENCRYPTION_KEY`。设置 `INITIAL_OWNER_PASSWORD`，至少 6 个字符；可通过 `INITIAL_OWNER_USERNAME` 指定 Owner 用户名，留空默认为 `admin`，名称规则见[环境变量参考](../reference/settings.md#部署参数)。这两个初始配置仅在数据库尚无用户时生效，不会修改已有账号。
 
 ## 第一次启动
 

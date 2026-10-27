@@ -19,7 +19,7 @@ curl -fL https://raw.githubusercontent.com/llleixx/picloom/main/docker/.env.exam
 openssl rand -hex 32
 ```
 
-设置 `INITIAL_OWNER_PASSWORD` 为初始管理员密码，至少 6 个字符。
+设置 `INITIAL_OWNER_PASSWORD` 为初始管理员密码，至少 6 个字符。可通过 `INITIAL_OWNER_USERNAME` 自定义用户名，留空默认为 `admin`；名称规则见[环境变量参考](../reference/settings.md#部署参数)。
 
 启动服务：
 
@@ -27,9 +27,9 @@ openssl rand -hex 32
 docker compose up -d
 ```
 
-访问 `http://localhost:7425`，用 `admin` 和初始密码登录。远程部署时将 `localhost` 换成服务器地址。
+访问 `http://localhost:7425`，用配置的用户名（默认 `admin`）和初始密码登录。远程部署时将 `localhost` 换成服务器地址。
 
-若初始密码留空，首次启动会生成随机密码，可通过 `docker compose logs picloom` 查看。修改该变量不会重置已有账户密码。
+若初始密码留空，首次启动会生成随机密码，可通过 `docker compose logs picloom` 查看。这两个初始配置仅在数据库尚无用户时生效，不会修改已有账户的用户名或密码。
 
 数据保存在 Compose 文件旁的 `data/` 目录中：`app/` 保存应用数据和本地图片，`backups/` 保存内置备份。重建容器时保留 `data/` 即可。正式对外提供服务前配置 [HTTPS 与域名](../operations/proxy.md)。其他部署方式见 [Docker 部署](../operations/deploy.md)。
 

@@ -14,6 +14,7 @@ export async function startRuntime(
   overrides: Partial<Settings> = {},
   options: {
     initialPassword?: string;
+    initialUsername?: string;
     log?: (message: string) => void;
     sweep?: boolean;
   } = {},
@@ -27,11 +28,14 @@ export async function startRuntime(
       await initializeUploadDefaults(app);
     const password = await app.auth.initializeOnStartup(
       options.initialPassword ?? process.env.INITIAL_OWNER_PASSWORD,
+      options.initialUsername ?? process.env.INITIAL_OWNER_USERNAME,
     );
-    if (password)
+    if (password) {
+      const [owner] = await app.db.read((r) => r.owners());
       (options.log ?? console.info)(
-        `Initial Owner: admin\nInitial password: ${password}\nSave this password; it is shown only once.`,
+        `Initial Owner: ${owner!.username}\nInitial password: ${password}\nSave this password; it is shown only once.`,
       );
+    }
   } catch (e) {
     await app!?.close();
     await unlock();

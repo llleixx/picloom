@@ -23,6 +23,7 @@ Docker 使用 `docker/.env.example`，源码开发使用根目录的 `.env.examp
 | `DATA_DIR` | 源码为 `./data`；Docker 为 `/var/lib/picloom/app` | 保存数据库、设置、插件和临时内容；不代表所有存储源图片都位于这里 |
 | `DATABASE_URL` | 空 | 空值使用数据目录内的 SQLite，否则连接指定 PostgreSQL 数据库 |
 | `HOST` / `PORT` | `127.0.0.1` / `7425` | HTTP 监听地址和端口；Docker 镜像监听 `0.0.0.0`，对外端口由 Compose 映射决定 |
+| `INITIAL_OWNER_USERNAME` | `admin` | 仅数据库尚无用户时使用；去首尾空白并转小写，空值使用默认名；1–64 位英文字母、数字、`_`、`.`、`-`，非法名称会阻止首次启动；不会修改已有用户名 |
 | `INITIAL_OWNER_PASSWORD` | 空，指定时至少 6 字符 | 仅首次创建 Owner 时使用；留空会生成随机密码并打印，不能用于修改已有密码 |
 
 密钥生成与目录映射见 [Docker 部署](../operations/deploy.md)，反代配置见 [域名与反向代理](../operations/proxy.md)。

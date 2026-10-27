@@ -7,6 +7,7 @@ import sharp from "sharp";
 // Bun loads the developer's .env; do not let it override the isolated Compose env file.
 const composeKeys = new Set([
   "ENCRYPTION_KEY",
+  "INITIAL_OWNER_USERNAME",
   "INITIAL_OWNER_PASSWORD",
   "PUBLIC_ORIGIN",
   "HTTP_PORT",
@@ -74,10 +75,12 @@ for (const backend of ["sqlite", "postgres"]) {
   const port = probe.port;
   await probe.stop(true);
   const origin = `http://127.0.0.1:${port}`;
+  const username = "smoke-owner";
   const password = crypto.randomUUID();
   await writeFile(
     envFile,
     `ENCRYPTION_KEY=${crypto.randomUUID().replaceAll("-", "")}${crypto.randomUUID().replaceAll("-", "")}
+INITIAL_OWNER_USERNAME=${username}
 INITIAL_OWNER_PASSWORD=${password}
 POSTGRES_PASSWORD=${crypto.randomUUID().replaceAll("-", "")}
 PUBLIC_ORIGIN=${origin}
@@ -121,7 +124,7 @@ PUBLISH_ADDRESS=127.0.0.1
   }
   async function login() {
     const result = await request("/api/auth/login", "POST", {
-      username: "admin",
+      username,
       password,
     });
     assert.equal(result.status, 200, await result.clone().text());
