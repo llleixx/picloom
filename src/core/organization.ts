@@ -310,7 +310,10 @@ export class Organization {
       owner_id: ownerId,
       ...normalizedName(input.name, "tag"),
     };
-    await this.db.transaction((r) => r.insertTag(value));
+    await this.db.transaction(async (r) => {
+      requireValue(await r.user(ownerId), "User not found");
+      await r.insertTag(value);
+    });
     return view(value);
   }
   async createCollection(actor: Identity, input: Record<string, unknown>) {
@@ -334,6 +337,7 @@ export class Organization {
         input.description === undefined ? "" : description(input.description),
     };
     return this.db.transaction(async (r) => {
+      requireValue(await r.user(ownerId), "User not found");
       await r.insertCollection(value);
       return (await this.collectionViews(r, [value]))[0]!;
     });
@@ -542,6 +546,7 @@ export class Organization {
       try {
         const result = await this.db.transaction(async (r) => {
           check();
+          requireValue(await r.user(userId), "User not found");
           const existing = await find(r);
           if (existing) return item(existing);
           const value = { ...entity(), owner_id: userId, ...normalized };

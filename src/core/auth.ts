@@ -365,6 +365,7 @@ export class Auth {
     r: Repositories,
   ) {
     const owner = this.uploadOwner(identity).ownerId;
+    if (owner && !(await r.user(owner))) return;
     await r.recordSuccessfulUpload(
       owner ? "u:" + owner : "g:" + guestIp,
       new Date().toISOString().slice(0, 10),
@@ -487,6 +488,16 @@ export class Auth {
         role === "admin" ? [] : (profiles as string[]),
       );
       return { id: user.id };
+    });
+  }
+  async deleteUser(actor: Identity, id: string) {
+    this.requireAdmin(actor);
+    await this.db.transaction(async (r) => {
+      const current = await this.verify(r, actor.kind, actor.hash);
+      this.requireAdmin(current);
+      const target = requireValue(await r.user(id));
+      this.assertManageUser(current, target);
+      await r.deleteUser(id);
     });
   }
   private async encodePassword(password: string) {

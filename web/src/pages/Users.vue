@@ -3,10 +3,18 @@ import { canManageUser } from "../../../shared/roles";
 import { ref, reactive, computed } from "vue";
 import { useQuery } from "@tanstack/vue-query";
 import { Plus } from "lucide-vue-next";
-import { api, errorText, queryClient, session } from "@/lib/api";
+import { api, errorText, queryClient, session, notify } from "@/lib/api";
 import { t } from "@/lib/i18n";
 import type { UserView, UploadProfileView } from "../../../shared/api";
+import {
+  Dialog,
+  DialogContent,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import ActionMenu from "@/components/ActionMenu.vue";
+import ActionMenuItem from "@/components/ActionMenuItem.vue";
 import { Input } from "@/components/ui/input";
 import {
   Sheet,
@@ -37,6 +45,7 @@ const profiles = useQuery({
   queryKey: ["profiles"],
   queryFn: () => api<UploadProfileView[]>("/api/upload-profiles"),
 });
+const deleting = ref<UserView | null>(null);
 const open = ref(false),
   busy = ref(false),
   error = ref("");
@@ -91,6 +100,26 @@ async function save() {
     });
     open.value = false;
     await refresh();
+  } catch (e) {
+    error.value = errorText(e);
+  } finally {
+    busy.value = false;
+  }
+}
+async function remove() {
+  if (!deleting.value) return;
+  busy.value = true;
+  error.value = "";
+  try {
+    await api(`/api/users/${deleting.value.id}`, { method: "DELETE" });
+    deleting.value = null;
+    if (page.value > 1 && users.data.value?.items.length === 1) page.value--;
+    await Promise.all(
+      ["users", "files", "file", "organization", "profiles"].map((key) =>
+        queryClient.invalidateQueries({ queryKey: [key] }),
+      ),
+    );
+    notify({ key: "ui.deleted" });
   } catch (e) {
     error.value = errorText(e);
   } finally {
@@ -169,14 +198,24 @@ async function resetPassword() {
             }}
           </p>
         </div>
-        <Button
+        <div
           v-if="canEdit(user)"
-          size="sm"
-          variant="outline"
-          class="shrink-0"
-          @click="edit(user)"
-          >{{ t("ui.edit") }}</Button
+          class="flex shrink-0 items-center gap-2 sm:justify-end"
         >
+          <Button size="sm" variant="outline" @click="edit(user)">{{
+            t("ui.edit")
+          }}</Button>
+          <ActionMenu :label="t('ui.moreActions', { name: user.username })">
+            <ActionMenuItem
+              destructive
+              @select="
+                deleting = user;
+                error = '';
+              "
+              >{{ t("ui.delete") }}</ActionMenuItem
+            >
+          </ActionMenu>
+        </div>
       </article>
     </div>
     <div class="mt-5 flex items-center justify-end gap-3">
@@ -313,5 +352,29 @@ async function resetPassword() {
         </form>
       </SheetContent></Sheet
     >
+    <Dialog
+      :open="!!deleting"
+      @update:open="
+        (value) => {
+          if (!value) deleting = null;
+        }
+      "
+    >
+      <DialogContent :busy="busy">
+        <DialogTitle>{{
+          t("users.deleteTitle", { username: deleting?.username ?? "" })
+        }}</DialogTitle>
+        <DialogDescription>{{ t("users.deleteHint") }}</DialogDescription>
+        <p v-if="error" role="alert" class="error-box">{{ error }}</p>
+        <div class="flex justify-end gap-2">
+          <Button variant="outline" :disabled="busy" @click="deleting = null">{{
+            t("ui.cancel")
+          }}</Button>
+          <Button variant="destructive" :loading="busy" @click="remove">{{
+            busy ? t("ui.deletingNow") : t("ui.confirmDelete")
+          }}</Button>
+        </div>
+      </DialogContent>
+    </Dialog>
   </section>
 </template>

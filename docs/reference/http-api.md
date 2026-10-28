@@ -269,6 +269,8 @@ curl --fail-with-body "$PICLOOM_URL/api/files/$PICLOOM_FILE_ID" \
 
 | 请求 | 用途 |
 | --- | --- |
+| `DELETE /api/users/:id` | 删除用户，返回 `{"ok":true}`；仅会话认证，Owner 可删除管理员和成员，Admin 只能删除成员，Owner 不可删除；目标不存在返回 404，权限不足返回 403。账户、凭据、标签和集合删除，图片和公开链接保留 |
+| `GET /api/files/owners` | 管理员查询图片所属用户筛选项，返回 `[{"id":"…","name":"…"}]`；包含现存用户与仍有图片的已删除用户，后者显示 ID。支持 `q` 搜索和 `limit`（默认 30，最大 100） |
 | `GET /api/files/:id` | 文件详情 |
 | `POST /api/files/:id/replace` | 用已上传的新图替换，保留公开链接；仅会话认证 |
 | `GET /api/files/:id/operations` | 管理员查看副本和后台任务 |

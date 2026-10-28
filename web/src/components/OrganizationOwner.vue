@@ -19,6 +19,7 @@ const props = defineProps<{
   mineLabel: string;
   allLabel?: string;
   includeGuest?: boolean;
+  includeDeleted?: boolean;
   ariaLabel?: string;
 }>();
 const model = defineModel<string>({ required: true });
@@ -26,19 +27,30 @@ const search = ref(""),
   open = ref(false);
 const names = ref(new Map<string, string>());
 const users = useQuery({
-  queryKey: computed(() => ["users", "organization", search.value]),
+  queryKey: computed(() => [
+    "users",
+    "organization",
+    props.includeDeleted,
+    search.value,
+  ]),
   enabled: isAdmin,
-  queryFn: ({ signal }) =>
-    api<{ items: UserView[] }>(
+  queryFn: async ({ signal }) => {
+    if (props.includeDeleted)
+      return api<Array<{ id: string; name: string }>>(
+        "/api/files/owners?limit=30&q=" + encodeURIComponent(search.value),
+        { signal },
+      );
+    const result = await api<{ items: UserView[] }>(
       "/api/users?limit=30&q=" + encodeURIComponent(search.value),
       { signal },
-    ),
+    );
+    return result.items.map((user) => ({ id: user.id, name: user.username }));
+  },
 });
 watch(
   users.data,
   (value) => {
-    for (const user of value?.items ?? [])
-      names.value.set(user.id, user.username);
+    for (const user of value ?? []) names.value.set(user.id, user.name);
   },
   { immediate: true },
 );
@@ -51,9 +63,9 @@ const options = computed(() => {
   ].filter((item) => !query || item.name.toLocaleLowerCase().includes(query));
   return [
     ...shortcuts,
-    ...(users.data.value?.items ?? [])
+    ...(users.data.value ?? [])
       .filter((user) => user.id !== session.value?.user.id)
-      .map((user) => ({ id: user.id, name: user.username })),
+      .map((user) => ({ id: user.id, name: user.name })),
   ];
 });
 function label(value: unknown) {

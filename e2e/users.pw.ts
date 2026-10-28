@@ -254,3 +254,134 @@ test("owner appoints admins and admin editor only manages members", async ({
     await context.close();
   }
 });
+
+test("deleting a user keeps images and displays historical IDs in the list and detail", async ({
+  page,
+  service,
+  browser,
+}) => {
+  await login(page, service.url);
+  const session = await (
+    await page.request.get(service.url + "/api/auth/session")
+  ).json();
+  const headers = { "x-csrf-token": session.csrfToken };
+  const profiles = await (
+    await page.request.get(service.url + "/api/upload-profiles")
+  ).json();
+  const created = await page.request.post(service.url + "/api/users", {
+    headers,
+    data: {
+      username: "departing",
+      password: "test-password-123",
+      role: "member",
+      profileIds: [profiles[0].id],
+    },
+  });
+  expect(created.status()).toBe(201);
+  const { id } = await created.json();
+  const member = await browser.newContext();
+  try {
+    const p = await member.newPage();
+    await p.goto(service.url + "/login");
+    await p.getByLabel("Username", { exact: true }).fill("departing");
+    await p.getByLabel("Password", { exact: true }).fill("test-password-123");
+    await p.getByRole("button", { name: "Sign in", exact: true }).click();
+    await expect(
+      p.getByRole("heading", { name: "Images", exact: true }),
+    ).toBeVisible();
+    const memberSession = await (
+      await p.request.get(service.url + "/api/auth/session")
+    ).json();
+    const png = await sharp({
+      create: { width: 12, height: 12, channels: 3, background: "green" },
+    })
+      .png()
+      .toBuffer();
+    const upload = await p.request.post(service.url + "/api/files", {
+      headers: { "x-csrf-token": memberSession.csrfToken },
+      multipart: {
+        profileId: profiles[0].id,
+        file: { name: "retained.png", mimeType: "image/png", buffer: png },
+      },
+    });
+    expect(upload.ok()).toBe(true);
+    const image = await upload.json();
+    await page.goto(service.url + "/app/users");
+    const row = page.locator("article").filter({ hasText: "departing" });
+    await row.getByRole("button", { name: "Edit", exact: true }).click();
+    await expect(
+      page.getByRole("dialog").getByRole("button", { name: /Delete/ }),
+    ).toHaveCount(0);
+    await page
+      .getByRole("dialog")
+      .getByRole("button", { name: "Cancel", exact: true })
+      .click();
+    await row
+      .getByRole("button", { name: "More actions for departing", exact: true })
+      .click();
+    await page.getByRole("menuitem", { name: "Delete", exact: true }).click();
+    const confirmation = page.getByRole("dialog", {
+      name: "Delete user departing?",
+      exact: true,
+    });
+    await expect(confirmation).toContainText(
+      "Images and public links will remain",
+    );
+    await confirmation
+      .getByRole("button", { name: "Cancel", exact: true })
+      .click();
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+    await row
+      .getByRole("button", { name: "More actions for departing", exact: true })
+      .click();
+    await page.getByRole("menuitem", { name: "Delete", exact: true }).click();
+    const deleteUrl = service.url + "/api/users/" + id;
+    await page.route(deleteUrl, (route) =>
+      route.fulfill({
+        status: 403,
+        contentType: "application/json",
+        body: JSON.stringify({
+          error: { code: "FORBIDDEN", message: "Forbidden" },
+        }),
+      }),
+    );
+    await confirmation
+      .getByRole("button", { name: "Confirm delete", exact: true })
+      .click();
+    await expect(confirmation.getByRole("alert")).toBeVisible();
+    await expect(confirmation).toBeVisible();
+    await page.unroute(deleteUrl);
+    await confirmation
+      .getByRole("button", { name: "Confirm delete", exact: true })
+      .click();
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+    await expect(
+      page.getByRole("heading", { name: "departing", exact: true }),
+    ).toHaveCount(0);
+    expect(
+      (await p.request.get(service.url + "/api/auth/session")).status(),
+    ).toBe(401);
+    await page.goto(service.url + "/app/images");
+    const scope = page.getByRole("combobox", {
+      name: "Image scope",
+      exact: true,
+    });
+    await scope.click();
+    await scope.fill(id.slice(0, 12));
+    await page.getByRole("option", { name: id, exact: true }).click();
+    await expect(scope).toHaveValue(id);
+    await expect(page).toHaveURL(new RegExp("owner=" + id));
+    await expect(
+      page.getByTestId("file-card").getByText(id, { exact: true }),
+    ).toBeVisible();
+    await page.getByRole("button", { name: /^Open / }).click();
+    const detail = page.getByRole("dialog");
+    await expect(detail.getByText(id, { exact: true })).toBeVisible();
+    await expect(detail.getByTestId("file-information")).toContainText(
+      "Upload · " + id,
+    );
+    expect((await page.request.get(image.url)).status()).toBe(200);
+  } finally {
+    await member.close();
+  }
+});

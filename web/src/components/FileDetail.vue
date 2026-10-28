@@ -404,7 +404,12 @@ async function remove() {
               :title="t('users.owner')"
               ><UserRound :size="12" class="shrink-0" /><span
                 class="truncate"
-                >{{ file.ownerName ?? file.guestIp ?? t("users.guest") }}</span
+                >{{
+                  file.ownerName ??
+                  file.ownerId ??
+                  file.guestIp ??
+                  t("users.guest")
+                }}</span
               ></span
             >
             <span
@@ -556,7 +561,12 @@ async function remove() {
                     )
                   }}
                   ·
-                  {{ file.origin.userName ?? file.guestIp ?? t("users.guest") }}
+                  {{
+                    file.origin.userName ??
+                    file.origin.userId ??
+                    file.guestIp ??
+                    t("users.guest")
+                  }}
                 </dd></template
               >
               <dt class="text-muted-foreground">{{ t("ui.logicalPath") }}</dt>

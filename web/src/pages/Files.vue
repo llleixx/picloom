@@ -665,6 +665,7 @@ async function navigate(direction: -1 | 1) {
             :all-label="t('users.allImages')"
             :aria-label="t('images.scope')"
             include-guest
+            include-deleted
           />
         </div>
         <template v-if="collection.data.value"
@@ -1231,14 +1232,14 @@ async function navigate(direction: -1 | 1) {
               class="max-w-28 truncate"
               :title="
                 file.ownerName ??
-                file.guestIp ??
                 file.ownerId ??
+                file.guestIp ??
                 t('users.guest')
               "
               >{{
                 file.ownerName ??
-                file.guestIp ??
                 file.ownerId ??
+                file.guestIp ??
                 t("users.guest")
               }}</span
             >

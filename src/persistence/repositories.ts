@@ -229,9 +229,13 @@ export class SqlRepositories implements Repositories {
     await this.db.insertInto("upload_sessions").values(encode(v)).execute();
   }
   async saveUploadSession(v: UploadSession) {
+    // Deletion can expire a session while its admitted upload is finishing.
     const result = await this.db
       .updateTable("upload_sessions")
-      .set(encode(v))
+      .set({
+        ...encode(v),
+        expires_at: sql`case when expires_at < ${v.expires_at} then expires_at else ${v.expires_at} end`,
+      })
       .where("id", "=", v.id)
       .executeTakeFirst();
     if (result.numUpdatedRows !== 1n) throw new Conflict();
@@ -442,6 +446,26 @@ export class SqlRepositories implements Repositories {
       .set({ role, status, updated_at: Date.now() })
       .where("id", "=", id)
       .execute();
+  }
+  async deleteUser(id: string) {
+    for (const table of [
+      "sessions",
+      "api_tokens",
+      "user_upload_profiles",
+    ] as const)
+      await this.db.deleteFrom(table).where("user_id", "=", id).execute();
+    for (const table of ["tags", "collections"] as const)
+      await this.db.deleteFrom(table).where("owner_id", "=", id).execute();
+    await this.db
+      .deleteFrom("daily_upload_usage")
+      .where("subject", "=", "u:" + id)
+      .execute();
+    await this.db
+      .updateTable("upload_sessions")
+      .set({ expires_at: Date.now(), updated_at: Date.now() })
+      .where("owner_id", "=", id)
+      .execute();
+    await this.db.deleteFrom("users").where("id", "=", id).execute();
   }
   async revokeUserCredentials(id: string) {
     for (const table of ["sessions", "api_tokens"] as const)
@@ -1493,6 +1517,29 @@ export class SqlRepositories implements Repositories {
       .where("status", "in", ["pending", "running"])
       .execute();
     return rows.map((row) => row.file_id);
+  }
+  async fileOwners(limit: number, q: string) {
+    const deleted = this.db
+      .selectFrom("files as f")
+      .leftJoin("users as u", "u.id", "f.owner_id")
+      .select(["f.owner_id as id", "f.owner_id as name"])
+      .where("f.owner_id", "is not", null)
+      .where("u.id", "is", null)
+      .where("f.status", "!=", "deleted")
+      .$narrowType<{ id: string; name: string }>();
+    const owners = this.db
+      .selectFrom("users")
+      .select(["id", "username as name"])
+      .union(deleted)
+      .as("owners");
+    return this.db
+      .selectFrom(owners)
+      .selectAll()
+      .where(this.contains("name", q))
+      .orderBy("name")
+      .orderBy("id")
+      .limit(limit)
+      .execute();
   }
   async countFiles(filter?: FileFilter) {
     const r = await this.fileFilter(filter)

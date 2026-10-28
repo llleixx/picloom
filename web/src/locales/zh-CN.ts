@@ -272,6 +272,9 @@ export const zhCN = {
   "users.title": "用户",
   "users.member": "成员",
   "users.active": "正常",
+  "users.deleteTitle": "删除用户 {username}？",
+  "users.deleteHint":
+    "账户、凭据、标签和集合将删除，图片和公开链接保留。",
   "users.disabled": "已停用",
   "users.allStatuses": "全部状态",
   "users.status": "账户状态",

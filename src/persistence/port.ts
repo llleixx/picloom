@@ -269,6 +269,7 @@ export interface Repositories {
     role: User["role"],
     status: User["status"],
   ): Promise<void>;
+  deleteUser(id: string): Promise<void>;
   revokeUserCredentials(id: string): Promise<void>;
   userProfiles(id: string): Promise<string[]>;
   profilesForUsers(ids: string[]): Promise<Map<string, string[]>>;
@@ -384,6 +385,10 @@ export interface Repositories {
     fileIds: string[],
   ): Promise<Array<{ fileId: string; kind: Task["kind"] }>>;
   pendingFileDeletions(fileIds: string[]): Promise<string[]>;
+  fileOwners(
+    limit: number,
+    q: string,
+  ): Promise<Array<{ id: string; name: string }>>;
   countFiles(filter?: FileFilter): Promise<number>;
   filesInStates(states: FileRecord["status"][]): Promise<FileRecord[]>;
   filesNeedingCleanup(): Promise<FileRecord[]>;

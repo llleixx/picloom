@@ -462,6 +462,10 @@ export class Files {
     }
     return plan;
   }
+  async owners(identity: Identity, limit: number, q: string) {
+    this.auth.requireAdmin(identity);
+    return this.db.read((r) => r.fileOwners(limit, q));
+  }
   async uploadProfiles(
     identity: Identity | null,
   ): Promise<UploadProfileView[]> {

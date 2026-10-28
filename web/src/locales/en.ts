@@ -315,6 +315,9 @@ export const en = {
   "users.title": "Users",
   "users.member": "Member",
   "users.active": "Active",
+  "users.deleteTitle": "Delete user {username}?",
+  "users.deleteHint":
+    "The account, credentials, tags, and collections will be deleted. Images and public links will remain.",
   "users.disabled": "Disabled",
   "users.allStatuses": "All Statuses",
   "users.status": "Account status",

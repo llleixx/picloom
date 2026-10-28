@@ -401,6 +401,13 @@ export function handler(app: Application) {
           return json(
             await app.auth.saveUser(auth, await body(req), userRoute[1]),
           );
+        if (userRoute && !userRoute[2] && method === "DELETE") {
+          await app.auth.deleteUser(auth, userRoute[1]!);
+          await app.uploads.cleanup(true).catch(() => {
+            console.warn(JSON.stringify({ event: "upload_cleanup_failed" }));
+          });
+          return json({ ok: true });
+        }
         if (userRoute?.[2] && method === "POST") {
           await app.auth.resetPassword(
             auth,
@@ -571,6 +578,18 @@ export function handler(app: Application) {
             ),
           );
           return json({ ok: true });
+        }
+        if (path === "/api/files/owners" && method === "GET") {
+          const limit = Number(url.searchParams.get("limit") ?? 30);
+          const q = (url.searchParams.get("q") ?? "").trim().toLowerCase();
+          if (
+            !Number.isSafeInteger(limit) ||
+            limit < 1 ||
+            limit > 100 ||
+            q.length > 64
+          )
+            throw new AppError("INVALID_INPUT", "Invalid owner filter");
+          return json(await app.files.owners(auth, limit, q));
         }
         if (path === "/api/files" && method === "GET") {
           const limit = Number(url.searchParams.get("limit") ?? 50),
@@ -907,7 +926,7 @@ export function handler(app: Application) {
                 kind: f.origin_kind,
                 userId: f.origin_user_id,
                 userName: f.origin_user_id
-                  ? requireValue(await r.user(f.origin_user_id)).username
+                  ? ((await r.user(f.origin_user_id))?.username ?? null)
                   : null,
               };
               const tasks = await r.tasks(id);
