@@ -219,6 +219,9 @@ test("watermark allows blank text, skips unsupported inputs and honors opacity o
   });
   const input = {
     params: {},
+    async createOutput() {
+      throw new Error("Must not create output");
+    },
     limits: { maxDimension: 1000, maxPixels: 1_000_000 },
     file: {
       metadata: {
@@ -237,6 +240,7 @@ test("watermark allows blank text, skips unsupported inputs and honors opacity o
     requestId: "test",
     log() {},
     data: {
+      set() {},
       get() {
         return undefined;
       },
@@ -244,8 +248,9 @@ test("watermark allows blank text, skips unsupported inputs and honors opacity o
   };
   expect(
     (
-      await runtime.check(
+      await runtime.process(
         {
+          createOutput: input.createOutput,
           metadata: input.file.metadata,
           getFile: async () => input.file,
           params: input.params,
@@ -257,8 +262,9 @@ test("watermark allows blank text, skips unsupported inputs and honors opacity o
   ).toBe("unsupported");
   expect(
     (
-      await runtime.check(
+      await runtime.process(
         {
+          createOutput: input.createOutput,
           metadata: input.file.metadata,
           getFile: async () => {
             throw new Error("Must not load");
@@ -269,12 +275,13 @@ test("watermark allows blank text, skips unsupported inputs and honors opacity o
         context,
       )
     ).status,
-  ).toBe("noop");
+  ).toBe("pass");
   expect(
     (
-      await runtime.check(
+      await runtime.process(
         {
           ...input,
+          createOutput: input.createOutput,
           metadata: input.file.metadata,
           getFile: async () => ({
             ...input.file,
@@ -309,12 +316,30 @@ test("watermark overrides validate merged sizing and leave instance settings unc
       config,
       services: { images: { sharp } } as InstanceServices,
     });
+    const png = await sharp({
+      create: { width: 100, height: 100, channels: 3, background: "#000000" },
+    })
+      .png()
+      .toBuffer();
+    const context = { signal: new AbortController().signal };
     const input = {
-      file: { metadata: { mimeType: "image/png" } },
+      async createOutput() {
+        return {
+          async write(stream: ReadableStream<Uint8Array>) {
+            await new Response(stream).arrayBuffer();
+          },
+        };
+      },
+      file: {
+        metadata: { mimeType: "image/png" },
+        async openRead() {
+          return new Blob([new Uint8Array(png)]).stream();
+        },
+      },
       limits: { maxDimension: 1000, maxPixels: 1_000_000 },
     };
     const check = (params: Record<string, string | number>) =>
-      runtime.check({ ...input, params } as any, {} as any);
+      runtime.process({ ...input, params } as any, context as any);
     expect(stage.paramsSchema!.properties).not.toHaveProperty("watermark");
     expect(
       requestParameters(
@@ -332,10 +357,10 @@ test("watermark overrides validate merged sizing and leave instance settings unc
         "body",
       ),
     ).toThrow();
-    expect((await check({ watermarkText: " " })).status).toBe("noop");
+    expect((await check({ watermarkText: " " })).status).toBe("pass");
     expect(
       (await check({ watermarkText: "", watermarkSizeMode: "fixed" })).status,
-    ).toBe("noop");
+    ).toBe("pass");
     await expect(check({ watermarkSizeMode: "fixed" })).rejects.toThrow(
       "fontSize",
     );
@@ -350,9 +375,9 @@ test("watermark overrides validate merged sizing and leave instance settings unc
           watermarkMargin: 0,
         })
       ).status,
-    ).toBe("applicable");
-    expect((await check({ watermarkOpacity: 0 })).status).toBe("noop");
-    expect((await check({})).status).toBe("applicable");
+    ).toBe("replace");
+    expect((await check({ watermarkOpacity: 0 })).status).toBe("pass");
+    expect((await check({})).status).toBe("replace");
     expect(config).toMatchObject({
       text: "Default",
       opacity: 70,
@@ -367,16 +392,17 @@ test("watermark overrides validate merged sizing and leave instance settings unc
       services: { images: { sharp } } as InstanceServices,
     });
     expect(
-      (await empty.check({ ...input, params: {} } as any, {} as any)).status,
-    ).toBe("noop");
+      (await empty.process({ ...input, params: {} } as any, context as any))
+        .status,
+    ).toBe("pass");
     expect(
       (
-        await empty.check(
+        await empty.process(
           { ...input, params: { watermarkText: "From request" } } as any,
-          {} as any,
+          context as any,
         )
       ).status,
-    ).toBe("applicable");
+    ).toBe("replace");
   }
 });
 

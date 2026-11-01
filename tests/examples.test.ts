@@ -222,7 +222,7 @@ test("access and post-save example packages preserve originals and apply review 
       const file = (await f.app.db.read((r) => r.file(result.id)))!;
       expect(file.status).toBe(width > 20 ? "blocked" : "ready");
       expect(file.processing_results_json?.[0]).toMatchObject({
-        disposition: { value: width > 20 ? "block" : "pass", mode: "escalate" },
+        status: width > 20 ? "block" : "pass",
         details: { width, maxWidth: 20 },
       });
       const read = await f.request(new URL(result.url).pathname);

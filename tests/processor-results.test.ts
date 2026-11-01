@@ -5,9 +5,7 @@ import type { UploadPlugin, UploadProcessInput } from "@picloom/plugin-sdk";
 for (const stage of ["upload", "access"] as const) {
   test(`${stage} rejects malformed processor results before continuing the pipeline`, async () => {
     const f = await fixture();
-    let checkResult: unknown = { status: "applicable" };
     let processResult: unknown = { status: "pass" };
-    let processCalls = 0;
     let followingCalls = 0;
     let replace = false;
     const descriptor = {
@@ -20,11 +18,7 @@ for (const stage of ["upload", "access"] as const) {
       async createInstance() {
         return {
           cacheable: false,
-          async check() {
-            return checkResult as Awaited<ReturnType<UploadPlugin["check"]>>;
-          },
           async process(input: Pick<UploadProcessInput, "createOutput">) {
-            processCalls++;
             if (replace) {
               const output = await input.createOutput();
               await output.write(new Blob([new Uint8Array(f.png)]).stream());
@@ -75,11 +69,8 @@ for (const stage of ["upload", "access"] as const) {
             async createInstance() {
               return {
                 cacheable: false,
-                async check() {
-                  followingCalls++;
-                  return { status: "noop" as const };
-                },
                 async process() {
+                  followingCalls++;
                   return { status: "pass" as const };
                 },
               };
@@ -142,24 +133,11 @@ for (const stage of ["upload", "access"] as const) {
         undefined,
         null,
         [],
-        "applicable",
-        {},
-        { status: "aplicable" },
-        { status: "unsupported", reason: 1 },
-      ]) {
-        checkResult = value;
-        const before = processCalls;
-        await assertInvalid();
-        expect(processCalls).toBe(before);
-      }
-      checkResult = { status: "applicable" };
-      for (const value of [
-        undefined,
-        null,
-        [],
         "pass",
         {},
         { status: "replcae" },
+        { status: "unsupported", reason: 1 },
+        { status: "unsupported", organization: { tagIds: [] } },
         { status: ["pass"] },
         { status: ["replace"] },
         { status: ["reject"], reason: "Policy rejected" },
@@ -175,15 +153,37 @@ for (const stage of ["upload", "access"] as const) {
       processResult = { status: "replace", output: { handle: "foreign" } };
       await assertInvalid("PLUGIN_OUTPUT");
       // Valid skip/pass results still continue; malformed unsupported cannot exploit skip.
-      for (const status of ["noop", "unsupported", "applicable"]) {
-        checkResult = { status };
-        processResult = { status: "pass" };
+      for (const status of ["pass", "unsupported"]) {
+        processResult = Object.freeze({ status });
         const before = followingCalls;
         const response = await request();
         expect(response.status).toBe(stage === "upload" ? 201 : 200);
         await response.arrayBuffer();
         expect(followingCalls).toBe(before + 1);
       }
+      await f.app.configuration.savePipeline(
+        {
+          ...chain,
+          expectedVersion: chain.configVersion,
+          steps: chain.steps.map((step) => ({
+            ...step,
+            onNotApplicable: "abort",
+          })),
+        },
+        chain.id,
+      );
+      processResult = Object.freeze({
+        status: "unsupported",
+        reason: "Unsupported input",
+      });
+      const beforeAbort = followingCalls;
+      const aborted = await request();
+      expect(aborted.status).toBe(422);
+      expect((await aborted.json()).error).toMatchObject({
+        code: "REJECTED",
+        message: "Unsupported input",
+      });
+      expect(followingCalls).toBe(beforeAbort);
       processResult = { status: "reject", reason: "Policy rejected" };
       const rejected = await request();
       expect(rejected.status).toBe(422);

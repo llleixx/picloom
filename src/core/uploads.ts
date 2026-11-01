@@ -244,7 +244,10 @@ export class Uploads {
     }
   }
   private async result(session: UploadSession) {
-    const file = await this.db.read((r) => r.file(session.file_id));
+    const file = await this.db.read(async (r) => {
+      const current = await r.uploadSession(session.id);
+      return current ? r.file(current.file_id) : null;
+    });
     if (!file || !["ready", "blocked"].includes(file.status))
       throw new AppError(
         "UPLOAD_CLOSED",
@@ -347,20 +350,22 @@ export class Uploads {
           );
           session.status = "completed";
           await this.db.transaction(async (r) => {
-            if (await r.uploadSession(session.id))
-              await r.saveUploadSession(session);
+            const current = await r.uploadSession(session.id);
+            if (current)
+              await r.saveUploadSession({ ...current, status: "completed" });
           });
           return result;
         } catch (error) {
           // Publication may have succeeded before the response/session update failed.
-          const file = await this.db.read((r) => r.file(session.file_id));
-          session.status =
-            file && ["ready", "blocked"].includes(file.status)
-              ? "completed"
-              : "failed";
           await this.db.transaction(async (r) => {
-            if (await r.uploadSession(session.id))
-              await r.saveUploadSession(session);
+            const current = await r.uploadSession(session.id);
+            if (!current) return;
+            const file = await r.file(current.file_id);
+            session.status =
+              file && ["ready", "blocked"].includes(file.status)
+                ? "completed"
+                : "failed";
+            await r.saveUploadSession({ ...current, status: session.status });
           });
           if (session.status === "completed") return this.result(session);
           throw error;

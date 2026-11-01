@@ -344,10 +344,10 @@ test("removing a running action deletes configuration immediately while the acqu
         configSchema: { type: "object", properties: {} },
         async createInstance() {
           return {
-            async execute() {
+            async process() {
               started.resolve();
               await finish.promise;
-              return {};
+              return { status: "pass" };
             },
             async dispose() {
               disposed = true;

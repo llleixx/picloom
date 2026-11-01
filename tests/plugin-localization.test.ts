@@ -249,9 +249,6 @@ test("access parameter APIs use a single package catalog", async () => {
           },
           async createInstance() {
             return {
-              async check() {
-                return { status: "applicable" };
-              },
               async process() {
                 return { status: "pass" };
               },

@@ -4,15 +4,15 @@
 
 ## Purpose
 
-Add text or image watermarks during upload or access.
+Add text or image watermarks during upload, access or post-save processing.
 
-`builtin.watermark` · `processor` · `upload`, `access`
+`builtin.watermark` · `processor` · `upload`, `access`, `post_save`
 
 ## Configuration
 
 Defaults initialize new drafts only; saving does not fill missing values. Required fields must be present in the submitted configuration.
 
-### `upload / access`
+### `upload / access / post_save`
 
 | Field | Meaning | Required | Default | Constraints |
 | --- | --- | --- | --- | --- |
@@ -79,3 +79,5 @@ After enabling `watermarkText` and `watermarkOpacity`, pass `params={"watermarkT
 Only static JPEG, PNG and WebP are supported; success returns `replace`. In text mode, processing is skipped if the merged text is omitted, empty or whitespace-only. Leave the instance text blank and enable `watermarkText` to add a watermark on demand through URL parameters. Image mode requires a server-side `imagePath` pointing to a static PNG/JPEG/WebP. Relative font size and margins use the image’s shorter side; watermark image width uses the image width. Processing is skipped when the effective opacity is zero.
 
 When stored content must always contain a watermark, use upload-stage watermarking with nonblank text and nonzero opacity, and leave `watermarkText` and `watermarkOpacity` disabled.
+
+The post-save stage uses fixed configuration only, with no request parameters. A successful replacement creates a new image record and keeps the public URL. Unsupported input fails the background task and preserves the original image. See the [pipeline guide (中文)](https://llleixx.github.io/picloom/guide/pipelines.html) for content publication and failures.

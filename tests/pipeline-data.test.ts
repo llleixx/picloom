@@ -86,16 +86,9 @@ test("all stages share data within an attempt; failed actions release sources an
     } satisfies ParamsSchema,
     async createInstance({ config }: { config: Readonly<Config> }) {
       return {
-        async check(
-          _input: unknown,
-          ctx: import("../src/plugins/api").CheckContext,
-        ) {
-          expect("set" in ctx.data).toBe(false);
-          expect("createOutput" in (_input as object)).toBe(false);
-          return { status: "applicable" as const };
-        },
         async process(_input: unknown, ctx: PipelineContext) {
           expect("createOutput" in (_input as object)).toBe(true);
+          expect("set" in ctx.data).toBe(true);
           run(stage, String(config.role), ctx);
           return { status: "pass" as const };
         },
@@ -120,9 +113,9 @@ test("all stages share data within an attempt; failed actions release sources an
         configSchema: schema,
         async createInstance({ config }) {
           return {
-            async execute(_input, ctx) {
+            async process(_input, ctx) {
               run("post_save", String(config.role), ctx);
-              return {};
+              return { status: "pass" };
             },
           };
         },

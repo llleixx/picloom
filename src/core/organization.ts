@@ -511,28 +511,6 @@ export class Organization {
         );
       return ownerId;
     };
-    const reader = {
-      listTags: async (query?: OrganizationQuery) => {
-        const userId = check();
-        const q = organizationQuery(query);
-        const result = await this.db.read(async (r) => ({
-          items: (await r.tags(userId, q)).map(item),
-          total: await r.countTags(userId, q.q),
-        }));
-        check();
-        return result;
-      },
-      listCollections: async (query?: OrganizationQuery) => {
-        const userId = check();
-        const q = organizationQuery(query);
-        const result = await this.db.read(async (r) => ({
-          items: (await r.collections(userId, q)).map(item),
-          total: await r.countCollections(userId, q.q),
-        }));
-        check();
-        return result;
-      },
-    };
     const ensure = async (
       kind: "tag" | "collection",
       input: { name: string },
@@ -567,13 +545,29 @@ export class Organization {
       }
     };
     return {
-      reader,
-      writer: {
-        ...reader,
-        ensureTag: (input: { name: string }) => ensure("tag", input),
-        ensureCollection: (input: { name: string }) =>
-          ensure("collection", input),
+      listTags: async (query?: OrganizationQuery) => {
+        const userId = check();
+        const q = organizationQuery(query);
+        const result = await this.db.read(async (r) => ({
+          items: (await r.tags(userId, q)).map(item),
+          total: await r.countTags(userId, q.q),
+        }));
+        check();
+        return result;
       },
+      listCollections: async (query?: OrganizationQuery) => {
+        const userId = check();
+        const q = organizationQuery(query);
+        const result = await this.db.read(async (r) => ({
+          items: (await r.collections(userId, q)).map(item),
+          total: await r.countCollections(userId, q.q),
+        }));
+        check();
+        return result;
+      },
+      ensureTag: (input: { name: string }) => ensure("tag", input),
+      ensureCollection: (input: { name: string }) =>
+        ensure("collection", input),
     };
   }
 }

@@ -5,8 +5,12 @@ import type { PostSavePlugin, PostSaveDisposition } from "@picloom/plugin-sdk";
 
 const input = (
   currentDisposition: PostSaveDisposition,
-): Parameters<PostSavePlugin["execute"]>[0] => ({
+): Parameters<PostSavePlugin["process"]>[0] => ({
   operationId: "task:notification",
+  limits: { maxDimension: 8192, maxPixels: 16000000 },
+  async createOutput() {
+    throw new Error("Must not create output");
+  },
   record: {
     id: "image-id",
     createdAt: 1,
@@ -23,7 +27,7 @@ const input = (
       pluginId: "test.review",
       pluginVersion: "1",
       completedAt: 1,
-      disposition: { value: "block", mode: "escalate" },
+      status: "block",
       details: { label: "<Review>", score: 80 },
     },
   ],
@@ -101,11 +105,12 @@ test("Telegram notifications filter accumulated status, optionally include detai
     const lease = f.app.plugins.acquire(record.id, "post_save");
     try {
       expect(
-        await lease.runtime.execute(input("pass"), context()),
+        await lease.runtime.process(input("pass"), context()),
       ).toMatchObject({ details: { sent: false } });
       expect(bodies).toHaveLength(0);
       for (const status of ["block", "delete"] as const) {
-        expect(await lease.runtime.execute(input(status), context())).toEqual({
+        expect(await lease.runtime.process(input(status), context())).toEqual({
+          status: "pass",
           details: { sent: true, messageId: 7 },
         });
         expect(bodies.at(-1).text).toContain(`Current disposition: ${status}`);
@@ -117,12 +122,12 @@ test("Telegram notifications filter accumulated status, optionally include detai
     const detailed = await instance(f, true);
     const second = f.app.plugins.acquire(detailed.id, "post_save");
     try {
-      await second.runtime.execute(input("block"), context());
+      await second.runtime.process(input("block"), context());
       expect(bodies.at(-1).text).toContain("test.review [review]");
       expect(bodies.at(-1).text).toContain('"label": "<Review>"');
       const long = input("delete");
       long.previousResults[0]!.details!.label = "😀".repeat(5000);
-      await second.runtime.execute(long, context());
+      await second.runtime.process(long, context());
       const text = bodies.at(-1).text as string;
       expect(text.length).toBeLessThanOrEqual(4096);
       expect(text).toEndWith("… (truncated)");
@@ -159,12 +164,12 @@ test("Telegram failures classify provider errors and never expose token-bearing 
             { status: code },
           );
         await expect(
-          lease.runtime.execute(input("block"), context()),
+          lease.runtime.process(input("block"), context()),
         ).rejects.toMatchObject({ code: expected, retryable });
       }
       response = async () => Response.json({ ok: true });
       await expect(
-        lease.runtime.execute(input("block"), context()),
+        lease.runtime.process(input("block"), context()),
       ).rejects.toMatchObject({ code: "INVALID_DATA", retryable: false });
       response = async () => {
         throw new Error(
@@ -172,7 +177,7 @@ test("Telegram failures classify provider errors and never expose token-bearing 
         );
       };
       await expect(
-        lease.runtime.execute(input("block"), context()),
+        lease.runtime.process(input("block"), context()),
       ).rejects.toMatchObject({
         code: "NETWORK",
         message: "Telegram notification outcome is unknown",
@@ -218,9 +223,9 @@ test("moderation followed by Telegram preserves block/delete even when delivery 
           configSchema: { type: "object" },
           async createInstance() {
             return {
-              async execute() {
+              async process() {
                 return {
-                  disposition: { value: status },
+                  status: status,
                   details: { suggestion: status },
                 };
               },

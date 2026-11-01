@@ -4,15 +4,15 @@
 
 ## Purpose
 
-Resize images or change format and quality during upload or access.
+Resize images or change format and quality during upload, access or post-save processing.
 
-`builtin.sharp` · `processor` · `upload`, `access`
+`builtin.sharp` · `processor` · `upload`, `access`, `post_save`
 
 ## Configuration
 
 Defaults initialize new drafts only; saving does not fill missing values. Required fields must be present in the submitted configuration.
 
-Upload instances accept all fields below. Access instances use `{}` as configuration. Both stages accept `w`, `h`, `fit`, `q` and `format` as request parameters, with the same constraints; explicitly enable them on the pipeline step.
+Upload and post-save instances accept all fields below. Access instances use `{}` as configuration. Upload and access stages accept `w`, `h`, `fit`, `q` and `format` as request parameters, with the same constraints; explicitly enable them on the pipeline step.
 
 | Field | Meaning | Required | Default | Constraints |
 | --- | --- | --- | --- | --- |
@@ -50,3 +50,5 @@ For a 1600 × 900 source and `w=640&h=480`:
 | `fill` | Stretch to the target dimensions | 640 × 480, changing aspect ratio |
 
 Specify only `w` or `h` for proportional resizing. `q` is encoding quality, not a percentage of output file size. Access example: `<imageURL>?w=640&h=480&fit=cover&format=webp`.
+
+The post-save stage uses fixed configuration only, with no request parameters. A successful replacement creates a new image record and keeps the public URL. Unsupported input fails the background task and preserves the original image. See the [pipeline guide (中文)](https://llleixx.github.io/picloom/guide/pipelines.html) for content publication and failures.

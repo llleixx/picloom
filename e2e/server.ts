@@ -76,7 +76,7 @@ if (scenario === "configuration")
         async createInstance({ config, services }) {
           const secrets = (await services.readSecrets()).value;
           return {
-            async execute(input, context) {
+            async process(input, context) {
               const response = await fetch(String(config.url), {
                 method: "POST",
                 signal: context.signal,
@@ -88,7 +88,7 @@ if (scenario === "configuration")
               });
               await response.body?.cancel();
               if (!response.ok) throw new Error("Test webhook failed");
-              return {};
+              return { status: "pass" };
             },
           };
         },
@@ -227,9 +227,9 @@ if (scenario === "moderation" && profile) {
         configSchema: { type: "object", properties: {} },
         async createInstance() {
           return {
-            async execute() {
+            async process() {
               return {
-                disposition: { value: "block" },
+                status: "block",
                 details: {
                   label: "Test content",
                   score: 82,

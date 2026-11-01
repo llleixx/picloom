@@ -113,12 +113,12 @@ export const telegramNotification: Definition<"processor"> = {
 
       async createInstance({ config, services }) {
         return {
-          async execute(input, ctx): Promise<PostSaveResult> {
+          async process(input, ctx): Promise<PostSaveResult> {
             ctx.signal.throwIfAborted();
             if (
               !(config.statuses as string[]).includes(input.currentDisposition)
             )
-              return { details: { sent: false } };
+              return { status: "pass", details: { sent: false } };
             const token = (await services.readSecrets()).value.botToken;
             if (
               typeof token !== "string" ||
@@ -140,7 +140,7 @@ export const telegramNotification: Definition<"processor"> = {
                 if (result.details === undefined) continue;
                 lines.push(
                   "",
-                  `${result.pluginId} [${result.stepId}]${result.disposition ? ` — ${result.disposition.value}` : ""}`,
+                  `${result.pluginId} [${result.stepId}] — ${result.status}`,
                   JSON.stringify(result.details, null, 2),
                 );
               }
@@ -196,6 +196,7 @@ export const telegramNotification: Definition<"processor"> = {
                   false,
                 );
               return {
+                status: "pass",
                 details: { sent: true, messageId: data.result.message_id },
               };
             } catch (error) {

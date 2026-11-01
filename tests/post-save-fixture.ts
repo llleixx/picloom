@@ -17,8 +17,8 @@ export const postSaveFixture: Definition<"processor"> = {
       },
       async createInstance() {
         return {
-          async execute() {
-            return {};
+          async process() {
+            return { status: "pass" };
           },
         };
       },

@@ -128,10 +128,10 @@ test("deleting an account clears personal data and credentials, retaining images
     ).rejects.toMatchObject({ status: 404 });
     const scope = f.app.files.organization.scope(alice.id);
     await expect(
-      scope.writer.ensureTag({ name: "late" }),
+      scope.ensureTag({ name: "late" }),
     ).rejects.toMatchObject({ status: 404 });
     await expect(
-      scope.writer.ensureCollection({ name: "late" }),
+      scope.ensureCollection({ name: "late" }),
     ).rejects.toMatchObject({ status: 404 });
     expect(
       (await f.request(`/api/files/${uploaded.id}`, "DELETE")).status,

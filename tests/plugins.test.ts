@@ -112,9 +112,6 @@ test("initialization failure preserves new settings and retires old instance", a
           async createInstance({ config }) {
             if (config.fail) throw new Error("sensitive diagnostics");
             return {
-              async check() {
-                return { status: "noop" };
-              },
               async process() {
                 return { status: "pass" };
               },
@@ -180,9 +177,6 @@ test("credentials are encrypted, kept on edits and protected by versions", async
             expect(config.token).toBeUndefined();
             observed = String((await services.readSecrets()).value.token);
             return {
-              async check() {
-                return { status: "noop" };
-              },
               async process() {
                 return { status: "pass" };
               },
@@ -315,9 +309,6 @@ test("cacheable false executes every request; normal processor result is cached"
           async createInstance({ config }) {
             return {
               cacheable: config.cache as boolean,
-              async check() {
-                return { status: "applicable" };
-              },
               async process() {
                 calls++;
                 return { status: "pass" };

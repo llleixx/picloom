@@ -8,11 +8,11 @@ import type { PostSavePlugin } from "../src/plugins/api";
 
 async function pipeline(
   f: Awaited<ReturnType<typeof fixture>>,
-  execute: PostSavePlugin["execute"] | PostSavePlugin["execute"][],
+  process: PostSavePlugin["process"] | PostSavePlugin["process"][],
 ) {
   let following = 0;
   for (const [id, fn] of [
-    ...(Array.isArray(execute) ? execute : [execute]).map(
+    ...(Array.isArray(process) ? process : [process]).map(
       (fn, index) =>
         [index ? `test.decision-${index}` : "test.decision", fn] as const,
     ),
@@ -20,7 +20,7 @@ async function pipeline(
       "test.following",
       async () => {
         following++;
-        return { disposition: { value: "pass" as const } };
+        return { status: "pass" as const };
       },
     ],
   ] as const)
@@ -39,7 +39,7 @@ async function pipeline(
           configSchemaVersion: 1,
           configSchema: { type: "object", properties: {} },
           async createInstance() {
-            return { execute: fn };
+            return { process: fn };
           },
         },
       },
@@ -48,7 +48,7 @@ async function pipeline(
     name: "Review",
     kind: "post_save",
     steps: [
-      ...(Array.isArray(execute) ? execute : [execute]).map((_, index) =>
+      ...(Array.isArray(process) ? process : [process]).map((_, index) =>
         index ? `test.decision-${index}` : "test.decision",
       ),
       "test.following",
@@ -79,7 +79,7 @@ test("block continues the chain, denies cached public access, preserves copies a
   f.app.config.writeConcurrency = 1;
   try {
     const following = await pipeline(f, async () => ({
-      disposition: { value: "block" },
+      status: "block",
       details: { label: "test", score: 82, nested: { suggestion: "Review" } },
     }));
     const source = await f.app.plugins.save({
@@ -148,7 +148,7 @@ test("block continues the chain, denies cached public access, preserves copies a
     expect(report[0]).toMatchObject({
       pluginId: "test.decision",
       pluginVersion: "1",
-      disposition: { value: "block" },
+      status: "block",
       details: { label: "test", score: 82 },
     });
     expect(
@@ -267,7 +267,7 @@ test("delete records successful action and existing cleanup retries across resta
   });
   try {
     const following = await pipeline(f, async () => ({
-      disposition: { value: "delete" },
+      status: "delete",
     }));
     const uploaded = await (await f.upload()).json();
     await f.app.files.sweep();
@@ -301,7 +301,7 @@ test("execution errors retry, pass continues, and an interrupted decision never 
   try {
     const following = await pipeline(f, async () => {
       if (++attempts === 1) throw new Error("temporary");
-      return { disposition: { value: "pass" } };
+      return { status: "pass" };
     });
     const uploaded = await (await f.upload()).json();
     await f.app.files.sweep();
@@ -328,7 +328,7 @@ test("execution errors retry, pass continues, and an interrupted decision never 
     await pipeline(race, async () => {
       enter();
       await gate;
-      return { disposition: { value: "block" } };
+      return { status: "block" };
     });
     const uploaded = await (await race.upload()).json();
     const running = race.app.files.sweep();
@@ -399,7 +399,7 @@ test("Post-save summaries survive later failures and invalid results fail withou
   try {
     let invalid = false;
     await pipeline(f, async () => ({
-      disposition: { value: "pass" },
+      status: "pass",
       details: { value: invalid ? "x".repeat(65536) : "ok" },
     }));
     const profile = await f.app.db.read((r) => r.profile(f.profileId));
@@ -410,7 +410,7 @@ test("Post-save summaries survive later failures and invalid results fail withou
       steps[1]!.plugin_instance_id,
       "post_save",
     );
-    const execute = spyOn(lease.runtime, "execute").mockRejectedValueOnce(
+    const execute = spyOn(lease.runtime, "process").mockRejectedValueOnce(
       new Error("Later step failed"),
     );
     await lease.release();
@@ -453,7 +453,7 @@ test("Post-save summaries survive later failures and invalid results fail withou
   }
 });
 
-test("steps read isolated prior results, accumulate severity and explicitly override at that step only", async () => {
+test("steps read isolated prior results and retain the strongest disposition", async () => {
   const f = await fixture();
   try {
     await pipeline(f, [
@@ -461,41 +461,41 @@ test("steps read isolated prior results, accumulate severity and explicitly over
         expect(input.currentDisposition).toBe("pass");
         expect(input.previousResults).toEqual([]);
         return {
-          disposition: { value: "delete" },
+          status: "block",
           details: { label: "first" },
         };
       },
       async (input) => {
-        expect(input.currentDisposition).toBe("delete");
+        expect(input.currentDisposition).toBe("block");
         expect(input.previousResults[0]).toMatchObject({
           pluginId: "test.decision",
-          disposition: { value: "delete" },
+          status: "block",
           details: { label: "first" },
         });
         // A plugin cannot rewrite the core's history by mutating its input snapshot.
         (input.previousResults[0]!.details as any).label = "changed";
-        return { disposition: { value: "block" } };
-      },
-      async (input) => {
-        expect(input.currentDisposition).toBe("delete");
-        expect(input.previousResults).toHaveLength(2);
-        expect(input.previousResults[0]!.details!.label).toBe("first");
-        return { disposition: { value: "pass", mode: "replace" } };
-      },
-      async (input) => {
-        expect(input.currentDisposition).toBe("pass");
-        expect(input.previousResults[2]!.disposition!.value).toBe("pass");
-        return { disposition: { value: "block" } };
+        return { status: "block" };
       },
       async (input) => {
         expect(input.currentDisposition).toBe("block");
-        return { disposition: { value: "pass", mode: "replace" } };
+        expect(input.previousResults).toHaveLength(2);
+        expect(input.previousResults[0]!.details!.label).toBe("first");
+        return { status: "pass" };
+      },
+      async (input) => {
+        expect(input.currentDisposition).toBe("block");
+        expect(input.previousResults[2]!.status).toBe("pass");
+        return { status: "block" };
+      },
+      async (input) => {
+        expect(input.currentDisposition).toBe("block");
+        return { status: "pass" };
       },
     ]);
     const image = await (await f.upload()).json();
     await f.app.files.sweep();
     const file = (await f.app.db.read((r) => r.file(image.id)))!;
-    expect(file.status).toBe("ready");
+    expect(file.status).toBe("blocked");
     expect(file.processing_results_json).toHaveLength(6);
     expect(file.processing_results_json![0]!.details!.label).toBe("first");
   } finally {
@@ -510,7 +510,7 @@ test("later execution or invalid-result failures preserve block/delete and do no
       try {
         await pipeline(f, [
           async () => ({
-            disposition: { value: status },
+            status: status,
             details: { reason: "moderation" },
           }),
           async (input) => {
@@ -518,7 +518,7 @@ test("later execution or invalid-result failures preserve block/delete and do no
             expect(input.previousResults).toHaveLength(1);
             if (invalid)
               return {
-                disposition: { value: "invalid", mode: "replace" },
+                status: "invalid",
               } as any;
             throw new Error("notification unavailable");
           },
@@ -543,9 +543,7 @@ test("later execution or invalid-result failures preserve block/delete and do no
         const file = (await f.app.db.read((r) => r.file(image.id)))!;
         expect(file.status).toBe("blocked");
         expect(file.processing_results_json).toHaveLength(1);
-        expect(file.processing_results_json![0]!.disposition!.value).toBe(
-          status,
-        );
+        expect(file.processing_results_json![0]!.status).toBe(status);
         await f.restart();
         await f.app.files.sweep();
         expect((await f.app.db.read((r) => r.file(image.id)))!.status).toBe(

@@ -1,4 +1,5 @@
 import { Organization } from "./organization";
+import { replaceFile } from "./file-replacement";
 import { processorOutputs } from "./processor-output";
 import { checkStorageCapacity, storageHasCapacity } from "./storage-capacity";
 import { TemporarySpace } from "../infra/temporary-space";
@@ -152,27 +153,9 @@ export class Files {
       throw e;
     }
   }
-  private checkResult(check: { status: string; reason?: string }, step: Step) {
-    if (
-      !check ||
-      !["applicable", "noop", "unsupported"].includes(check.status) ||
-      (check.reason !== undefined && typeof check.reason !== "string")
-    )
-      throw new AppError(
-        "PROCESSING_RESULT_INVALID",
-        "Invalid processor check result",
-        500,
-      );
-    if (check.status === "unsupported" && step.on_not_applicable !== "skip")
-      throw new AppError(
-        "UNSUPPORTED",
-        check.reason ?? "Processor does not support this file",
-        422,
-      );
-    return check.status === "applicable";
-  }
   private validateImageResult(
     result: unknown,
+    step: Step,
   ): asserts result is Exclude<
     import("../plugins/api").UploadResult,
     { status: "reject" }
@@ -183,13 +166,21 @@ export class Files {
       Array.isArray(result) ||
       !("status" in result) ||
       typeof result.status !== "string" ||
-      !["pass", "replace", "reject"].includes(result.status)
+      !["pass", "replace", "reject", "unsupported"].includes(result.status)
     )
       throw new AppError(
         "PROCESSING_RESULT_INVALID",
         "Invalid processor result",
         500,
       );
+    if (result.status === "unsupported") {
+      if (("reason" in result && result.reason !== undefined && typeof result.reason !== "string") || "organization" in result)
+        throw new AppError("PROCESSING_RESULT_INVALID", "Invalid unsupported result", 500);
+      if (step.on_not_applicable === "skip") {
+        return;
+      }
+      throw new AppError("REJECTED", "reason" in result && typeof result.reason === "string" ? result.reason : "Processor does not support this file", 422);
+    }
     if (result.status === "reject") {
       if (!("reason" in result) || typeof result.reason !== "string")
         throw new AppError(
@@ -235,12 +226,6 @@ export class Files {
     for (const [index, item] of steps.entries()) {
       ctx.signal.throwIfAborted();
       let active = true;
-      let checking = true;
-      const checkCatalog = this.organization.scope(
-        record.ownerId,
-        ctx.signal,
-        () => active && checking,
-      );
       const catalog = this.organization.scope(
         record.ownerId,
         ctx.signal,
@@ -264,13 +249,6 @@ export class Files {
             maxPixels: this.config.maxPixels,
           },
         };
-        const check = await runtime.check(input, {
-          ...ctx,
-          data: { get: data.get },
-          organization: checkCatalog.reader,
-        });
-        checking = false;
-        if (!this.checkResult(check, item.step)) continue;
         const result = await runtime.process(
           {
             ...input,
@@ -280,11 +258,12 @@ export class Files {
           {
             ...ctx,
             data,
-            organization: catalog.writer,
+            organization: catalog,
           },
         );
         active = false;
-        this.validateImageResult(result);
+        this.validateImageResult(result, item.step);
+        if (result.status === "unsupported") continue;
         ctx.signal.throwIfAborted();
         let nextPath = path,
           nextMetadata = metadata;
@@ -359,18 +338,12 @@ export class Files {
             maxPixels: this.config.maxPixels,
           },
         };
-        if (
-          !this.checkResult(
-            await runtime.check(input, { ...ctx, data: { get: data.get } }),
-            item.step,
-          )
-        )
-          continue;
         const result = await runtime.process(
           { ...input, createOutput: outputs.createOutput },
           { ...ctx, data },
         );
-        this.validateImageResult(result);
+        this.validateImageResult(result, item.step);
+        if (result.status === "unsupported") continue;
         if ("organization" in result)
           throw new AppError(
             "PROCESSING_RESULT_INVALID",
@@ -1368,18 +1341,7 @@ export class Files {
             409,
           );
       }
-      const path = publicPath(old.public_prefix, old.logical_key);
-      next.public_prefix = old.public_prefix;
-      next.logical_key = old.logical_key;
-      next.owner_id = old.owner_id;
-      next.guest_ip = old.guest_ip;
-      // Free the unique public path in the same transaction; storage keys stay intact.
-      old.logical_key = `.replaced/${crypto.randomUUID()}`;
-      old.status = "deleting";
-      await r.saveFile(old, "ready");
-      await r.saveFile(next, "ready");
-      await this.organization.transfer(r, old.id, next.id);
-      return { id: next.id, path };
+      return replaceFile(r, this.organization, old, next);
     });
   }
   async delete(id: string, identity?: Identity) {

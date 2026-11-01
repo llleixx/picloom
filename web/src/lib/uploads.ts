@@ -359,9 +359,12 @@ async function pump() {
               signal.throwIfAborted();
               if (Date.now() > deadline)
                 throw new ApiError("REPLACEMENT_BUSY", "");
-              const candidate = await api<FileView>(`/api/files/${result.id}`, {
-                signal,
-              });
+              const path = new URL(result.url, location.origin).pathname;
+              const candidate = await api<FileView>(
+                `/api/files/by-path?path=${encodeURIComponent(path)}`,
+                { signal },
+              );
+              result = { ...result, id: candidate.id };
               if (!candidate.backgroundPending) break;
               await new Promise((resolve) => setTimeout(resolve, 1500));
             }

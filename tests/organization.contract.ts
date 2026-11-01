@@ -166,10 +166,10 @@ export function organizationContract(
         ).rejects.toMatchObject({ code: "CONFLICT" });
         const guestCatalog = organization.scope(null);
         for (const call of [
-          () => guestCatalog.reader.listTags(),
-          () => guestCatalog.reader.listCollections(),
-          () => guestCatalog.writer.ensureTag({ name: "guest" }),
-          () => guestCatalog.writer.ensureCollection({ name: "guest" }),
+          () => guestCatalog.listTags(),
+          () => guestCatalog.listCollections(),
+          () => guestCatalog.ensureTag({ name: "guest" }),
+          () => guestCatalog.ensureCollection({ name: "guest" }),
         ])
           await expect(call()).rejects.toMatchObject({ code: "FORBIDDEN" });
         await expect(
@@ -182,7 +182,7 @@ export function organizationContract(
         });
         const ensured = await organization
           .scope(user.id)
-          .writer.ensureCollection({ name: "SAME" });
+          .ensureCollection({ name: "SAME" });
         expect(ensured.id).toBe(collection.id);
         expect(
           (await organization.getCollection(actor, collection.id)).description,
@@ -370,11 +370,7 @@ export function organizationContract(
           ).results[0]?.accepted,
         ).toBe(true);
         let active = true;
-        const service = organization.scope(
-          user.id,
-          undefined,
-          () => active,
-        ).writer;
+        const service = organization.scope(user.id, undefined, () => active);
         active = false;
         await expect(service.ensureTag({ name: "late" })).rejects.toMatchObject(
           { code: "SCOPE_CLOSED" },

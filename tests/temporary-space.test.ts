@@ -159,7 +159,7 @@ test("automatic retries retain sources only until exhausted; pending sessions su
           configSchema: { type: "object", properties: {} },
           async createInstance() {
             return {
-              async execute() {
+              async process() {
                 throw new PluginError("FAILED", "retry automatically", true);
               },
             };
@@ -308,9 +308,6 @@ test("processor output uses the same budget while the input is still retained", 
           configSchema: { type: "object", properties: {} },
           async createInstance() {
             return {
-              async check() {
-                return { status: "applicable" as const };
-              },
               async process({ createOutput }) {
                 const output = await createOutput();
                 expect("path" in output).toBe(false);
@@ -495,13 +492,13 @@ test("task timeout cancels execution and retains its source until the reader exi
           configSchema: { type: "object", properties: {} },
           async createInstance() {
             return {
-              async execute(_input, ctx) {
+              async process(_input, ctx) {
                 if (ctx.signal.aborted) aborted();
                 else
                   ctx.signal.addEventListener("abort", aborted, { once: true });
                 await finished;
                 ctx.signal.throwIfAborted();
-                return {};
+                return { status: "pass" };
               },
             };
           },

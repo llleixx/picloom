@@ -325,6 +325,24 @@ export function persistenceContract(
         expect((await f.db.read((r) => r.uploadSessions()))[0]!.status).toBe(
           "pending",
         );
+        const replacementId = crypto.randomUUID();
+        await expect(
+          f.db.transaction(async (r) => {
+            await r.moveUploadSession(upload.file_id, replacementId);
+            throw new Error("rollback");
+          }),
+        ).rejects.toThrow("rollback");
+        expect(
+          (await f.db.read((r) => r.uploadSession(upload.id)))!.file_id,
+        ).toBe(upload.file_id);
+        await f.db.transaction((r) =>
+          r.moveUploadSession(upload.file_id, replacementId),
+        );
+        expect(await f.db.read((r) => r.uploadSession(upload.id))).toEqual({
+          ...upload,
+          file_id: replacementId,
+          updated_at: expect.any(Number),
+        });
         await f.db.transaction((r) => r.deleteUploadSession(upload.id));
         expect(await f.db.read((r) => r.uploadSession(upload.id))).toBeNull();
       } finally {

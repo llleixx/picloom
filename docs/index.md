@@ -20,7 +20,7 @@ features:
     link: /guide/storage
     linkText: 配置存储
   - title: 图片处理
-    details: 上传时缩放、加水印，访问时生成不同尺寸，保存后执行审核与通知。
+    details: 上传时缩放、加水印，访问时生成不同尺寸，保存后在后台处理、审核与通知。
     link: /guide/pipelines
     linkText: 配置流水线
   - title: 插件扩展

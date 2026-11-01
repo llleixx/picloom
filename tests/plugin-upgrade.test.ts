@@ -203,9 +203,6 @@ test("owned stage upgrades validate parameters, keep IDs and retain saved config
         async createInstance({ config }) {
           if (config.fail) throw new Error("private");
           return {
-            async check() {
-              return { status: "applicable" };
-            },
             async process() {
               return { status: "pass" };
             },
@@ -253,8 +250,8 @@ test("owned stage upgrades validate parameters, keep IDs and retain saved config
             configSchema: { type: "object", properties: {} },
             async createInstance() {
               return {
-                async execute() {
-                  return {};
+                async process() {
+                  return { status: "pass" };
                 },
               };
             },

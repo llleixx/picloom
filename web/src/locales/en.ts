@@ -300,11 +300,11 @@ export const en = {
 
   "processingResults.title": "Processing Results",
   "processingResults.hint":
-    "Completed step results, including partial runs. Statuses are individual step decisions; restoring access does not change these records.",
+    "Completed step results, including partial runs. Replacement results describe intermediate processing; restoring access does not change these records.",
   "processingResults.pass": "Pass",
   "processingResults.block": "Block",
   "processingResults.delete": "Delete",
-  "processingResults.override": "Override accumulated disposition",
+  "processingResults.replace": "Replace content",
   "processingResults.details": "Details",
   "errors.processing_result_invalid":
     "Plugin results must be JSON objects totaling at most 64 KiB.",

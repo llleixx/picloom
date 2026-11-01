@@ -15,8 +15,14 @@ export default {
   defaultLocale: "en-US",
   nameKey: "package.name",
   messages: {
-    "en-US": { "package.name": "Example thumbnail", "settings.width.label": "Maximum width" },
-    "zh-CN": { "package.name": "缩略图示例", "settings.width.label": "最大宽度" },
+    "en-US": {
+      "package.name": "Example thumbnail",
+      "settings.width.label": "Maximum width",
+    },
+    "zh-CN": {
+      "package.name": "缩略图示例",
+      "settings.width.label": "最大宽度",
+    },
   },
 
   stages: {
@@ -25,25 +31,32 @@ export default {
       paramsSchema: {
         type: "object",
         properties: {
-          width: { "x-ui": { labelKey: "settings.width.label" }, type: "integer", minimum: 1, maximum: 8192 },
+          width: {
+            "x-ui": { labelKey: "settings.width.label" },
+            type: "integer",
+            minimum: 1,
+            maximum: 8192,
+          },
         },
         additionalProperties: false,
       },
       async createInstance({ services }) {
         return {
-          async check({ metadata, params }) {
-            if (params.width === undefined) return { status: "noop" };
-            return !metadata.animated &&
-              ["image/jpeg", "image/png", "image/webp"].includes(
+          async process(
+            { metadata, getFile, params, limits, createOutput },
+            { signal },
+          ) {
+            if (params.width === undefined) return { status: "pass" };
+            if (
+              metadata.animated ||
+              !["image/jpeg", "image/png", "image/webp"].includes(
                 metadata.mimeType ?? "",
               )
-              ? { status: "applicable" }
-              : {
-                  status: "unsupported",
-                  reason: "Only static JPEG, PNG and WebP images are supported",
-                };
-          },
-          async process({ getFile, params, limits, createOutput }, { signal }) {
+            )
+              return {
+                status: "unsupported",
+                reason: "Only static JPEG, PNG and WebP images are supported",
+              };
             const width = Number(params.width);
             if (width > limits.maxDimension)
               throw new PluginError(

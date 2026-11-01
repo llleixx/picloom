@@ -39,13 +39,13 @@ export default {
       async createInstance({ config }) {
         const maxWidth = Number(config.maxWidth);
         return {
-          async execute({ file }, { signal }) {
+          async process({ file }, { signal }) {
             signal.throwIfAborted();
             const width = file.metadata.width;
             if (width === null)
               throw new PluginError("UNSUPPORTED", "Image width is required");
             return {
-              disposition: { value: width > maxWidth ? "block" : "pass" },
+              status: width > maxWidth ? "block" : "pass",
               details: { width, maxWidth },
             };
           },

@@ -8,9 +8,7 @@ import {
   type Parameters,
   type UploadPlugin,
   type AccessPlugin,
-  type UploadCheckInput,
   type UploadProcessInput,
-  type AccessCheckInput,
   type AccessProcessorInput,
 } from "@picloom/plugin-sdk";
 const transformProperties: Record<string, ParameterSchema> = {
@@ -60,11 +58,12 @@ function runtime(
         } as Parameters)
       : params;
   return {
-    async check(input: UploadCheckInput | AccessCheckInput) {
-      const { limits } = input;
+    async process(input: UploadProcessInput | AccessProcessorInput, ctx) {
+      ctx.signal.throwIfAborted();
+      const { limits, createOutput } = input;
       const { params } = input;
       const p = parameters(params);
-      if (!Object.keys(p).length) return { status: "noop" };
+      if (!Object.keys(p).length) return { status: "pass" };
       const w = p.w as number | undefined,
         h = p.h as number | undefined;
       if (
@@ -79,30 +78,20 @@ function runtime(
           false,
         );
       const file = "getFile" in input ? await input.getFile() : input.file;
+      const unsupported = (reason: string) => ({
+        status: "unsupported" as const,
+        reason,
+      });
       if (
         !["image/jpeg", "image/png", "image/webp"].includes(
           file.metadata.mimeType ?? "",
         ) ||
         file.metadata.animated
       )
-        return {
-          status: "unsupported",
-          reason: "Only static JPEG, PNG and WebP are supported",
-        };
+        return unsupported("Only static JPEG, PNG and WebP are supported");
       if (file.metadata.alpha && p.format === "jpeg")
-        return {
-          status: "unsupported",
-          reason: "JPEG cannot preserve transparency",
-        };
-      return { status: "applicable" };
-    },
-    async process(input: UploadProcessInput | AccessProcessorInput, ctx) {
+        return unsupported("JPEG cannot preserve transparency");
       ctx.signal.throwIfAborted();
-      const { limits, createOutput } = input;
-      const file = "getFile" in input ? await input.getFile() : input.file;
-      const { params } = input;
-      ctx.signal.throwIfAborted();
-      const p = parameters(params);
       const bytes = await new Response(
         retainStream(await file.openRead(), () => {}, ctx.signal),
       ).arrayBuffer();
@@ -192,6 +181,36 @@ export const sharpProcessor: Definition<"processor"> = {
       },
       async createInstance({ config, services }) {
         return runtime(config, true, services.images.sharp);
+      },
+    },
+    post_save: {
+      configSchemaVersion: 1,
+      configSchema: {
+        type: "object",
+        properties: transformProperties,
+        additionalProperties: false,
+      },
+      async validateConfig(config) {
+        return config.fit && !config.w && !config.h
+          ? [{ path: "/fit", message: "Fit needs dimensions" }]
+          : [];
+      },
+      async createInstance({ config, services }) {
+        const processor = runtime(config, true, services.images.sharp);
+        return {
+          async process(input, context) {
+            const result = await processor.process(
+              { ...input, params: {} },
+              context,
+            );
+            if (result.status === "unsupported" || result.status === "reject")
+              throw new PluginError(
+                "UNSUPPORTED",
+                result.reason ?? "Unsupported image",
+              );
+            return result;
+          },
+        };
       },
     },
     access: {

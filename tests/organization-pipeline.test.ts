@@ -125,7 +125,6 @@ async function create(
   expect(response.status).toBe(201);
   return (await response.json()) as { id: string; name: string };
 }
-const applicable = async () => ({ status: "applicable" as const });
 async function relations(f: Fixture, id: string) {
   return f.app.db.read((r) => f.app.organization.read(r, id));
 }
@@ -161,7 +160,6 @@ test("upload ensure updates flow to the next step and path; post-save organizati
       f,
       [
         {
-          check: applicable,
           async process(input, ctx) {
             const tag = await ctx.organization.ensureTag({
                 name: "Upload label",
@@ -182,7 +180,7 @@ test("upload ensure updates flow to the next step and path; post-save organizati
           },
         },
         {
-          async check(input, ctx) {
+          async process(input, ctx) {
             expect(input.record.organization.tags.map((x) => x.id)).toEqual([
               uploadTag,
             ]);
@@ -190,9 +188,7 @@ test("upload ensure updates flow to the next step and path; post-save organizati
               (await ctx.organization.listCollections()).items.map((x) => x.id),
             ).toContain(uploadCollection);
             observed++;
-            return { status: "applicable" };
-          },
-          async process(input) {
+
             expect(
               input.record.organization.collections.map((x) => x.id),
             ).toEqual([uploadCollection]);
@@ -203,7 +199,7 @@ test("upload ensure updates flow to the next step and path; post-save organizati
       ],
       [
         {
-          async execute(input, ctx) {
+          async process(input, ctx) {
             expect(input.record.organization.tags.map((x) => x.id)).toEqual([
               uploadTag,
             ]);
@@ -211,7 +207,7 @@ test("upload ensure updates flow to the next step and path; post-save organizati
               name: "Saved label",
             });
             savedTag = tag.id;
-            return { organization: { tagIds: [tag.id] } };
+            return { status: "pass", organization: { tagIds: [tag.id] } };
           },
         },
       ],
@@ -261,22 +257,22 @@ test("invalid post-save organization rejects its disposition while retaining acc
       [],
       [
         {
-          async execute() {
+          async process() {
             return {
               organization: { tagIds: [tag.id] },
-              disposition: { value: "block" },
+              status: "block",
             };
           },
         },
         {
-          async execute(input) {
+          async process(input) {
             expect(input.currentDisposition).toBe("block");
             expect(input.record.organization.tags.map((x) => x.id)).toEqual([
               tag.id,
             ]);
             return {
               organization: { collectionIds: ["missing"] },
-              disposition: { value: "delete" },
+              status: "delete",
             };
           },
         },
@@ -293,10 +289,7 @@ test("invalid post-save organization rejects its disposition while retaining acc
     const file = (await f.app.db.read((r) => r.file(uploaded.id)))!;
     expect(file.status).toBe("blocked");
     expect(file.processing_results_json).toHaveLength(1);
-    expect(file.processing_results_json?.[0]?.disposition).toEqual({
-      value: "block",
-      mode: "escalate",
-    });
+    expect(file.processing_results_json?.[0]?.status).toBe("block");
     expect((await relations(f, file.id)).tags.map((x) => x.id)).toEqual([
       tag.id,
     ]);
@@ -387,7 +380,6 @@ test("upload ownership stays with the uploader and guests cannot select organiza
       f,
       [
         {
-          check: applicable,
           async process(input, ctx) {
             expect(input.record.ownerId).toBeNull();
             expect(input.record.organization).toEqual({
@@ -403,12 +395,12 @@ test("upload ownership stays with the uploader and guests cannot select organiza
       ],
       [
         {
-          async execute(input, ctx) {
+          async process(input, ctx) {
             expect(input.record.ownerId).toBeNull();
             await expect(
               ctx.organization.ensureCollection({ name: "Guest album" }),
             ).rejects.toMatchObject({ code: "FORBIDDEN" });
-            return { organization: { tagIds: [own.id] } };
+            return { status: "pass", organization: { tagIds: [own.id] } };
           },
         },
       ],
@@ -460,7 +452,6 @@ test("chunks retain initial IDs, resolve current names and skip selected targets
     let observedName = "";
     await configure(f, [
       {
-        check: applicable,
         async process(input) {
           observedName = input.record.organization.tags[0]!.name;
           return { status: "pass" };

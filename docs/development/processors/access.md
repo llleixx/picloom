@@ -47,37 +47,9 @@ export default {
 
 配置与实例声明见[插件基础](../plugin-start.md#配置描述字段)，文件和上下文见[宿主服务](../plugin-services.md)。
 
-### check：决定是否执行
-
-核心对当前图片调用检查；只有返回 `applicable` 才调用本步骤的 `process`。
-
-```ts
-check(input: {
-  params: Parameters;
-  readonly metadata: Readonly<Metadata>;
-  getFile(): Promise<FileInput>;
-  limits: { maxDimension: number; maxPixels: number };
-}, context: CheckContext): Promise<{
-  status: "applicable" | "noop" | "unsupported";
-  reason?: string;
-}>;
-```
-
-返回对象必须含 `status`，可选 `reason: string` 说明原因：
-
-| `status`      | 核心行为                                             |
-| ------------- | ---------------------------------------------------- |
-| `applicable`  | 调用本步骤的 `process`                               |
-| `noop`        | 不处理，直接进入下一步                               |
-| `unsupported` | 根据步骤配置跳过或中止；中止时使用 `reason` 说明原因 |
-
-检查阶段不能创建输出，也不能写入 `context.data`。执行异常应抛错，不要用 `unsupported` 隐藏失败。
-
-`limits.maxDimension` 是最大单边像素数，`maxPixels` 是最大像素总数。请求参数已经筛选并校验，不自动合并固定配置。
-
 ### process：执行处理
 
-检查通过后调用，固定配置通过实例闭包使用，本次参数来自 `input.params`。
+每步只调用一次 `process`。固定配置通过实例闭包使用，请求参数来自已筛选并校验的 `input.params`，不自动合并固定配置。`limits.maxDimension` 是最大单边像素数，`maxPixels` 是最大像素总数。
 
 ```ts
 process(input: {
@@ -90,6 +62,7 @@ process(input: {
   | { status: "pass" }
   | { status: "replace"; output: Output }
   | { status: "reject"; reason: string }
+  | { status: "unsupported"; reason?: string }
 >;
 ```
 
@@ -98,10 +71,11 @@ process(input: {
 | 保留     | `status: "pass"`                      | 当前图片不变，继续下一步           |
 | 替换     | `status: "replace"`、`output: Output` | 校验输出并更新当前图片，继续下一步 |
 | 拒绝     | `status: "reject"`、`reason: string`  | 中止本次访问并报错                 |
+| 不支持   | `status: "unsupported"`，可选 `reason` | 按步骤设置跳过或中止；分别视为保留或拒绝 |
 
-输出来自本次 `createOutput()`，写入完成后才能返回。输出接口见 [文件与输出](../plugin-services.md#文件与输出)。
+执行异常应抛错，不要用 `unsupported` 隐藏失败。输出来自本次 `createOutput()`，写入完成后才能返回。输出接口见 [文件与输出](../plugin-services.md#文件与输出)。
 
-输入沿用 `check` 的字段，并增加 `createOutput()`；上下文允许写入流水线临时数据。`AccessPlugin` 独立于 `UploadPlugin`，不提供文件归类或分类服务。返回 `organization` 会被核心拒绝，避免访问请求修改持久关系或绕过派生缓存。
+上下文允许写入流水线临时数据。`AccessPlugin` 独立于 `UploadPlugin`，不提供文件归类或分类服务。返回 `organization` 会被核心拒绝，避免访问请求修改持久关系或绕过派生缓存。
 
 <span id="扩展与约束"></span>
 

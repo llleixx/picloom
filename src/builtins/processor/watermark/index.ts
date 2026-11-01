@@ -12,9 +12,7 @@ import {
   type Descriptor,
   type UploadPlugin,
   type AccessPlugin,
-  type UploadCheckInput,
   type UploadProcessInput,
-  type AccessCheckInput,
   type AccessProcessorInput,
 } from "@picloom/plugin-sdk";
 const configSchema: ConfigSchema = {
@@ -323,13 +321,17 @@ function stage(): Descriptor<UploadPlugin & AccessPlugin> & {
           throw new Error("Watermark must be a static PNG, JPEG or WebP");
       }
       return {
-        async check(input: UploadCheckInput | AccessCheckInput) {
+        async process(
+          input: UploadProcessInput | AccessProcessorInput,
+          context,
+        ) {
+          context.signal.throwIfAborted();
           const config = effectiveConfig(fixedConfig, input.params);
           if (
             config.opacity === 0 ||
             (config.type === "text" && !String(config.text ?? "").trim())
           )
-            return { status: "noop" };
+            return { status: "pass" };
           const relative = config.sizeMode === "relative";
           const size =
             config.type === "text"
@@ -353,21 +355,11 @@ function stage(): Descriptor<UploadPlugin & AccessPlugin> & {
             !["image/jpeg", "image/png", "image/webp"].includes(
               file.metadata.mimeType ?? "",
             )
-          )
-            return {
-              status: "unsupported",
-              reason: "Watermarks support static JPEG, PNG and WebP",
-            };
-          return { status: "applicable" };
-        },
-        async process(
-          input: UploadProcessInput | AccessProcessorInput,
-          context,
-        ) {
-          context.signal.throwIfAborted();
-          const config = effectiveConfig(fixedConfig, input.params);
+          ) {
+            const reason = "Watermarks support static JPEG, PNG and WebP";
+            return { status: "unsupported", reason };
+          }
           const { limits, createOutput } = input;
-          const file = "getFile" in input ? await input.getFile() : input.file;
           context.signal.throwIfAborted();
           const bytes = await new Response(
             retainStream(await file.openRead(), () => {}, context.signal),
@@ -583,5 +575,27 @@ export const watermark: Definition<"processor"> = {
   stages: {
     upload: stage(),
     access: stage(),
+    post_save: {
+      configSchemaVersion: 1,
+      configSchema,
+      validateConfig: stage().validateConfig,
+      async createInstance(input) {
+        const processor = await stage().createInstance(input);
+        return {
+          async process(input, context) {
+            const result = await processor.process(
+              { ...input, params: {} },
+              context,
+            );
+            if (result.status === "unsupported" || result.status === "reject")
+              throw new PluginError(
+                "UNSUPPORTED",
+                result.reason ?? "Unsupported image",
+              );
+            return result;
+          },
+        };
+      },
+    },
   },
 };

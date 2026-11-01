@@ -272,6 +272,7 @@ curl --fail-with-body "$PICLOOM_URL/api/files/$PICLOOM_FILE_ID" \
 | `DELETE /api/users/:id` | 删除用户，返回 `{"ok":true}`；仅会话认证，Owner 可删除管理员和成员，Admin 只能删除成员，Owner 不可删除；目标不存在返回 404，权限不足返回 403。账户、凭据、标签和集合删除，图片和公开链接保留 |
 | `GET /api/files/owners` | 管理员查询图片所属用户筛选项，返回 `[{"id":"…","name":"…"}]`；包含现存用户与仍有图片的已删除用户，后者显示 ID。支持 `q` 搜索和 `limit`（默认 30，最大 100） |
 | `GET /api/files/:id` | 文件详情 |
+| `GET /api/files/by-path?path=公开路径` | 按 URL 的 pathname 查询当前文件详情，权限与按 ID 查询相同 |
 | `POST /api/files/:id/replace` | 用已上传的新图替换，保留公开链接；仅会话认证 |
 | `GET /api/files/:id/operations` | 管理员查看副本和后台任务 |
 | `DELETE /api/files/:id/replicas/:replicaId` | 管理员删除副本；`?includeLast=false` 保留没有其他可用副本的图片，默认 `true` |
@@ -285,7 +286,7 @@ curl --fail-with-body "$PICLOOM_URL/api/files/$PICLOOM_FILE_ID" \
 | `/api/storage-sources`、`/api/storage-groups` | 管理存储源和存储组 |
 | `/api/upload-profiles`、`/api/pipelines` | 管理上传配置与流水线 |
 
-存储组的 `replicaCount` 表示总副本数，范围为 `1` 到成员数量。副本详情按存储源和状态展示。
+存储组的 `replicaCount` 表示总副本数，范围为 `1` 到成员数量。副本详情按存储源和状态展示。处理结果通过 `status: pass | replace | block | delete` 记录每步行为，替换输出不包含在响应中。
 
 人工标记要求副本为 `delete_failed` 且无关联运行任务，已为 `deleted` 时重复请求成功。此操作结束管理，不保证远端删除；标记后的失败任务不可重试。整图进入 `deleted` 后自动清除图片及其副本、任务、上传会话、分类关联和源清理明细，释放公开路径，不保留历史；后续详情及重复操作返回 404。副本响应的 `instanceDeleted` 表示存储源配置已删除，`instanceId` 保留原标识；配置不存在时 `name` 回退为该标识。存储源的 `usedStorageBytes` 按全部未终结副本统计，`replicaCount` 表示未终结副本数量。
 
@@ -338,7 +339,7 @@ curl --fail-with-body "$PICLOOM_URL/api/files/$PICLOOM_FILE_ID" \
 
 ### 替换图片
 
-先按正常流程上传新图，再向 `POST /api/files/:id/replace` 发送 JSON：`{"replacementId":"新文件 ID","replacementPath":"新上传结果 URL 的 pathname"}`。上传时显式选择原上传配置或其他有权限的配置，不依赖默认配置回退。
+先按正常流程上传新图，再向 `POST /api/files/:id/replace` 发送 JSON：`{"replacementId":"新文件 ID","replacementPath":"新上传结果 URL 的 pathname"}`。上传时显式选择原上传配置或其他有权限的配置，不依赖默认配置回退。保存后替换可能更新新图 ID，可用 `GET /api/files/by-path?path=...` 查询当前 ID 并等待后台任务完成。
 
 新旧图片必须可管理、处于 ready 状态，且当前副本及后台任务已完成；已删除副本关联的失败或取消历史不阻止替换，其他失败任务仍需处理。成功返回新文件的 `id` 和保留的 `url`，旧文件随后异步清理；图片归属保持不变。切换失败不会删除原图，新上传的图片可能作为独立图片保留。允许跨格式替换，公开链接及其后缀不变，后缀可能与新图实际格式不同。浏览器和 CDN 已有缓存需等到过期或主动刷新。
 

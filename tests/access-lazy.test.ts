@@ -22,12 +22,9 @@ test("parameterless access executes; lazy reads share a source; untouched chains
     },
   );
   const runtime: AccessPlugin = {
-    async check(input) {
+    async process(input, ctx) {
       expect("file" in input).toBe(false);
       expect(input.metadata.mimeType).toBe("image/png");
-      return { status: "applicable" };
-    },
-    async process(input, ctx) {
       calls++;
       expect(input.params).toEqual({});
       if (load) {
@@ -131,9 +128,6 @@ test("later access steps see replacements; parameterless output is cached", asyn
         configSchema: { type: "object", properties: {} },
         async createInstance({ services }) {
           return {
-            async check() {
-              return { status: "applicable" as const };
-            },
             async process(input) {
               checks++;
               const file = await input.getFile();
@@ -171,13 +165,10 @@ test("later access steps see replacements; parameterless output is cached", asyn
         configSchema: { type: "object", properties: {} },
         async createInstance() {
           return {
-            async check(input) {
+            async process(input) {
               expect(input.metadata.width).toBe(7);
               expect((await input.getFile()).metadata.height).toBe(5);
-              return { status: "noop" as const };
-            },
-            async process() {
-              throw new Error("Must not process");
+              return { status: "pass" as const };
             },
           };
         },

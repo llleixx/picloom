@@ -1,4 +1,4 @@
-import type { FileContext } from "@picloom/plugin-sdk";
+import type { FileContext, Metadata } from "@picloom/plugin-sdk";
 import type { OrganizationUpdate } from "../../shared/organization";
 import type { Organization } from "./organization";
 import { messageText } from "../../shared/package-localization";
@@ -7,7 +7,11 @@ import type { TemporarySpace } from "../infra/temporary-space";
 import { isPluginError } from "@picloom/plugin-sdk";
 import type { ProcessingResult } from "../../shared/api";
 import { assertJson, pipelineData } from "./pipeline-data";
-import { join } from "node:path";
+import { basename, join } from "node:path";
+import { processorOutputs } from "./processor-output";
+import { identify } from "../infra/images";
+import { checkStorageCapacity } from "./storage-capacity";
+import { replaceFile } from "./file-replacement";
 import type {
   Persistence,
   Repositories,
@@ -483,19 +487,37 @@ export class TaskExecutor {
     let decision: "pass" | "block" | "delete" = "pass";
     const results: ProcessingResult[] = [];
     let organizationUpdate: OrganizationUpdate = {};
-    const finishAction = async (r: Repositories, current: FileRecord) => {
-      await this.organization.write(
-        r,
-        current.id,
-        current.owner_id,
-        organizationUpdate,
-        { ignoreMissing: true },
-      );
-      if (decision !== "pass")
-        current.status = decision === "block" ? "blocked" : "deleting";
-      current.processing_results_json = results.length ? results : null;
-      await r.saveFile(current, "ready");
+    const finishAction = async (
+      r: Repositories,
+      current: FileRecord,
+      replacement?: FileRecord,
+    ) => {
+      if (decision !== "delete")
+        await this.organization.write(
+          r,
+          current.id,
+          current.owner_id,
+          organizationUpdate,
+          { ignoreMissing: true },
+        );
+      const target = replacement ?? current;
+      target.processing_results_json = results.length ? results : null;
+      if (replacement) {
+        await replaceFile(
+          r,
+          this.organization,
+          current,
+          replacement,
+          decision === "block" ? "blocked" : "ready",
+        );
+      } else {
+        if (decision !== "pass")
+          current.status = decision === "block" ? "blocked" : "deleting";
+        await r.saveFile(current, "ready");
+      }
     };
+    const owned = new Set<string>();
+    let replacement: FileRecord | undefined;
     let writeCompleted = false;
     try {
       if (this.stopping) controller.abort();
@@ -522,12 +544,19 @@ export class TaskExecutor {
             this.organization.read(r, file.id),
           ),
         };
+        let path: string | undefined;
+        let metadata: Metadata = {
+          mimeType: file.mime_type,
+          byteSize: file.byte_size,
+          width: file.width,
+          height: file.height,
+        };
+        let replaced = false;
         const data = pipelineData();
         for (const step of steps) {
           activeStep = { id: step.id, name: step.id };
           controller.signal.throwIfAborted();
-          const current = await this.db.read((r) => r.file(file.id));
-          if (current?.status !== "ready")
+          if ((await this.db.read((r) => r.file(file.id)))?.status !== "ready")
             throw new AppError("FILE_DELETING", "File is no longer available");
           const stage = this.plugins.acquire(
             step.plugin_instance_id,
@@ -540,14 +569,22 @@ export class TaskExecutor {
             definition.nameKey,
           );
           try {
-            const path = await sourcePath();
+            if (path === undefined) {
+              path = await sourcePath();
+              metadata = await identify(
+                path,
+                this.config.maxPixels,
+                controller.signal,
+              );
+            }
             const scope = scopedInput(
-              fileInput(path, {
-                mimeType: file.mime_type,
-                byteSize: file.byte_size,
-                width: file.width,
-                height: file.height,
-              }),
+              fileInput(path, metadata),
+              controller.signal,
+            );
+            const outputs = processorOutputs(
+              this.temporary,
+              owned,
+              this.config.maxUploadBytes,
               controller.signal,
             );
             let active = true;
@@ -557,7 +594,7 @@ export class TaskExecutor {
               () => active,
             );
             try {
-              const result = await stage.runtime.execute(
+              const result = await stage.runtime.process(
                 {
                   operationId: `${id}:${step.id}`,
                   record: structuredClone(record),
@@ -566,10 +603,15 @@ export class TaskExecutor {
                     this.config.imageOrigin +
                     publicPath(file.public_prefix, file.logical_key),
                   file: scope.file,
+                  createOutput: outputs.createOutput,
+                  limits: {
+                    maxDimension: this.config.maxDimension,
+                    maxPixels: this.config.maxPixels,
+                  },
                   currentDisposition: decision,
                   previousResults: structuredClone(results),
                 },
-                { ...ctx, data, organization: catalog.writer },
+                { ...ctx, data, organization: catalog },
               );
               active = false;
               controller.signal.throwIfAborted();
@@ -577,26 +619,38 @@ export class TaskExecutor {
                 !result ||
                 typeof result !== "object" ||
                 Array.isArray(result) ||
+                !["pass", "replace", "block", "delete"].includes(
+                  result.status,
+                ) ||
                 Object.keys(result).some(
                   (key) =>
-                    !["disposition", "organization", "details"].includes(key),
+                    !["status", "output", "organization", "details"].includes(
+                      key,
+                    ),
                 ) ||
-                (result.disposition !== undefined &&
-                  (!result.disposition ||
-                    typeof result.disposition !== "object" ||
-                    Array.isArray(result.disposition) ||
-                    Object.keys(result.disposition).some(
-                      (key) => !["value", "mode"].includes(key),
-                    ) ||
-                    !["pass", "block", "delete"].includes(
-                      result.disposition.value,
-                    ) ||
-                    (result.disposition.mode !== undefined &&
-                      !["escalate", "replace"].includes(
-                        result.disposition.mode,
-                      ))))
+                (result.status === "replace"
+                  ? !result.output
+                  : "output" in result)
               )
                 throw new AppError("PLUGIN_RESULT", "Invalid Post-save result");
+              let nextPath = path,
+                nextMetadata = metadata;
+              if (result.status === "replace") {
+                nextPath = await outputs.accept(result.output);
+                nextMetadata = await identify(
+                  nextPath,
+                  this.config.maxPixels,
+                  controller.signal,
+                );
+                if (
+                  nextMetadata.width! > this.config.maxDimension ||
+                  nextMetadata.height! > this.config.maxDimension
+                )
+                  throw new AppError(
+                    "INVALID_PARAMS",
+                    "Output exceeds dimension limit",
+                  );
+              }
               let next: Awaited<ReturnType<Organization["applyUpdate"]>>;
               let completed: ProcessingResult;
               try {
@@ -619,14 +673,7 @@ export class TaskExecutor {
                   pluginId: stage.record.plugin_id,
                   pluginVersion: stage.record.plugin_version,
                   completedAt: Date.now(),
-                  ...(result.disposition
-                    ? {
-                        disposition: {
-                          value: result.disposition.value,
-                          mode: result.disposition.mode ?? "escalate",
-                        },
-                      }
-                    : {}),
+                  status: result.status,
                   ...(result.organization !== undefined
                     ? { organization: next.update }
                     : {}),
@@ -645,20 +692,20 @@ export class TaskExecutor {
                   "Invalid organization or processing results; results must total at most 64 KiB",
                 );
               }
-              // Accept a step atomically only after its entire result is valid.
+              // Content, organization and disposition are accepted together.
               results.push(completed);
+              path = nextPath;
+              metadata = nextMetadata;
+              replaced ||= result.status === "replace";
               record = { ...record, organization: next.organization };
               organizationUpdate = { ...organizationUpdate, ...next.update };
-              if (completed.disposition) {
-                const { value, mode } = completed.disposition;
-                if (
-                  mode === "replace" ||
-                  dispositionRank[value] > dispositionRank[decision]
-                )
-                  decision = value;
+              if (result.status === "block" || result.status === "delete") {
+                if (dispositionRank[result.status] > dispositionRank[decision])
+                  decision = result.status;
               }
             } finally {
               active = false;
+              await outputs.close();
               await scope.close();
             }
           } finally {
@@ -667,6 +714,70 @@ export class TaskExecutor {
         }
         activeStep = undefined;
         controller.signal.throwIfAborted();
+        if (replaced && decision !== "delete") {
+          const nextId = crypto.randomUUID();
+          const next: FileRecord = {
+            ...file,
+            ...entity(),
+            id: nextId,
+            logical_key: `.replacements/${nextId}`,
+            storage_key: `.picloom-replacement/${nextId}`,
+            mime_type: metadata.mimeType,
+            byte_size: metadata.byteSize,
+            width: metadata.width,
+            height: metadata.height,
+            temp_path: basename(path!),
+            status: "preparing",
+            processing_results_json: null,
+            last_error: null,
+          };
+          await this.db.transaction(async (r) => {
+            if ((await r.file(file.id))?.status !== "ready")
+              throw new AppError(
+                "FILE_DELETING",
+                "File is no longer available",
+              );
+            const targets = (await r.replicas(file.id)).filter(
+              (replica) => replica.status !== "deleted",
+            );
+            if (!targets.length)
+              throw new AppError(
+                "STORAGE_TARGET_MISSING",
+                "No managed storage target remains",
+              );
+            for (const target of targets)
+              await checkStorageCapacity(
+                r,
+                target.storage_instance_id,
+                next.byte_size ?? 0,
+              );
+            await r.insertFile(next);
+            for (const target of targets) {
+              const replica: Replica = {
+                ...entity(),
+                file_id: next.id,
+                storage_instance_id: target.storage_instance_id,
+                status: "pending",
+                locator_json: null,
+              };
+              await r.insertReplica(replica);
+              await r.insertTask({
+                ...entity(),
+                kind: "write",
+                file_id: next.id,
+                replica_id: replica.id,
+                pipeline_id: null,
+                status: "pending",
+                attempts: 0,
+                next_run_at: Date.now(),
+                last_error: null,
+              });
+            }
+          });
+          replacement = next;
+          owned.delete(path!);
+          await this.waitForFirstWrite(next.id, controller.signal);
+        }
       } else {
         lease = this.plugins.acquire(replica!.storage_instance_id, "storage");
         const storage = lease.runtime as import("../plugins/api").StoragePlugin;
@@ -742,7 +853,21 @@ export class TaskExecutor {
           const currentFile = requireValue(await r.file(file.id));
           if (currentFile.status !== "ready")
             throw new AppError("FILE_DELETING", "File is no longer available");
-          await finishAction(r, currentFile);
+          if (replacement) {
+            const next = requireValue(await r.file(replacement.id));
+            if (
+              next.status !== "preparing" ||
+              !(await r.replicas(next.id)).some(
+                (replica) => replica.status === "ready",
+              )
+            )
+              throw new Conflict("Replacement is no longer available");
+            await finishAction(r, currentFile, next);
+            await r.moveUploadSession(file.id, next.id);
+            current.file_id = next.id;
+          } else {
+            await finishAction(r, currentFile);
+          }
         }
         current.status = "success";
         current.last_error = null;
@@ -750,8 +875,17 @@ export class TaskExecutor {
         if (replica) await r.saveReplica(replica);
         await r.saveTask(current, "running");
       });
-      if (decision === "delete") this.cancel(file.id);
+      if (decision === "delete" || replacement) this.cancel(file.id);
     } catch (error) {
+      if (replacement) {
+        this.cancel(replacement.id);
+        await this.db.transaction(async (r) => {
+          const next = await r.file(replacement!.id);
+          if (next?.status !== "preparing") return;
+          next.status = "failed";
+          await r.saveFile(next, "preparing");
+        });
+      }
       await this.db.transaction(async (r) => {
         const t = requireValue(await r.task(id)),
           f = requireValue(await r.file(file.id));
@@ -830,6 +964,7 @@ export class TaskExecutor {
         await lease?.release();
       } finally {
         try {
+          for (const path of owned) await this.temporary.remove(path);
           if (repairPath) await this.temporary.remove(repairPath);
         } finally {
           this.controllers.delete(id);

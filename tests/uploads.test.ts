@@ -102,6 +102,81 @@ test("parts can arrive out of order and be replaced; completion and restart neve
   }
 });
 
+for (const lateFailure of [false, true]) {
+  test(`post-save replacement preserves chunk completion${lateFailure ? " after a late completion failure" : " across cleanup and restart"}`, async () => {
+    const f = await fixture();
+    let uploadSpy: ReturnType<typeof spyOn> | undefined;
+    try {
+      const pipeline = await f.app.configuration.savePipeline({
+        name: "Replace chunked upload",
+        kind: "post_save",
+        steps: [
+          {
+            pluginId: "builtin.sharp",
+            version: "1.0.0",
+            config: { w: 18, format: "webp" },
+          },
+        ],
+      });
+      const profile = await f.app.configuration.profileEditor(f.profileId);
+      await f.app.configuration.saveProfileEditor(
+        {
+          ...profile,
+          expectedVersion: profile.configVersion,
+          postSavePipelineId: pipeline.id,
+        },
+        profile.id,
+      );
+      const upload = await create(f, f.png.length);
+      expect((await put(f, upload.id, 0, f.png)).status).toBe(200);
+      const originalUpload = f.app.files.upload.bind(f.app.files);
+      let originalId = "";
+      uploadSpy = spyOn(f.app.files, "upload").mockImplementation(
+        async (...args) => {
+          const result = await originalUpload(...args);
+          originalId = result.id;
+          // Complete the replacement before the upload session saves its status.
+          await f.app.files.sweep();
+          if (lateFailure) throw new Error("Completion finalization failed");
+          return result;
+        },
+      );
+      const complete = await f.request(
+        `/api/uploads/${upload.id}/complete`,
+        "POST",
+      );
+      expect(complete.status).toBe(200);
+      const first = await complete.json();
+      const session = (await f.app.db.read((r) => r.uploadSession(upload.id)))!;
+      expect(session.status).toBe("completed");
+      expect(session.file_id).not.toBe(originalId);
+      expect(await f.app.db.read((r) => r.file(originalId))).toBeNull();
+      const expected = { id: session.file_id, url: first.url };
+      const repeated = await f.request(
+        `/api/uploads/${upload.id}/complete`,
+        "POST",
+      );
+      expect(repeated.status).toBe(200);
+      expect(await repeated.json()).toEqual(expected);
+      uploadSpy.mockRestore();
+      await f.restart();
+      const restarted = await f.request(
+        `/api/uploads/${upload.id}/complete`,
+        "POST",
+      );
+      expect(restarted.status).toBe(200);
+      expect(await restarted.json()).toEqual(expected);
+      expect(await f.app.db.read((r) => r.countFiles())).toBe(1);
+      const image = await f.request(new URL(first.url).pathname);
+      expect(image.status).toBe(200);
+      await image.arrayBuffer();
+    } finally {
+      uploadSpy?.mockRestore();
+      await f.close();
+    }
+  });
+}
+
 test("sessions enforce upload keys, scope, quota, cancellation and expiry", async () => {
   const f = await fixture();
   try {

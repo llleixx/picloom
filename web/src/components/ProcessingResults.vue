@@ -22,18 +22,8 @@ const complex = (value: unknown) => value !== null && typeof value === "object";
         {{ result.pluginId }} · {{ result.pluginVersion }}
       </p>
       <p class="subtle">
-        {{ date(result.completedAt)
-        }}<template v-if="result.disposition">
-          · {{ t(`processingResults.${result.disposition.value}`) }}</template
-        >
-      </p>
-      <p v-if="result.disposition?.mode === 'replace'" class="subtle">
-        {{ t("processingResults.override") }} ·
-        {{
-          result.disposition
-            ? t(`processingResults.${result.disposition.value}`)
-            : ""
-        }}
+        {{ date(result.completedAt) }} ·
+        {{ t(`processingResults.${result.status}`) }}
       </p>
       <details v-if="result.organization" class="subtle">
         <summary class="cursor-pointer">{{ t("organization.title") }}</summary>

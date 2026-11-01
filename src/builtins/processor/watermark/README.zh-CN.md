@@ -4,15 +4,15 @@
 
 ## 用途
 
-在上传或访问阶段添加文字或图片水印。
+在上传、访问或保存后阶段添加文字或图片水印。
 
-`builtin.watermark` · `processor` · `upload`, `access`
+`builtin.watermark` · `processor` · `upload`, `access`, `post_save`
 
 ## 配置
 
 下表默认值仅用于生成初始草稿，保存时不补值；“必填”表示提交时必须存在，清空后须重新填写。
 
-### `upload / access`
+### `upload / access / post_save`
 
 | 字段 | 含义 | 必填 | 默认值 | 约束 |
 | --- | --- | --- | --- | --- |
@@ -79,3 +79,5 @@
 只处理静态 JPEG、PNG、WebP，成功返回 `replace`。文字模式在合并请求参数后，文字缺省、为空或仅含空白时跳过；可将实例文字留空，并开放 `watermarkText`，通过 URL 参数按需添加水印。图片模式必须填写服务端 `imagePath`；图片水印同样限静态 PNG/JPEG/WebP。相对尺寸下，字号与边距以原图短边为基准，图片水印宽度以原图宽度为基准。有效配置的不透明度为 0 时跳过。
 
 需要保存内容始终含水印时，使用上传阶段水印，配置非空文字和非零不透明度，不开放 `watermarkText` 或 `watermarkOpacity`。
+
+保存后阶段仅使用固定配置，不接受请求参数；成功替换会生成新图片记录并保留公开链接，不支持的输入会使后台任务失败，保留原图。内容发布与失败规则见[流水线](https://llleixx.github.io/picloom/guide/pipelines.html)。

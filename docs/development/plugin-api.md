@@ -6,9 +6,9 @@
 | --------------------------------------- | ------------------------ | -------------------------------- |
 | [上传处理](./processors/upload.md)      | 保存前缩小图片、添加水印 | 最终存储的图片内容与归类         |
 | [访问处理](./processors/access.md)      | 用链接参数请求缩略图     | 本次访问结果，原图不变           |
-| [保存后处理](./processors/post-save.md) | 审核已保存图片、发送通知 | 文件归类、公开可用状态或外部操作 |
+| [保存后处理](./processors/post-save.md) | 审核已保存图片、发送通知 | 图片内容、归类、公开可用状态或外部操作 |
 
-上传和访问阶段每一步都可以把结果交给下一步。保存后阶段传递处理意见和摘要，不输出替换图片。
+各阶段通过 `process` 接收当前内容并将接受的结果交给后续步骤；保存后阶段还可累计屏蔽或删除决定。
 
 ## 定义与阶段
 
@@ -17,9 +17,9 @@
 ```text
 插件定义（身份、版本、kind）
 └── stages
-    ├── upload    → 配置描述 + createInstance → check / process
-    ├── access    → 配置描述 + createInstance → check / process
-    └── post_save → 配置描述 + createInstance → execute
+    ├── upload    → 配置描述 + createInstance → process
+    ├── access    → 配置描述 + createInstance → process
+    └── post_save → 配置描述 + createInstance → process
 ```
 
 | 定义字段           | 类型                                            | 必需 | 含义                           |

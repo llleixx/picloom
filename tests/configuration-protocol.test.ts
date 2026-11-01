@@ -480,8 +480,8 @@ test("package catalogs reject stage metadata and declaration errors identify fie
           configSchema: { type: "object" },
           async createInstance() {
             return {
-              async execute() {
-                return {};
+              async process() {
+                return { status: "pass" };
               },
             };
           },
@@ -501,8 +501,8 @@ test("package catalogs reject stage metadata and declaration errors identify fie
             configSchema: { type: "object" },
             async createInstance() {
               return {
-                async execute() {
-                  return {};
+                async process() {
+                  return { status: "pass" };
                 },
               };
             },

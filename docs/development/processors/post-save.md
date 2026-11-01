@@ -25,7 +25,7 @@ export default {
 
 <<< ../../../examples/post-save/src/index.ts#implementation
 
-`execute` 读取元数据，通过 `disposition.value` 返回 `pass` 或 `block`，并用 `details` 记录宽度和阈值。
+`process` 读取元数据，通过 `status` 返回 `pass` 或 `block`，并用 `details` 记录宽度和阈值。
 
 <span id="接入并验证"></span>
 
@@ -43,14 +43,12 @@ export default {
 
 配置与实例声明见[插件基础](../plugin-start.md#配置描述字段)，文件和上下文见[宿主服务](../plugin-services.md)。
 
-此阶段仅提供 `execute`，没有请求参数、`check/process` 或替换图片的输出接口。
+### process：执行保存后操作
 
-### execute：执行保存后操作
-
-后台任务按步骤调用；同一次操作可能因重试再次调用。
+后台任务按顺序调用 `process`，不接受请求参数。
 
 ```ts
-execute(input: {
+process(input: {
   readonly operationId: string;
   readonly record: FileContext;
   readonly publicPath: string;
@@ -58,52 +56,43 @@ execute(input: {
   readonly file: FileInput;
   readonly currentDisposition: PostSaveDisposition;
   readonly previousResults: readonly Readonly<PostSaveStepResult>[];
+  limits: { maxDimension: number; maxPixels: number };
+  createOutput(): Promise<Output>;
 }, context: PostSaveContext): Promise<PostSaveResult>;
 ```
 
-`PostSaveResult` 的字段均可省略，通知插件可以只返回 `{ details: { sent: true } }`：
+结果必须包含 `status`：
 
-| 字段           | 类型                                                                       | 核心行为                                             |
+| `status`  | 其他必需字段     | 行为                             |
 | -------------- | -------------------------------------------------------------------------- | ---------------------------------------------------- |
-| `disposition`  | `{ value: "pass" \| "block" \| "delete", mode?: "escalate" \| "replace" }` | 提出处置；省略表示不参与                             |
-| `organization` | `OrganizationUpdate`                                                       | 修改本次图片的标签或集合                             |
-| `details`      | `Config`                                                                   | 保存简要 JSON 对象并传给后续步骤，不放凭证或图片字节 |
+| `pass`    | 无               | 保留当前内容及累计处置           |
+| `replace` | `output: Output` | 接受本次输出，后续步骤读取新内容 |
+| `block`   | 无               | 累计屏蔽决定，继续后续步骤       |
+| `delete`  | 无               | 累计删除决定，继续后续步骤       |
 
-`record` 包含文件 ID、时间、来源、归属及当前有效归类；`context.organization` 提供当前归属范围内的查找和创建服务，见[文件上下文与归类](../plugin-services.md#文件上下文与归类)。归类修改省略字段表示保留该项，空数组清空，非空数组设置完整目标 ID，每项最多 100 个。
+各状态均可附 `organization: OrganizationUpdate` 和 `details: Config`。通知插件可返回 `{ status: "pass", details: { sent: true } }`。此阶段没有“不适用时跳过”的选项；不支持的输入应抛出 `PluginError("UNSUPPORTED", reason)`。
 
-`operationId` 可用于远端幂等处理；`publicPath` 含公开前缀、不含域名，`url` 在未配置域名时可能是相对路径。`currentDisposition` 是本次尝试的累计决策，初始为 `pass`，并非数据库文件状态。
+`file` 是此前步骤接受的当前内容；`createOutput()` 和 `limits` 的规则与[上传处理](./upload.md#接口行为)相同。输出必须由本次调用创建并写入完成。`record` 包含文件 ID、时间、来源、归属及当前有效归类；归类字段省略表示保留，空数组清空，每项最多 100 个 ID。查找和创建服务见[文件上下文与归类](../plugin-services.md#文件上下文与归类)。
 
-`previousResults` 按执行顺序包含本次尝试已完成步骤的隔离快照。每项复用规范化后的结果，加上 `stepId`、`pluginId`、`pluginVersion` 和 Unix 毫秒时间 `completedAt`。有处置时记录明确的 `mode`。结果表示步骤当时接受的修改，文件详情中的关系才是当前归类。
+`operationId` 可用于远端幂等处理；`publicPath` 含公开前缀、不含域名，`url` 未配置域名时可能是相对路径。URL 始终指向当前已发布内容，可能与流水线内尚未发布的 `file` 不同。
+
+`currentDisposition` 为只读的 `pass | block | delete`，表示每步开始前本次尝试的累计决定，初始为 `pass`。删除优先于屏蔽，屏蔽优先于通过；后续 `pass` 或 `replace` 不会解除屏蔽或撤销删除。`block/delete` 不终止后续步骤，后续通知可以继续读取这一决定。
+
+`previousResults` 按顺序提供本次尝试已完成步骤的隔离快照：`status`、可选归类和摘要，以及 `stepId`、`pluginId`、`pluginVersion`、Unix 毫秒时间 `completedAt`。其中不保存或传递 `Output`。结果表示步骤当时接受的修改，文件详情中的关系才是当前归类。总量上限为 64 KiB，不应放入凭证或图片字节。
 
 <span id="扩展与约束"></span>
 
-## 可选能力与约束
+## 提交与失败
 
-### 如何形成累计处置
+每步完整校验输出、归类和摘要后才接受其结果。同一步的非法分类会使整个结果失败；需要审核独立生效时，将审核与归类配置为两个步骤，让归类步骤读取前序 `details`。
 
-省略 `mode` 或使用 `escalate` 时，按 `pass < block < delete` 累积；`replace` 明确覆盖此前累计决策，后续步骤仍可再次改变：
+整条处理成功后，替换结果作为新图片记录写入副本，至少一份成功后接管原公开链接，图片 ID 更新。归属、当前归类、处理结果及任务保留在新记录中，旧图随后清理；新图不再触发保存后流水线。累计屏蔽可与替换同时生效；累计删除时不保存替换内容或提交归类，进入整图删除。
 
-| 步骤 | 返回值                                                | 累计处置 |
-| ---- | ----------------------------------------------------- | -------- |
-| 审核 | `{ disposition: { value: "block" } }`                 | `block`  |
-| 复核 | `{ disposition: { value: "pass", mode: "replace" } }` | `pass`   |
-| 通知 | `{ details: { sent: true } }`                         | `pass`   |
+处理途中失败时不发布任何中间替换，但此前已接受的屏蔽、删除与摘要仍会提交；没有删除决定时也提交已接受的归类。只写插件明确修改的归类字段；人工与插件对同一字段的修改按提交顺序生效。已被删除的分类在提交时排除，文件进入删除流程后不再写新归类或覆盖删除状态。
 
-`block/delete` 不终止后续步骤，后续步骤通过 `currentDisposition` 决定是否通知，通过 `previousResults` 读取前序识别摘要。`delete` 随后由后台清理副本，不表示远端图片已删除。
+失败或重启后的重试可能重新执行整条流水线，包括处理和通知。累计为 `block/delete` 的失败不自动重试；为 `pass` 时，可重试错误按次数限制重试。只有 `ready` 文件可重新执行处理；屏蔽文件需先由管理员解除屏蔽，删除失败通过删除任务处理。
 
-### 归类与失败提交
-
-每一步完整结果有效后才同时接受归类、处置和摘要。同一步返回屏蔽意见和非法分类时，整个步骤失败，屏蔽意见也不参与累计。需要审核独立生效时，将审核与归类配置为两个步骤，让归类步骤读取前序 `details`。
-
-本次执行成功或失败时，核心统一提交此前已接受的归类、处置、结果及任务状态。只写插件明确修改的归类字段；未改集合不会覆盖人工编辑的集合。人工与插件对同一字段的修改按提交顺序生效。已接受结果中的分类在提交前被删除时排除相应 ID；文件被其他操作置入删除流程后，不再写新归类或覆盖删除状态。
-
-累计为 `block/delete` 时，失败任务不自动重试；为 `pass` 时，可重试错误按次数限制重试整条流水线。只有 `ready` 文件可重新执行，每次从数据库当前归类及空前序结果开始。屏蔽文件必须先由管理员解除屏蔽，重试不隐式放行；删除失败通过删除任务处理。
-
-一次执行的结果总量上限为 64 KiB，包括步骤标识、处置、归类与摘要。只返回完成后续处理和解释结果所需的内容。
-
-### 步骤间传值
-
-`context.data` 用于本次流水线的临时 JSON，`previousResults` 用于保存后读取已完成步骤的接受结果，`currentDisposition` 用于读取每步执行前的累计处置。临时数据不跨请求或重试保存；持久运行数据见[状态服务](../plugin-services.md#密钥与运行状态)。
+`context.data` 用于本次流水线的临时 JSON，不跨请求或处理重试保存；持久运行数据见[状态服务](../plugin-services.md#密钥与运行状态)。
 
 <span id="想实现什么"></span><span id="在哪里执行"></span><span id="谁负责什么"></span><span id="看一次调用"></span><span id="定义与能力清单"></span>
 开发流程见[最小实现](#最小实现)，调用规则见[接口行为](#接口行为)。

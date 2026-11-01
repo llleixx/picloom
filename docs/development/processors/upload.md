@@ -30,7 +30,7 @@ export default {
 
 <<< ../../../examples/processor/src/index.ts#implementation
 
-`check` 判断格式，`process` 通过宿主 Sharp 缩放，再写入本次输出。示例将输入读入内存，不放大小图。
+`process` 判断格式，通过宿主 Sharp 缩放，再写入本次输出。示例将输入读入内存，不放大小图。
 
 <span id="接入并验证"></span>
 
@@ -49,37 +49,9 @@ export default {
 
 配置与实例声明见[插件基础](../plugin-start.md#配置描述字段)，文件和上下文见[宿主服务](../plugin-services.md)。
 
-### check：决定是否执行
-
-核心对当前图片调用检查；只有返回 `applicable` 才调用本步骤的 `process`。
-
-```ts
-check(input: {
-  params: Parameters;
-  file: FileInput;
-  readonly record: FileContext;
-  limits: { maxDimension: number; maxPixels: number };
-}, context: UploadCheckContext): Promise<{
-  status: "applicable" | "noop" | "unsupported";
-  reason?: string;
-}>;
-```
-
-返回对象必须含 `status`，可选 `reason: string` 说明原因：
-
-| `status`      | 核心行为                                             |
-| ------------- | ---------------------------------------------------- |
-| `applicable`  | 调用本步骤的 `process`                               |
-| `noop`        | 不处理，直接进入下一步                               |
-| `unsupported` | 根据步骤配置跳过或中止；中止时使用 `reason` 说明原因 |
-
-检查阶段不能创建输出，也不能写入 `context.data`。执行异常应抛错，不要用 `unsupported` 隐藏失败。
-
-`limits.maxDimension` 是最大单边像素数，`maxPixels` 是最大像素总数。请求参数已经筛选并校验，不自动合并固定配置。
-
 ### process：执行处理
 
-检查通过后调用，固定配置通过实例闭包使用，本次参数来自 `input.params`。
+每步只调用一次 `process`。固定配置通过实例闭包使用，请求参数来自已筛选并校验的 `input.params`，不自动合并固定配置。`limits.maxDimension` 是最大单边像素数，`maxPixels` 是最大像素总数。
 
 ```ts
 process(input: {
@@ -92,6 +64,7 @@ process(input: {
   | { status: "pass"; organization?: OrganizationUpdate }
   | { status: "replace"; output: Output; organization?: OrganizationUpdate }
   | { status: "reject"; reason: string }
+  | { status: "unsupported"; reason?: string }
 >;
 ```
 
@@ -100,10 +73,11 @@ process(input: {
 | 保留     | `status: "pass"`                      | 当前图片不变，继续下一步           |
 | 替换     | `status: "replace"`、`output: Output` | 校验输出并更新当前图片，继续下一步 |
 | 拒绝     | `status: "reject"`、`reason: string`  | 中止本次上传并报错                 |
+| 不支持   | `status: "unsupported"`，可选 `reason` | 按步骤设置跳过或中止；分别视为保留或拒绝 |
 
-输出来自本次 `createOutput()`，写入完成后才能返回。输出接口见 [文件与输出](../plugin-services.md#文件与输出)。
+执行异常应抛错，不要用 `unsupported` 隐藏失败。输出来自本次 `createOutput()`，写入完成后才能返回。输出接口见 [文件与输出](../plugin-services.md#文件与输出)。
 
-输入沿用 `check` 的字段，并增加 `createOutput()`。同一步检查与处理收到相同的 `record` 快照，后续步骤和路径插件读取此前成功步骤接受的归类。`check` 通过 `context.organization` 查找分类，`process` 还可复用或创建分类，见[归类服务](../plugin-services.md#文件上下文与归类)。
+后续步骤和路径插件读取此前成功步骤接受的图片与归类。`context.organization` 可查找、复用或创建分类，见[归类服务](../plugin-services.md#文件上下文与归类)。
 
 返回 `organization: { tagIds, collectionIds }` 设置完整目标关系；省略字段保留该项，空数组清空。每项最多 100 个 ID，仅可选择当前归属范围内的分类。核心完整校验图片输出及归类后才同时接受；无效结果不会部分更新。仅需归类时返回 `{ status: "pass", organization: { tagIds: [tag.id] } }`。
 
@@ -113,7 +87,7 @@ process(input: {
 
 管理员在步骤中启用 `width` 后，本次上传可通过 `params` 指定宽度；不传则使用固定配置。见 [配置与请求参数示例](../plugin-config.md#固定配置与请求参数)。
 
-输出只能写一次，必须是本次调用通过 `createOutput()` 创建的对象。核心检查图片和尺寸后才接受替换。`check` 不提供输出创建能力，它的 `context.data` 也只读。
+输出只能写一次，必须是本次调用通过 `createOutput()` 创建的对象。核心检查图片和尺寸后才接受替换。
 
 示例将输入读入内存，便于理解。大文件处理应评估内存或采用流式实现，并遵守宿主传入的 `limits` 和取消信号。网络异常应抛错，不要返回 `unsupported` 隐藏失败。
 

@@ -33,7 +33,7 @@ export default {
       required: ["url"], additionalProperties: false
     },
     async createInstance({config}) {
-      return { async execute(input, context) {
+      return { async process(input, context) {
         const response = await fetch(config.url, {
           method: "POST", signal: context.signal,
           headers: {"content-type": "application/json", "idempotency-key": input.operationId},
@@ -41,7 +41,7 @@ export default {
         });
         await response.body?.cancel();
         if (!response.ok) throw new Error("Test action failed");
-        return {};
+        return { status: "pass" };
       }};
     }
   }}

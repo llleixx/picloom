@@ -246,6 +246,7 @@ export interface Repositories {
   uploadSessions(): Promise<UploadSession[]>;
   insertUploadSession(value: UploadSession): Promise<void>;
   saveUploadSession(value: UploadSession): Promise<void>;
+  moveUploadSession(fromFileId: string, toFileId: string): Promise<void>;
   deleteUploadSession(id: string): Promise<void>;
   systemSummary(): Promise<SystemSummary>;
   systemStatistics(

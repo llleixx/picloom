@@ -401,8 +401,7 @@ export class PluginManager {
       const required = {
         path: ["generate"],
         storage: ["write", "read", "delete"],
-        processor:
-          record.stage === "post_save" ? ["execute"] : ["check", "process"],
+        processor: ["process"],
       }[record.kind];
       if (
         required.some(

@@ -373,8 +373,10 @@ test("write, post-save and delete queues have independent live limits and pause 
           configSchema: { type: "object", properties: {} },
           async createInstance() {
             return {
-              execute: async (input) =>
-                hold("action", input.record.id, async () => ({})),
+              process: async (input) =>
+                hold("action", input.record.id, async () => ({
+                  status: "pass",
+                })),
             };
           },
         },

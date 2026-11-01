@@ -642,7 +642,7 @@ test("deleting during an action stops the chain and cleans temporary data after 
           configSchema: { type: "object", properties: {} },
           async createInstance() {
             return {
-              async execute(_, ctx) {
+              async process(_, ctx) {
                 entered();
                 await new Promise<void>((_, reject) => {
                   if (ctx.signal.aborted) reject(ctx.signal.reason);
@@ -653,7 +653,7 @@ test("deleting during an action stops the chain and cleans temporary data after 
                       { once: true },
                     );
                 });
-                return {};
+                return { status: "pass" };
               },
             };
           },
@@ -757,7 +757,7 @@ test("background tasks refill a free slot after failure while another task remai
           configSchema: { type: "object", properties: {} },
           async createInstance() {
             return {
-              async execute(input) {
+              async process(input) {
                 started.push(input.record.id);
                 peak = Math.max(peak, ++active);
                 try {
@@ -765,7 +765,7 @@ test("background tasks refill a free slot after failure while another task remai
                     throw new PluginError("FAILED", "Expected failure", false);
                   if (input.record.id === ids[2]) startedThird();
                   await gate;
-                  return {};
+                  return { status: "pass" };
                 } finally {
                   active--;
                 }

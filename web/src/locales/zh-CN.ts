@@ -258,11 +258,11 @@ export const zhCN = {
   "replicas.delete": "删除副本",
   "processingResults.title": "处理结果",
   "processingResults.hint":
-    "已完成步骤的结果，可能来自未全部成功的执行。以下状态是各步骤的处置意见，恢复访问不会改变这些记录。",
+    "已完成步骤的结果，可能来自未全部成功的执行。替换结果表示步骤接受的中间内容；恢复访问不会改变这些记录。",
   "processingResults.pass": "放行",
   "processingResults.block": "屏蔽",
   "processingResults.delete": "删除",
-  "processingResults.override": "覆盖累计处置",
+  "processingResults.replace": "替换内容",
   "processingResults.details": "详情",
   "errors.processing_result_invalid":
     "插件结果必须为 JSON 对象，总大小不超过 64 KiB。",

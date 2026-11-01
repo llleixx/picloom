@@ -243,6 +243,13 @@ export class SqlRepositories implements Repositories {
   async deleteUploadSession(id: string) {
     await this.db.deleteFrom("upload_sessions").where("id", "=", id).execute();
   }
+  async moveUploadSession(fromFileId: string, toFileId: string) {
+    await this.db
+      .updateTable("upload_sessions")
+      .set({ file_id: toFileId, updated_at: Date.now() })
+      .where("file_id", "=", fromFileId)
+      .execute();
+  }
   async systemStatistics(boundaries: number[]) {
     const formats = await this.db
       .selectFrom("files")

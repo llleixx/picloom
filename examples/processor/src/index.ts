@@ -48,18 +48,17 @@ export default {
       },
       async createInstance({ config, services }) {
         return {
-          async check({ file }) {
-            return !file.metadata.animated &&
-              ["image/jpeg", "image/png", "image/webp"].includes(
+          async process({ file, params, limits, createOutput }, { signal }) {
+            if (
+              file.metadata.animated ||
+              !["image/jpeg", "image/png", "image/webp"].includes(
                 file.metadata.mimeType ?? "",
               )
-              ? { status: "applicable" }
-              : {
-                  status: "unsupported",
-                  reason: "Only static JPEG, PNG and WebP images are supported",
-                };
-          },
-          async process({ file, params, limits, createOutput }, { signal }) {
+            )
+              return {
+                status: "unsupported",
+                reason: "Only static JPEG, PNG and WebP images are supported",
+              };
             const width = Number(params.width ?? config.width);
             if (width > limits.maxDimension)
               throw new PluginError(

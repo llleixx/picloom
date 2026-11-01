@@ -14,7 +14,7 @@ import { parseQuery, parseUploadParams } from "../core/request-params";
 import type { FileRecord } from "../persistence/port";
 import type { FileFilter } from "../persistence/port";
 import type { FileView, ClientSettings } from "../../shared/api";
-import { publicPath } from "../infra/files";
+import { publicPath, publicPathKey } from "../infra/files";
 import { webPage } from "./static";
 import { configurationRequest } from "./configuration";
 import { PACKAGE_LIMIT } from "../plugins/archive";
@@ -916,10 +916,16 @@ export function handler(app: Application) {
           const id = path.slice("/api/files/".length);
           if (method === "GET") {
             const data = await app.db.read(async (r) => {
-              const f = requireValue(await r.file(id));
+              const f = requireValue(
+                id === "by-path"
+                  ? await r.fileByPath(
+                      publicPathKey(url.searchParams.get("path") ?? ""),
+                    )
+                  : await r.file(id),
+              );
               app.auth.assertFile(auth, f);
               const result = view(f, app.config.imageOrigin || requestOrigin);
-              const organization = await app.organization.read(r, id);
+              const organization = await app.organization.read(r, f.id);
               result.tags = [...organization.tags];
               result.collections = [...organization.collections];
               result.origin = {
@@ -929,7 +935,7 @@ export function handler(app: Application) {
                   ? ((await r.user(f.origin_user_id))?.username ?? null)
                   : null,
               };
-              const tasks = await r.tasks(id);
+              const tasks = await r.tasks(f.id);
               result.uploadProfileId = f.upload_profile_id;
               result.backgroundPending = tasks.some((task) =>
                 ["pending", "running"].includes(task.status),
