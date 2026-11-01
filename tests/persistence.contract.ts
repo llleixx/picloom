@@ -614,12 +614,12 @@ export function persistenceContract(
 
         expect(
           await f.db.read((r) =>
-            r.objectRegistered(storage.id, file.logical_key, null),
+            r.objectKeyRegistered(storage.id, file.logical_key),
           ),
         ).toBe(true);
         expect(
           await f.db.read((r) =>
-            r.objectRegistered(storage.id, "other.png", null),
+            r.objectKeyRegistered(storage.id, "other.png"),
           ),
         ).toBe(false);
         await f.db.transaction((r) =>
@@ -629,16 +629,11 @@ export function persistenceContract(
           }),
         );
         expect(
-          await f.db.read((r) =>
-            r.objectRegistered(storage.id, "other.png", {
-              bucket: "test",
-              key: "object",
-            }),
-          ),
-        ).toBe(true);
+          await f.db.read((r) => r.registeredLocators(storage.id)),
+        ).toEqual([{ key: "object", bucket: "test" }]);
         expect(
           await f.db.read((r) =>
-            r.objectRegistered(storage.id, file.logical_key, null),
+            r.objectKeyRegistered(storage.id, file.logical_key),
           ),
         ).toBe(false);
         await f.db.transaction((r) => r.saveReplica(replica));

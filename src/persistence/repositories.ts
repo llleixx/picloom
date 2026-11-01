@@ -1,7 +1,6 @@
 import type { OrganizationQuery } from "../../shared/organization";
 import { publicPath, publicPathKey } from "../infra/files";
 import { integer } from "./values";
-import { isDeepStrictEqual } from "node:util";
 import { sql, type Generated, type Kysely } from "kysely";
 import { Conflict } from "../core/errors";
 import type {
@@ -1116,40 +1115,36 @@ export class SqlRepositories implements Repositories {
       this.db.selectFrom("files").selectAll().where("id", "=", id),
     );
   }
-  async objectRegistered(
-    instanceId: string,
-    storageKey: string,
-    locator: Locator,
-  ) {
-    if (locator === null) {
-      const found = await this.db
-        .selectFrom("files as f")
-        .select("f.id")
-        .where("f.storage_key", "=", storageKey)
-        .where((eb) =>
-          eb.exists(
-            eb
-              .selectFrom("file_replicas as r")
-              .select("r.id")
-              .whereRef("r.file_id", "=", "f.id")
-              .where("r.storage_instance_id", "=", instanceId)
-              .where("r.status", "!=", "deleted")
-              .where("r.locator_json", "is", null),
-          ),
-        )
-        .limit(1)
-        .executeTakeFirst();
-      return !!found;
-    }
-    const candidates = await this.rows<{ locator_json: Locator }>(
+  async objectKeyRegistered(instanceId: string, storageKey: string) {
+    const found = await this.db
+      .selectFrom("files as f")
+      .select("f.id")
+      .where("f.storage_key", "=", storageKey)
+      .where((eb) =>
+        eb.exists(
+          eb
+            .selectFrom("file_replicas as r")
+            .select("r.id")
+            .whereRef("r.file_id", "=", "f.id")
+            .where("r.storage_instance_id", "=", instanceId)
+            .where("r.status", "!=", "deleted")
+            .where("r.locator_json", "is", null),
+        ),
+      )
+      .limit(1)
+      .executeTakeFirst();
+    return !!found;
+  }
+  async registeredLocators(instanceId: string) {
+    const rows = await this.rows<{ locator_json: Locator }>(
       this.db
-        .selectFrom("file_replicas as r")
-        .select("r.locator_json")
-        .where("r.storage_instance_id", "=", instanceId)
-        .where("r.status", "!=", "deleted")
-        .where("r.locator_json", "is not", null),
+        .selectFrom("file_replicas")
+        .select("locator_json")
+        .where("storage_instance_id", "=", instanceId)
+        .where("status", "!=", "deleted")
+        .where("locator_json", "is not", null),
     );
-    return candidates.some((c) => isDeepStrictEqual(c.locator_json, locator));
+    return rows.map((row) => row.locator_json);
   }
   async fileByPath(path: string) {
     return this.first<FileRecord>(

@@ -1,3 +1,4 @@
+import type { Locator } from "../src/plugins/api";
 import { test, expect, spyOn } from "bun:test";
 import { mkdir, symlink } from "node:fs/promises";
 import { join } from "node:path";
@@ -248,6 +249,22 @@ test("optional enumeration validates entries and never reads content; opaque loc
   const f = await fixture();
   try {
     let enumeration = true;
+    let entries: Array<{
+      storageKey: string;
+      locator?: Locator;
+      byteSize?: number;
+    }> = [
+      {
+        storageKey: "ab/cd/a.png",
+        locator: { key: "remote", namespace: "test" },
+      },
+      {
+        storageKey: "xy/zz/b.png",
+        locator: { namespace: "test", key: "remote" },
+      },
+      { storageKey: "../bad.png" },
+      { storageKey: "negative.png", byteSize: -1 },
+    ];
     f.app.plugins.register({
       defaultLocale: "en-US",
       nameKey: "package.name",
@@ -281,18 +298,7 @@ test("optional enumeration validates entries and never reads content; opaque loc
             ? {
                 async listFiles() {
                   return {
-                    items: [
-                      {
-                        storageKey: "ab/cd/a.png",
-                        locator: { key: "remote", namespace: "test" },
-                      },
-                      {
-                        storageKey: "xy/zz/b.png",
-                        locator: { namespace: "test", key: "remote" },
-                      },
-                      { storageKey: "../bad.png" },
-                      { storageKey: "negative.png", byteSize: -1 },
-                    ],
+                    items: entries,
                     nextCursor: null,
                   };
                 },
@@ -320,6 +326,49 @@ test("optional enumeration validates entries and never reads content; opaque loc
     expect(
       (await f.app.db.read((r) => r.replicas(imported.id)))[0]!.locator_json,
     ).toEqual({ key: "remote", namespace: "test" });
+    entries = [
+      {
+        storageKey: "nested.png",
+        locator: { part: { b: 2, a: 1 }, order: [1, 2] },
+      },
+      {
+        storageKey: "nested-alias.png",
+        locator: { order: [1, 2], part: { a: 1, b: 2 } },
+      },
+      {
+        storageKey: "string.png",
+        locator: '{"order":[1,2],"part":{"a":1,"b":2}}',
+      },
+      {
+        storageKey: "reversed.png",
+        locator: { part: { a: 1, b: 2 }, order: [2, 1] },
+      },
+      { storageKey: "fallback.png", locator: null },
+    ];
+    expect(await scan(f, src.id)).toMatchObject({ imported: 4, skipped: 1 });
+    expect(await scan(f, src.id, { publicPrefix: "/another/" })).toMatchObject({
+      imported: 0,
+      skipped: 5,
+    });
+    const nested = (await f.app.db.read((r) => r.files(20, 0))).find(
+      (file) => file.storage_key === "nested.png",
+    )!;
+    await f.app.db.transaction(async (r) => {
+      const replica = (await r.replicas(nested.id))[0]!;
+      await r.saveReplica({ ...replica, status: "deleted" });
+    });
+    expect(
+      await scan(f, src.id, { publicPrefix: "/after-delete/" }),
+    ).toMatchObject({ imported: 1, skipped: 4 });
+    const otherSource = await f.app.plugins.save({
+      pluginId: "test.enumerate",
+      version: "1.0.0",
+      name: "Other source",
+      config: {},
+    });
+    expect(
+      await scan(f, otherSource.id, { publicPrefix: "/other-source/" }),
+    ).toMatchObject({ imported: 4, skipped: 1 });
     enumeration = false;
     await f.app.plugins.reinitialize(src.id);
     expect((await f.app.plugins.view(src.id)).canImport).toBe(false);

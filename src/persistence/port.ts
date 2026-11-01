@@ -371,11 +371,8 @@ export interface Repositories {
   insertStep(value: Step): Promise<void>;
   prefixes(): Promise<string[]>;
   file(id: string): Promise<FileRecord | null>;
-  objectRegistered(
-    instanceId: string,
-    storageKey: string,
-    locator: Locator,
-  ): Promise<boolean>;
+  objectKeyRegistered(instanceId: string, storageKey: string): Promise<boolean>;
+  registeredLocators(instanceId: string): Promise<Locator[]>;
   fileByPath(path: string): Promise<FileRecord | null>;
   files(
     limit: number,

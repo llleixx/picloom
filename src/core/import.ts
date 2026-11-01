@@ -1,3 +1,4 @@
+import { stable } from "./stable-json";
 import type { Organization } from "./organization";
 import { isDeepStrictEqual } from "node:util";
 import type { Persistence } from "../persistence/port";
@@ -93,6 +94,28 @@ export class Imports {
           if (result.issues.length < 20)
             result.issues.push({ logicalKey: key, code });
         };
+        let locators: Map<string, Locator[]> | undefined;
+        const remember = (locator: Locator) => {
+          const key = stable(locator);
+          const bucket = locators!.get(key);
+          if (bucket) bucket.push(locator);
+          else locators!.set(key, [locator]);
+        };
+        const registered = async (storageKey: string, locator: Locator) => {
+          if (locator === null)
+            return r.objectKeyRegistered(sourceId, storageKey);
+          if (!locators) {
+            locators = new Map();
+            for (const value of await r.registeredLocators(sourceId))
+              remember(value);
+          }
+          // The key narrows candidates; keep the existing exact equality semantics.
+          return (
+            locators
+              .get(stable(locator))
+              ?.some((value) => isDeepStrictEqual(value, locator)) ?? false
+          );
+        };
         for (const item of page.items) {
           let key: string;
           let storageKey: string;
@@ -155,7 +178,7 @@ export class Imports {
             }
             continue;
           }
-          if (await r.objectRegistered(sourceId, storageKey, locator)) {
+          if (await registered(storageKey, locator)) {
             result.skipped++;
             continue;
           }
@@ -195,6 +218,10 @@ export class Imports {
             status: "ready",
             locator_json: locator,
           });
+          if (locator !== null) {
+            // Match the persisted JSON representation for subsequent items in this page.
+            remember(JSON.parse(JSON.stringify(locator)));
+          }
           result.imported++;
         }
         return result;

@@ -1,3 +1,4 @@
+import { stable } from "./stable-json";
 import { xxhash128 } from "hash-wasm";
 import {
   open,
@@ -14,19 +15,6 @@ import { join, sep } from "node:path";
 import { Mutex } from "./concurrency";
 import type { Metadata } from "../plugins/api";
 import type { Instance, Step } from "../persistence/port";
-export function stable(value: unknown): string {
-  if (Array.isArray(value)) return "[" + value.map(stable).join(",") + "]";
-  if (value && typeof value === "object")
-    return (
-      "{" +
-      Object.entries(value)
-        .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
-        .map(([k, v]) => JSON.stringify(k) + ":" + stable(v))
-        .join(",") +
-      "}"
-    );
-  return JSON.stringify(value);
-}
 export async function cacheKey(
   fileId: string,
   params: unknown,
