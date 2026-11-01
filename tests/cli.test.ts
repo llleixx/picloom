@@ -12,8 +12,6 @@ test("documented initialization commands are repeatable", async () => {
           ...process.env,
           DATA_DIR: root,
           ENCRYPTION_KEY: "cd".repeat(32),
-          ADMIN_USERNAME: "admin",
-          ADMIN_PASSWORD: "cli-password-123",
         },
         stdout: "pipe",
         stderr: "pipe",
@@ -26,9 +24,8 @@ test("documented initialization commands are repeatable", async () => {
       if (code !== 0) throw new Error(stderr);
       return stdout;
     };
-    await run("init-db");
-    expect(await run("init-admin")).toContain("created");
-    expect(await run("init-admin")).toContain("unchanged");
+    expect(await run("init-db")).toContain("Database initialized");
+    expect(await run("init-db")).toContain("Database initialized");
     const first = JSON.parse(await run("init-dev"));
     const second = JSON.parse(await run("init-dev"));
     expect(second.profileId).toBe(first.profileId);

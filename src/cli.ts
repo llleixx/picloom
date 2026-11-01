@@ -6,13 +6,9 @@ import type { Persistence } from "./persistence/port";
 import { bootstrap, initializeDevelopment } from "./bootstrap";
 import { promptOwnerPassword } from "./cli-password";
 const command = process.argv[2];
-if (
-  !["init-db", "init-admin", "init-dev", "reset-owner-password"].includes(
-    command ?? "",
-  )
-)
+if (!["init-db", "init-dev", "reset-owner-password"].includes(command ?? ""))
   throw new Error(
-    "Usage: bun src/cli.ts init-db|init-admin|init-dev|reset-owner-password",
+    "Usage: bun src/cli.ts init-db|init-dev|reset-owner-password",
   );
 if (command === "reset-owner-password") {
   console.info(
@@ -35,17 +31,6 @@ if (command === "reset-owner-password") {
 } else {
   const app = await bootstrap();
   try {
-    if (command === "init-admin") {
-      const username = process.env.ADMIN_USERNAME ?? "admin";
-      const password = process.env.ADMIN_PASSWORD;
-      if (!password)
-        throw new Error("Set ADMIN_PASSWORD (at least 6 characters)");
-      console.info(
-        (await app.auth.initialize(username, password))
-          ? "Administrator created"
-          : "Administrator already exists; unchanged",
-      );
-    }
     if (command === "init-dev")
       console.info(
         JSON.stringify({ profileId: await initializeDevelopment(app) }),
