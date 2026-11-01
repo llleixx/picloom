@@ -1,7 +1,7 @@
 import { crc32 } from "../src/plugins/archive";
 import { deflateRawSync } from "node:zlib";
 export function zip(
-  entries: Record<string, string>,
+  entries: Record<string, string | Uint8Array>,
   options: { deflate?: boolean; mode?: number } = {},
 ) {
   const locals: Buffer[] = [],

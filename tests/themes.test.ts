@@ -78,6 +78,45 @@ test("theme packages reject traversal, missing entry, symlinks and unknown API",
   }
 });
 
+test("theme inspection rejects resources that the file server cannot serve", async () => {
+  const f = await fixture();
+  try {
+    for (const path of ["entry#1.js", "entry\x7f.js"]) {
+      const manifest = {
+        id: "example.paths",
+        version: "1.0.0",
+        apiVersion: 1,
+        defaultLocale: "en-US",
+        supportedLocales: ["en-US"],
+        nameKey: "name",
+        messages: { "en-US": { name: "Paths" } },
+        pages: { home: { entry: path } },
+      };
+      await expect(
+        f.app.themes.inspect(
+          zip({
+            "theme.json": JSON.stringify(manifest),
+            [path]: "export function mount() {}",
+          }),
+        ),
+      ).rejects.toThrow();
+      // Unreferenced resources must follow the same rules as manifest entries.
+      manifest.pages.home.entry = "entry.js";
+      await expect(
+        f.app.themes.inspect(
+          zip({
+            "theme.json": JSON.stringify(manifest),
+            "entry.js": "export function mount() {}",
+            [path]: "unused",
+          }),
+        ),
+      ).rejects.toThrow();
+    }
+  } finally {
+    await f.close();
+  }
+});
+
 test("theme HTTP enforces owner, CSRF and preview permissions; resources never serve HTML fallbacks", async () => {
   const f = await fixture();
   try {

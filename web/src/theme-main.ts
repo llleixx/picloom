@@ -1,3 +1,4 @@
+import { themeAssetUrl } from "../../shared/theme-package";
 import { createThemeRuntime } from "./themes/context";
 import type { Page, ThemeModule, ThemeView } from "@picloom/theme-sdk";
 import { api, ApiError, errorText } from "./lib/api";
@@ -79,7 +80,7 @@ async function render() {
       throw new Error(t("themes.incompatible"));
     const styles = entry
       ? [...(selected!.manifest.styles ?? []), ...(entry.styles ?? [])].map(
-          (p) => selected!.baseUrl + p,
+          (p) => themeAssetUrl(selected!.baseUrl, p),
         )
       : [defaultStyles];
     const links: HTMLLinkElement[] = [];
@@ -134,7 +135,9 @@ async function render() {
         return;
       }
       const module: ThemeModule = entry
-        ? await import(/* @vite-ignore */ selected!.baseUrl + entry.entry)
+        ? await import(
+            /* @vite-ignore */ themeAssetUrl(selected!.baseUrl, entry.entry)
+          )
         : await import("./themes/default");
       if (current !== generation) {
         cleanup();

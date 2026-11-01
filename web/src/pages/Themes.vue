@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { themeAssetUrl } from "../../../shared/theme-package";
 import { ref, shallowRef, onMounted, computed } from "vue";
 import type { Config, InstalledTheme, Manifest } from "@picloom/theme-sdk";
 import { api, ApiError, errorText, notify } from "../lib/api";
@@ -189,7 +190,7 @@ onMounted(() => run(load));
         >
           <img
             v-if="theme.manifest.preview"
-            :src="theme.baseUrl + theme.manifest.preview"
+            :src="themeAssetUrl(theme.baseUrl, theme.manifest.preview)"
             alt=""
             class="h-36 w-full rounded object-cover"
           />

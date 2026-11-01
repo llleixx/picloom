@@ -1,3 +1,4 @@
+import { zip } from "../tests/package-fixtures";
 import { test, expect, login } from "./fixtures";
 import { themePackage } from "../tests/theme-fixtures";
 const code = `export function mount(el, ctx) {
@@ -437,18 +438,24 @@ test("theme package default localizes one name and labels without filling config
     .check();
   await page.getByRole("button", { name: "Install", exact: true }).click();
   await page.getByRole("button", { name: "Configure", exact: true }).click();
-  await expect(page.locator("fieldset.panel > h2")).toHaveText("Horizon · 1");
+  await expect(
+    page.getByRole("group").getByRole("heading", { level: 2 }),
+  ).toHaveText("Horizon · 1");
   await page
     .getByRole("combobox", { name: "Language", exact: true })
     .selectOption("zh-CN");
-  await expect(page.locator("fieldset.panel > h2")).toHaveText("远空 · 1");
+  await expect(
+    page.getByRole("group").getByRole("heading", { level: 2 }),
+  ).toHaveText("远空 · 1");
   await expect(
     page.getByLabel("Hero heading · English", { exact: true }),
   ).toBeVisible();
   await page
     .getByRole("combobox", { name: "语言", exact: true })
     .selectOption("en-US");
-  await expect(page.locator("fieldset.panel > h2")).toHaveText("Horizon · 1");
+  await expect(
+    page.getByRole("group").getByRole("heading", { level: 2 }),
+  ).toHaveText("Horizon · 1");
   await page
     .getByRole("button", {
       name: "Edit translations · Hero heading",
@@ -754,4 +761,100 @@ test("localized arrays have one structure and persist edits without language fal
     { title: { "zh-CN": "第二项" } },
     { title: { "en-US": "English", "zh-CN": "中文" }, url: "/one" },
   ]);
+});
+
+test("theme entry, styles, preview and context assets preserve literal percent paths", async ({
+  page,
+  service,
+}) => {
+  await login(page, service.url);
+  const csrf = await page.evaluate(
+    async () => (await (await fetch("/api/auth/session")).json()).csrfToken,
+  );
+  const headers = { "X-CSRF-Token": csrf };
+  const entry = "资源/entry%23.js",
+    style = "资源/style%25.css",
+    picture = "资源/picture%2F.svg";
+  const manifest = {
+    id: "example.paths",
+    version: "1.0.0",
+    apiVersion: 1,
+    defaultLocale: "en-US",
+    supportedLocales: ["en-US"],
+    nameKey: "name",
+    messages: { "en-US": { name: "Paths" } },
+    pages: { home: { entry, styles: [style] } },
+    preview: "资源/preview%2F.png",
+  };
+  const bytes = zip({
+    "theme.json": JSON.stringify(manifest),
+    [entry]: `export function mount(el, ctx) {
+      const heading = document.createElement('h1'); heading.textContent = 'Encoded resources'; el.append(heading);
+      const img = document.createElement('img'); img.alt = 'Theme asset'; img.src = ctx.asset(${JSON.stringify(picture)}); el.append(img);
+      return { dispose() { el.replaceChildren(); } };
+    }`,
+    [style]: "h1 { color: rgb(12, 34, 56); }",
+    [picture]:
+      '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="10"><rect width="20" height="10" fill="red"/></svg>',
+    [manifest.preview]: Buffer.from(
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a2ioAAAAASUVORK5CYII=",
+      "base64",
+    ),
+  });
+  const inspected = await page.request.post(
+    service.url + "/api/themes/inspect",
+    { headers, data: bytes },
+  );
+  expect(inspected.ok()).toBeTruthy();
+  const stage = await inspected.json();
+  expect(
+    (
+      await page.request.post(service.url + "/api/themes/install", {
+        headers,
+        data: { ticket: stage.ticket, confirmed: true },
+      })
+    ).ok(),
+  ).toBeTruthy();
+  await page.goto(service.url + "/app/themes");
+  await expect
+    .poll(() =>
+      page
+        .locator("img")
+        .evaluateAll((images) =>
+          images.some(
+            (img) =>
+              img instanceof HTMLImageElement &&
+              img.src.includes("preview%252F.png") &&
+              img.naturalWidth > 0,
+          ),
+        ),
+    )
+    .toBeTruthy();
+  const themes = await (
+    await page.request.get(service.url + "/api/themes")
+  ).json();
+  expect(
+    (
+      await page.request.put(service.url + "/api/theme", {
+        headers,
+        data: {
+          id: manifest.id,
+          version: manifest.version,
+          defaultLocale: "en-US",
+          languageRevision: themes[0].languageRevision,
+        },
+      })
+    ).ok(),
+  ).toBeTruthy();
+  await page.goto(service.url + "/");
+  await expect(
+    page.getByRole("heading", { name: "Encoded resources" }),
+  ).toHaveCSS("color", "rgb(12, 34, 56)");
+  await expect
+    .poll(() =>
+      page
+        .getByAltText("Theme asset")
+        .evaluate((img: HTMLImageElement) => img.naturalWidth),
+    )
+    .toBe(20);
 });

@@ -16,7 +16,7 @@ import type {
   InstalledTheme,
 } from "@picloom/theme-sdk";
 import { archiveFiles, PACKAGE_LIMIT } from "../infra/archive";
-import { safePath } from "../infra/files";
+import { logicalKey, safePath } from "../infra/files";
 import { AppError } from "../core/errors";
 import {
   assetPath,
@@ -199,6 +199,10 @@ export class Themes {
       let files: Map<string, Uint8Array>;
       try {
         files = archiveFiles(bytes);
+        for (const path of files.keys()) {
+          if (!assetPath(path)) throw invalid();
+          logicalKey(path);
+        }
       } catch {
         throw invalid(
           "Invalid theme ZIP (20 MB compressed, 50 MB expanded, 512 entries maximum)",

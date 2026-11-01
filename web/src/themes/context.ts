@@ -1,3 +1,4 @@
+import { assetPath, themeAssetUrl } from "../../../shared/theme-package";
 import { messageText as packageText } from "../../../shared/package-localization";
 import { appearance, darkMode, setAppearance } from "../lib/appearance";
 import { reactive, watch, type WatchStopHandle } from "vue";
@@ -297,15 +298,9 @@ export function createThemeRuntime(navigate: (path: string) => void) {
         };
       },
       asset(path) {
-        if (
-          !view ||
-          path.startsWith("/") ||
-          path.includes("\\") ||
-          path.split("/").some((p) => p === "..") ||
-          /^[a-z]+:/i.test(path)
-        )
+        if (!view || !assetPath(path))
           throw new Error("Invalid theme resource path");
-        return new URL(path, location.origin + view.baseUrl).href;
+        return new URL(themeAssetUrl(view.baseUrl, path), location.origin).href;
       },
       t(key, params = {}) {
         const value = view
