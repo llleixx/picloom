@@ -4,6 +4,7 @@ import { BlockList, isIP } from "node:net";
 import { request as http } from "node:http";
 import { request as https } from "node:https";
 import { AppError } from "../core/errors";
+import packageJson from "../../package.json";
 const blocked = new BlockList();
 for (const [address, prefix] of [
   ["0.0.0.0", 8],
@@ -83,7 +84,7 @@ export async function downloadImage<T>(
               servername: isIP(hostname) ? undefined : hostname,
               headers: {
                 host: url.host,
-                "user-agent": "Picloom/0.1",
+                "user-agent": `Picloom/${packageJson.version}`,
                 accept: "image/*",
                 "accept-encoding": "identity",
               },

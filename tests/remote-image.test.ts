@@ -1,6 +1,7 @@
 import { test, expect } from "bun:test";
 import { publicImageAddress, downloadImage } from "../src/infra/remote-image";
 import { fixture } from "./helpers";
+import packageJson from "../package.json";
 test("remote image download rejects local, reserved and mapped addresses", async () => {
   for (const address of [
     "127.0.0.1",
@@ -72,6 +73,7 @@ test("remote download streams into managed storage and enforces size during tran
     callback: any,
   ) => {
     expect(options.hostname).toBe("93.184.216.34");
+    expect(options.headers["user-agent"]).toBe(`Picloom/${packageJson.version}`);
     const incoming = Readable.from(
       (async function* () {
         yield Buffer.from(f.png);
