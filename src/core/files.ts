@@ -1373,7 +1373,9 @@ export class Files {
         await r.saveFile(f, "preparing");
       }
     });
-    await this.sweep();
+    // Finish local recovery before runtime scheduling can start remote work.
+    // Keep referenced sources for pending writes and post-save processing.
+    await this.tasks.cleanupPending();
     const known = new Set(
       (
         await this.db.read((r) =>

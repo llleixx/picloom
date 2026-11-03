@@ -106,6 +106,7 @@ test("write completed but publication failed is cleaned after restart", async ()
       (await f.app.db.read((r) => r.replicas(rows[0]!.id)))[0]?.status,
     ).toBe("ready");
     await f.restart();
+    await f.app.files.sweep();
     expect(await f.app.db.read((r) => r.file(rows[0]!.id))).toBeNull();
   } finally {
     await f.close();

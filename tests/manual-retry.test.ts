@@ -24,6 +24,7 @@ test("manual retry persists across restart, counts attempts cumulatively and nev
     retryable = true;
     await f.app.files.tasks.retry(task.id);
     await f.restart();
+    await f.app.files.sweep();
     task = (await f.app.db.read((r) => r.task(task.id)))!;
     expect(task.manual_retry).toBe(true);
     expect(task.attempts).toBe(2);

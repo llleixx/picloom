@@ -1120,7 +1120,7 @@ export class TaskExecutor {
       await Promise.all([...this.running.values()].map((task) => task.promise));
     }
   }
-  // Explicit startup/manual sweep keeps its await-until-finished semantics.
+  // Explicit sweeps wait for runnable work; startup recovery does not execute it.
   async sweep() {
     for (;;) {
       const inFlight = this.running.size > 0 || !!this.dispatching;

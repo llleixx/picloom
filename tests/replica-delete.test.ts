@@ -57,6 +57,7 @@ test("source filtering survives group changes; deleting a replica preserves URL 
       ).status,
     ).toBe(200);
     await f.restart();
+    await f.app.files.sweep();
     expect((await f.app.db.read((r) => r.replica(replica.id)))!.status).toBe(
       "deleted",
     );

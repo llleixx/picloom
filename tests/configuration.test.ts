@@ -487,6 +487,7 @@ test("restart restores pending redundant work and profile deletion waits for exi
       await r.saveTask({ ...pending, status: "running" });
     });
     await f.restart();
+    await f.app.files.sweep();
     expect((await f.app.db.read((r) => r.task(pending.id)))?.status).toBe(
       "success",
     );

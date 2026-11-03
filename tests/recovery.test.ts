@@ -26,6 +26,7 @@ test("process exit after storage commit enters deletion failure until the replic
     expect(stderr).toBe("");
     expect(code).toBe(23);
     await f.restart();
+    await f.app.files.sweep();
     const rows = await f.app.db.read((r) => r.files(10, 0));
     expect(rows).toHaveLength(1);
     expect(rows[0]!.status).toBe("delete_failed");

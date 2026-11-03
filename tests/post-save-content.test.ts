@@ -521,6 +521,7 @@ test("restart discards an unfinished candidate and retries the original processi
       await r.saveTask(task, "pending");
     });
     await f.restart();
+    await f.app.files.sweep();
     const current = await f.app.files.find(new URL(uploaded.url).pathname);
     expect(current.id).not.toBe(original.id);
     expect(current.width).toBe(18);
