@@ -20,7 +20,7 @@ const composeKeys = new Set([
 const childEnv = Object.fromEntries(
   Object.entries(process.env).filter(([key]) => !composeKeys.has(key)),
 );
-// Deployment smoke test: packaged runtime, default setup and bind-mounted persistence.
+// Deployment smoke test: packaged runtime, default setup and volume persistence.
 async function command(args: string[]) {
   const p = Bun.spawn(args, { stdout: "pipe", stderr: "pipe", env: childEnv });
   const [out, err, code] = await Promise.all([
@@ -46,16 +46,20 @@ for (const backend of ["sqlite", "postgres"]) {
   await writeFile(
     overrideFile,
     JSON.stringify({
+      volumes: {
+        "test-data": {},
+        ...(backend === "postgres" ? { "test-postgres": {} } : {}),
+      },
       services: {
         picloom: {
           image,
           pull_policy: "never",
-          volumes: [`${temp}/data:/var/lib/picloom`],
+          volumes: [`test-data:/var/lib/picloom`],
         },
         ...(backend === "postgres"
           ? {
               postgres: {
-                volumes: [`${temp}/postgres:/var/lib/postgresql/data`],
+                volumes: [`test-postgres:/var/lib/postgresql/data`],
               },
             }
           : {}),
@@ -144,7 +148,7 @@ PUBLISH_ADDRESS=127.0.0.1
       Buffer.from(await (await request(path)).arrayBuffer()),
       png,
     );
-    // Recreate containers and their networks, retaining only bind-mounted data.
+    // Recreate containers and their networks, retaining the test volumes.
     await compose("down");
     await compose("up", "-d", "--no-build", "--wait", "--wait-timeout", "180");
     await login();
