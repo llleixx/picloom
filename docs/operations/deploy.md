@@ -26,7 +26,7 @@ curl -fL https://raw.githubusercontent.com/llleixx/picloom/main/docker/.env.exam
 
 编辑 `.env`：
 
-- `ENCRYPTION_KEY`：加密密钥，升级和恢复时保留原值。推荐用 `openssl rand -hex 32` 生成。
+- `ENCRYPTION_KEY`：加密密钥，重建容器和手动恢复时保留原值。推荐用 `openssl rand -hex 32` 生成。
 - `INITIAL_OWNER_USERNAME`：初始管理员用户名，留空默认为 `admin`；名称规则见[环境变量参考](../reference/settings.md#部署参数)。
 - `INITIAL_OWNER_PASSWORD`：初始管理员密码，至少 6 个字符。
 - `POSTGRES_PASSWORD`：数据库密码，使用与加密密钥不同的值。
@@ -45,7 +45,7 @@ docker compose up -d
 
 访问 `http://localhost:7425`，用配置的用户名（默认 `admin`）和初始密码登录。远程部署时将 `localhost` 换成服务器地址。默认存储与上传配置见 [快速开始](../guide/quick-start.md#_2-查看默认配置)。
 
-## 数据存在哪里
+## 部署数据目录
 
 以下宿主机路径均相对于 Compose 文件所在目录。两种方案都将 `./data` 挂载到容器的 `/var/lib/picloom`，其中包含应用数据和备份两个子目录：
 
@@ -116,5 +116,3 @@ docker build -t llleixx/picloom:latest .
 ```sh
 docker compose up -d --pull never --force-recreate
 ```
-
-源码目录用于构建，部署目录用于保存配置和数据，两者无需放在一起。

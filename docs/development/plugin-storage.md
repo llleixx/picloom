@@ -74,7 +74,7 @@ write(input: {
 }, context: Context): Promise<{ locator?: Locator }>;
 ```
 
-返回对象中的 `locator?: Locator` 是可选定位信息，省略时核心按 `null` 保存。只能在确认写入成功后返回；失败时通过 [PluginError](./plugin-errors.md#pluginerror-的三个字段) 表达原因及是否允许重试。
+返回对象中的 `locator?: Locator` 是可选定位信息，省略时核心按 `null` 保存。只能在确认写入成功后返回；失败时通过 [PluginError](./plugin-errors.md#pluginerror-字段) 表达原因及是否允许重试。
 
 ### read：读取图片
 

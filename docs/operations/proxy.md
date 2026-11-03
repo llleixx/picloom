@@ -2,21 +2,15 @@
 
 ## 使用一个域名
 
-管理页面、上传和图片访问可以共用 `https://pic.example.com`：
-
-```mermaid
-flowchart LR
-    A[浏览器] -->|HTTPS| B[反向代理]
-    B -->|HTTP| C[Picloom:7425]
-```
+管理页面、上传和图片访问可以共用 `https://pic.example.com`。
 
 先将域名解析到服务器，并为反向代理准备该域名的 HTTPS 证书。下面以 Nginx 运行在 Picloom 所在宿主机上为例。
 
 ## 配置 Picloom
 
-已有部署先在 **设置** 中将站点域名设为 `https://pic.example.com` 并保存。即使从未在 Web 点击过保存，首次启动也已经将运行设置写入 `site-settings.json`，之后修改 `.env` 的 `PUBLIC_ORIGIN` 不会覆盖它。
+已有部署先在 **设置** 中将站点域名设为 `https://pic.example.com` 并保存。`PUBLIC_ORIGIN` 只用于首次初始化。
 
-首次启动前，可在部署目录的 `.env` 中设置站点域名；同时限制宿主机端口只供本机代理访问：
+在部署目录的 `.env` 中设置 `PUBLISH_ADDRESS` 和 `HTTP_PORT`。首次启动前还可设置 `PUBLIC_ORIGIN`。
 
 ```dotenv
 PUBLIC_ORIGIN=https://pic.example.com
@@ -32,7 +26,7 @@ HTTP_PORT=7425
 docker compose up -d
 ```
 
-站点域名设为 HTTPS 后，登录 Cookie 会启用 `Secure` 属性。已有部署保存后应通过 HTTPS 重新登录。`PUBLISH_ADDRESS` 和 `HTTP_PORT` 属于部署参数，修改后仍需重建容器应用。
+已有部署将站点域名设为 HTTPS 后，请通过 HTTPS 重新登录。
 
 ## 配置 Nginx
 
@@ -65,7 +59,7 @@ server {
 }
 ```
 
-`64m` 限制的是单次请求体，适用于默认上传和分片大小。提高上传或分片限制、上传较大备份时，也要调整代理限制。`180s` 是读取上游响应时两次读取之间的超时，并非整个请求的总时长。指令说明见 [Nginx 代理文档](https://nginx.org/en/docs/http/ngx_http_proxy_module.html)。
+`64m` 限制的是单次请求体，适用于默认上传和分片大小。提高上传或分片限制、上传较大备份时，也要调整代理限制。
 
 检查配置，通过后重载：
 
