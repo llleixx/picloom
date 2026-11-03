@@ -32,7 +32,7 @@ export default {
 
 `getFile()` 延迟读取原图；`output.write()` 完成后返回 `replace`。取消时销毁 Sharp 处理资源。
 
-<span id="接入并验证"></span>
+本例将输入读入内存，不放大小图。处理大图时需考虑解码内存，并传递取消信号，见 [错误、取消与并发](../plugin-errors.md)。
 
 ## 安装与验证
 
@@ -49,43 +49,50 @@ export default {
 
 ### process：执行处理
 
-每步只调用一次 `process`。固定配置通过实例闭包使用，请求参数来自已筛选并校验的 `input.params`，不自动合并固定配置。`limits.maxDimension` 是最大单边像素数，`maxPixels` 是最大像素总数。
+宿主为流水线中的每个步骤调用一次此方法。固定配置从实例闭包读取。
 
 ```ts
-process(input: {
-  params: Parameters;
-  readonly metadata: Readonly<Metadata>;
-  getFile(): Promise<FileInput>;
-  limits: { maxDimension: number; maxPixels: number };
-  createOutput(): Promise<Output>;
-}, context: PipelineContext): Promise<
+process(
+  input: AccessProcessorInput,
+  context: PipelineContext,
+): Promise<ImageProcessResult>;
+```
+
+#### 输入与上下文
+
+| `input` 成员 | 类型 | 用法 |
+| --- | --- | --- |
+| `params` | `Parameters` | 已校验的请求参数，不含固定配置 |
+| `metadata` | `Readonly<Metadata>` | 当前图片元数据，可先判断是否需要读取内容 |
+| `getFile()` | `() => Promise<FileInput>` | 按需取得当前图片，再调用 `openRead()` 读取内容 |
+| `limits` | `{ maxDimension: number; maxPixels: number }` | 单边像素数和总像素数上限 |
+| `createOutput()` | `() => Promise<Output>` | 创建本次调用的替换输出 |
+
+通过 `context.data` 与同一流水线的其他步骤共享临时 JSON。取消信号、日志等共用成员见[调用上下文](../plugin-services.md#调用上下文)。
+
+#### 返回值
+
+```ts
+type ImageProcessResult =
   | { status: "pass" }
   | { status: "replace"; output: Output }
   | { status: "reject"; reason: string }
-  | { status: "unsupported"; reason?: string }
->;
+  | { status: "unsupported"; reason?: string };
 ```
 
-| 返回形式 | 必需字段                              | 核心行为                           |
-| -------- | ------------------------------------- | ---------------------------------- |
-| 保留     | `status: "pass"`                      | 当前图片不变，继续下一步           |
-| 替换     | `status: "replace"`、`output: Output` | 校验输出并更新当前图片，继续下一步 |
-| 拒绝     | `status: "reject"`、`reason: string`  | 中止本次访问并报错                 |
-| 不支持   | `status: "unsupported"`，可选 `reason` | 按步骤设置跳过或中止；分别视为保留或拒绝 |
+| `status` | 效果 |
+| --- | --- |
+| `pass` | 保留当前图片，继续下一步 |
+| `replace` | 校验输出并更新当前图片，继续下一步 |
+| `reject` | 中止本次访问并报错 |
+| `unsupported` | 由步骤策略决定跳过或中止 |
 
-执行异常应抛错，不要用 `unsupported` 隐藏失败。输出来自本次 `createOutput()`，写入完成后才能返回。输出接口见 [文件与输出](../plugin-services.md#文件与输出)。
+输出来自本次 `createOutput()`，写入完成后才能返回。输出接口见 [文件与输出](../plugin-services.md#文件与输出)。
 
-上下文允许写入流水线临时数据。`AccessPlugin` 独立于 `UploadPlugin`，不提供文件归类或分类服务。返回 `organization` 会被核心拒绝，避免访问请求修改持久关系或绕过派生缓存。
+#### 失败行为
 
-<span id="扩展与约束"></span>
+执行失败时抛出 [`PluginError`](../plugin-errors.md#pluginerror-字段)。仅在输入确实不适用时返回 `unsupported`。
 
 ## 可选能力与约束
 
-`getFile()` 必须等待完成，返回的文件仍通过 `openRead()` 读取，不保证有本地路径。输出只能写一次，并且只能返回本次调用创建的输出。
-
 访问实例默认允许共享派生缓存，需要禁用时在运行对象中返回 `cacheable: false`。缓存命中可能跳过整个处理过程，不要依赖插件逐次记录访问或发送通知；浏览器/CDN 缓存还可能使请求根本不抵达 Picloom。
-
-本例将输入读入内存，不放大小图。处理大图时需考虑解码内存，并传递取消信号，见 [错误、取消与并发](../plugin-errors.md)。
-
-<span id="想实现什么"></span><span id="在哪里执行"></span><span id="谁负责什么"></span><span id="看一次调用"></span><span id="定义与能力清单"></span>
-开发流程见[最小实现](#最小实现)，调用规则见[接口行为](#接口行为)。

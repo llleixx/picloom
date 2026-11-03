@@ -2,8 +2,6 @@
 
 `configSchema` 声明管理员填写的固定配置；`paramsSchema` 声明上传或访问时传入的参数。Picloom 根据声明生成表单并校验输入。
 
-<span id="配置描述字段"></span>
-
 ## 声明配置
 
 下面的配置要求填写一个正整数宽度，新建表单初始值为 `1280`：
@@ -23,17 +21,25 @@ configSchema: {
 
 `default` 只初始化表单，保存时不会补齐缺失字段。必填字段使用 `required`，完整规则见 [Schema 参考](./schema.md#默认值与保存)。
 
-<span id="createinstance-创建运行对象"></span>
-
 ## 读取配置
 
-在 `createInstance({ config, services })` 中读取已校验配置，再通过闭包供运行方法使用。例如缩放插件在 `process` 中使用 `Number(config.width)`；[完整实现](./processors/upload.md#最小实现)展示了读取图片、缩放和返回输出的过程。
+宿主准备或重新加载实例时调用 `createInstance`。
 
-Picloom 在准备或重新加载实例时调用 `createInstance`，返回的对象会复用，也可能同时处理多个请求。可在这里创建客户端；每张图片的操作放在运行方法中。初始化失败时抛错。
+```ts
+createInstance(input: {
+  id: string;
+  config: Readonly<Config>;
+  services: InstanceServices;
+}): Promise<R>;
+```
 
-输入中的 `id` 是配置实例 ID，`services` 提供[宿主服务](./plugin-services.md)。普通 `config` 不包含敏感值，凭据通过 `services.readSecrets()` 读取。
+| 输入字段 | 用途 |
+| --- | --- |
+| `id` | 配置实例 ID |
+| `config` | 已校验的普通配置，通过闭包供运行方法使用 |
+| `services` | [宿主服务](./plugin-services.md)，敏感配置通过 `readSecrets()` 读取 |
 
-<span id="界面提示与翻译"></span>
+返回对应插件类型的运行对象 `R`。实例可持有客户端，同一实例可能并发处理多个请求。初始化失败时抛错。[上传处理示例](./processors/upload.md#最小实现)在 `process` 中使用实例配置的宽度。
 
 ## 添加字段文案
 
@@ -93,11 +99,20 @@ curl --fail-with-body "$PICLOOM_URL/api/files" \
 
 访问参数来自 URL 查询字符串，例如 `?width=800`。参数仅支持一层可选字符串、数值和布尔值；保存后阶段没有请求参数。详细限制见 [Schema 参考](./schema.md#请求参数)。
 
-<span id="validateconfig-补充校验"></span>
-
 ## 补充校验
 
-Schema 无法表达的业务规则可由 `validateConfig` 检查。下面假设已声明 `minWidth` 和 `maxWidth` 两个必填整数：
+宿主保存配置时，在结构校验和本地目录解析后调用可选的 `validateConfig`。
+
+```ts
+validateConfig(config: Readonly<Config>): Promise<Array<{
+  message: string;
+  path?: string;
+}>>;
+```
+
+输入是完整配置，可能含敏感值。返回空数组表示通过，否则为每个错误提供 `message`。可选的 `path` 使用 JSON Pointer，省略时表示整个配置。
+
+以下示例校验两个必填整数字段 `minWidth` 和 `maxWidth`：
 
 ```ts
 async validateConfig(config) {
@@ -107,17 +122,12 @@ async validateConfig(config) {
 },
 ```
 
-返回空数组表示通过；错误的 `path` 使用 JSON Pointer，省略表示整体配置。宿主保存时在结构校验和本地目录解析后调用此方法。
-
-输入可能包含敏感值，不要将它写入错误或日志。错误文案对外可能被替换为通用提示。此方法只校验数据，不修改输入或执行远端写入。
+校验只读取输入。错误和日志中不要包含敏感值。
 
 ## 进一步阅读
 
-<span id="值应该放在哪里"></span><span id="密钥与运行状态"></span><span id="宿主服务接口"></span><span id="调用上下文"></span><span id="文件与输出"></span>
-密钥、状态、上下文和文件操作已移至[宿主服务与运行上下文](./plugin-services.md)。
+密钥、状态、上下文和文件操作见[宿主服务与运行上下文](./plugin-services.md)。
 
-<span id="配置表单与校验"></span><span id="三类-schema-的边界"></span><span id="默认值与保存"></span><span id="敏感字段与不可变字段"></span>
 完整类型、默认值和字段约束见 [Schema 参考](./schema.md)。配置升级见 [migrateConfig](./plugin-release.md#migrateconfig-转换旧配置)。
 
-<span id="宿主实现边界"></span>
 核心贡献者可查阅[包配置与文案的实现](./architecture.md#包配置与文案)。

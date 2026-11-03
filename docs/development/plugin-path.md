@@ -27,8 +27,6 @@ export default {
 
 `generate` 返回 `logicalKey`；未提供 `storageKey` 时，存储使用同一相对键。
 
-<span id="接入并验证"></span>
-
 ## 安装与验证
 
 在独立项目中运行 `bun run build`，使用生成的 `dist/<插件ID>-<版本>.zip`。
@@ -54,20 +52,24 @@ generate(input: {
 }, context: Context): Promise<{ logicalKey: string; storageKey?: string }>;
 ```
 
+#### 输入与上下文
+
+| `input` 成员 | 类型 | 用法 |
+| --- | --- | --- |
+| `record` | `FileContext` | 文件 ID、来源、归属和上传处理后的归类。`createdAt` 为 Unix 毫秒时间戳。见[文件上下文](./plugin-services.md#文件上下文与归类) |
+| `metadata` | `Readonly<Metadata>` | 当前图片的[元数据](./plugin-services.md#文件与输出)，尺寸等字段可能未知 |
+| `originalName` | `string`（可选） | 可选的原文件名。用于命名时，先转换为安全的路径段 |
+
+`context` 提供取消信号、调用标识和日志，见[调用上下文](./plugin-services.md#调用上下文)。
+
+#### 返回值
+
 | 返回字段     | 类型     | 必需 | 核心行为                                  |
 | ------------ | -------- | ---- | ----------------------------------------- |
 | `logicalKey` | `string` | 是   | 与上传配置的公开前缀组成公开路径          |
 | `storageKey` | `string` | 否   | 交给存储插件使用；省略时使用 `logicalKey` |
 
-只返回命名结果，不创建文件。生成失败时抛出错误，本次上传不能继续。
-
-`record.createdAt` 是 Unix 毫秒时间戳，`record.id` 是文件 ID。`record` 还提供来源、归属和上传处理后的最终归类，结构见[文件上下文](./plugin-services.md#文件上下文与归类)。元数据可能未知；原文件名和分类名称都不是安全路径段，插件需要自行转换。分类改名、人工整理或保存后归类不会重算路径。
-
-<span id="扩展与约束"></span>
-
-## 可选能力与约束
-
-### 公开路径与存储键分开
+**路径示例**
 
 默认只返回 `logicalKey`，存储也使用相同相对键。需要不同命名时，再返回 `storageKey`：
 
@@ -80,7 +82,7 @@ generate(input: {
 
 此时公开路径仍是 `/photos/2026/10/18/abc.jpg`，存储插件使用 `objects/abc.jpg`。插件返回原始相对键，不添加域名、公开前缀或提前进行 URL 编码。
 
-### 路径规则
+**路径规则**
 
 两个键都必须是有效相对路径：不能以 `/` 开头，不能有空路径段、`.`、`..`、反斜杠、控制字符或 `?`、`#`、`:`。长度最多 2048 个字符。SDK 的 `logicalKey()` 可用于校验。
 
@@ -88,5 +90,6 @@ generate(input: {
 
 修改配置或升级路径插件只影响后续上传，不会重命名已有文件或修改旧链接。
 
-<span id="想实现什么"></span><span id="在哪里执行"></span><span id="谁负责什么"></span><span id="看一次调用"></span><span id="定义与能力清单"></span>
-开发流程见[最小实现](#最小实现)，调用规则见[接口行为](#接口行为)。
+#### 失败行为
+
+生成失败时抛出 [`PluginError`](./plugin-errors.md#pluginerror-字段)，本次上传中止。

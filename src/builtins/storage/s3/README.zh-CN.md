@@ -6,27 +6,9 @@
 
 `builtin.s3` · `storage`
 
-## 开始使用
+## 用途
 
 本插件已内置，无需安装 ZIP；通用操作见[安装与使用插件](https://llleixx.github.io/picloom/guide/plugins.html)。
-
-在 **配置 → 存储源** 创建 **S3 兼容存储**，将下方端点、区域、桶名和凭证占位符替换为服务商提供的值。保存后将该源加入存储组，再在上传配置中选择该组。上传一张图片并打开返回的 Picloom 链接，验证上传和访问。
-
-```json
-{
-  "multipartThresholdMiB": 64,
-  "partSizeMiB": 16,
-  "partConcurrency": 3,
-  "keyPrefix": "",
-  "forcePathStyle": true,
-  "readMode": "proxy",
-  "endpoint": "https://s3.example.com",
-  "region": "your-region",
-  "bucket": "picloom",
-  "accessKeyId": "YOUR_ACCESS_KEY",
-  "secretAccessKey": "YOUR_SECRET_KEY"
-}
-```
 
 ## 配置
 
@@ -52,6 +34,26 @@
 普通读取可选择 `proxy`（应用转发）、`signed`（签名重定向，使用配置的有效期）或 `public`（公开地址重定向）。界面只显示所选方式对应的配置项。图片处理等需要内容流的请求始终通过 S3 API 读取。
 
 公开地址模式下，在 `publicBaseUrl` 填写桶的公开根地址，例如 `https://img.example.com/assets/`。对象键 `photos/2026/a.png` 会拼成 `https://img.example.com/assets/photos/2026/a.png`，不额外添加桶名，对象路径会进行 URL 编码。该地址需要已经允许公开访问对象；Picloom 不修改桶权限或配置 CDN。上传、删除和枚举仍使用 S3 API。
+
+## 使用示例
+
+在 **配置 → 存储源** 创建 **S3 兼容存储**，将下方端点、区域、桶名和凭证占位符替换为服务商提供的值。保存后将该源加入存储组，再在上传配置中选择该组。上传一张图片并打开返回的 Picloom 链接，验证上传和访问。
+
+```json
+{
+  "multipartThresholdMiB": 64,
+  "partSizeMiB": 16,
+  "partConcurrency": 3,
+  "keyPrefix": "",
+  "forcePathStyle": true,
+  "readMode": "proxy",
+  "endpoint": "https://s3.example.com",
+  "region": "your-region",
+  "bucket": "picloom",
+  "accessKeyId": "YOUR_ACCESS_KEY",
+  "secretAccessKey": "YOUR_SECRET_KEY"
+}
+```
 
 ## 行为与限制
 

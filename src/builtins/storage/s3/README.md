@@ -6,27 +6,9 @@ Store images in S3 or an S3-compatible object store.
 
 `builtin.s3` · `storage`
 
-## Get started
+## Purpose
 
 This plugin is built in; no ZIP installation is needed. See the [plugin installation and usage guide](https://llleixx.github.io/picloom/guide/plugins.html) for the shared workflow.
-
-In **Configuration → Storage sources**, create an **S3-Compatible Storage** source. Replace the endpoint, region, bucket and credential placeholders below with your provider’s values. Add the source to a storage group and select that group in an upload profile. Upload an image and open its Picloom link to verify access.
-
-```json
-{
-  "multipartThresholdMiB": 64,
-  "partSizeMiB": 16,
-  "partConcurrency": 3,
-  "keyPrefix": "",
-  "forcePathStyle": true,
-  "readMode": "proxy",
-  "endpoint": "https://s3.example.com",
-  "region": "your-region",
-  "bucket": "picloom",
-  "accessKeyId": "YOUR_ACCESS_KEY",
-  "secretAccessKey": "YOUR_SECRET_KEY"
-}
-```
 
 ## Configuration
 
@@ -52,6 +34,26 @@ Defaults initialize new configuration drafts; saving does not fill missing value
 For ordinary reads, choose `proxy` to serve content through Picloom, `signed` to redirect to a temporary signed URL with the configured lifetime, or `public` to redirect to a public address. Only the selected mode's settings are shown. Requests that need content streams, including image processing, always use the S3 API.
 
 In public mode, enter the bucket's public root URL in `publicBaseUrl`, for example `https://img.example.com/assets/`. An object key `photos/2026/a.png` produces `https://img.example.com/assets/photos/2026/a.png`; the bucket name is not added. Object paths are URL-encoded. The address must already serve the objects publicly; Picloom does not change bucket permissions or configure a CDN. Uploads, deletion and enumeration continue to use the S3 API.
+
+## Usage example
+
+In **Configuration → Storage sources**, create an **S3-Compatible Storage** source. Replace the endpoint, region, bucket and credential placeholders below with your provider’s values. Add the source to a storage group and select that group in an upload profile. Upload an image and open its Picloom link to verify access.
+
+```json
+{
+  "multipartThresholdMiB": 64,
+  "partSizeMiB": 16,
+  "partConcurrency": 3,
+  "keyPrefix": "",
+  "forcePathStyle": true,
+  "readMode": "proxy",
+  "endpoint": "https://s3.example.com",
+  "region": "your-region",
+  "bucket": "picloom",
+  "accessKeyId": "YOUR_ACCESS_KEY",
+  "secretAccessKey": "YOUR_SECRET_KEY"
+}
+```
 
 ## Behavior and limitations
 

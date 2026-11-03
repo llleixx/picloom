@@ -36,11 +36,32 @@ ZIP 根目录必须直接包含 `theme.json`，不要多包一层目录：
 }
 ```
 
-至少提供一个页面。页面也可声明自己的 `styles`；`preview` 可指向包内 PNG、JPEG 或 WebP 预览图。JavaScript 必须是浏览器 ESM，依赖随包构建，不执行服务器安装脚本。上限为 ZIP 20 MiB、解压后 50 MiB、512 项；入口、样式和预览图必须存在，文件路径不能越界，也不能包含 `#` 或控制字符。`asset(path)` 接收包内原始相对路径，不要预先进行 URL 编码；例如 `asset("images/进度100%.png")`。
+### 清单字段
 
-同 ID、同版本不能覆盖安装。分发内容变化时增加 `version`。框架和依赖随主题打包，不引用宿主组件或共享 Vue 实例。包内资源可公开访问，不包含凭据。
+| 字段 | 类型 | 必填 | 约束与用途 |
+| --- | --- | --- | --- |
+| `id` | `string` | 是 | 主题标识，外部主题不能以 `builtin.` 开头 |
+| `version` | `string` | 是 | 包版本，分发内容变化时增加版本 |
+| `apiVersion` | `1` | 是 | 宿主接口版本 |
+| `nameKey` | `string` | 是 | 主题名称翻译键，默认语言须提供非空名称 |
+| `author` | `string` | 否 | 作者，最多 200 字符，去除首尾空白后须非空 |
+| `defaultLocale` | `Locale` | 是 | 包文案的回退语言，必须在 `supportedLocales` 中 |
+| `supportedLocales` | `Locale[]` | 是 | 宿主支持的语言代码，至少一项且不可重复 |
+| `messages` | `Record<Locale, Record<string, string>>` | 是 | 主题名称、界面和字段文案 |
+| `pages` | `Partial<Record<Page, { entry: string; styles?: string[] }>>` | 是 | 至少声明 `home` 或 `login`。每页的 `entry` 必填，为包内 `.js` 或 `.mjs` 路径；`styles` 为可选的页面样式路径列表 |
+| `styles` | `string[]` | 否 | 包内公共 `.css` 文件路径 |
+| `preview` | `string` | 否 | 包内 PNG、JPEG 或 WebP 预览图路径 |
+| `configSchema` | `Field & { type: "object" }` | 否 | 后台配置表单，省略时只接受空配置 `{}` |
+
+`id` 和 `version` 均为 1–100 个字符，以英文字母或数字开头，可含点、下划线和短横线，且不能以点结尾。同 ID、同版本不能覆盖安装。
+
+入口、样式和预览图须指向包内已有文件。ZIP 上限为 20 MiB、解压后 50 MiB、最多 512 项。入口使用浏览器 ESM，框架和依赖随主题打包。包内资源可公开访问。
 
 ## 生命周期与能力
+
+### mount：挂载与清理
+
+宿主传入渲染容器和 `ThemeContext`。导出 `mount`，同步或异步返回 `{ dispose(): void }`。离开页面时，宿主调用 `dispose()`，主题在此取消订阅、移除监听器并卸载框架实例。
 
 ```ts
 import type { ThemeContext } from "@picloom/theme-sdk";
@@ -58,19 +79,49 @@ export function mount(container: HTMLElement, ctx: ThemeContext) {
 }
 ```
 
-完整类型以 SDK 为准。`subscribe` 立即提供一次状态，随后响应变化；返回快照不用于修改核心状态。主题通过操作函数提交行为：
+### ThemeContext：状态与页面操作
 
-- `selectProfile`、`uploads.add/addUrls/cancel/resume/dismiss`：上传方案和队列。
-- `organization.list(kind, query)`、`create(kind, name)`、`select({ tagIds, collectionIds })`：查询、创建当前登录用户的标签或集合，选择新上传的初始归类。`kind` 为 `tags` 或 `collections`；列表返回 `{ items, total }`，接受 `q`、`limit`（默认 50、范围 1–100）、`offset`（默认 0）。快照的 `organization` 提供当前选择，每次入队时固定；游客隐藏此入口。
-- `links`：链接格式及复制偏好。
-- `login`：认证、会话刷新与安全返回，主题展示 `snapshot.login`。
-- `navigate`：首页、登录页和后台跳转。
-- `setLocale`、`setMode`：共享语言及显示偏好。
-- `asset`：解析包内资源；`config`：配置；`t`：主题字典；`localized`：解析多语言配置。
+| 成员 | 签名或类型 | 用途 |
+| --- | --- | --- |
+| `apiVersion` | `1` | 宿主接口版本 |
+| `config` | `Config` | 本次挂载的配置对象 |
+| `getSnapshot` | `() => Snapshot` | 获取当前状态 |
+| `subscribe` | `(listener: (snapshot: Snapshot) => void) => () => void` | 立即传入一次快照，之后在状态变化时调用。返回取消订阅函数 |
+| `asset` | `(path: string) => string` | 用未编码的包内相对路径取得资源 URL |
+| `t` | `(key: string, params?: Record<string, string \| number>) => string` | 读取包文案并替换参数 |
+| `localized` | `(value: Json \| undefined) => string` | 读取配置中的当前语言文本 |
+| `setLocale` | `(locale: Locale) => void` | 切换至快照允许的语言 |
+| `setMode` | `(mode: Snapshot["mode"]) => void` | 设置 `light`、`dark` 或 `auto` |
+| `navigate` | `(page: Page \| "app") => void` | 跳转到首页、登录页或后台 |
+| `selectProfile` | `(id: string) => void` | 选择上传配置 |
+| `refresh` | `() => Promise<void>` | 刷新宿主状态 |
+| `login` | `(username: string, password: string) => Promise<void>` | 提交登录，在快照的 `login` 中读取忙碌和错误状态 |
+| `organization` | 见下表 | 管理当前用户的上传归类 |
+| `uploads` | 见下表 | 操作上传队列 |
+| `links` | 见下表 | 格式化和复制图片链接 |
+
+`Snapshot` 的字段定义由 `@picloom/theme-sdk` 导出。用快照渲染界面，通过下列方法提交操作。
+
+| 方法 | 签名 | 用途 |
+| --- | --- | --- |
+| `organization.list` | `(kind: OrganizationKind, query?: { q?: string; limit?: number; offset?: number }) => Promise<{ items: OrganizationItem[]; total: number }>` | 搜索和分页读取归类 |
+| `organization.create` | `(kind: OrganizationKind, name: string) => Promise<OrganizationItem>` | 创建分类，返回 `{ id, name }` |
+| `organization.select` | `(selection: OrganizationSelection) => void` | 设置下一批上传的 `tagIds` 和 `collectionIds` |
+| `uploads.add` | `(files: File[]) => void` | 将本地文件加入队列 |
+| `uploads.addUrls` | `(urls: string[]) => void` | 将远程图片 URL 加入队列 |
+| `uploads.cancel` | `(id: string) => Promise<void>` | 取消指定队列项 |
+| `uploads.resume` | `(id: string) => void` | 恢复指定的可续传项 |
+| `uploads.dismiss` | `(id: string) => Promise<void>` | 移除指定队列项 |
+| `links.format` | `(url: string) => string` | 按当前偏好格式化链接 |
+| `links.copy` | `(url: string) => Promise<void>` | 复制指定链接 |
+| `links.copyAll` | `() => Promise<void>` | 复制队列中的成功结果 |
+| `links.setPreferences` | `(format: string, auto: boolean) => void` | 设置链接格式和自动复制偏好 |
+
+`OrganizationKind` 为 `"tags" | "collections"`。`list` 的 `limit` 默认 50、范围 1–100，`offset` 默认 0。每个队列项在入队时固定当前归类选择。游客界面隐藏归类操作。
 
 文件选择、拖拽、粘贴由主题绑定；不能无差别拦截文本框粘贴。上传进度到达 100% 后仍可能处于服务端处理状态，成功以 `status: success` 为准。核心负责分片、并发、CSRF、上传密钥及权限。
 
-离开页面必须清理主题自行创建的定时器、DOM 监听器和框架实例。首页与登录页共享宿主上传队列；进入后台会加载新文档，有未结束任务时提示离页。关闭、刷新或跨文档导航不保证上传恢复。
+首页与登录页共享宿主上传队列；进入后台会加载新文档，有未结束任务时提示离页。关闭、刷新或跨文档导航不保证上传恢复。
 
 在 Vue 中，将 `subscribe()` 提供的快照保存到本地 ref，再由它驱动渲染。`ctx.t()`、`ctx.localized()` 和 `ctx.links.format()` 不会为主题自己的 Vue 实例建立响应式依赖；使用 computed 时，显式依赖快照中的 `locale` 或 `copy.format`。配置在一次挂载期间固定，草稿变化后重新加载预览。
 
@@ -110,18 +161,14 @@ export function mount(container: HTMLElement, ctx: ThemeContext) {
 
 访客可用语言为站点启用语言与主题支持语言的交集。快照中的 `locales` 是语言标识列表，`languages` 提供名称与方向，`defaultLocale` 是站点默认语言。主题自行提供语言切换器；`setLocale()` 拒绝范围外语言，预览中切换不会持久化访客偏好。
 
-上传、登录错误由核心翻译，语言切换不重启通知关闭计时器。新增核心语言时先注册语言并补充核心字典，再由主题增加支持声明和文案。
+上传和登录错误由宿主翻译。
 
 ## 相关说明
 
-<span id="安装与配置"></span>
 安装、草稿、应用及语言设置见[使用主题](../guide/themes.md)。
 
-<span id="构建示例"></span>
 独立项目见[主题快速开始](./theme-tooling.md)，官方主题构建见[工具维护](./theme-tooling-maintenance.md#官方外部主题)。
 
-<span id="恢复与备份"></span>
 恢复入口见[恢复默认页面](../guide/themes.md#恢复默认页面)，备份见[主题数据](../operations/data.md#主题数据)。
 
-<span id="http-接口"></span>
 管理接口见 [HTTP API](../reference/http-api.md#主题管理)。

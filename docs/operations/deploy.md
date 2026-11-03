@@ -43,7 +43,7 @@ openssl rand -hex 32
 docker compose up -d
 ```
 
-访问 `http://localhost:7425`，用配置的用户名（默认 `admin`）和初始密码登录。远程部署时将 `localhost` 换成服务器地址。默认存储与上传配置见 [快速开始](../guide/quick-start.md#_2-查看默认配置)。
+访问 `http://localhost:7425`，用配置的用户名（默认 `admin`）和初始密码登录。远程部署时将 `localhost` 换成服务器地址。默认存储与上传配置见 [快速开始](../guide/quick-start.md#默认配置)。
 
 ## 部署数据目录
 

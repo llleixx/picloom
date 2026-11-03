@@ -72,8 +72,6 @@ import { PluginError, type Definition } from "@picloom/plugin-sdk";
 
 插件运行在服务主进程，没有沙箱。安装需要 Owner 权限，只安装可信代码。
 
-<span id="准备并构建示例"></span>
-<span id="仓库贡献者：准备并构建示例"></span>
 仓库贡献者需要构建原有示例时，参见[插件工具维护](./plugin-tooling-maintenance.md#仓库示例)。
 
 ## 配置描述字段

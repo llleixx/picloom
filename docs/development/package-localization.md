@@ -41,14 +41,18 @@ configSchema: {
 
 ## 表单提示
 
-| `x-ui` 字段 | 用途 |
-| --- | --- |
-| `labelKey`、`descriptionKey` | 标签和说明的翻译键 |
-| `enumKeys` | 按枚举值顺序一一对应的翻译键 |
-| `groupKey` | 分组名称的翻译键 |
-| `order`、`advanced` | 排列顺序、是否为高级选项 |
-| `widget` | `textarea` 多行输入或 `password` 遮罩输入 |
-| `visibleWhen: { path, equals }` | 指定值满足条件时显示 |
+| `x-ui` 字段 | 类型 | 用途 |
+| --- | --- | --- |
+| `labelKey` | `string` | 标签翻译键 |
+| `descriptionKey` | `string` | 说明翻译键 |
+| `enumKeys` | `string[]` | 按枚举值顺序一一对应的翻译键 |
+| `groupKey` | `string` | 分组名称翻译键 |
+| `order` | `number` | 排列顺序 |
+| `advanced` | `boolean` | 是否为高级选项 |
+| `widget` | `"textarea" \| "password"` | 多行输入或遮罩输入 |
+| `visibleWhen` | `{ path: string; equals: Json }` | 指定值满足条件时显示 |
+
+以上字段均可省略。
 
 可见性条件的 `path` 是配置值的 JSON Pointer；隐藏字段仍执行业务校验。`x-ui` 只影响显示，不改变数据默认值、约束或密钥行为。
 

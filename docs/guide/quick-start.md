@@ -13,7 +13,7 @@ curl -fL https://raw.githubusercontent.com/llleixx/picloom/main/compose.sqlite.y
 curl -fL https://raw.githubusercontent.com/llleixx/picloom/main/docker/.env.example -o .env
 ```
 
-编辑 `.env`，填写 `ENCRYPTION_KEY`。推荐用以下命令生成密钥，升级和恢复时保留原值：
+编辑 `.env`，填写 `ENCRYPTION_KEY`。推荐用以下命令生成密钥，升级和手动恢复时保留原值：
 
 ```sh
 openssl rand -hex 32
@@ -31,9 +31,19 @@ docker compose up -d
 
 若初始密码留空，首次启动会生成随机密码，可通过 `docker compose logs picloom` 查看。这两个初始配置仅在数据库尚无用户时生效，不会修改已有账户的用户名或密码。
 
-数据保存在 Compose 文件旁的 `data/` 目录中：`app/` 保存应用数据和本地图片，`backups/` 保存内置备份。重建容器时保留 `data/` 即可。正式对外提供服务前配置 [HTTPS 与域名](../operations/proxy.md)。其他部署方式见 [Docker 部署](../operations/deploy.md)。
+数据保存在 Compose 文件旁的 `data/` 目录中：`app/` 保存应用数据和本地图片，`backups/` 保存内置备份。重建容器时保留 `data/` 和原有 `.env`。正式对外提供服务前配置 [HTTPS 与域名](../operations/proxy.md)。其他部署方式见 [Docker 部署](../operations/deploy.md)。
 
-## 2. 查看默认配置
+## 2. 上传并访问
+
+回到上传页，选择 `Default`，上传一张 JPEG 或 PNG 图片。复制返回的链接，用新标签页打开。
+
+在图片管理页可以查看该文件。任何获得公开链接的人都可以访问图片，无需登录。
+
+上传页也支持拖拽、粘贴图片或公开图片直链；上传结果可复制为 URL、Markdown、HTML 或 BBCode。
+
+配置之间的关系见 [理解 Picloom](./concepts.md)。想让链接支持 `?w=320&format=webp`，再按 [缩略图场景](./recipes.md#用同一张原图生成不同尺寸) 配置访问流水线。
+
+## 默认配置
 
 首次启动会创建以下配置，名称均为 `Default`，登录后即可上传：
 
@@ -46,13 +56,3 @@ docker compose up -d
 上传和保存后流水线留空，全局访问流水线没有处理步骤，游客上传默认关闭。可在上述入口查看或调整配置；需要其他存储时，见 [存储源与存储组](./storage.md)。
 
 默认配置仅在首次初始化时创建。升级不会向已有部署补建，删除后也不会自动恢复。
-
-## 3. 上传并访问
-
-回到上传页，选择 `Default`，上传一张 JPEG 或 PNG 图片。复制返回的链接，用新标签页打开。
-
-在图片管理页可以查看该文件。任何获得公开链接的人都可以访问图片，无需登录。
-
-上传页也支持拖拽、粘贴图片或公开图片直链；上传结果可复制为 URL、Markdown、HTML 或 BBCode。
-
-配置之间的关系见 [理解 Picloom](./concepts.md)。想让链接支持 `?w=320&format=webp`，再按 [缩略图场景](./recipes.md#用同一张原图生成不同尺寸) 配置访问流水线。

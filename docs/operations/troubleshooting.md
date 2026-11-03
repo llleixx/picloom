@@ -24,7 +24,7 @@ docker compose -f compose.yml run --rm picloom bun src/cli.ts reset-owner-passwo
 docker compose -f compose.yml up -d
 ```
 
-按提示输入新密码。已有 Owner 会话会失效，上传令牌保留。PostgreSQL 部署替换 Compose 文件名。
+按提示输入新密码。已有 Owner 会话会失效，上传令牌保留。部署使用其他文件名时，将命令中的 `compose.yml` 替换为实际名称。
 
 ## 临时缓存空间占用较高
 

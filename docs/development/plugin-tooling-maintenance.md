@@ -47,11 +47,9 @@ bun run test:plugin-tooling
 
 ## npm 发布流程
 
-本地包验证完成不等于 registry 发布成功。发布由维护者明确执行，不配置自动发布。
-发布顺序为 SDK 与开发工具 → 创建工具；创建工具中的模板必须引用已发布且验证过的 SDK。
-发布前检查 `bun pm pack --dry-run` 文件清单，发布后再从 registry 验证创建与构建流程。
-npm 可能在接收上传后继续扫描；命令成功不代表版本已可下载。等待 registry 提供目标版本后，
-使用全新目录创建项目、安装依赖并构建，确认未引用本地压缩包。
+先用 `bun pm pack --dry-run` 检查文件清单。先发布 SDK 与开发工具，再发布引用这些版本的创建工具。确认 registry 可以下载后，在全新目录从 registry 创建项目、安装依赖并构建。
+
+恢复消费仓库的 registry 依赖时，在 `picloom-tooling` 执行 `bun run dev:registry -- ../picloom ../picloom-extensions`，再验证干净安装。
 
 ## 仓库示例
 
@@ -74,8 +72,6 @@ bun test tests/examples.test.ts
 | [上传处理](./processors/upload.md) | `examples/processor` | `processor.zip` |
 | [访问处理](./processors/access.md) | `examples/access` | `access.zip` |
 | [保存后处理](./processors/post-save.md) | `examples/post-save` | `post-save.zip` |
-
-选择一个教程即可，不需要一次安装所有示例。各教程先解释职责和一次调用，再列出必需、可选接口及输入输出，最后给出完整实现和验证步骤。第一次开发建议从路径插件开始。
 
 修改已安装的仓库示例后，需要同步增加清单和入口中的版本；独立模板的入口直接读取
 清单，只需修改清单版本。再安装并应用升级，同 ID、同版本不能覆盖。

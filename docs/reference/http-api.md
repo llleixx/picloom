@@ -41,7 +41,7 @@ curl --fail-with-body "$PICLOOM_URL/api/files" \
 
 | 字段 | 必填 | 内容 |
 | --- | --- | --- |
-| `profileId` | 否 | 上传配置 ID；省略时使用当前用户默认，否则使用站点默认。显式填写时不能使用显示名称代替 |
+| `profileId` | 否 | 上传配置 ID。省略时按[默认上传配置](#默认上传配置)选择 |
 | `file` | 是 | 图片文件 |
 | `organization` | 否 | 初始归类 JSON 字符串，例如 `{"tagIds":["TAG_ID"],"collectionIds":["COLLECTION_ID"]}` |
 | `params` | 否 | JSON 字符串，例如 `{"w":1600}`；对应参数必须已在上传流水线步骤中开放 |
@@ -69,7 +69,7 @@ curl --fail-with-body "$PICLOOM_URL/api/files" \
 
 普通上传大小受全局、用户和上传配置限制，文本字段单项不超过 64 KiB；`params` 另限 8192 字符。大文件可使用分片接口，避免中断后重传整个文件。
 
-### 请求参数的值
+## 请求参数的值
 
 请求参数由插件的 `paramsSchema` 声明，并由管理员在相应上传或访问步骤中逐项启用。未声明或未启用的参数不会传给插件；省略参数时服务端不补 Schema 默认值。
 
@@ -77,7 +77,15 @@ curl --fail-with-body "$PICLOOM_URL/api/files" \
 
 ## 从 URL 上传
 
-`POST /api/files/from-url` 接收 JSON，成功返回同样的 `201`、`id` 和 `url`。本例还需要 jq，用于安全构造 JSON：
+`POST /api/files/from-url` 接收 JSON，成功返回 HTTP `201` 与 `{ id, url }`。
+
+| 字段 | 类型 | 必填 | 用途 |
+| --- | --- | --- | --- |
+| `url` | `string` | 是 | 远端图片 URL，最多 8192 字符，须通过地址和大小校验 |
+| `profileId` | `string` | 否 | 上传配置 ID，省略时按[默认上传配置](#默认上传配置)选择 |
+| `organization` | `object` | 否 | 初始归类，可包含 `tagIds`、`collectionIds` 字符串数组 |
+
+此接口使用流水线的固定配置。以下命令沿用上文变量，通过 jq 构造 JSON：
 
 ```sh
 jq -n --arg profile "$PICLOOM_PROFILE_ID" \
@@ -87,8 +95,6 @@ jq -n --arg profile "$PICLOOM_PROFILE_ID" \
     -H "Authorization: Bearer $PICLOOM_TOKEN" \
     -H 'Content-Type: application/json' --data-binary @-
 ```
-
-远端地址需通过服务器的地址和大小校验。此接口不接收自定义 `params`，使用上传流水线的固定配置；它不是对任意内网地址的下载代理。
 
 ## 分片上传
 
@@ -147,6 +153,16 @@ curl --fail-with-body \
 ```
 
 需要续传时查询进度，只补传 `parts` 中缺失的索引；客户端可按 `/api/client-settings` 返回的分片并发值并行上传。示例未实现自动续传；中断后放弃会话可调用取消接口，否则等待过期清理。会话密钥不要写入公开链接或日志。
+
+## 默认上传配置
+
+普通上传、URL 上传和分片会话创建均允许省略 `profileId`。服务端优先使用用户设置的默认项；仅未设置时使用站点默认。默认项被删除、禁用或超出当前用户或 Token 权限时直接报错，不再回退。未配置任何默认项时返回 `DEFAULT_PROFILE_REQUIRED`。显式传入无效 ID 不会回退，上传执行失败也不会切换 Profile。分片会话固定创建时解析出的 Profile。
+
+- `GET /api/upload-defaults`：返回 `defaultProfileId`、`userDefaultProfileId`、当前身份可见的 `siteDefaultProfileId`。
+- `PUT /api/auth/upload-default`：会话用户设置自己的默认项，JSON `{ "profileId": "..." }`；传 `null` 表示跟随站点。
+- `PUT /api/site-upload-default`：管理员会话设置站点默认项，同上；传 `null` 清除。
+
+这些默认项不会扩大权限，也不会在文件大小超限、存储故障时替用户选择另一套上传规则。
 
 ## 登录与管理
 
@@ -211,6 +227,19 @@ curl --fail-with-body "$PICLOOM_URL/api/files/$PICLOOM_FILE_ID" \
 
 删除是异步操作，`202` 不代表远端内容已清理。查询详情可跟踪状态；不支持远端删除的存储行为见对应 [插件说明](./plugins.md)。
 
+### 替换图片
+
+先上传新图，再使用登录会话调用 `POST /api/files/:id/replace`。`:id` 是要替换的原图 ID。
+
+| JSON 字段 | 类型 | 必填 | 用途 |
+| --- | --- | --- | --- |
+| `replacementId` | `string` | 是 | 新图的当前文件 ID |
+| `replacementPath` | `string` | 是 | 新图 URL 的 pathname |
+
+若新图配置了保存后替换，等待后台任务结束，再用 `GET /api/files/by-path?path=...` 查询当前文件 ID。
+
+新旧图片必须可管理、处于 ready 状态，且当前副本及后台任务已完成；已删除副本关联的失败或取消历史不阻止替换，其他失败任务仍需处理。成功返回新文件的 `id` 和保留的 `url`，旧文件随后异步清理；图片归属保持不变。切换失败不会删除原图，新上传的图片可能作为独立图片保留。允许跨格式替换，公开链接及其后缀不变，后缀可能与新图实际格式不同。浏览器和 CDN 已有缓存需等到过期或主动刷新。
+
 ### 标签和集合
 
 这些接口只接受登录会话，写请求使用 CSRF。分类列表为数组，`X-Total-Count` 返回总数；查询 `q`、`limit`（默认 50，范围 1–100）、`offset`（默认 0）。管理员可指定 `owner=用户ID`，省略默认为当前用户。令牌不获得列表或分类管理权限。
@@ -273,7 +302,7 @@ curl --fail-with-body "$PICLOOM_URL/api/files/$PICLOOM_FILE_ID" \
 | `GET /api/files/owners` | 管理员查询图片所属用户筛选项，返回 `[{"id":"…","name":"…"}]`；包含现存用户与仍有图片的已删除用户，后者显示 ID。支持 `q` 搜索和 `limit`（默认 30，最大 100） |
 | `GET /api/files/:id` | 文件详情 |
 | `GET /api/files/by-path?path=公开路径` | 按 URL 的 pathname 查询当前文件详情，权限与按 ID 查询相同 |
-| `POST /api/files/:id/replace` | 用已上传的新图替换，保留公开链接；仅会话认证 |
+| `POST /api/files/:id/replace` | [替换图片](#替换图片)，保留公开链接 |
 | `GET /api/files/:id/operations` | 管理员查看副本和后台任务 |
 | `DELETE /api/files/:id/replicas/:replicaId` | 管理员删除副本；`?includeLast=false` 保留没有其他可用副本的图片，默认 `true` |
 | `POST /api/files/:id/unblock` | 管理员解除屏蔽 |
@@ -302,6 +331,22 @@ curl --fail-with-body "$PICLOOM_URL/api/files/$PICLOOM_FILE_ID" \
 
 读取后修改普通配置时保留其他普通字段；清除凭据必须显式提交 `clear`。完整规则及三类 Schema 的能力范围见[配置与请求参数](../development/schema.md#三类-schema-的边界)。主题配置公开且不支持敏感字段，其草稿、预览和应用规则见[主题开发](../development/themes.md)。
 
+## 主题管理
+
+`GET /api/theme` 返回启用主题描述或 `null`，匿名可读。其余主题管理接口限所有者，写请求使用会话 CSRF：
+
+| 方法与路径                             | 内容                                                                                         |
+| -------------------------------------- | -------------------------------------------------------------------------------------------- |
+| `GET /api/themes`                      | 已安装主题、兼容状态和候选配置                                                               |
+| `POST /api/themes/inspect`             | 请求体为原始 ZIP 字节，返回 `ticket` 和 `manifest`，凭据有效期 15 分钟                       |
+| `POST /api/themes/install`             | `{ "ticket": "…", "confirmed": true }`                                                       |
+| `PUT /api/themes/:id/:version/config`  | `{ config, language: { defaultLocale, languageRevision } }`                                  |
+| `GET /api/themes/:id/:version/preview` | 读取该版本候选配置及资源入口                                                                 |
+| `PUT /api/theme`                       | `{ id, version, defaultLocale, languageRevision }` 启用已保存草稿；`{ "id": null }` 恢复默认 |
+| `DELETE /api/themes/:id/:version`      | 卸载非启用版本                                                                               |
+
+资源位于 `/assets/themes/:id/:version/...`，可公开获取并长期缓存。不要将未发布的敏感文件放入主题包。后台使用的配置、预览权限不等于包内资源访问隔离。
+
 ## 错误响应
 
 ```json
@@ -326,35 +371,3 @@ curl --fail-with-body "$PICLOOM_URL/api/files/$PICLOOM_FILE_ID" \
 | `429` / `503` | 额度、并发或容量限制，按错误码确认原因；达到每日额度不能靠立即重试解决 |
 
 网络中断不等于写入未发生，勿无条件重放上传。插件相关错误语义见 [错误、取消与并发](../development/plugin-errors.md)。
-
-### 默认上传配置
-
-普通上传、URL 上传和分片会话创建均允许省略 `profileId`。服务端优先使用用户设置的默认项；仅未设置时使用站点默认。默认项被删除、禁用或超出当前用户或 Token 权限时直接报错，不再回退。未配置任何默认项时返回 `DEFAULT_PROFILE_REQUIRED`。显式传入无效 ID 不会回退，上传执行失败也不会切换 Profile。分片会话固定创建时解析出的 Profile。
-
-- `GET /api/upload-defaults`：返回 `defaultProfileId`、`userDefaultProfileId`、当前身份可见的 `siteDefaultProfileId`。
-- `PUT /api/auth/upload-default`：会话用户设置自己的默认项，JSON `{ "profileId": "..." }`；传 `null` 表示跟随站点。
-- `PUT /api/site-upload-default`：管理员会话设置站点默认项，同上；传 `null` 清除。
-
-这些默认项不会扩大权限，也不会在文件大小超限、存储故障时替用户选择另一套上传规则。
-
-### 替换图片
-
-先按正常流程上传新图，再向 `POST /api/files/:id/replace` 发送 JSON：`{"replacementId":"新文件 ID","replacementPath":"新上传结果 URL 的 pathname"}`。上传时显式选择原上传配置或其他有权限的配置，不依赖默认配置回退。保存后替换可能更新新图 ID，可用 `GET /api/files/by-path?path=...` 查询当前 ID 并等待后台任务完成。
-
-新旧图片必须可管理、处于 ready 状态，且当前副本及后台任务已完成；已删除副本关联的失败或取消历史不阻止替换，其他失败任务仍需处理。成功返回新文件的 `id` 和保留的 `url`，旧文件随后异步清理；图片归属保持不变。切换失败不会删除原图，新上传的图片可能作为独立图片保留。允许跨格式替换，公开链接及其后缀不变，后缀可能与新图实际格式不同。浏览器和 CDN 已有缓存需等到过期或主动刷新。
-
-## 主题管理
-
-`GET /api/theme` 返回启用主题描述或 `null`，匿名可读。其余主题管理接口限所有者，写请求使用会话 CSRF：
-
-| 方法与路径                             | 内容                                                                                         |
-| -------------------------------------- | -------------------------------------------------------------------------------------------- |
-| `GET /api/themes`                      | 已安装主题、兼容状态和候选配置                                                               |
-| `POST /api/themes/inspect`             | 请求体为原始 ZIP 字节，返回 `ticket` 和 `manifest`，凭据有效期 15 分钟                       |
-| `POST /api/themes/install`             | `{ "ticket": "…", "confirmed": true }`                                                       |
-| `PUT /api/themes/:id/:version/config`  | `{ config, language: { defaultLocale, languageRevision } }`                                  |
-| `GET /api/themes/:id/:version/preview` | 读取该版本候选配置及资源入口                                                                 |
-| `PUT /api/theme`                       | `{ id, version, defaultLocale, languageRevision }` 启用已保存草稿；`{ "id": null }` 恢复默认 |
-| `DELETE /api/themes/:id/:version`      | 卸载非启用版本                                                                               |
-
-资源位于 `/assets/themes/:id/:version/...`，可公开获取并长期缓存。不要将未发布的敏感文件放入主题包。后台使用的配置、预览权限不等于包内资源访问隔离。

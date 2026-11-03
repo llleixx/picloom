@@ -32,7 +32,7 @@ export default {
 
 `process` 判断格式，通过宿主 Sharp 缩放，再写入本次输出。示例将输入读入内存，不放大小图。
 
-<span id="接入并验证"></span>
+大文件处理应评估内存或采用流式实现，并遵守宿主传入的 `limits` 和取消信号。
 
 ## 安装与验证
 
@@ -51,45 +51,52 @@ export default {
 
 ### process：执行处理
 
-每步只调用一次 `process`。固定配置通过实例闭包使用，请求参数来自已筛选并校验的 `input.params`，不自动合并固定配置。`limits.maxDimension` 是最大单边像素数，`maxPixels` 是最大像素总数。
+宿主为流水线中的每个步骤调用一次此方法。固定配置从实例闭包读取。
 
 ```ts
-process(input: {
-  params: Parameters;
-  file: FileInput;
-  readonly record: FileContext;
-  limits: { maxDimension: number; maxPixels: number };
-  createOutput(): Promise<Output>;
-}, context: UploadProcessContext): Promise<
-  | { status: "pass"; organization?: OrganizationUpdate }
-  | { status: "replace"; output: Output; organization?: OrganizationUpdate }
-  | { status: "reject"; reason: string }
-  | { status: "unsupported"; reason?: string }
->;
+process(
+  input: UploadProcessInput,
+  context: UploadProcessContext,
+): Promise<UploadResult>;
 ```
 
-| 返回形式 | 必需字段                              | 核心行为                           |
-| -------- | ------------------------------------- | ---------------------------------- |
-| 保留     | `status: "pass"`                      | 当前图片不变，继续下一步           |
-| 替换     | `status: "replace"`、`output: Output` | 校验输出并更新当前图片，继续下一步 |
-| 拒绝     | `status: "reject"`、`reason: string`  | 中止本次上传并报错                 |
-| 不支持   | `status: "unsupported"`，可选 `reason` | 按步骤设置跳过或中止；分别视为保留或拒绝 |
+#### 输入与上下文
 
-执行异常应抛错，不要用 `unsupported` 隐藏失败。输出来自本次 `createOutput()`，写入完成后才能返回。输出接口见 [文件与输出](../plugin-services.md#文件与输出)。
+| `input` 成员 | 类型 | 用法 |
+| --- | --- | --- |
+| `params` | `Parameters` | 已校验的请求参数，不含固定配置 |
+| `file` | `FileInput` | 前序步骤接受的图片，通过 `metadata` 或 `openRead()` 读取 |
+| `record` | `FileContext` | 当前文件的身份、归属和归类，见[文件上下文](../plugin-services.md#文件上下文与归类) |
+| `limits` | `{ maxDimension: number; maxPixels: number }` | 单边像素数和总像素数上限 |
+| `createOutput()` | `() => Promise<Output>` | 创建本次调用的替换输出 |
 
-后续步骤和路径插件读取此前成功步骤接受的图片与归类。`context.organization` 可查找、复用或创建分类，见[归类服务](../plugin-services.md#文件上下文与归类)。
-
-返回 `organization: { tagIds, collectionIds }` 设置完整目标关系；省略字段保留该项，空数组清空。每项最多 100 个 ID，仅可选择当前归属范围内的分类。核心完整校验图片输出及归类后才同时接受；无效结果不会部分更新。仅需归类时返回 `{ status: "pass", organization: { tagIds: [tag.id] } }`。
-
-<span id="扩展与约束"></span>
-
-## 可选能力与约束
+通过 `context.organization` 查找或创建分类，见[文件上下文与归类](../plugin-services.md#文件上下文与归类)。取消信号、日志等共用成员见[调用上下文](../plugin-services.md#调用上下文)。
 
 管理员在步骤中启用 `width` 后，本次上传可通过 `params` 指定宽度；不传则使用固定配置。见 [配置与请求参数示例](../plugin-config.md#固定配置与请求参数)。
 
-输出只能写一次，必须是本次调用通过 `createOutput()` 创建的对象。核心检查图片和尺寸后才接受替换。
+#### 返回值
 
-示例将输入读入内存，便于理解。大文件处理应评估内存或采用流式实现，并遵守宿主传入的 `limits` 和取消信号。网络异常应抛错，不要返回 `unsupported` 隐藏失败。
+```ts
+type UploadResult =
+  | { status: "pass"; organization?: OrganizationUpdate }
+  | { status: "replace"; output: Output; organization?: OrganizationUpdate }
+  | { status: "reject"; reason: string }
+  | { status: "unsupported"; reason?: string };
+```
 
-<span id="想实现什么"></span><span id="在哪里执行"></span><span id="谁负责什么"></span><span id="看一次调用"></span><span id="定义与能力清单"></span>
-开发流程见[最小实现](#最小实现)，调用规则见[接口行为](#接口行为)。
+| `status` | 效果 |
+| --- | --- |
+| `pass` | 保留当前图片，继续下一步 |
+| `replace` | 校验输出并更新当前图片，继续下一步 |
+| `reject` | 中止本次上传并报错 |
+| `unsupported` | 由步骤策略决定跳过或中止 |
+
+输出来自本次 `createOutput()`，写入完成后才能返回。输出接口见 [文件与输出](../plugin-services.md#文件与输出)。
+
+后续步骤和路径插件读取已接受的图片与归类。
+
+返回 `organization: { tagIds, collectionIds }` 设置完整目标关系；省略字段保留该项，空数组清空。每项最多 100 个 ID，仅可选择当前归属范围内的分类。核心完整校验图片输出及归类后才同时接受；无效结果不会部分更新。仅需归类时返回 `{ status: "pass", organization: { tagIds: [tag.id] } }`。
+
+#### 失败行为
+
+执行失败时抛出 [`PluginError`](../plugin-errors.md#pluginerror-字段)。仅在输入确实不适用时返回 `unsupported`。
