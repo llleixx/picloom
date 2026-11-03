@@ -32,8 +32,12 @@ async function command(args: string[]) {
     throw new Error(`${args[0]} ${args[1]} failed (${code}): ${err}`);
   return out.trim();
 }
-console.log("Building picloom:local");
-await command(["docker", "build", "-t", "picloom:local", "."]);
+const image = process.env.PICLOOM_TEST_IMAGE || "picloom:local";
+if (process.env.PICLOOM_TEST_IMAGE) console.log(`Using local image ${image}`);
+else {
+  console.log(`Building ${image}`);
+  await command(["docker", "build", "-t", image, "."]);
+}
 for (const backend of ["sqlite", "postgres"]) {
   const project = `picloom-smoke-${backend}-${crypto.randomUUID().slice(0, 8)}`;
   const temp = await mkdtemp(join(tmpdir(), "picloom-docker-"));
@@ -44,7 +48,7 @@ for (const backend of ["sqlite", "postgres"]) {
     JSON.stringify({
       services: {
         picloom: {
-          image: "picloom:local",
+          image,
           pull_policy: "never",
           volumes: [`${temp}/data:/var/lib/picloom`],
         },

@@ -1,0 +1,118 @@
+name: CI
+
+on:
+  pull_request:
+    paths-ignore: ["docs/**", "**/*.md"]
+  push:
+    branches: [main]
+    paths-ignore: ["docs/**", "**/*.md"]
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
+
+jobs:
+  core:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.4
+      - run: bun install --frozen-lockfile
+      - run: bun run typecheck
+      - run: bun test ./tests
+
+  postgres:
+    runs-on: ubuntu-24.04
+    services:
+      postgres:
+        image: postgres:16-bookworm
+        env:
+          POSTGRES_USER: picloom
+          POSTGRES_PASSWORD: test-password
+          POSTGRES_DB: picloom_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U picloom -d picloom_test"
+          --health-interval 5s --health-timeout 5s --health-retries 12
+    env:
+      TEST_POSTGRES_URL: postgresql://picloom:test-password@127.0.0.1:5432/picloom_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.4
+      - run: bun install --frozen-lockfile
+      - run: bun run test:postgres
+      - run: bun test tests/import.test.ts tests/replacement.test.ts tests/concurrent-uploads.test.ts tests/user-deletion.test.ts
+        env:
+          TEST_FIXTURE_POSTGRES_URL: ${{ env.TEST_POSTGRES_URL }}
+
+  browser:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.4
+      - run: bun install --frozen-lockfile
+      - run: bunx playwright install --with-deps chromium
+      - run: bun run build:web
+      - run: bun run test:web
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: browser-results
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7
+
+  tooling:
+    runs-on: ubuntu-24.04
+    env:
+      PICLOOM_TOOLING_DIR: ${{ github.workspace }}/picloom-tooling
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: picloom
+      - uses: actions/checkout@v4
+        with:
+          repository: llleixx/picloom-tooling
+          ref: 2a1a9a456cb28dbf16fabc09ff32fdb39d892f98
+          path: picloom-tooling
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.4
+      - run: bun install --frozen-lockfile
+        working-directory: picloom
+      - run: bun install --frozen-lockfile
+        working-directory: picloom-tooling
+      - run: bun run build
+        working-directory: picloom-tooling
+      - run: bunx playwright install --with-deps chromium
+        working-directory: picloom
+      - run: bun run build:web
+        working-directory: picloom
+      - run: bun run test:plugin-tooling
+        working-directory: picloom
+      - run: bun run test:theme-tooling
+        working-directory: picloom

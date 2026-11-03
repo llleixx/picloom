@@ -1,0 +1,112 @@
+name: Release
+on:
+  push:
+    tags: ["v*"]
+permissions:
+  contents: read
+concurrency:
+  group: application-release
+  cancel-in-progress: false
+  queue: max
+jobs:
+  prepare:
+    runs-on: ubuntu-24.04
+    outputs:
+      version: ${{ steps.release.outputs.version }}
+      sha: ${{ steps.release.outputs.sha }}
+      existing: ${{ steps.release.outputs.existing }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.4
+      - id: release
+        run: bun .github/ci/release.ts prepare
+  verify:
+    needs: prepare
+    if: needs.prepare.outputs.existing != 'true'
+    uses: ./.github/workflows/verify.yml
+  push:
+    needs: [prepare, verify]
+    if: needs.prepare.outputs.existing != 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-24.04
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.4
+      - run: bun install --frozen-lockfile
+      - name: Build image under test
+        env:
+          SHA: ${{ needs.prepare.outputs.sha }}
+          VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          docker build -t picloom:ci \
+            --label "org.opencontainers.image.revision=$SHA" \
+            --label "org.opencontainers.image.version=$VERSION" \
+            --label "org.opencontainers.image.source=https://github.com/$GITHUB_REPOSITORY" .
+      - run: bun run test:docker
+        env:
+          PICLOOM_TEST_IMAGE: picloom:ci
+      - uses: docker/login-action@v3
+        with:
+          username: ${{ vars.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Push tested image
+        env:
+          SHA: ${{ needs.prepare.outputs.sha }}
+          ARCH: ${{ matrix.arch }}
+        run: |
+          candidate="llleixx/picloom:build-${SHA}-${ARCH}"
+          docker tag picloom:ci "$candidate"
+          docker push "$candidate"
+          docker inspect --format '{{index .RepoDigests 0}}' "$candidate" | cut -d@ -f2 > "digest-${ARCH}.txt"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: digest-${{ matrix.arch }}
+          path: digest-${{ matrix.arch }}.txt
+          retention-days: 7
+  publish:
+    needs: [prepare, verify, push]
+    if: >-
+      always() && !cancelled() && needs.prepare.result == 'success' &&
+      (needs.prepare.outputs.existing == 'true' ||
+      (needs.verify.result == 'success' && needs.push.result == 'success'))
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          username: ${{ vars.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - uses: actions/download-artifact@v4
+        if: needs.prepare.outputs.existing != 'true'
+        with:
+          pattern: digest-*
+          merge-multiple: true
+          path: release-digests
+      - name: Publish version and Release
+        run: bun .github/ci/release.ts finalize
+        env:
+          GH_TOKEN: ${{ github.token }}
