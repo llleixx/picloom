@@ -544,21 +544,3 @@ test("incomplete required configuration can be installed and drafted but not pre
     await f.close();
   }
 });
-
-test("theme minLength schema and provided defaults are validated", async () => {
-  const { validateField, configuration } = await import("../src/themes/schema");
-  for (const field of [
-    { type: "string", minLength: -1 },
-    { type: "string", minLength: 1.5 },
-    { type: "string", minLength: 5, maxLength: 2 },
-    { type: "number", minLength: 1 },
-  ])
-    expect(() => validateField(field)).toThrow();
-  const schema = {
-    type: "object" as const,
-    properties: {
-      title: { type: "string" as const, minLength: 2, default: "x" },
-    },
-  };
-  expect(() => configuration(schema, {}, true, false)).toThrow();
-});

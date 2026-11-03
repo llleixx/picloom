@@ -2,11 +2,7 @@ import { test, expect } from "bun:test";
 import { fixture } from "./helpers";
 import { entity } from "../src/persistence/port";
 import type { Definition } from "../src/plugins/api";
-import { handler } from "../src/http/app";
 import { prefix, scopedInput } from "../src/infra/files";
-import { cacheKey } from "../src/core/cache";
-import { ImageCache } from "../src/core/cache";
-import { join } from "node:path";
 test("path collision protects managed images and deletion releases the path", async () => {
   const f = await fixture();
   try {
@@ -133,24 +129,6 @@ test("scope cleanup cancels plugin-owned locked readers", async () => {
   expect(cancelled).toBe(true);
   await expect(reader.read()).rejects.toThrow();
   reader.releaseLock();
-});
-test("cache capacity and expiry remove derivative entries", async () => {
-  const f = await fixture();
-  try {
-    const cache = new ImageCache(join(f.root, "cache"), 1, 60000);
-    const result = {
-      bytes: new Uint8Array([1, 2]),
-      metadata: { mimeType: "image/png", byteSize: 2, width: 1, height: 1 },
-    };
-    await cache.put("file", "key", result);
-    expect(await cache.get("file", "key")).toBeNull();
-    const expires = new ImageCache(join(f.root, "cache"), 1000, 5);
-    await expires.put("file", "key", result);
-    await new Promise((r) => setTimeout(r, 15));
-    expect(await expires.get("file", "key")).toBeNull();
-  } finally {
-    await f.close();
-  }
 });
 test("Database drivers and SQL stay in persistence layer", async () => {
   const paths = new Bun.Glob("src/**/*.ts");

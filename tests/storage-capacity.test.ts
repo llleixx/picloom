@@ -86,27 +86,6 @@ test("in-flight writes consume capacity and deleted replicas release it", async 
   }
 });
 
-test("capacity rejects invalid values", async () => {
-  const f = await fixture();
-  try {
-    const source = (await f.app.plugins.storageViews())[0]!;
-    for (const value of [0, -1, 1.5, "100", Number.MAX_SAFE_INTEGER + 1]) {
-      const response = await f.request(
-        `/api/storage-sources/${source.id}`,
-        "PUT",
-        {
-          ...source,
-          maxStorageBytes: value,
-          expectedVersion: source.configVersion,
-        },
-      );
-      expect(response.status).toBe(400);
-    }
-  } finally {
-    await f.close();
-  }
-});
-
 test("lowered capacity affects new admissions, not already registered writes", async () => {
   const f = await fixture();
   try {

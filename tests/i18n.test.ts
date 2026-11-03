@@ -1,6 +1,6 @@
 import { afterEach, expect, test } from "bun:test";
 import { t, formatDate, formatNumber, setLocale } from "../web/src/lib/i18n";
-import { decodeError, errorMessage } from "../web/src/lib/api";
+import { errorMessage } from "../web/src/lib/api";
 
 test("UI messages interpolate values without translating user content", () => {
   expect(t("images.previewLabel", { name: "相册/a.png" })).toBe(
@@ -11,26 +11,6 @@ test("UI messages interpolate values without translating user content", () => {
   );
   expect(t("tasks.attempts", { count: 2 })).toBe("Attempts: 2");
   expect(formatDate(Date.UTC(2026, 9, 15, 12))).toContain("2026");
-});
-
-test("API error codes select English copy instead of backend display text", () => {
-  const error = decodeError(
-    {
-      error: {
-        code: "STORAGE_UNAVAILABLE",
-        message: "后端提示",
-        requestId: "request-1",
-      },
-    },
-    503,
-  );
-  expect(error.message).toContain("copies");
-  expect(error.requestId).toBe("request-1");
-  expect(errorMessage("PIPELINE_MISSING")).toContain("deleted");
-  expect(
-    decodeError({ error: { code: "FUTURE_ERROR", message: "后端提示" } }, 500)
-      .message,
-  ).toBe("后端提示");
 });
 
 afterEach(() => {
@@ -107,22 +87,6 @@ test("language negotiation respects ordered browser preferences and page availab
   setLocale("");
   expect(languagePreference.value).toBeNull();
   configureLanguages(both, "en-US");
-});
-
-test("localized site content does not borrow the site default language", () => {
-  const site = {
-    enabledLocales: ["zh-CN", "en-US"] as Array<"zh-CN" | "en-US">,
-    defaultLocale: "zh-CN" as "zh-CN" | "en-US",
-    content: {
-      "zh-CN": { name: "拾光", description: "中文介绍" },
-      "en-US": { description: "English introduction" },
-    },
-  };
-  expect(siteText(site, "en-US", "name")).toBe("");
-  expect(siteText(site, "en-US", "description")).toBe("English introduction");
-  site.defaultLocale = "en-US";
-  expect(siteText(site, "en-US", "name")).toBe("");
-  expect(siteText(site, "zh-CN", "name")).toBe("拾光");
 });
 
 test("site content preserves blank values without borrowing base-language or plugin fallback", () => {

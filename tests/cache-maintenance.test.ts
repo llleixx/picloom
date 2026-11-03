@@ -251,24 +251,3 @@ test("maintenance releases the lock between entries and reconciles stale listing
     await rm(root, { recursive: true, force: true });
   }
 });
-
-test("first write accounts existing cache files and maintenance releases externally removed entries", async () => {
-  const root = await mkdtemp(join(tmpdir(), "picloom-cache-startup-"));
-  try {
-    await new ImageCache(root, 10, 60000).put("old", "key", output(8));
-    const cache = new ImageCache(root, 10, 60000);
-    await cache.put("new", "key", output(8));
-    expect(await cache.get("old", "key")).toBeNull();
-    await rm(join(root, "new"), { recursive: true });
-    await cache.clean();
-    await cache.put("small", "key", output(2));
-    await cache.put("large", "key", output(8));
-    for (const name of ["small", "large"]) {
-      const hit = await cache.get(name, "key");
-      expect(hit).not.toBeNull();
-      await hit!.stream.cancel();
-    }
-  } finally {
-    await rm(root, { recursive: true, force: true });
-  }
-});

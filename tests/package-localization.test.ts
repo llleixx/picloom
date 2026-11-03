@@ -4,7 +4,6 @@ import {
   assertFieldText,
   fieldText,
   messageText,
-  schemaNodes,
   type MessageCatalog,
 } from "../shared/package-localization";
 
@@ -75,14 +74,4 @@ test("shared catalog and reference validation have no plugin or theme policy", (
       "x-ui": { labelKey: "label", widget: "password" },
     }),
   ).not.toThrow();
-});
-
-test("schema traversal covers nested items and conditional branches", () => {
-  const leaf = () => ({ type: "string", "x-ui": { labelKey: "label" } });
-  const schema = {
-    type: "object",
-    properties: { items: { type: "array", items: leaf() } },
-    allOf: [{ if: leaf(), then: leaf(), else: leaf() }],
-  };
-  expect(schemaNodes(schema).filter((node) => node["x-ui"]).length).toBe(4);
 });

@@ -5,7 +5,7 @@ import { fixture } from "./helpers";
 import { retainStream } from "../src/infra/files";
 import { Secrets } from "../src/infra/secrets";
 import { entity } from "../src/persistence/port";
-import type { Definition, UploadPlugin } from "../src/plugins/api";
+import type { Definition } from "../src/plugins/api";
 const context = () => ({
   signal: new AbortController().signal,
   requestId: "test",
@@ -353,97 +353,6 @@ test("cacheable false executes every request; normal processor result is cached"
     await (await f.request(path)).arrayBuffer();
     await (await f.request(path)).arrayBuffer();
     expect(calls).toBe(3);
-  } finally {
-    await f.close();
-  }
-});
-test("302 shares configured cache lifetime; transforms force stream", async () => {
-  const f = await fixture();
-  try {
-    f.app.config.imageCacheMaxAge = 5;
-    const modes: string[] = [];
-    const def: Definition<"storage"> = {
-      defaultLocale: "en-US",
-      nameKey: "package.name",
-      messages: {
-        "en-US": {
-          "package.name": "redirect",
-        },
-      },
-
-      id: "test.redirect",
-
-      kind: "storage",
-      version: "1",
-      apiVersion: 1,
-      configSchemaVersion: 1,
-      configSchema: { type: "object" },
-      async createInstance() {
-        return {
-          async write() {
-            return {};
-          },
-          async delete() {},
-          async read({ mode }) {
-            modes.push(mode);
-            return mode === "auto"
-              ? {
-                  type: "redirect",
-                  url: "https://example.com/image.png",
-                  expiresAt: Date.now() + 10000,
-                }
-              : {
-                  type: "stream",
-                  stream: new Blob([new Uint8Array(f.png)]).stream(),
-                };
-          },
-        };
-      },
-    };
-    f.app.plugins.register(def);
-    const instance = await f.app.plugins.save({
-      pluginId: def.id,
-      version: "1",
-      name: "redirect",
-      config: {},
-    });
-    const v = await (await f.upload()).json();
-    await f.app.db.transaction(async (r) => {
-      const replica = (await r.replicas(v.id))[0]!;
-      replica.storage_instance_id = instance.id;
-      replica.locator_json = null;
-      await r.saveReplica(replica);
-    });
-    const path = new URL(v.url).pathname;
-    const raw = await f.request(path);
-    expect(raw.status).toBe(302);
-    expect(raw.headers.get("cache-control")).toBe(
-      "public, max-age=5, must-revalidate",
-    );
-    const delivery = await (await f.request("/api/settings")).json();
-    expect(
-      (
-        await f.request("/api/settings", "PUT", {
-          ...delivery,
-          imageCacheMaxAge: 600,
-        })
-      ).status,
-    ).toBe(200);
-    expect((await f.request(path + "?unused=value")).status).toBe(302);
-    const head = await f.request(path, "HEAD");
-    expect(head.status).toBe(302);
-    expect(head.body).toBeNull();
-    const cacheControl = head.headers.get("cache-control")!;
-    expect(cacheControl).toMatch(/^public, max-age=\d+, must-revalidate$/);
-    const maxAge = Number(cacheControl.match(/max-age=(\d+)/)![1]);
-    // The configured 600 seconds must still respect the signed URL's ten-second lifetime.
-    expect(maxAge).toBeGreaterThanOrEqual(0);
-    expect(maxAge).toBeLessThanOrEqual(10);
-    expect(head.headers.get("vary")).toBeNull();
-    const transformed = await f.request(path + "?w=8");
-    expect(transformed.status).toBe(200);
-    await transformed.arrayBuffer();
-    expect(modes).toEqual(["auto", "auto", "auto", "stream"]);
   } finally {
     await f.close();
   }

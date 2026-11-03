@@ -208,9 +208,8 @@ if (scenario === "configuration")
       };
     },
   });
-const profile =
-  scenario === "no-profile" ? null : await initializeDevelopment(app);
-if (scenario === "moderation" && profile) {
+const profile = await initializeDevelopment(app);
+if (scenario === "moderation") {
   app.plugins.register({
     defaultLocale: "en-US",
     nameKey: "package.name",
@@ -326,7 +325,7 @@ if (scenario === "seed" && !(await app.db.read((r) => r.countFiles()))) {
       .toBuffer();
     await app.files.upload(
       new File([new Uint8Array(bytes)], "seed.png"),
-      profile!,
+      profile,
       auth,
       new AbortController().signal,
     );

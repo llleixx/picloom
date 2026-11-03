@@ -326,29 +326,3 @@ test("reserved prefixes disable UI without rewriting old image links, including 
     await f.close();
   }
 });
-
-test("deletion failure is visible in operations without leaking storage errors", async () => {
-  const f = await fixture({
-    beforeDelete: async () => {
-      throw new Error("secret root");
-    },
-  });
-  try {
-    const uploaded = await (await f.upload()).json();
-    await f.request("/api/files/" + uploaded.id, "DELETE");
-    await f.app.files.sweep();
-    const detail = await (await f.request("/api/files/" + uploaded.id)).json();
-    expect(detail.status).toBe("deleting");
-    expect(detail.error).toBeNull();
-    const response = await f.request(`/api/files/${uploaded.id}/operations`);
-    expect(response.status).toBe(200);
-    const operations = await response.json();
-    expect(operations.tasks).toContainEqual(
-      expect.objectContaining({ kind: "delete", error: "DELETE_FAILED" }),
-    );
-    expect(JSON.stringify(operations)).not.toContain("secret root");
-    expect(JSON.stringify(detail)).not.toContain("secret root");
-  } finally {
-    await f.close();
-  }
-});

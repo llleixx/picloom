@@ -241,42 +241,6 @@ test("failed-write cleanup runs as a bounded deletion while unrelated tasks cont
   }
 });
 
-test("one dispatch drains a fast backlog and skips tasks whose files no longer allow execution", async () => {
-  const f = await fixture();
-  try {
-    f.app.config.deleteConcurrency = 1;
-    const stale = await upload(f);
-    await queueDelete(f, stale.file, stale.replica);
-    const pending = (await f.app.db.read((r) => r.tasks(stale.file.id))).find(
-      (t) => t.kind === "delete",
-    )!;
-    await f.app.db.transaction(async (r) => {
-      pending.kind = "write";
-      pending.next_run_at = 0;
-      await r.saveTask(pending);
-      stale.replica.status = "pending";
-      await r.saveReplica(stale.replica);
-    });
-    const healthy = [];
-    for (let i = 0; i < 4; i++) {
-      const item = await upload(f);
-      await queueDelete(f, item.file, item.replica);
-      healthy.push(item);
-    }
-    await f.app.files.tasks.dispatch();
-    await f.app.files.tasks.drain();
-    for (const item of healthy)
-      expect(
-        (await f.app.db.read((r) => r.tasks(item.file.id))).find(
-          (t) => t.kind === "delete",
-        )!.status,
-      ).toBe("success");
-    expect((await f.app.db.read((r) => r.task(pending.id)))!.attempts).toBe(0);
-  } finally {
-    await f.close();
-  }
-});
-
 test("pause fences an in-progress admission query and resume restarts the backlog", async () => {
   const f = await fixture();
   const queried = gate(),

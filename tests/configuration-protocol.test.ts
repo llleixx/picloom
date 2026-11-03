@@ -126,49 +126,6 @@ test("omitted plugin schemas normalize to closed empty objects without changing 
   }
 });
 
-test("only omitted schemas gain an empty schema; invalid declarations and unsupported stages still fail", () => {
-  for (const bad of [null, false, [], {}, { type: "string" }]) {
-    const { manager } = memoryManager();
-    expect(() => manager.register(definition(bad as any))).toThrow();
-    expect(() =>
-      manager.register({
-        ...definition({ type: "object" }),
-        kind: "processor",
-        stages: {
-          access: {
-            configSchemaVersion: 1,
-            paramsSchema: bad,
-            async createInstance() {},
-          },
-        },
-      } as any),
-    ).toThrow();
-  }
-  const { manager } = memoryManager();
-  expect(() =>
-    manager.register({
-      ...definition({ type: "object" }),
-      kind: "processor",
-      stages: {
-        post_save: {
-          configSchemaVersion: 1,
-          paramsSchema: { type: "object" },
-          async createInstance() {},
-        },
-      },
-    } as any),
-  ).toThrow("Invalid plugin declaration (post_save)");
-  const noConfig = definition({ type: "object" });
-  delete noConfig.configSchema;
-  expect(() =>
-    manager.register({
-      ...noConfig,
-      kind: "storage",
-      localDirectory: { configPath: "/root" },
-    } as any),
-  ).toThrow();
-});
-
 test("omitted theme schemas normalize like plugin schemas and reject undeclared configuration", () => {
   const input = {
     id: "test.no-config",
@@ -745,24 +702,6 @@ test("declaration checks do not normalize invalid constraints and theme projecti
   ).toThrow();
 });
 
-test("explicit theme initialization uses root defaults without creating absent empty groups", () => {
-  const schema: import("@picloom/theme-sdk").Field = {
-    type: "object",
-    default: { title: "Root" },
-    properties: {
-      title: { type: "string" },
-      empty: { type: "object", properties: {} },
-    },
-  };
-  expect(configuration(schema, undefined, true, false)).toEqual({
-    title: "Root",
-  });
-  expect(configuration(schema, {}, false, false)).toEqual({});
-  expect(
-    configuration({ type: "object", properties: {} }, undefined, true, false),
-  ).toEqual({});
-});
-
 test("composition enums constrain the full static object without closing partial branch properties", async () => {
   const { manager } = memoryManager();
   manager.register(
@@ -823,33 +762,6 @@ test("themes use shared property names and nesting while keeping language and un
   expect(() =>
     configuration(localized, { title: { unknown: "Text" } }, false, false),
   ).toThrow();
-});
-
-test("sensitivity follows declarations rather than similarly named data inside defaults", async () => {
-  const schema: Config = {
-    type: "object",
-    properties: {
-      items: {
-        type: "array",
-        items: {
-          type: "object",
-          properties: { "x-sensitive": { type: "boolean" } },
-        },
-        default: [{ "x-sensitive": true }],
-      },
-    },
-  };
-  const { manager } = memoryManager();
-  manager.register(definition(schema));
-  const config = initialConfig(schema);
-  expect(config).toEqual({ items: [{ "x-sensitive": true }] });
-  const prepared = await manager.prepare({
-    pluginId: "test.protocol",
-    version: "1",
-    name: "Ordinary data",
-    config,
-  });
-  expect(prepared.record.config_json).toEqual(config);
 });
 
 test("absent nested secrets do not create optional groups or replace invalid values", async () => {

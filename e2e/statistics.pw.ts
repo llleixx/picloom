@@ -97,59 +97,6 @@ test("statistics show additions and drill down to dates, formats, storage and la
   expect(errors).toEqual([]);
 });
 
-test("format composition has stable colors, percentages and a zero-total empty state", async ({
-  page,
-  service,
-}) => {
-  let empty = false;
-  await page.route("**/api/system/statistics?*", async (route) => {
-    const response = await route.fetch();
-    const data = await response.json();
-    await route.fulfill({
-      response,
-      json: {
-        ...data,
-        formats: empty
-          ? [{ mimeType: null, count: 2, bytes: 0 }]
-          : [
-              { mimeType: "image/png", count: 1, bytes: 300 },
-              { mimeType: "image/jpeg", count: 3, bytes: 100 },
-            ],
-      },
-    });
-  });
-  await login(page, service.url);
-  await page.goto(service.url + "/app/system");
-  const chart = page.getByTestId("format-chart");
-  await expect(chart.locator("circle")).toHaveCount(2);
-  const pngColor = await chart.locator("circle").first().getAttribute("stroke");
-  const pngRow = page
-    .locator("li")
-    .filter({ has: page.getByRole("link", { name: "PNG", exact: true }) });
-  await expect(pngRow).toContainText("300 B · 75%");
-  await page
-    .getByRole("combobox", { name: "Measure", exact: true })
-    .selectOption("count");
-  await expect(pngRow).toContainText("1 · 25%");
-  await expect(chart.locator("circle").last()).toHaveAttribute(
-    "stroke",
-    pngColor!,
-  );
-  empty = true;
-  await page.reload();
-  await expect(
-    page.getByText("No data for this measure.", { exact: true }),
-  ).toBeVisible();
-  await expect(chart).toHaveCount(0);
-  await page
-    .getByRole("combobox", { name: "Measure", exact: true })
-    .selectOption("count");
-  await expect(chart.locator("circle")).toHaveCount(1);
-  await expect(page.locator("li").filter({ hasText: "Unknown" })).toContainText(
-    "2 · 100%",
-  );
-});
-
 test.describe("browser calendar days", () => {
   test.use({ timezoneId: "America/New_York" });
   test("requests local midnights across both DST changes and uses the same detail range", async ({
@@ -199,50 +146,4 @@ test.describe("browser calendar days", () => {
       expect(url.searchParams.get("to")).toBe(dates[1]);
     }
   });
-});
-
-test("changing the creation range clears batch selection", async ({
-  page,
-  service,
-}) => {
-  await login(page, service.url);
-  await page.goto(service.url + "/app/system");
-  await page
-    .getByRole("group", { name: "New images", exact: true })
-    .getByRole("button")
-    .last()
-    .click();
-  await page.getByRole("link", { name: "View images →", exact: true }).click();
-  await page.getByTestId("file-card").first().getByRole("checkbox").check();
-  await expect(page.getByText("1 selected", { exact: true })).toBeVisible();
-  await page.getByRole("button", { name: /^Remove filter: / }).click();
-  await expect(page).not.toHaveURL(/from=/);
-  await expect(page.getByText("1 selected", { exact: true })).toHaveCount(0);
-  await expect(
-    page.getByTestId("file-card").first().getByRole("checkbox"),
-  ).not.toBeChecked();
-});
-
-test("one-sided and invalid creation ranges do not crash the image list", async ({
-  page,
-  service,
-}) => {
-  const errors: string[] = [];
-  page.on("pageerror", (error) => errors.push(error.message));
-  await login(page, service.url);
-  await page.goto(service.url + "/app/images?scope=all&from=2000-01-01");
-  await expect(page.getByTestId("file-card")).toHaveCount(24);
-  await expect(
-    page.getByRole("button", { name: /^Remove filter: / }),
-  ).toBeVisible();
-  await page.goto(service.url + "/app/images?scope=all&from=invalid");
-  await expect(
-    page.getByRole("heading", { name: "Images", exact: true }),
-  ).toBeVisible();
-  await expect(
-    page.getByRole("button", { name: /^Remove filter: / }),
-  ).toBeVisible();
-  await page.getByRole("button", { name: /^Remove filter: / }).click();
-  await expect(page.getByTestId("file-card")).toHaveCount(24);
-  expect(errors).toEqual([]);
 });

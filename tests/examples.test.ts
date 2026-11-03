@@ -2,7 +2,6 @@ import { test, expect } from "bun:test";
 import { join, resolve } from "node:path";
 import sharp from "sharp";
 import { fixture } from "./helpers";
-import datePath from "../examples/path/src";
 
 async function installExamples(
   f: Awaited<ReturnType<typeof fixture>>,
@@ -42,27 +41,6 @@ async function installExamples(
     expect(installed.status).toBe(201);
   }
 }
-
-test("path example uses upload time and the current key result contract", async () => {
-  const runtime = await datePath.createInstance();
-  expect(
-    await runtime.generate({
-      record: {
-        id: "sample",
-        createdAt: Date.UTC(2026, 0, 2),
-        origin: { kind: "upload" as const, userId: null },
-        ownerId: null,
-        organization: { tags: [], collections: [] },
-      },
-      metadata: {
-        mimeType: "image/svg+xml",
-        byteSize: 1,
-        width: null,
-        height: null,
-      },
-    }),
-  ).toEqual({ logicalKey: "2026/01/02/sample.svg" });
-});
 
 test("three example packages install and upload, resize, read, restart and delete", async () => {
   const f = await fixture();

@@ -126,13 +126,6 @@ export async function selectImageFilter(
   label: string,
   value: string,
 ) {
-  if (label === "Storage Source") {
-    const scope = page.getByRole("combobox", {
-      name: "Image scope",
-      exact: true,
-    });
-    if ((await scope.inputValue()) !== "all") await scope.selectOption("all");
-  }
   await openImageFilters(page);
   await page
     .getByRole("combobox", { name: label, exact: true })

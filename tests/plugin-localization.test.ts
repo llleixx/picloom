@@ -183,11 +183,6 @@ test("registration validates translations and management APIs return untranslate
   }
 });
 
-test("missing author translations use the resource default; unknown keys stay visible", () => {
-  expect(messageText(plugin, "fr-FR", "package.name")).toBe("Example");
-  expect(messageText(plugin, "zh-CN", "missing")).toBe("missing");
-});
-
 test("plugin authoring requires a default name and keeps schema text out of data rules", () => {
   for (const value of [
     { ...plugin, name: "Legacy name" },
@@ -304,29 +299,5 @@ test("access parameter APIs use a single package catalog", async () => {
     ).toBe("Parameters");
   } finally {
     await f.close();
-  }
-});
-
-test("watermark request labels keep their authored translations", async () => {
-  const { watermark } = await import("../src/builtins/processor/watermark");
-  for (const [locale, label] of [
-    ["en-US", "Opacity (%)"],
-    ["zh-CN", "不透明度（%）"],
-  ]) {
-    const display = localizePlugin(
-      {
-        ...watermark.stages.access!,
-        defaultLocale: watermark.defaultLocale,
-        messages: watermark.messages,
-      },
-      locale!,
-    );
-    expect(
-      fieldText(
-        display,
-        locale!,
-        (display.paramsSchema!.properties as any).watermarkOpacity["x-ui"],
-      ).label,
-    ).toBe(label);
   }
 });

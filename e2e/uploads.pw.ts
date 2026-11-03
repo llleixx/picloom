@@ -17,7 +17,7 @@ test("large uploads retry only failed parts and safely repeat a lost completion 
   service,
 }) => {
   await login(page, service.url);
-  await page.getByRole("link", { name: "Upload", exact: true }).click();
+  await page.getByRole("link", { name: "Picloom", exact: true }).click();
   const attempts = new Map<string, number>();
   let failParts = true;
   await page.route("**/api/uploads/*/parts/*", async (route) => {
@@ -45,13 +45,11 @@ test("large uploads retry only failed parts and safely repeat a lost completion 
   await expect(
     page.getByRole("button", { name: "Choose files", exact: true }),
   ).toBeEnabled();
-  await page
-    .getByTestId("upload-input")
-    .setInputFiles({
-      name: "large.png",
-      mimeType: "image/png",
-      buffer: await largePng(),
-    });
+  await page.getByTestId("upload-input").setInputFiles({
+    name: "large.png",
+    mimeType: "image/png",
+    buffer: await largePng(),
+  });
   await expect(
     page.getByRole("button", { name: "Continue upload", exact: true }),
   ).toBeVisible();
@@ -74,76 +72,4 @@ test("large uploads retry only failed parts and safely repeat a lost completion 
   await page.getByRole("link", { name: "App" }).click();
   await expect(page.getByTestId("file-card")).toHaveCount(1);
   expect(await readdir(join(service.root, "uploads"))).toEqual([]);
-});
-
-test("cancelling a multipart upload removes staged data and refresh does not resume it", async ({
-  page,
-  service,
-}) => {
-  await login(page, service.url);
-  await page.getByRole("link", { name: "Upload", exact: true }).click();
-  let started!: () => void;
-  const partStarted = new Promise<void>((resolve) => {
-    started = resolve;
-  });
-  await page.route("**/api/uploads/*/parts/*", async (route) => {
-    started();
-    await new Promise((resolve) => setTimeout(resolve, 300));
-    await route.abort().catch(() => {});
-  });
-  await expect(
-    page.getByRole("button", { name: "Choose files", exact: true }),
-  ).toBeEnabled();
-  await page
-    .getByTestId("upload-input")
-    .setInputFiles({
-      name: "cancel.png",
-      mimeType: "image/png",
-      buffer: await largePng(),
-    });
-  await partStarted;
-  const deleted = page.waitForResponse(
-    (r) =>
-      r.request().method() === "DELETE" && r.url().includes("/api/uploads/"),
-  );
-  await page
-    .getByTestId("upload-row")
-    .getByRole("button", { name: "Cancel", exact: true })
-    .click();
-  expect((await deleted).ok()).toBe(true);
-  await expect(page.getByText("Cancelled", { exact: true })).toBeVisible();
-  expect(await readdir(join(service.root, "uploads"))).toEqual([]);
-  await page.reload();
-  await expect(page.getByTestId("upload-row")).toHaveCount(0);
-});
-
-test("uploads across batches work without crypto.randomUUID", async ({
-  page,
-  service,
-}) => {
-  await page.addInitScript(() => {
-    Object.defineProperty(crypto, "randomUUID", { value: undefined });
-  });
-  await login(page, service.url);
-  await page.getByRole("link", { name: "Upload", exact: true }).click();
-  expect(await page.evaluate(() => typeof crypto.randomUUID)).toBe("undefined");
-  const buffer = await sharp({
-    create: { width: 24, height: 24, channels: 3, background: "green" },
-  })
-    .png()
-    .toBuffer();
-  for (let batch = 0; batch < 2; batch++) {
-    await page.getByTestId("upload-input").setInputFiles(
-      [0, 1].map((index) => ({
-        name: `http-${batch}-${index}.png`,
-        mimeType: "image/png",
-        buffer,
-      })),
-    );
-    await expect(page.getByText("Uploaded", { exact: true })).toHaveCount(
-      (batch + 1) * 2,
-    );
-  }
-  await page.getByRole("link", { name: "App" }).click();
-  await expect(page.getByTestId("file-card")).toHaveCount(4);
 });

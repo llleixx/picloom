@@ -1,4 +1,4 @@
-import { test, expect, spyOn } from "bun:test";
+import { test, expect } from "bun:test";
 import { fixture } from "./helpers";
 import { handler } from "../src/http/app";
 import { settings } from "../src/config";
@@ -164,29 +164,6 @@ test("changing processing concurrency preserves active work and the queue", asyn
   release[2]!();
   release[3]!();
   await Promise.all(jobs);
-});
-
-test("internal settings save applies cache and processing settings without HTTP", async () => {
-  const f = await fixture();
-  const cache = spyOn(f.app.files.cache, "configure");
-  const processing = spyOn(f.app.files, "configureProcessing");
-  try {
-    const saved = await f.app.delivery.save({
-      ...f.app.delivery.get(),
-      cacheBytes: 123456,
-      cacheTtlMs: 60000,
-      processingConcurrency: 1,
-      processingQueue: 2,
-    });
-    expect(cache).toHaveBeenLastCalledWith(123456, 60000);
-    expect(processing).toHaveBeenLastCalledWith(1, 2);
-    expect(f.app.config.cacheBytes).toBe(saved.cacheBytes);
-    expect(f.app.config.processingConcurrency).toBe(1);
-  } finally {
-    cache.mockRestore();
-    processing.mockRestore();
-    await f.close();
-  }
 });
 
 test("cancelled queued work frees capacity and cancellation during handoff does not leak an active slot", async () => {

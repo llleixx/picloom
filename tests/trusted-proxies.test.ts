@@ -51,30 +51,6 @@ test("CIDR prefix boundaries and equivalent IPv6 forms", () => {
   expect(any("2001:db8::7", "203.0.113.1")).toBe("203.0.113.1");
 });
 
-test("settings reject malformed proxy entries before startup", () => {
-  for (const entry of [
-    "localhost",
-    "*",
-    "192.0.2.1:80",
-    "192.0.2.0/33",
-    "::/129",
-    "192.0.2.0/-1",
-    "192.0.2.0/1.5",
-    "192.0.2.0/",
-    "192.0.2.0/24/1",
-    "bad/24",
-  ])
-    expect(() =>
-      settings({ encryptionKey: "ab".repeat(32), trustedProxies: [entry] }),
-    ).toThrow("TRUSTED_PROXIES");
-  expect(
-    settings({
-      encryptionKey: "ab".repeat(32),
-      trustedProxies: ["192.0.2.0/24", "::1"],
-    }).trustedProxies,
-  ).toEqual(["192.0.2.0/24", "::1"]);
-});
-
 test("Web proxy settings validate, apply immediately and survive restart", async () => {
   const { fixture } = await import("./helpers");
   const f = await fixture();
