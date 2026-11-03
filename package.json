@@ -1,6 +1,6 @@
 {
   "name": "picloom",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "private": true,
   "license": "MIT",
   "type": "module",
@@ -40,7 +40,7 @@
     "sharp": "0.34.5",
     "tar": "7.5.11",
     "@picloom/plugin-sdk": "0.3.0",
-    "@picloom/package-rules": "0.1.0"
+    "@picloom/package-rules": "0.1.1"
   },
   "devDependencies": {
     "@playwright/test": "1.64.1",
