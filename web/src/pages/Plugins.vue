@@ -101,6 +101,9 @@ const groups = computed(() =>
 );
 const endpoint = (p: PackageView) =>
   `/api/plugins/${encodeURIComponent(p.id)}/versions/${encodeURIComponent(p.version)}`;
+function loadDiagnostic(value: string | null) {
+  return value === "PLUGIN_LOAD_FAILED" ? "" : (value ?? "");
+}
 async function refresh() {
   await packages.refetch();
   await queryClient.invalidateQueries({ queryKey: ["plugins"] });
@@ -159,8 +162,12 @@ async function install() {
     inspection.value = null;
     await refresh();
     if (result.status === "failed")
-      error.value =
-        t("ui.installedButFailedToLoadRetryOr") + " " + (result.error ?? "");
+      error.value = [
+        t("ui.installedButFailedToLoadRetryOr"),
+        loadDiagnostic(result.error),
+      ]
+        .filter(Boolean)
+        .join(" ");
     else notify({ key: "ui.pluginInstalled" });
   } catch (e) {
     error.value = errorText(e);
@@ -176,7 +183,10 @@ async function reload(p: PackageView) {
       method: "POST",
     });
     await refresh();
-    if (result.error) error.value = t("plugins.loadError") + " " + result.error;
+    if (result.error)
+      error.value = [t("plugins.loadError"), loadDiagnostic(result.error)]
+        .filter(Boolean)
+        .join(" ");
     else notify({ key: "ui.pluginLoaded" });
   } catch (e) {
     error.value = errorText(e);
@@ -496,7 +506,11 @@ async function uninstall() {
             </p>
             <p v-if="details.error" class="text-destructive">
               {{ t("plugins.loadError") }}
-              <span class="block text-xs">{{ details.error }}</span>
+              <span
+                v-if="loadDiagnostic(details.error)"
+                class="block text-xs"
+                >{{ loadDiagnostic(details.error) }}</span
+              >
             </p>
             <p v-if="!details.instances.length">{{ t("ui.notInUse") }}</p>
             <ul v-else class="space-y-2">

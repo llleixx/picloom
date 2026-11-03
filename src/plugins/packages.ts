@@ -76,7 +76,7 @@ export class PluginPackages {
       record.error =
         error instanceof PluginDeclarationError
           ? error.message
-          : "插件加载失败，请检查包内容与接口版本后重试";
+          : "PLUGIN_LOAD_FAILED";
     }
   }
   async list(): Promise<PackageView[]> {
